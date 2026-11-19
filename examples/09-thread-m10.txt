@@ -1,0 +1,16 @@
+# External thread M10 x 1.5, 20 mm long: a 60 degree V profile swept along a helix and subtracted from a cylinder.
+# (Check: the groove removes about 192 mm3 of the 1570.8 mm3 cylinder, area 0.488 mm2 x 2 pi x 4.69 mm x 13.3 turns.)
+# volume: 1378.76
+# bodies: 1
+sketch xy
+circle 0 0 10
+pull-region 0 20
+# the helix starts a little below the cylinder and ends above it (pitch 1.5, height 23)
+helix radius 5 pitch 1.5 height 23 at 0 0 -1.5
+sketch xz
+line 4.08 -1.5 5.3 -0.796
+line 5.3 -0.796 5.3 -2.204
+line 5.3 -2.204 4.08 -1.5
+sweep 0 curve 1 cut
+save examples/models/09-thread-m10.rolidium
+render docs/images/09-thread-m10.png 1200 900 iso

@@ -1,0 +1,10 @@
+# Spring: a circle of diameter 2 swept along a helix (radius 10, pitch 5, 10 turns). The profile keeps its orientation
+# to the axis, so the wire does not twist.
+# volume: 1973.92
+# bodies: 1
+helix radius 10 pitch 5 turns 10
+sketch xz
+circle 10 0 2
+sweep 0 curve 1 new
+save examples/models/08-spring.rolidium
+render docs/images/08-spring.png 1200 900 iso

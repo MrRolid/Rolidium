@@ -1,0 +1,31 @@
+# Flange: a disc with six bolt holes on a circle, a hub, a bore and a chamfered rim.
+# volume: 86804.17
+# bodies: 1
+sketch xy
+circle 0 0 100
+pull-region 0 12
+# six holes, diameter 9, on a circle of diameter 75 (sketch on the top face)
+sketch top
+circle 37.5 0 9
+circle 18.75 32.4760 9
+circle -18.75 32.4760 9
+circle -37.5 0 9
+circle -18.75 -32.4760 9
+circle 18.75 -32.4760 9
+pull-region 0 -12 cut
+pull-region 0 -12 cut
+pull-region 0 -12 cut
+pull-region 0 -12 cut
+pull-region 0 -12 cut
+pull-region 0 -12 cut
+# the hub, diameter 60, 8 mm high, pulled up from the top face
+sketch top
+circle 0 0 60
+pull-region 0 8
+# the bore, diameter 40, through hub and disc
+sketch top
+circle 0 0 40
+pull-region 0 -20 cut
+chamfer 1.5 near 50 0 12
+save examples/models/02-flange.rolidium
+render docs/images/02-flange.png 1200 900 iso

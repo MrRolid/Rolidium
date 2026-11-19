@@ -1,0 +1,19 @@
+# Used to compare rolidium-cli on Linux and (under wine) on Windows. No rendering (needs a GPU).
+box 60 40 20
+pull top 10
+round 4 near 0 0 30
+chamfer 2 near 60 40 30
+sketch top
+circle 30 20 10
+pull-region 0 -30 cut
+sketch xy 50
+circle 30 20 20
+sketch xy 80
+circle 30 20 10
+loft ruled
+info
+save scenario.rolidium
+export-stl scenario.stl
+export-step scenario.step
+open scenario.rolidium
+info

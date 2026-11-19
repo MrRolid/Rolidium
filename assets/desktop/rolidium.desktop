@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Rolidium
+GenericName=Direct modeling CAD
+Comment=Direct modeling CAD/CAM (Alpha)
+Exec=@EXEC@ %f
+Icon=rolidium
+Terminal=false
+Categories=Graphics;Engineering;
+MimeType=application/x-rolidium;
+StartupWMClass=rolidium

@@ -1,0 +1,26 @@
+1 ICON "rolidium.ico"
+
+1 VERSIONINFO
+FILEVERSION @VERSION_COMMA@
+PRODUCTVERSION @VERSION_COMMA@
+FILEOS 0x40004
+FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Rolid spol. s r.o."
+      VALUE "FileDescription", "Rolidium - direct modeling CAD/CAM"
+      VALUE "FileVersion", "@VERSION@"
+      VALUE "LegalCopyright", "Copyright (c) 2026 Rolid spol. s r.o. AGPL-3.0-only"
+      VALUE "OriginalFilename", "rolidium.exe"
+      VALUE "ProductName", "Rolidium"
+      VALUE "ProductVersion", "@VERSION@"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END

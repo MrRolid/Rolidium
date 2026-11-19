@@ -1,0 +1,13 @@
+[package]
+name = "rolidium-cam"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Milling toolpaths and post-processors"
+
+[dependencies]
+rolidium-kernel = { path = "../rolidium-kernel" }
+rolidium-path2d = { path = "../rolidium-path2d" }

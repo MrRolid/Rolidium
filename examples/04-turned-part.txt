@@ -1,0 +1,19 @@
+# Turned part: a stepped shaft with a groove, made by revolving a profile about the Z axis.
+# volume: 57886.99
+# bodies: 1
+sketch xz
+line 0 0 20 0
+line 20 0 20 25
+line 20 25 15 25
+line 15 25 15 40
+line 15 40 12 40
+line 12 40 12 44
+line 12 44 15 44
+line 15 44 15 55
+line 15 55 10 55
+line 10 55 10 75
+line 10 75 0 75
+line 0 75 0 0
+revolve 0 z 360
+save examples/models/04-turned-part.rolidium
+render docs/images/04-turned-part.png 1200 900 iso

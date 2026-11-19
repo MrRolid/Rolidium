@@ -1,0 +1,19 @@
+[package]
+name = "rolidium-render"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "wgpu viewport renderer: faces, edges, grid, ID-buffer picking, offscreen PNG"
+
+[dependencies]
+rolidium-sketch = { path = "../rolidium-sketch" }
+rolidium-kernel = { path = "../rolidium-kernel" }
+glam.workspace = true
+bytemuck.workspace = true
+thiserror.workspace = true
+wgpu = "30"
+pollster = "0.4"
+png = "0.18"

@@ -1,0 +1,29 @@
+[package]
+name = "rolidium-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Headless Rolidium: scripted scenarios, STL export, offscreen PNG render, benchmarks"
+build = "build.rs"
+
+[[bin]]
+name = "rolidium-cli"
+path = "src/main.rs"
+
+[[bin]]
+name = "rolidium-mcp"
+path = "src/mcp_main.rs"
+
+[dependencies]
+rolidium-kernel = { path = "../rolidium-kernel" }
+rolidium-doc = { path = "../rolidium-doc" }
+rolidium-render = { path = "../rolidium-render" }
+glam.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+png = "0.18"

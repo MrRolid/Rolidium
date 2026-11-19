@@ -1,0 +1,66 @@
+name: Bug report
+description: Something does not work as it should, gives a wrong result or crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a problem. Please write in English if you can.
+        Security problems do not belong here: see [SECURITY.md](https://github.com/MrRolid/Rolidium/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Rolidium version
+      description: Shown in the status bar at the bottom of the window, or printed by `rolidium --version`.
+      placeholder: "e.g. 0.2.0 a1b2c3d"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Windows 11 23H2, Ubuntu 24.04 (Wayland), Linux Mint 22"
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: Graphics card and driver
+      description: Important for drawing problems. If you do not know, attach the diagnostics zip below.
+      placeholder: "e.g. AMD Radeon RX 580, Adrenalin 24.9.1 / Intel UHD 620, Mesa 25.0"
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, step by step? A small `.rolidium` file or a `rolidium-cli` script that shows the problem helps a lot.
+      placeholder: |
+        1. Draw a rectangle on XY
+        2. Pull it up by 10 mm
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: What happened instead? Error messages, screenshots and pictures are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        For graphics problems and crashes, please attach the zip from **About > Save diagnostics** (or run `rolidium --diagnose`).
+        It contains the graphics adapters, the program log and small test pictures. Personal paths, your user name and the
+        computer name are replaced before the zip is written. Drag the file into this field.
+    validations:
+      required: false

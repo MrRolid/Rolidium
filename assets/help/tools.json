@@ -1,0 +1,434 @@
+[
+  {
+    "id": "select",
+    "title": "Select",
+    "shortcut": "S",
+    "text": "Click a face, an edge, a sketch shape or a sketch region to select it. Ctrl+click adds to the selection. The object under the cursor is highlighted.",
+    "tips": [
+      "Click empty space to clear the selection.",
+      "A small panel appears next to the selection: sizes of holes, pins, rounds and sketch shapes, and Move by for flat faces."
+    ],
+    "illustration": "select.svg",
+    "animation": null
+  },
+  {
+    "id": "pull",
+    "title": "Pull",
+    "shortcut": "P",
+    "text": "Drag a flat face or a sketch region along its normal: out adds material, in removes it. Drag a selected edge to round it. Type a number to enter an exact value, Enter applies, Esc cancels.",
+    "tips": [
+      "The distance snaps to other faces and vertices (also of other bodies) and otherwise to the grid. Hold Shift while dragging to turn snapping off.",
+      "U (Up to) pulls the selected face to a face, edge, vertex or point you click.",
+      "The panel's Mode forces Add or Cut whichever way you pull."
+    ],
+    "illustration": "pull.svg",
+    "animation": null
+  },
+  {
+    "id": "sketch",
+    "title": "Sketch",
+    "shortcut": "K",
+    "text": "Starts a sketch on the selected flat face, or on the base plane (XY) if no flat face is selected. Draw with Line, Rectangle and Circle, then leave with D or P.",
+    "tips": [
+      "Closed shapes get a light fill: that is what Pull can extrude.",
+      "Snapping markers show what the cursor is attached to, also points of 3D features: hover a vertex, an edge midpoint or a circle centre of a body and the point is projected into the sketch plane (a thin line shows where it comes from).",
+      "Dotted guides show alignment with other points, extensions of lines and edges, and crossings; a placed point can be typed as two distances from a reference (Tab).",
+      "K without a selected face asks for the plane: XY, XZ or YZ."
+    ],
+    "illustration": "sketch.svg",
+    "animation": null
+  },
+  {
+    "id": "line",
+    "title": "Line",
+    "shortcut": "L",
+    "text": "Click the start point, then the end point. The next line starts where the last one ended. Type a length and an angle if you want exact values.",
+    "tips": [
+      "Tab switches between the length and angle fields.",
+      "Esc or a right click stops drawing.",
+      "A line snaps parallel or perpendicular to existing lines and edges (marked on screen)."
+    ],
+    "illustration": "line.svg",
+    "animation": null
+  },
+  {
+    "id": "rect",
+    "title": "Rectangle",
+    "shortcut": "R",
+    "text": "Click one corner, then the opposite corner. Type width and height for exact sizes, Tab switches the field, Enter confirms.",
+    "tips": [
+      "Rectangles are always parallel to the sketch axes.",
+      "Before the first corner is placed, Tab opens two fields with the distances from the marked reference point; type them and press Enter to place the corner exactly."
+    ],
+    "illustration": "rect.svg",
+    "animation": null
+  },
+  {
+    "id": "circle",
+    "title": "Circle",
+    "shortcut": "C",
+    "text": "Click the centre, then a point on the circle. Or type the diameter and press Enter.",
+    "tips": [
+      "Snap to a circle's centre to draw concentric circles.",
+      "A hole 5 mm from a corner: put the cursor on the corner (it becomes the reference), press Tab, type 5, Tab, 5 and Enter.",
+      "On a rectangular face weak helper points show the mirrored positions of an existing centre."
+    ],
+    "illustration": "circle.svg",
+    "animation": null
+  },
+  {
+    "id": "plan_view",
+    "title": "Plan view",
+    "shortcut": "V",
+    "text": "Turns the view straight onto the sketch plane so you can draw without perspective distortion.",
+    "tips": [
+      "Mouse wheel zooms towards the cursor."
+    ],
+    "illustration": "plan_view.svg",
+    "animation": null
+  },
+  {
+    "id": "mode_3d",
+    "title": "3D mode",
+    "shortcut": "D",
+    "text": "Leaves the sketch and returns to normal 3D work. P does the same and switches to Pull.",
+    "tips": [],
+    "illustration": "mode_3d.svg",
+    "animation": null
+  },
+  {
+    "id": "undo",
+    "title": "Undo",
+    "shortcut": "Ctrl+Z",
+    "text": "Takes back the last change: a drawn shape, a pull, a rounding. There is no limit on the number of steps.",
+    "tips": [],
+    "illustration": "undo.svg",
+    "animation": null
+  },
+  {
+    "id": "redo",
+    "title": "Redo",
+    "shortcut": "Ctrl+Y",
+    "text": "Re-applies a change that was undone. Making a new change clears the redo steps.",
+    "tips": [],
+    "illustration": "redo.svg",
+    "animation": null
+  },
+  {
+    "id": "view_top",
+    "title": "Top view",
+    "shortcut": "",
+    "text": "Looks at the model from above.",
+    "tips": [],
+    "illustration": "view_top.svg",
+    "animation": null
+  },
+  {
+    "id": "view_front",
+    "title": "Front view",
+    "shortcut": "",
+    "text": "Looks at the model from the front.",
+    "tips": [],
+    "illustration": "view_front.svg",
+    "animation": null
+  },
+  {
+    "id": "view_right",
+    "title": "Right view",
+    "shortcut": "",
+    "text": "Looks at the model from the right side.",
+    "tips": [],
+    "illustration": "view_right.svg",
+    "animation": null
+  },
+  {
+    "id": "view_iso",
+    "title": "Isometric view",
+    "shortcut": "",
+    "text": "A three-quarter view showing top, front and right at once.",
+    "tips": [],
+    "illustration": "view_iso.svg",
+    "animation": null
+  },
+  {
+    "id": "fit_all",
+    "title": "Fit all",
+    "shortcut": "",
+    "text": "Zooms so that everything in the scene is visible.",
+    "tips": [],
+    "illustration": "fit_all.svg",
+    "animation": null
+  },
+  {
+    "id": "export_stl",
+    "title": "Export STL",
+    "shortcut": "",
+    "text": "Opens the export dialog: choose where to save and how fine the triangles should be. The dialog shows the resulting number of triangles and file size.",
+    "tips": [
+      "Binary STL is much smaller than ASCII.",
+      "Finer settings give smoother circles and larger files."
+    ],
+    "illustration": "export_stl.svg",
+    "animation": null
+  },
+  {
+    "id": "file_new",
+    "title": "New",
+    "shortcut": "Ctrl+N",
+    "text": "Starts an empty document. If there are unsaved changes you are asked first.",
+    "tips": [],
+    "illustration": "file_new.svg",
+    "animation": null
+  },
+  {
+    "id": "file_open",
+    "title": "Open",
+    "shortcut": "Ctrl+O",
+    "text": "Opens a saved .rolidium document. Rounds and chamfers can still be edited afterwards. The undo history is not saved.",
+    "tips": [
+      "A file can also be opened with: rolidium file.rolidium",
+      "Recent files are listed under the File buttons."
+    ],
+    "illustration": "file_open.svg",
+    "animation": null
+  },
+  {
+    "id": "file_save",
+    "title": "Save",
+    "shortcut": "Ctrl+S",
+    "text": "Saves the document. The previous version stays next to it as a .bak file. Saving is atomic: if it is interrupted the old file is untouched.",
+    "tips": [
+      "The window title shows * when there are unsaved changes.",
+      "Unsaved work is also saved automatically every few minutes (see Settings)."
+    ],
+    "illustration": "file_save.svg",
+    "animation": null
+  },
+  {
+    "id": "file_save_as",
+    "title": "Save As",
+    "shortcut": "Ctrl+Shift+S",
+    "text": "Saves the document under a new name.",
+    "tips": [],
+    "illustration": "file_save_as.svg",
+    "animation": null
+  },
+  {
+    "id": "import_step",
+    "title": "Import STEP",
+    "shortcut": "",
+    "text": "Adds the solids of a STEP file to the document as new bodies. Anything that is not a valid solid is skipped and reported.",
+    "tips": [],
+    "illustration": "import_step.svg",
+    "animation": null
+  },
+  {
+    "id": "export_step",
+    "title": "Export STEP",
+    "shortcut": "",
+    "text": "Writes all visible bodies into one STEP file.",
+    "tips": [],
+    "illustration": "export_step.svg",
+    "animation": null
+  },
+  {
+    "id": "move",
+    "title": "Move",
+    "shortcut": "M",
+    "text": "Select bodies (click, Ctrl+click for more, or in the tree) and drag an arrow to move along an axis or a ring to rotate about it. Type a number and press Enter for an exact value. The panel has X, Y, Z, an angle and Copy.",
+    "tips": [
+      "Moving snaps to the grid step; hold Shift to move freely.",
+      "Sketches drawn on a body move with it; rounds and chamfers stay editable."
+    ],
+    "illustration": "move.svg",
+    "animation": null
+  },
+  {
+    "id": "revolve",
+    "title": "Revolve",
+    "shortcut": "",
+    "text": "Turns a sketch region or a flat face around an axis: press Revolve in the panel, click the axis (a sketch line, a straight edge or a coordinate axis), then drag for the angle or type it. 360 makes a full turn.",
+    "tips": [
+      "The axis must lie in the plane of the profile and may touch it but not cut through it.",
+      "Mode Cut makes grooves, Add and Auto add material."
+    ],
+    "illustration": "revolve.svg",
+    "animation": null
+  },
+  {
+    "id": "eye_on",
+    "title": "Visibility",
+    "shortcut": "",
+    "text": "The eye in the document tree hides or shows a body or a sketch. Hidden objects cannot be selected and are not exported.",
+    "tips": [],
+    "illustration": "eye_on.svg",
+    "animation": null
+  },
+  {
+    "id": "eye_off",
+    "title": "Hidden",
+    "shortcut": "",
+    "text": "This object is hidden. Click the eye to show it again.",
+    "tips": [],
+    "illustration": "eye_off.svg",
+    "animation": null
+  },
+  {
+    "id": "arc",
+    "title": "Arc",
+    "shortcut": "A",
+    "text": "Click the start point, the end point, then a point on the arc. Type a radius after the end point and press Enter for an exact arc.",
+    "tips": [
+      "If the start lies at the end of a line or an arc, the arc can continue it tangentially (marked on screen).",
+      "After an arc the next one continues from its end; Esc stops."
+    ],
+    "illustration": "arc.svg",
+    "animation": null
+  },
+  {
+    "id": "combine",
+    "title": "Combine",
+    "shortcut": "I",
+    "text": "Click the target body, then one or more other bodies. Choose Merge, Cut (subtract the others from the target) or Intersect, optionally keep the tool bodies, and press Apply or Enter.",
+    "tips": [
+      "Target and tools are highlighted in different colours.",
+      "A cut that splits the target makes separate bodies."
+    ],
+    "illustration": "combine.svg",
+    "animation": null
+  },
+  {
+    "id": "donate",
+    "title": "Support development",
+    "shortcut": "",
+    "text": "Opens the About window at the section with a Bitcoin address and its QR code. Nothing is sent anywhere and there are no reminders.",
+    "tips": [],
+    "illustration": "donate.svg",
+    "animation": null
+  },
+  {
+    "id": "about",
+    "title": "About",
+    "shortcut": "",
+    "text": "Name, version and build of this program, and how to support its development.",
+    "tips": [],
+    "illustration": "about.svg",
+    "animation": null
+  },
+  {
+    "id": "loft",
+    "title": "Loft",
+    "shortcut": "L",
+    "text": "Click two or more profiles (sketch regions or flat faces of a body) in the order they should be joined. Choose Ruled (straight lines between profiles) or Smooth, and New body, Add or Cut, then Apply or Enter. A translucent preview shows the result.",
+    "tips": [
+      "Profiles with holes (rings) are joined with their holes; all profiles must have the same number of holes.",
+      "Use the Offset field of the sketch to draw profiles on planes at different heights.",
+      "A ruled loft between two coaxial circles is a real cone."
+    ],
+    "illustration": "loft.svg",
+    "animation": null
+  },
+  {
+    "id": "helix",
+    "title": "Helix",
+    "shortcut": "H",
+    "text": "Makes a helix curve around an axis. Click the axis: a cylindrical face (its diameter is filled in), a straight edge or a sketch line, or a point for a vertical axis. Then set the diameter, the pitch, the height or the number of turns (one follows from the other), the direction and optionally a start angle and a cone angle. The helix is drawn as you type; Create makes it a Curve in the document tree.",
+    "tips": [
+      "A helix is the path for a thread or a spring: use it with Sweep.",
+      "A cone angle makes a tapered helix."
+    ],
+    "illustration": "helix.svg",
+    "animation": null
+  },
+  {
+    "id": "sweep",
+    "title": "Sweep",
+    "shortcut": "W",
+    "text": "Pulls a profile along a path. Click the profile (a sketch region, also with a hole for a pipe, or a flat face), then the path: a Curve, a chain of sketch lines and arcs, or a chain of edges. One click takes the whole chain that continues. Choose Auto, New body, Add or Cut; the corners of the path can be sharp or rounded.",
+    "tips": [
+      "Along a helix the profile keeps its orientation to the axis, so a thread comes out right.",
+      "If the path turns more sharply than the profile allows, nothing is changed and a message says so."
+    ],
+    "illustration": "sweep.svg",
+    "animation": null
+  },
+  {
+    "id": "finish",
+    "title": "Finish sketch",
+    "shortcut": "K",
+    "text": "Leaves the sketch and returns to the view you had before it. The shapes you drew stay in the document as a sketch. K, D and P do the same.",
+    "tips": [
+      "The view turns back by itself (the setting 'Turn the view square to the sketch automatically' switches this off)."
+    ],
+    "illustration": "finish.svg",
+    "animation": null
+  },
+  {
+    "id": "measure",
+    "title": "Measure",
+    "shortcut": "E",
+    "text": "Click two elements: a vertex, a point of a sketch line or a curve, an edge or a face. The distance appears in the view as a dimension line, with its X, Y and Z parts in a panel; two flat faces or straight edges also give their angle, two parallel faces their distance and two cylindrical faces the distance of their axes. After the first click the Selection panel shows that element alone (length, area, diameter).",
+    "tips": [
+      "Click a value in the panel to copy it. Several measurements can stay on the screen; Esc clears them.",
+      "Measurements are temporary and are not saved in the file."
+    ],
+    "illustration": "measure.svg",
+    "animation": null
+  },
+  {
+    "id": "line3d",
+    "title": "3D line",
+    "shortcut": "",
+    "text": "Switch on 3D in the toolbar next to the Line tool: the points are no longer tied to the sketch plane. They snap to vertices, edge midpoints, circle centres and points of sketches and curves. X, Y or Z locks a direction and a typed length sets the segment; a corner radius rounds the corners (the path of a bent tube). Enter or a double click finishes the line as a Curve.",
+    "tips": [
+      "Without a snap and without a locked direction the point lies in the current sketch plane.",
+      "Use the curve as the path of a Sweep."
+    ],
+    "illustration": "line3d.svg",
+    "animation": null
+  },
+  {
+    "id": "sketch_plane",
+    "title": "Move sketch plane",
+    "shortcut": "",
+    "text": "Shows an arrow on the sketch plane. Drag it to move the plane (steps of the grid; Shift: free), or type a distance and press Enter, or press U and click a vertex or a face to bring the plane there. If the sketch already has shapes, a new sketch is started on the moved plane and the old one stays.",
+    "tips": [
+      "The Offset field next to this button shows the current distance and can be typed into.",
+      "It is not available while a shape is being drawn: finish or cancel the shape first."
+    ],
+    "illustration": "sketch_plane.svg",
+    "animation": null
+  },
+  {
+    "id": "settings",
+    "title": "Settings",
+    "shortcut": "",
+    "text": "Opens the settings: language, and the soft tone played when an operation fails.",
+    "tips": [
+      "Language changes at once, no restart needed.",
+      "Other languages are plain text files in the lang folder that you can edit."
+    ],
+    "illustration": "settings.svg",
+    "animation": null
+  },
+  {
+    "id": "round",
+    "title": "Round",
+    "shortcut": "",
+    "text": "Rounds the selected edges. Select an edge, choose Round in the panel, then drag with the Pull tool or type the radius. Click a finished round to change its radius; 0 brings the sharp edge back.",
+    "tips": [
+      "If the radius is too large, nothing changes and you get a message."
+    ],
+    "illustration": "round.svg",
+    "animation": null
+  },
+  {
+    "id": "chamfer",
+    "title": "Chamfer",
+    "shortcut": "",
+    "text": "Cuts the selected edges at an angle. Select an edge, choose Chamfer in the panel, then drag or type the distance. Click a finished chamfer to change its distance; 0 brings the sharp edge back.",
+    "tips": [],
+    "illustration": "chamfer.svg",
+    "animation": null
+  }
+]

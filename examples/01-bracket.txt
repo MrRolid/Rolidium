@@ -1,0 +1,35 @@
+# L-bracket: a plate with a wall, four mounting holes in the plate, two in the wall, rounded bends.
+# volume: 18519.82
+# bodies: 1
+sketch xz
+line 0 0 60 0
+line 60 0 60 5
+line 60 5 5 5
+line 5 5 5 45
+line 5 45 0 45
+line 0 45 0 0
+pull-region 0 40
+# The profile is on the XZ plane, whose normal is -Y, so the part grows toward -Y (Y from 0 to -40).
+# The holes are cut with cylinders: drawn on a plane just outside the part, pulled through it, then subtracted.
+# Four holes, diameter 6, through the plate:
+sketch xy -1
+circle 20 -10 6
+circle 20 -30 6
+circle 45 -10 6
+circle 45 -30 6
+pull-region 0 7
+pull-region 0 7
+pull-region 0 7
+pull-region 0 7
+# two holes, diameter 8, through the wall (plane YZ, hole centres 28 mm above the bottom):
+sketch yz -1
+circle -10 28 8
+circle -30 28 8
+pull-region 0 7
+pull-region 0 7
+combine cut 1 2 3 4 5 6 7
+# the inside bend gets radius 4, the outside bend radius 8
+round 4 near 5 -20 5
+round 8 near 0 -20 0
+save examples/models/01-bracket.rolidium
+render docs/images/01-bracket.png 1200 900 iso

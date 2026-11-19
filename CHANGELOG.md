@@ -1,0 +1,163 @@
+# Changelog
+
+All notable changes to Rolidium are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
+version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor version may break things).
+
+Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
+features is visible. 0.2.0 is the first public release.
+
+## [0.2.0] - unreleased
+
+### Added
+- One program with three modes (window, `cli`, `mcp`) instead of three programs: one copy of the geometry kernel in the package, so the
+  package is much smaller. `rolidium mcp-config` prints ready-made commands to connect the MCP server to a client.
+
+### Fixed
+- Windows: the program crashed at every start on a machine whose Intel integrated-graphics Vulkan driver (`igvk64.dll` 31.0.101.2137)
+  fails when loaded. `auto` now tries DirectX 12 first with a real graphics card, then Vulkan, then OpenGL, software last, each backend
+  in an instance of its own, so Vulkan is not loaded while DirectX 12 works. A marker file guards the start: when a start did not get
+  through, the next start skips that backend, remembers it (settings, with adapter and driver) and says so once; `auto` in the settings
+  forgets it. If nothing works, a message box says what to do. Every graphics step is logged and flushed to the disk, an unhandled
+  exception is logged, and the diagnostics and the render part of the self test examine every backend in a child process with a time limit.
+
+### Changed
+- The minimum Rust version for building is 1.89 (file locks of the start-up safeguard).
+- The Linux package shrank from 58 to 28 MB and the Windows package from 70 to 25 MB: one copy of the geometry kernel instead of three, and
+  symbols are stripped from release builds. On Windows the program is a window program without a console box.
+- Public release preparation: licensed under AGPL-3.0-only (LICENSE, SPDX headers in all sources), third-party licences shipped as
+  `THIRD-PARTY-LICENSES.txt`, About window with licence, source and issue links, published by Rolid spol. s r.o.
+- Documentation for the public: README, BUILDING, CONTRIBUTING, SECURITY, TRADEMARKS, issue forms, this changelog.
+
+## [0.1.13] - 2026-11-19
+
+### Added
+- `rolidium-mcp`: an MCP server (JSON-RPC over stdio) so that AI assistants can build, inspect, export and render models without a window;
+  files only under `--root`, no network, a time limit per operation, its own software renderer.
+- Whole-body highlight in Move and Combine, double click takes a body, smooth (tangent) edges drawn faintly, cycling through
+  candidates when picking a sweep path.
+
+### Changed
+- The traffic-light indication of button availability is the only style (the greyed-out variant is removed); the view cannot zoom
+  closer than 20 mm.
+
+### Fixed
+- Combine could lose a swept body (a spring merged with the cylinder it winds on). Every boolean result is now verified against an
+  independent volume calculation, other ways are tried, and a result that does not add up is refused with the model unchanged.
+  Helix paths are built in pieces of at most half a turn.
+
+## [0.1.12] - 2026-11-19
+
+### Added
+- The view turns square to the sketch plane (animated, can be switched off) and back after the sketch; the same animation for the view
+  buttons, Fit all and Plan view.
+- Traffic-light indication of whether a button can be used now (the greyed-out style stays as a setting).
+- Sketch is the main button and becomes "Finish sketch"; a hint in an empty document.
+- Measure: Ctrl+click takes a point (middle of an edge, centre of a circle).
+- `rolidium-cli times` and stage timings in the log.
+
+### Changed
+- Faster volume, display mesh and validity check.
+
+## [0.1.11] - 2026-11-19
+
+### Added
+- Measure tool (E): distances with X, Y, Z parts, angles, parallel faces, cylinder axes, with dimension lines in the view.
+- Mass and material of a body in the Selection panel; CLI `measure`, `material`, `mass`.
+- Long calculations can be cancelled (Cancel button or Esc); the model stays exactly as it was.
+
+### Fixed
+- The tangent sketch plane on a curved face when Sketch was started without a selection.
+- A click near the outline of a region picks the region in region tools.
+
+## [0.1.10] - 2026-11-19
+
+### Added
+- 3D line with snapping to 3D points, axis locks, typed lengths and corner radius.
+- Helix tool (axis from a cylindrical face, an edge, a line or a point; pitch, height or turns, handedness, start and cone angle).
+- Sweep tool (paths: curves, sketch chains, edge chains; Add / Cut / New body; sharp or rounded corners; checked results).
+- CLI `curve`, `helix`, `curves`, `sweep`; examples: bent tube, spring, M10 thread.
+- Shortcut letters on the toolbar buttons; plane names and a hover preview of the sketch plane; tangent plane on a curved face.
+- Properties in the Selection panel (click copies a value).
+
+### Fixed
+- The normal of faces with a left-handed placement (a sketch on a slanted chamfer face pulled the wrong way).
+
+## [0.1.9] - 2026-11-19
+
+### Added
+- Dark theme (Dark / Light / Follow the system), toolbar above the view, draggable panels with a leader line.
+- German, Spanish, French and Japanese interface (machine translated), Noto Sans JP fallback font.
+- Graphics diagnostics: backend choice, `--diagnose` and About > Save diagnostics, off-screen scene check in `--selftest`.
+- Rounds and chamfers on whole smooth edge chains, with every result checked.
+
+### Changed
+- The grid reaches the horizon with coarser levels; shader changes against missing grid, axes and sketches on some Windows drivers.
+- New application icon.
+
+## [0.1.8] - 2026-11-18
+
+### Added
+- Move sketch plane (drag, typed distance, up to a vertex or face); loft from profiles selected beforehand.
+- New file dialog: places, mounted disks and network volumes, folder tree, sortable columns, typed path with completion, filter.
+- Application icon, desktop entry, Windows icon; example scripts with volume checks in the tests.
+- Windows build (cross-compiled with mingw-w64).
+
+## [0.1.7] - 2026-11-18
+
+### Added
+- Loft tool: sketch regions or flat faces, ruled or smooth, New body / Add / Cut, translucent preview; CLI `loft`.
+
+### Fixed
+- Angled chamfer preview, sketch plane offset for planes that already hold a sketch.
+
+## [0.1.6] - 2026-11-18
+
+### Added
+- Combine tool: merge, cut, intersect, keep tools, split into pieces.
+- Arc tool (three points, typed radius, tangent continuation), regions with arcs.
+- Sketch plane offset; angled chamfer (distance and angle, flip); About window with the Support development section.
+
+## [0.1.5] - 2026-11-18
+
+### Added
+- Sketch snapping to 3D features with dotted guides and reference distances; context menu; hide and show; rename.
+- Move tool with arrows and rings, copy; base planes XY / XZ / YZ; Revolve.
+- Rounds next to existing rounds.
+
+## [0.1.4] - 2026-11-18
+
+### Added
+- `.rolidium` file format, New / Open / Save / Save As, recent files, autosave and recovery after a crash, atomic saving.
+- STEP import and export.
+- Rounds and chamfers of inner (concave) edges.
+
+## [0.1.3] - 2026-11-18
+
+### Added
+- A region pulled beside a body becomes a new body; multiple selection with Ctrl and Shift; tangent chains highlighted.
+
+### Changed
+- Grid lines fade out when they get too dense; Shift (not Alt) switches snapping off while dragging.
+
+## [0.1.2] - 2026-11-18
+
+### Added
+- Editing finished rounds and chamfers (new size, or back to the sharp edge).
+- Face panel with Move by, distance to the opposite face, mode and Up to; snapping while dragging; grid control.
+- Translations as text files (Czech first), Settings window, error tone, icons.
+
+## [0.1.1] - 2026-11-18
+
+### Added
+- Version and build hash in the status bar and `--version`; STL export dialog with fineness presets and a size estimate.
+- Edge hover and selection, Round and Chamfer with a background preview; size panel for sketch shapes and holes; icons and help cards.
+
+## [0.0.0] - 2026-11-18
+
+### Added
+- Workspace on Rust, Open CASCADE 8.0.1 (own C++ bridge, statically linked), egui and wgpu.
+- Viewport with orbit, pan and zoom, grid and axes, ID-buffer picking; Pull tool with preview and typed distance; undo and redo.
+- Headless CLI with STL export and off-screen rendering; benchmarks and tests.
+- Sketch mode: lines, rectangles, circles, typed dimensions, snapping, automatic region detection, Pull from sketch regions.
+
+[0.2.0]: https://github.com/MrRolid/Rolidium/releases/tag/v0.2.0

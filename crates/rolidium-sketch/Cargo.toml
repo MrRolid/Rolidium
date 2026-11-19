@@ -1,0 +1,15 @@
+[package]
+name = "rolidium-sketch"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "2D sketch entities and closed-region detection"
+
+[dependencies]
+rolidium-path2d = { path = "../rolidium-path2d" }
+glam.workspace = true
+thiserror.workspace = true
+earcutr = "0.5"

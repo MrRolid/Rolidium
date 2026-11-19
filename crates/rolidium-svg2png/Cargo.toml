@@ -1,0 +1,12 @@
+[package]
+name = "rolidium-svg2png"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Development tool: renders an SVG file to a PNG of a given size (used by scripts/gen_appicon.py)"
+
+[dependencies]
+resvg = { version = "0.45", default-features = false }

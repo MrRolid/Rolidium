@@ -1,0 +1,25 @@
+# Slotted plate: rounded corners, a slot with round ends (two arcs and two lines) and four mounting holes.
+# volume: 41227.40
+# bodies: 1
+box 100 60 8
+round 8 near 0 0 4
+round 8 near 100 0 4
+round 8 near 0 60 4
+round 8 near 100 60 4
+sketch top
+line 20 35 80 35
+arc 80 35 85 30 80 25
+line 80 25 20 25
+arc 20 25 15 30 20 35
+pull-region 0 -8 cut
+sketch top
+circle 12 12 6
+circle 88 12 6
+circle 12 48 6
+circle 88 48 6
+pull-region 0 -8 cut
+pull-region 0 -8 cut
+pull-region 0 -8 cut
+pull-region 0 -8 cut
+save examples/models/06-slotted-plate.rolidium
+render docs/images/06-slotted-plate.png 1200 900 iso

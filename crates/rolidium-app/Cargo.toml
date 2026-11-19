@@ -1,0 +1,33 @@
+[package]
+name = "rolidium-app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Rolidium desktop application"
+build = "build.rs"
+
+[[bin]]
+name = "rolidium"
+path = "src/main.rs"
+
+[dependencies]
+rolidium-kernel = { path = "../rolidium-kernel" }
+rolidium-doc = { path = "../rolidium-doc" }
+rolidium-render = { path = "../rolidium-render" }
+rolidium-cli = { path = "../rolidium-cli" }
+glam.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "wayland", "default_fonts"] }
+egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zip.workspace = true
+qrcode = { version = "0.14", default-features = false }
+jiff = "0.2"
+sys-locale = "0.3"
+
+[dev-dependencies]
+rqrr = "0.9"
+serde_json.workspace = true

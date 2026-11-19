@@ -1,0 +1,25 @@
+Third-party licences of Rolidium {{#if false}}{{/if}}
+================================================
+
+Rolidium itself is licensed under AGPL-3.0-only (see LICENSE). It contains the following
+third-party components. Each is used under the licence named below.
+
+PART 1. Open CASCADE Technology (geometry kernel)
+PART 2. Fonts
+PART 3. Rust libraries
+
+{{#each overview}}
+* {{{name}}} ({{count}} packages)
+{{/each}}
+
+{{#each licenses}}
+------------------------------------------------------------------------
+{{{name}}}
+
+Used by:
+{{#each used_by}}
+  - {{crate.name}} {{crate.version}}{{#if crate.repository}} ({{crate.repository}}){{/if}}
+{{/each}}
+
+{{{text}}}
+{{/each}}

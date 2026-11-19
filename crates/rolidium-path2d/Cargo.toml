@@ -1,0 +1,13 @@
+[package]
+name = "rolidium-path2d"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "2D geometry for manufacturing (contours, offsets, G-code, SVG/DXF)"
+
+[dependencies]
+glam.workspace = true
+

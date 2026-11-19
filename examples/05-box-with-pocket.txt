@@ -1,0 +1,13 @@
+# Box with a pocket: the top edges are chamfered, then a rectangular pocket is cut into the top.
+# volume: 83490.67
+# bodies: 1
+box 80 50 30
+chamfer 2 near 40 0 30
+chamfer 2 near 40 50 30
+chamfer 2 near 0 25 30
+chamfer 2 near 80 25 30
+sketch top
+rect 10 10 70 40
+pull-region 0 -20 cut
+save examples/models/05-box-with-pocket.rolidium
+render docs/images/05-box-with-pocket.png 1200 900 iso

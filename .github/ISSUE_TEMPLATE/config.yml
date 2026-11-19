@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/MrRolid/Rolidium/blob/main/SECURITY.md
+    about: Please do not report security problems in a public issue. Follow SECURITY.md to report them confidentially.

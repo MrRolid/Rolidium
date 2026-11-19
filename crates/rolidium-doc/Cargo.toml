@@ -1,0 +1,17 @@
+[package]
+name = "rolidium-doc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Document model: bodies, commands, undo/redo"
+
+[dependencies]
+rolidium-kernel = { path = "../rolidium-kernel" }
+rolidium-sketch = { path = "../rolidium-sketch" }
+thiserror.workspace = true
+serde_json.workspace = true
+zip.workspace = true
+glam.workspace = true

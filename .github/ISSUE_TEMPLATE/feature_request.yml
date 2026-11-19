@@ -1,0 +1,33 @@
+name: Idea or feature request
+description: Suggest a new tool, an improvement or a better wording.
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the suggestion. Please check the [roadmap](https://github.com/MrRolid/Rolidium/blob/main/docs/ROADMAP.md) and the
+        existing issues first.
+
+        Ideas, descriptions and text fixes sent here may be used by Rolid spol. s r.o. without restriction, also in commercial versions
+        of Rolidium (see [CONTRIBUTING.md](https://github.com/MrRolid/Rolidium/blob/main/CONTRIBUTING.md)).
+  - type: textarea
+    id: task
+    attributes:
+      label: What do you want to do?
+      description: Describe the task or the part you are working on, not only the button you are missing.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How could Rolidium help?
+      description: How would you expect it to work? Sketches, pictures or examples from other programs are welcome.
+    validations:
+      required: false
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you do it today?
+      description: A workaround in Rolidium or another program, if there is one.
+    validations:
+      required: false

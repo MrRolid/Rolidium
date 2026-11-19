@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.2.0"
+
+edition = "2021"
+authors = ["Rolid spol. s r.o. <connect@rolid.com>"]
+license = "AGPL-3.0-only"
+repository = "https://github.com/MrRolid/Rolidium"
+rust-version = "1.89"
+publish = false
+
+[workspace.dependencies]
+glam = "0.34"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+bytemuck = { version = "1", features = ["derive"] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+debug = false
+panic = "unwind"
+strip = "symbols"

@@ -1,0 +1,17 @@
+# Funnel: a ruled loft between two rings (wall 2 mm), then a short pipe on top.
+# volume: 8105.31
+# bodies: 1
+sketch xy
+circle 0 0 40
+circle 0 0 36
+sketch xy 30
+circle 0 0 20
+circle 0 0 16
+loft ruled
+# the pipe: a ring drawn on the narrow end and pulled up
+sketch top
+circle 0 0 20
+circle 0 0 16
+pull-region 0 25
+save examples/models/03-funnel.rolidium
+render docs/images/03-funnel.png 1200 900 iso

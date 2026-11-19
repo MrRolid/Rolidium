@@ -1,0 +1,7 @@
+/target
+*.swp
+/dist
+__pycache__/
+*.bak
+*.rolidium.bak
+/.claude/

@@ -1,0 +1,10 @@
+# Bent hollow tube: a ring (outer diameter 20, inner 16) swept along a curve made of a line, an arc and a line.
+# volume: 20677.80
+# bodies: 1
+curve radius 40 0 0 0 100 0 0 100 100 0
+sketch yz
+circle 0 0 20
+circle 0 0 16
+sweep 0 curve 1 new
+save examples/models/07-bent-tube.rolidium
+render docs/images/07-bent-tube.png 1200 900 iso
