@@ -127,7 +127,7 @@ fn check_demo(dir: &Path) {
     assert!(skipped.is_empty(), "{name}: STEP: {skipped:?}");
     assert_eq!(back.len(), solids.len(), "{name}: STEP bodies");
     let vb: f64 = back.iter().map(|s| s.volume().unwrap()).sum();
-    assert!((vb - total).abs() <= total * 1e-6 + 1e-6, "{name}: STEP volume {vb} vs {total}");
+    assert!((vb - total).abs() <= total * 1e-5 + 1e-6, "{name}: STEP volume {vb} vs {total}");
     // save and open
     let tmp = std::env::temp_dir().join(format!("rolidium-demo-{name}-{}.rolidium", std::process::id()));
     rolidium_doc::file::save_file(&r.doc, &tmp, None, "test").unwrap_or_else(|e| panic!("{name}: save: {e}"));

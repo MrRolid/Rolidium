@@ -1,0 +1,14 @@
+# a half (x > 0) of every body cut away: the cut face is seen from the right. Balls that lie wholly in the removed half are deleted.
+box 80 60 80
+move 0 -30 -10 body 11
+combine cut 10 11 keep
+combine cut 1 11 keep
+combine cut 2 11 keep
+combine cut 6 11 keep
+combine cut 9 11 keep
+delete body 11
+delete body 5
+delete body 4
+delete body 3
+save @OUT@/@NAME@-section.rolidium
+render @OUT@/@NAME@-detail.png 1920 1080 right
