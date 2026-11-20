@@ -362,6 +362,34 @@ Give the edge ids from describe_model or select_geometry, or a point near the ed
         "",
     ),
     c(
+        "fill",
+        "fill_loop",
+        "Fill: find the closed flat loop of edges that the given edge belongs to (the edge of a hole, the inner circle of a pipe) and make a sketch region of it on the loop's plane, with the exact geometry (a circle stays a circle). \
+The region becomes region 0 of the current sketch: pull it with pull_region (a negative distance goes into the body and fills the hole, a positive one makes a plug on top). \
+Several edges can be given when they form the loop together. Refused with a reason when the edges are not closed or not flat.",
+        &[
+            p("edges", Kind::Nums, "Edge ids of the loop (one is enough when it is unambiguous)").opt().word("edges").items(1, 200),
+            p("near", Kind::Nums, "A point x y z on or near the edge (instead of edges)").opt().word("near").items(3, 3),
+            BODY,
+        ],
+        true,
+        "",
+    ),
+    c(
+        "join-ends",
+        "join_ends",
+        "Join ends: connect open lines and arcs of the current sketch (or 3D lines) whose free ends are closer than the largest gap, from the closest pairs; \
+each end is used at most once. Gaps below 0.01 mm are welded (both ends move to their middle), larger ones get a short line. \
+Without `lines` the whole sketch is used. The reply says how many gaps were joined and how many ends stayed free; a closed shape then has a region (list_regions).",
+        &[
+            p("max_gap", Kind::Num, "The largest gap to bridge").unit("mm").range(0.001, 1.0e4),
+            p("lines", Kind::Nums, "Only these lines of the current sketch (numbers from 1 in drawing order)").opt().word("lines").items(1, 1000),
+            p("curves", Kind::Flag, "Join 3D lines instead of the lines of a sketch").opt().word("curves"),
+        ],
+        true,
+        "",
+    ),
+    c(
         "combine",
         "combine_bodies",
         "Combine bodies: merge (union) the tools into the target, cut (subtract) the tools from the target, or intersect (keep the common part). \

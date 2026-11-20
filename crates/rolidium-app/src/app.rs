@@ -31,6 +31,7 @@ mod curvetools;
 mod dock;
 mod edgepull;
 mod files;
+mod filltool;
 mod guide_ui;
 mod lofttool;
 mod measuretool;
@@ -106,6 +107,7 @@ pub enum Tool {
     Sweep,
     Helix,
     Measure,
+    Fill,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -296,6 +298,9 @@ pub struct App {
     rename: Option<(ItemId, String)>,
     chain_cache: std::cell::RefCell<ChainCache>,
     /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
+    /// Fill tool: sketch lines chosen so far, and whether a Fill command is running (its result starts the Pull tool).
+    fill_entities: Vec<(SketchId, EntityId)>,
+    fill_pending: bool,
     guide: crate::guide::Guide,
     /// Where the Pull button of the left column was drawn (the guide points at it).
     pull_btn_rect: Rect,
@@ -471,6 +476,8 @@ impl App {
             ctx_target: None,
             rename: None,
             chain_cache: Default::default(),
+            fill_entities: Vec::new(),
+            fill_pending: false,
             guide,
             pull_btn_rect: Rect::NOTHING,
             joint_cache: Default::default(),
@@ -628,6 +635,11 @@ impl App {
                 }
                 Done::Command(Ok((computed, meshes))) => {
                     let touched = computed.touched_body;
+                    let filled = if std::mem::take(&mut self.fill_pending) {
+                        computed.created_sketch
+                    } else {
+                        None
+                    };
                     let notice = computed.notice.clone();
                     match self.doc.commit(computed) {
                         Ok(()) => {
@@ -641,8 +653,12 @@ impl App {
                     }
                     self.pending = None;
                     self.busy = Busy::No;
+                    if let Some(sk) = filled {
+                        self.fill_after(sk);
+                    }
                 }
                 Done::Command(Err(msg)) => {
+                    self.fill_pending = false;
                     self.reselect_blend = None;
                     self.pending = None;
                     self.busy = Busy::No;
@@ -1853,6 +1869,7 @@ impl App {
             Key::K => self.enter_sketch(),
             Key::U => self.begin_up_to(),
             Key::E => self.activate_measure(),
+            Key::F => self.activate_fill(),
             _ => {}
         }
         let _ = rect;
@@ -2637,6 +2654,7 @@ impl App {
                 self.sweep_input(resp, pointer, rect, raw_face);
             }
             Tool::Helix => self.helix_input(resp, pointer, rect),
+            Tool::Fill => self.fill_input(resp, pointer, rect),
             Tool::Measure => {
                 let raw_face = self.hovered_face();
                 self.measure_input(resp, pointer, rect, raw_face);
@@ -3371,6 +3389,7 @@ impl App {
             }
             (None, Tool::Loft) => tr("Loft: click the profiles (sketch regions or flat faces) in the order they should be joined, then Apply or Enter."),
             (None, Tool::Combine) => tr("Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter."),
+            (None, Tool::Fill) => tr("Fill: click an edge of a hole or opening, or the lines of a shape that is not filled yet. Shift adds more."),
             (None, Tool::Measure) => tr("Measure: click two elements (vertex, edge, face, point of a sketch or curve). Esc clears."),
             (None, Tool::Sweep) => tr("Sweep: click the profile, then the path; choose the mode and press Apply or Enter."),
             (None, Tool::Helix) => tr("Helix: click the axis (a cylindrical face, a straight edge or line, or a point), then set the values and press Create."),

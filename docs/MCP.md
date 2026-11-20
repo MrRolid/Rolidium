@@ -83,6 +83,8 @@ On Windows use `"command": "C:\\path\\to\\rolidium.exe"` (the same arguments).
 | `pull_region` | Extrude a closed region of the current sketch along the normal of its plane by a distance (mm) |
 | `pull_face` | Push or pull a flat face of a body along its normal by a distance (mm): positive grows the body outwards, negative cuts into it |
 | `round_edges` | Round (fillet) edges with a radius in mm |
+| `fill_loop` | Fill: make a region of the closed flat loop of edges an edge belongs to (the edge of a hole, the inner circle of a pipe); pull the region with `pull_region` to close the hole or make a plug |
+| `join_ends` | Join ends: connect the free ends of open lines and arcs (or 3D lines) that are closer than a largest gap; tiny gaps are welded, larger ones get a line |
 | `chamfer_edges` | Chamfer (bevel) edges: cut the corner by a distance in mm, or with an angle (a second distance = distance times tan(angle)) |
 | `combine_bodies` | Combine bodies: merge (union) the tools into the target, cut (subtract) the tools from the target, or intersect (keep the … |
 | `move_body` | Move a body by a vector (mm), or move a copy of it |

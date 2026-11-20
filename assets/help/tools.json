@@ -364,6 +364,30 @@
     "animation": null
   },
   {
+    "id": "fill",
+    "title": "Fill",
+    "shortcut": "F",
+    "text": "Makes a flat shape out of a closed loop. Click an edge of a body (the edge of a hole, the inner circle of a pipe) or the lines of a shape; Shift adds more edges when the loop is made of several. The shape appears on the plane of the loop with exactly the same geometry (a circle stays a circle) and the Pull tool starts with it, so you can close the hole or make a plug.",
+    "tips": [
+      "A negative distance goes into the body and fills the hole; a positive one makes a plug on top.",
+      "If the edges are not closed or not flat, a message says why."
+    ],
+    "illustration": "fill.svg",
+    "animation": null
+  },
+  {
+    "id": "join",
+    "title": "Join ends",
+    "shortcut": "J",
+    "text": "Joins open lines and curves that almost meet. Select the lines you want (nothing selected means the whole sketch), choose the largest gap to bridge, and the dashed preview shows the new connections. Enter confirms, Esc cancels. Tiny gaps are closed by moving the ends together; larger ones get a short line.",
+    "tips": [
+      "Ends are paired starting with the closest ones; every end is used at most once.",
+      "Ends that stay free are highlighted in the preview."
+    ],
+    "illustration": "join.svg",
+    "animation": null
+  },
+  {
     "id": "measure",
     "title": "Measure",
     "shortcut": "E",

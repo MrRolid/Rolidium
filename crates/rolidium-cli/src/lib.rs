@@ -305,6 +305,102 @@ impl Runner {
                     s.face_count()
                 ));
             }
+            "fill" => {
+                // fill (edges <id>... | near <x> <y> <z>)
+                let id = self.first_body()?;
+                let solid = self.doc.body(id).unwrap().solid.clone();
+                let mut edges: Vec<u32> = Vec::new();
+                let mut k = 1;
+                while k < w.len() {
+                    match w[k] {
+                        "edges" => {
+                            k += 1;
+                            while k < w.len() && w[k] != "near" {
+                                let e: u32 = w[k]
+                                    .trim_start_matches('#')
+                                    .parse()
+                                    .map_err(|_| format!("'{}' is not an edge id", w[k]))?;
+                                if e as usize >= solid.edge_count() {
+                                    return Err(format!(
+                                        "the body has no edge {e} (it has {} edges, numbered from 0)",
+                                        solid.edge_count()
+                                    ));
+                                }
+                                edges.push(e);
+                                k += 1;
+                            }
+                        }
+                        "near" => {
+                            let target = DVec3::new(num(k + 1)?, num(k + 2)?, num(k + 3)?);
+                            let mut best: Option<(f64, u32)> = None;
+                            for e in solid.edges() {
+                                let Ok(i) = solid.edge_info(e) else { continue };
+                                let d = ((i.start + i.end) * 0.5).distance(target);
+                                if best.is_none_or(|(bd, _)| d < bd) {
+                                    best = Some((d, e.0));
+                                }
+                            }
+                            edges.push(best.ok_or("the body has no edges")?.1);
+                            k += 4;
+                        }
+                        o => return Err(format!("usage: fill (edges <id>... | near <x> <y> <z>); unexpected '{o}'")),
+                    }
+                }
+                if edges.is_empty() {
+                    return Err("usage: fill (edges <id>... | near <x> <y> <z>)".into());
+                }
+                let c = self
+                    .doc
+                    .apply(Command::FillLoop { body: id, edges })
+                    .map_err(|e| e.to_string())?;
+                let sk = c.created_sketch.ok_or("the fill made no sketch")?;
+                self.sketch = Some(sk);
+                let area = self
+                    .doc
+                    .sketch(sk)
+                    .and_then(|s| s.sketch.regions().first().map(|r| r.area()))
+                    .unwrap_or(0.0);
+                self.say(format!("fill: region 0 of the new sketch, area {area:.3} mm2; pull it with pull-region 0 <distance>"));
+            }
+            "join-ends" => {
+                // join-ends <max_gap> [lines <n>...] | [curves]
+                let gap = num(1)?;
+                if w.get(2) == Some(&"curves") {
+                    self.doc
+                        .apply(Command::JoinCurves { curves: vec![], max_gap: gap })
+                        .map_err(|e| e.to_string())?;
+                    self.say(format!("join-ends: 3D lines joined, {} curve(s) now", self.doc.curves().len()));
+                    return Ok(());
+                }
+                let id = self.sketch.ok_or("there is no current sketch")?;
+                let all: Vec<_> = self
+                    .doc
+                    .sketch(id)
+                    .map(|s| s.sketch.entities().to_vec())
+                    .ok_or("the current sketch no longer exists")?;
+                let mut chosen = Vec::new();
+                if w.get(2) == Some(&"lines") {
+                    for t in &w[3..] {
+                        let n: usize = t.parse().map_err(|_| format!("'{t}' is not a line number"))?;
+                        chosen.push(all.get(n.wrapping_sub(1)).ok_or(format!("the sketch has no line {n}"))?.0);
+                    }
+                }
+                let used: Vec<_> = all
+                    .iter()
+                    .filter(|(i, _)| chosen.is_empty() || chosen.contains(i))
+                    .copied()
+                    .collect();
+                let plan = rolidium_doc::rolidium_sketch::join::plan_join(&used, gap);
+                self.doc
+                    .apply(Command::JoinEnds { sketch: id, entities: chosen, max_gap: gap })
+                    .map_err(|e| e.to_string())?;
+                let regions = self.doc.sketch(id).map_or(0, |s| s.sketch.regions().len());
+                self.say(format!(
+                    "join-ends: joined {} gap(s), {} end(s) stayed free; the sketch has {regions} region(s)",
+                    plan.joined(),
+                    plan.free.len()
+                ));
+            }
             "round" | "chamfer" => {
                 // round|chamfer <size> (edges <id>... | near <x> <y> <z>) [angle <deg>] [flip]
                 let size = num(1)?;

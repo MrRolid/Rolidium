@@ -399,3 +399,33 @@ fn measure_and_mass_scenarios() {
     );
     assert!(r.run_script("measure face top").is_err());
 }
+
+/// The Fill command: the inner circle of a pipe is filled and pulled down into a full cylinder.
+#[test]
+fn fill_closes_the_hole_of_a_pipe() {
+    let mut r = Runner::new();
+    r.run_script(
+        "sketch xy\ncircle 0 0 40\ncircle 0 0 24\npull-region 0 30\nfill near 12 0 30\npull-region 0 -30\n",
+    )
+    .unwrap();
+    assert_eq!(r.doc.bodies().len(), 1);
+    let vol = r.doc.bodies()[0].solid.volume().unwrap();
+    assert!((vol - std::f64::consts::PI * 400.0 * 30.0).abs() < 1e-6, "volume {vol}");
+    // an edge that is no loop is refused with the reason, and nothing changes
+    let mut b = Runner::new();
+    b.run_script("box 40 30 20").unwrap();
+    let e = b.run_script("fill edges 0").unwrap_err().to_string();
+    assert!(e.contains("Several edges meet") || e.contains("closed loop"), "{e}");
+}
+
+/// Join ends: a rectangle with gaps in the corners is closed; a gap above the limit stays.
+#[test]
+fn join_ends_closes_a_rectangle_with_gaps() {
+    let script = "sketch xy\nline 0.3 0 9.7 0\nline 10 0.3 10 9.7\nline 9.7 10 0.3 10\nline 0 9.7 0 0.3\n";
+    let mut r = Runner::new();
+    r.run_script(script).unwrap();
+    assert!(r.run_script("join-ends 0.2").is_err(), "the gaps are 0.42 mm");
+    r.run_script("join-ends 0.5\nregions").unwrap();
+    r.run_script("pull-region 0 5").unwrap();
+    assert_eq!(r.doc.bodies().len(), 1);
+}

@@ -384,6 +384,8 @@ impl App {
         let bodies = self.doc.bodies().len();
         let regions: usize = self.regions.iter().map(|r| r.regions.len()).sum();
         ui.add_space(4.0);
+        // tight rows: the whole column must fit a window 720 px high
+        ui.spacing_mut().item_spacing.y = 2.0;
         ui.label(egui::RichText::new(tr("Tools")).strong());
         let profiles = regions + self.flat_face_count();
         for (tool, id, name, key, why) in [
@@ -470,6 +472,23 @@ impl App {
                 }
             }
         }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            icons::stateful();
+            let r = icons::icon_button_why(
+                ui,
+                &self.help,
+                "fill",
+                &format!("{} (F)", tr("Fill")),
+                self.tool == Tool::Fill,
+                busy.or(self.fill_unavailable()),
+                34.0,
+                "F",
+            );
+            if r.clicked() {
+                self.activate_fill();
+            }
+        });
         let no_edge = if self.edge_sel.is_empty() {
             Some("Select an edge first")
         } else {

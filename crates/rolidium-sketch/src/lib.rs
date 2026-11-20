@@ -8,6 +8,7 @@
 //! remaining graph are walked, and components lying inside other faces become holes of those faces.
 //! Overlapping, nested and touching shapes therefore all give the regions one expects.
 
+pub mod join;
 mod plane;
 mod regions;
 

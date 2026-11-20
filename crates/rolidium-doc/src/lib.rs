@@ -248,6 +248,22 @@ pub enum Command {
         body: BodyId,
         edges: Vec<u32>,
     },
+    /// Fill for a 3D line (a closed flat polyline): a sketch with a region on its plane.
+    FillCurve {
+        curve: CurveId,
+    },
+    /// Join ends: connects the free ends of the lines and arcs of a sketch (`entities`, empty: all of them) that are closer than
+    /// `max_gap` mm, from the closest pairs; gaps below 0.01 mm are welded, larger ones get a line.
+    JoinEnds {
+        sketch: SketchId,
+        entities: Vec<rolidium_sketch::EntityId>,
+        max_gap: f64,
+    },
+    /// The same for 3D lines (`curves`, empty: all made of straight pieces): two lines whose ends meet become one line.
+    JoinCurves {
+        curves: Vec<CurveId>,
+        max_gap: f64,
+    },
     AddEntity {
         target: SketchTarget,
         entity: Entity,
@@ -646,6 +662,182 @@ impl Job {
                 c.created_sketch = Some(self.next_id);
                 Ok(c)
             }
+            Command::FillCurve { curve } => {
+                let cd = st.curves.iter().find(|c| c.id == *curve).ok_or(DocError::NoSuchCurve)?;
+                let curves::CurveDef::Polyline { points, .. } = &cd.def else {
+                    return Err(KernelError::Invalid("Only a line made of straight pieces can be filled".into()).into());
+                };
+                let closed = points.len() >= 4 && points[0].distance(points[points.len() - 1]) < 1e-6;
+                if !closed {
+                    return Err(KernelError::Invalid(rolidium_kernel::LoopError::NotClosed.message().into()).into());
+                }
+                let pts = &points[..points.len() - 1];
+                // the plane: the Newell normal of the polygon
+                let mut n = DVec3::ZERO;
+                for (i, a) in pts.iter().enumerate() {
+                    let b = pts[(i + 1) % pts.len()];
+                    n += DVec3::new(
+                        (a.y - b.y) * (a.z + b.z),
+                        (a.z - b.z) * (a.x + b.x),
+                        (a.x - b.x) * (a.y + b.y),
+                    );
+                }
+                if n.length() < 1e-9 {
+                    return Err(KernelError::Invalid(rolidium_kernel::LoopError::NotClosed.message().into()).into());
+                }
+                let n = n.normalize();
+                let n = if n.z < -1e-9 || (n.z.abs() <= 1e-9 && (n.y < -1e-9 || (n.y.abs() <= 1e-9 && n.x < 0.0))) { -n } else { n };
+                let scale = pts.iter().map(|p| p.length()).fold(1.0, f64::max);
+                if pts.iter().any(|p| (*p - pts[0]).dot(n).abs() > 1e-6 * scale) {
+                    return Err(KernelError::Invalid(rolidium_kernel::LoopError::NotPlanar.message().into()).into());
+                }
+                let plane = PlaneDef::from_face(pts[0], n);
+                let mut sketch = Sketch::new();
+                for (i, a) in pts.iter().enumerate() {
+                    let b = pts[(i + 1) % pts.len()];
+                    sketch.add(Entity::Line { a: plane.to_2d(*a), b: plane.to_2d(b) })?;
+                }
+                if sketch.regions().is_empty() {
+                    return Err(KernelError::Invalid(rolidium_kernel::LoopError::NotClosed.message().into()).into());
+                }
+                st.sketch_counter += 1;
+                st.sketches.push(SketchDoc {
+                    id: self.next_id,
+                    name: format!("Fill {}", st.sketch_counter),
+                    plane,
+                    target: None,
+                    sketch,
+                    visible: true,
+                    fill: false,
+                });
+                let mut c = self.done(st, "Fill");
+                c.created_sketch = Some(self.next_id);
+                Ok(c)
+            }
+            Command::JoinEnds { sketch, entities, max_gap } => {
+                let sk = st
+                    .sketches
+                    .iter_mut()
+                    .find(|s| s.id == *sketch)
+                    .ok_or(DocError::NoSuchSketch)?;
+                if !(max_gap.is_finite() && *max_gap > 0.0) {
+                    return Err(KernelError::Invalid("The largest gap must be a positive number".into()).into());
+                }
+                let chosen: Vec<_> = sk
+                    .sketch
+                    .entities()
+                    .iter()
+                    .filter(|(id, _)| entities.is_empty() || entities.contains(id))
+                    .copied()
+                    .collect();
+                let plan = rolidium_sketch::join::plan_join(&chosen, *max_gap);
+                if plan.joined() == 0 {
+                    return Err(KernelError::Invalid("There is nothing to join: no two free ends are within the largest gap".into()).into());
+                }
+                for (id, e) in &plan.replaced {
+                    sk.sketch.replace(*id, *e)?;
+                }
+                for (a, b) in &plan.bridges {
+                    sk.sketch.add(Entity::Line { a: *a, b: *b })?;
+                }
+                Ok(self.done(st, "Join ends"))
+            }
+            Command::JoinCurves { curves, max_gap } => {
+                use rolidium_sketch::join::{pair_ends, WELD_BELOW};
+                if !(max_gap.is_finite() && *max_gap > 0.0) {
+                    return Err(KernelError::Invalid("The largest gap must be a positive number".into()).into());
+                }
+                // the working lines: (curve id, points, radius); only open polylines that were asked for
+                let mut work: Vec<Option<(CurveId, Vec<DVec3>, f64)>> = Vec::new();
+                for c in &st.curves {
+                    if !(curves.is_empty() || curves.contains(&c.id)) {
+                        continue;
+                    }
+                    if let curves::CurveDef::Polyline { points, radius } = &c.def {
+                        if points.len() >= 2 && points[0].distance(points[points.len() - 1]) > rolidium_sketch::join::TOUCH {
+                            work.push(Some((c.id, points.clone(), *radius)));
+                        }
+                    }
+                }
+                let mut ends: Vec<(usize, DVec3)> = Vec::new();
+                for (i, w) in work.iter().enumerate() {
+                    if let Some((_, pts, _)) = w {
+                        ends.push((i, pts[0]));
+                        ends.push((i, pts[pts.len() - 1]));
+                    }
+                }
+                let (pairs, _) = pair_ends(&ends, *max_gap);
+                if pairs.is_empty() {
+                    return Err(KernelError::Invalid("There is nothing to join: no two free ends are within the largest gap".into()).into());
+                }
+                let mut changed: std::collections::HashSet<CurveId> = Default::default();
+                let mut removed: Vec<CurveId> = Vec::new();
+                for p in &pairs {
+                    let (pa, pb) = (ends[p.a].1, ends[p.b].1);
+                    let find = |work: &Vec<Option<(CurveId, Vec<DVec3>, f64)>>, q: DVec3| -> Option<(usize, bool)> {
+                        work.iter().enumerate().find_map(|(i, w)| {
+                            let (_, pts, _) = w.as_ref()?;
+                            if pts[0].distance(q) < 1e-9 {
+                                Some((i, true))
+                            } else if pts[pts.len() - 1].distance(q) < 1e-9 {
+                                Some((i, false))
+                            } else {
+                                None
+                            }
+                        })
+                    };
+                    let (Some((i, a_first)), Some((j, b_first))) = (find(&work, pa), find(&work, pb)) else {
+                        continue;
+                    };
+                    let weld = p.gap < WELD_BELOW;
+                    let mid = (pa + pb) * 0.5;
+                    if i == j {
+                        // the two ends of one line: it closes
+                        if let Some((id, pts, _)) = work[i].as_mut() {
+                            if weld {
+                                let n = pts.len();
+                                pts[0] = mid;
+                                pts[n - 1] = mid;
+                            } else {
+                                let first = pts[0];
+                                pts.push(first);
+                            }
+                            changed.insert(*id);
+                        }
+                        continue;
+                    }
+                    let (Some((ida, mut pa_pts, ra)), Some((idb, mut pb_pts, _))) = (work[i].take(), work[j].take()) else {
+                        continue;
+                    };
+                    // the line i ends at pa, the line j starts at pb
+                    if a_first {
+                        pa_pts.reverse();
+                    }
+                    if !b_first {
+                        pb_pts.reverse();
+                    }
+                    if weld {
+                        let n = pa_pts.len();
+                        pa_pts[n - 1] = mid;
+                        pb_pts[0] = mid;
+                        pa_pts.pop();
+                    }
+                    pa_pts.extend(pb_pts);
+                    work[i] = Some((ida, pa_pts, ra));
+                    changed.insert(ida);
+                    removed.push(idb);
+                    changed.remove(&idb);
+                }
+                for w in work.into_iter().flatten() {
+                    if changed.contains(&w.0) {
+                        if let Some(c) = st.curves.iter_mut().find(|c| c.id == w.0) {
+                            c.def = curves::CurveDef::Polyline { points: w.1, radius: w.2 };
+                        }
+                    }
+                }
+                st.curves.retain(|c| !removed.contains(&c.id));
+                Ok(self.done(st, "Join ends"))
+            }
             Command::AddEntity { target, entity } => {
                 entity.validate()?;
                 let mut created = None;
@@ -707,9 +899,39 @@ impl Job {
                 let mut c;
                 let mut notice = None;
                 match target {
+                    None if *mode == PullMode::Cut => {
+                        // cutting: the volume is taken out of every body it overlaps (holes and pockets from a sketch on a plane)
+                        let mut cut_any = false;
+                        let mut first_id = None;
+                        for b in st.bodies.iter_mut() {
+                            if !b.solid.distance_to(&tool).is_ok_and(|d| d < 1e-6) {
+                                continue;
+                            }
+                            let before = b.solid.volume()?;
+                            match b.solid.boolean(&tool, BooleanOp::Cut) {
+                                Ok(r) => {
+                                    if (r.solid.volume()? - before).abs() < 1e-9 {
+                                        continue; // only touches: nothing removed
+                                    }
+                                    remap_features(&mut b.features, &r.history);
+                                    b.solid = r.solid;
+                                    cut_any = true;
+                                    first_id.get_or_insert(b.id);
+                                }
+                                Err(e) => return Err(e.into()),
+                            }
+                        }
+                        let Some(first) = first_id.filter(|_| cut_any) else {
+                            return Err(KernelError::Invalid(
+                                "There is nothing to remove here: the shape does not overlap any body".into(),
+                            )
+                            .into());
+                        };
+                        c = (first, None);
+                    }
                     None => {
                         // A new volume that touches or overlaps a body belongs to it; it is a body of its own only when it
-                        // touches nothing. (Cut mode never adds.)
+                        // touches nothing.
                         let touching: Vec<usize> = if *mode == PullMode::Cut {
                             Vec::new()
                         } else {
@@ -4196,6 +4418,110 @@ mod loft_edge_tests {
         let err = d.apply(Command::FillLoop { body: id, edges: vec![one] }).unwrap_err().to_string();
         assert!(err.contains("Several edges meet") || err.contains("closed loop"), "{err}");
         assert!(d.apply(Command::FillLoop { body: id, edges: vec![] }).is_err());
+    }
+
+    /// A sketch on XY with the four sides of a 10 mm square, each shortened by `g` at both ends (a gap in every corner).
+    fn gapped_square_sketch(d: &mut Document, g: f64) -> (SketchId, Vec<rolidium_sketch::EntityId>) {
+        let v = rolidium_sketch::DVec2::new;
+        let sides = [
+            (v(g, 0.0), v(10.0 - g, 0.0)),
+            (v(10.0, g), v(10.0, 10.0 - g)),
+            (v(10.0 - g, 10.0), v(g, 10.0)),
+            (v(0.0, 10.0 - g), v(0.0, g)),
+        ];
+        let mut sk = None;
+        for (a, b) in sides {
+            let c = d
+                .apply(Command::AddEntity {
+                    target: match sk {
+                        None => SketchTarget::New { plane: PlaneDef::base(), body: None },
+                        Some(id) => SketchTarget::Existing(id),
+                    },
+                    entity: Entity::Line { a, b },
+                })
+                .unwrap();
+            sk = sk.or(c.created_sketch);
+        }
+        let sk = sk.unwrap();
+        let ids = d.sketch(sk).unwrap().sketch.entities().iter().map(|(i, _)| *i).collect();
+        (sk, ids)
+    }
+
+    #[test]
+    fn join_ends_closes_a_rectangle_with_gaps_and_the_regions_follow() {
+        let mut d = Document::new();
+        let (sk, _) = gapped_square_sketch(&mut d, 0.3);
+        assert!(d.sketch(sk).unwrap().sketch.regions().is_empty(), "open: no region");
+        d.apply(Command::JoinEnds { sketch: sk, entities: vec![], max_gap: 1.0 }).unwrap();
+        let regions = d.sketch(sk).unwrap().sketch.regions();
+        assert_eq!(regions.len(), 1);
+        // 4 bridges of 0.3 * sqrt(2) cut the corners: area = 100 - ... > 90
+        assert!(regions[0].area() > 90.0 && regions[0].area() < 100.0, "{}", regions[0].area());
+        // one step back: the gaps are back, the whole join was one step
+        assert!(d.undo());
+        assert!(d.sketch(sk).unwrap().sketch.regions().is_empty());
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 4);
+    }
+
+    #[test]
+    fn join_ends_leaves_gaps_above_the_limit_and_says_so() {
+        let mut d = Document::new();
+        let (sk, _) = gapped_square_sketch(&mut d, 3.0);
+        let e = d
+            .apply(Command::JoinEnds { sketch: sk, entities: vec![], max_gap: 1.0 })
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("nothing to join"), "{e}");
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 4);
+    }
+
+    #[test]
+    fn join_ends_with_a_selection_touches_only_the_selected_lines() {
+        let mut d = Document::new();
+        let (sk, ids) = gapped_square_sketch(&mut d, 0.3);
+        // only two neighbouring sides: their shared corner is joined, the others are not
+        d.apply(Command::JoinEnds { sketch: sk, entities: vec![ids[0], ids[1]], max_gap: 1.0 }).unwrap();
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 5);
+        // the whole sketch would have added four
+    }
+
+    #[test]
+    fn join_ends_welds_a_tiny_gap_without_a_new_line() {
+        let mut d = Document::new();
+        let (sk, ids) = gapped_square_sketch(&mut d, 0.0);
+        let before = d.sketch(sk).unwrap().sketch.entity(ids[0]).copied().unwrap();
+        d.apply(Command::ReplaceEntity {
+            sketch: sk,
+            entity: ids[0],
+            new: Entity::Line {
+                a: rolidium_sketch::DVec2::new(0.0, 0.0),
+                b: rolidium_sketch::DVec2::new(9.996, 0.0),
+            },
+        })
+        .unwrap();
+        let _ = before;
+        d.apply(Command::JoinEnds { sketch: sk, entities: vec![], max_gap: 1.0 }).unwrap();
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 4, "welded: no new line");
+        assert_eq!(d.sketch(sk).unwrap().sketch.regions().len(), 1);
+    }
+
+    #[test]
+    fn join_curves_makes_one_line_of_two_that_nearly_meet() {
+        let mut d = Document::new();
+        let add = |d: &mut Document, pts: Vec<DVec3>| {
+            d.apply(Command::AddCurve { def: curves::CurveDef::Polyline { points: pts, radius: 0.0 } })
+                .unwrap()
+                .created_curve
+                .unwrap()
+        };
+        let a = add(&mut d, vec![DVec3::ZERO, DVec3::new(10.0, 0.0, 0.0)]);
+        let _b = add(&mut d, vec![DVec3::new(10.5, 0.0, 0.0), DVec3::new(10.5, 10.0, 0.0)]);
+        d.apply(Command::JoinCurves { curves: vec![], max_gap: 1.0 }).unwrap();
+        assert_eq!(d.curves().len(), 1);
+        match &d.curve(a).unwrap().def {
+            curves::CurveDef::Polyline { points, .. } => assert_eq!(points.len(), 4, "{points:?}"),
+            _ => panic!(),
+        }
     }
 
 }
