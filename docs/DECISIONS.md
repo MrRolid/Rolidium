@@ -313,3 +313,28 @@ marker. A failed backend is stored in the settings (`backend_blocked`), skipped 
 that backend). Only graphics errors (not a missing display) count against a backend. (3) The log flushes every graphics step to the disk;
 on Windows an unhandled-exception filter (the only other unsafe code besides the console attachment) adds one line. (4) The diagnostics run
 each backend in a child process with a time limit. On Linux the order is unchanged and a stale marker never blocks anything.
+
+## D34: Fill makes a sketch, and a plug up is a body of its own
+
+Fill turns a closed flat loop of edges into a sketch with a region (`Command::FillLoop`), from the exact curves (lines, circles, arcs; the
+centre and axis of a circle come from the kernel, `edge_geom` in the bridge). The sketch is marked `fill`: pulling its region always adds
+material, in the direction of the sign (inwards closes the hole, outwards makes a plug). A plug pulled outwards from a hole of the same
+radius touches the body only along a circle, and a solid cannot be made of a contact along a line, so the kernel refuses to fuse it
+(`SplitResult`); the plug then becomes a body of its own and the user is told. The same holds for a new volume that touches a body only along
+an edge or at a point (A.7: any other contact, by a face or an overlap, is joined to the body).
+
+## D35: Join ends pairs free ends from the closest pairs
+
+A free end is an end that touches no other end (1e-6 mm). Free ends are paired greedily from the shortest distance, each end at most once,
+up to a largest gap; the ends of one line are never paired together. Below 0.01 mm both ends move to their middle point (an arc is drawn
+again through its other end, its middle and the new end), above it a line bridges the gap. 3D lines are merged into one polyline. The core is
+in `rolidium-sketch/src/join.rs` and is shared by the window, the CLI and the MCP server.
+
+## D36: Display meshes follow the zoom
+
+The display mesh is made for a pixel size: the deviation of the triangles and of the edge polylines (from exact curves with an adaptive
+tangential deflection) is 0.4 of a pixel, the angle between facets at most 0.12 rad. When the view has been still for 0.35 s and the meshes
+were made for a pixel more than 1.4 times larger (or 4 times smaller), the worker makes them again; the result is dropped when the model
+changed meanwhile, and a running remesh is cancelled when an operation starts. At most 1.5 million triangles per body and 3 million in all
+(the deflection is raised when an estimate from the previous mesh passes the cap). The kernel, measurements and the STL export do not use
+these meshes.

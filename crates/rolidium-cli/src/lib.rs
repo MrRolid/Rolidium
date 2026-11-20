@@ -10,6 +10,8 @@
 //! round 5 near x y z      # round the edge of body 1 that passes closest to the point (chamfer: same, "chamfer")
 //! chamfer 5 near x y z angle 30 [flip]   # chamfer with a distance and an angle
 //! combine merge|cut|intersect <target> <tool>... [keep]   # bodies are numbered from 1 in the order of `info`
+//! fill edges <id>... | fill near x y z   # closed flat loop of edges -> region 0 of a new sketch (pull it with pull-region)
+//! join-ends <max_gap> [lines <n>...] | curves   # connect free ends closer than the gap (tiny gaps are welded)
 //! features                # list the rounds and chamfers (index, kind, size)
 //! edit-feature <i> <size> # change the size of round/chamfer <i>; size 0 brings the sharp edge back
 //! undo | redo
