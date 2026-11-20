@@ -1431,17 +1431,6 @@ impl Runner {
 
     pub fn render_png(&mut self, path: &Path, w: u32, h: u32, view: StandardView) -> Result<(), String> {
         self.ensure_gpu()?;
-        let meshes: Vec<_> = self
-            .doc
-            .bodies()
-            .iter()
-            .map(|b| {
-                b.solid
-                    .display_mesh()
-                    .map(|m| (b.id, m, b.color))
-                    .map_err(|e| e.to_string())
-            })
-            .collect::<Result<_, _>>()?;
         let mut lo = glam::Vec3::splat(f32::MAX);
         let mut hi = glam::Vec3::splat(f32::MIN);
         for b in self.doc.bodies() {
@@ -1456,6 +1445,20 @@ impl Runner {
         let mut camera = Camera::default();
         camera.set_view(view);
         camera.fit(lo, hi);
+        // the meshes are made for this picture, like the window does for its zoom: under half a pixel from the exact shape
+        let pixel_mm = 2.0 * f64::from(camera.distance) * (f64::from(camera.fov_y) * 0.5).tan() / f64::from(h.max(1));
+        let cap = (1_500_000 / self.doc.bodies().len().max(1)).clamp(20_000, 300_000);
+        let meshes: Vec<_> = self
+            .doc
+            .bodies()
+            .iter()
+            .map(|b| {
+                b.solid
+                    .view_mesh(pixel_mm, cap, None)
+                    .map(|m| (b.id, m, b.color))
+                    .map_err(|e| e.to_string())
+            })
+            .collect::<Result<_, _>>()?;
         let (device, queue, renderer, _) = self.gpu.as_mut().unwrap();
         let draws: Vec<BodyDraw> = meshes
             .iter()

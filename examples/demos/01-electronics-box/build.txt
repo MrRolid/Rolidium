@@ -1,0 +1,81 @@
+# Electronics box with a lid: 100 x 60 x 30, wall 2, four screw posts, six vent slots, a cable hole, and a lid with a lip.
+# The box: a block with the four vertical edges rounded R4, then the cavity cut out and its edges rounded R2 (wall 2 everywhere).
+# bodies: 2
+# volume: 43749.262
+# no-overlap: yes
+box 100 60 30
+round 4 near 0 0 15
+round 4 near 100 0 15
+round 4 near 0 60 15
+round 4 near 100 60 15
+sketch xy 2
+rect 2 2 98 58
+pull-region 0 30 cut
+round 2 near 2 2 16
+round 2 near 98 2 16
+round 2 near 2 58 16
+round 2 near 98 58 16
+# Four screw posts (diameter 6, hole 2.5) in the corners, 26 mm tall.
+sketch xy 2
+circle 7 7 6
+circle 93 7 6
+circle 7 53 6
+circle 93 53 6
+pull-region 0 26 add
+pull-region 0 26 add
+pull-region 0 26 add
+pull-region 0 26 add
+sketch xy 13
+circle 7 7 2.5
+circle 93 7 2.5
+circle 7 53 2.5
+circle 93 53 2.5
+pull-region 0 15 cut
+pull-region 0 15 cut
+pull-region 0 15 cut
+pull-region 0 15 cut
+# Six vent slots 2 x 15 in the long wall at y = 0 (drawn on a plane inside the box, cut through the wall toward -Y).
+sketch xz -3
+rect 24 7.5 26 22.5
+rect 34 7.5 36 22.5
+rect 44 7.5 46 22.5
+rect 54 7.5 56 22.5
+rect 64 7.5 66 22.5
+rect 74 7.5 76 22.5
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+# Cable hole, diameter 8, in the end wall at x = 0.
+sketch yz -1
+circle 30 15 8
+pull-region 0 4 cut
+# The lid (body 2) is lifted 15 mm above the box: a 2 mm plate, a lip 1.5 mm high that fits the cavity with 0.2 mm clearance on each side.
+sketch xy 45
+rect 0 0 100 60
+pull-region 0 2 add
+sketch xy 43.5
+rect 2.2 2.2 97.8 57.8
+rect 3.4 3.4 96.6 56.6
+pull-region 0 1.5 add
+round 4 near 0 0 46 body 2
+round 4 near 100 0 46 body 2
+round 4 near 0 60 46 body 2
+round 4 near 100 60 46 body 2
+# Four holes 3.2 over the posts, countersunk (the chamfer of the upper edge makes the cone for the screw head).
+sketch xy 44
+circle 7 7 3.2
+circle 93 7 3.2
+circle 7 53 3.2
+circle 93 53 3.2
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+pull-region 0 4 cut
+chamfer 1.2 near 8.6 7 47 body 2
+chamfer 1.2 near 94.6 7 47 body 2
+chamfer 1.2 near 8.6 53 47 body 2
+chamfer 1.2 near 94.6 53 47 body 2
+info

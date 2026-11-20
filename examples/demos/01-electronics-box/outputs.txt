@@ -1,0 +1,4 @@
+export-stl @OUT@/@NAME@.stl
+# detail: the lid taken away, the inside with the posts, the vent slots and the cable hole
+delete body 2
+render @OUT@/@NAME@-detail.png 1920 1080 top

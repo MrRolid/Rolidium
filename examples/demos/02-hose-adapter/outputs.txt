@@ -1,0 +1,6 @@
+export-stl @OUT@/@NAME@.stl
+# detail: a half cut away (the program has no section view), looked at from the right: the bore, the cone, the barbs in section
+box 60 120 100
+move 0 -60 -5 body 2
+combine cut 1 2
+render @OUT@/@NAME@-detail.png 1920 1080 right
