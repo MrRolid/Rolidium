@@ -648,3 +648,6 @@ chamfers with different distances cannot be combined => los chaflanes con distan
 nothing to measure => no hay nada que medir
 the new round could not be recognised => no se pudo reconocer el nuevo redondeo
 the selected edge could not be found after removing the neighbouring rounds => no se pudo encontrar el borde elegido tras quitar los redondeos vecinos
+
+# ---- Preview of a round or chamfer that does not fit ----
+too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered => demasiado grande para las caras vecinas, o los bordes se unen de forma que no se pueden redondear ni achaflanar

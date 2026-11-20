@@ -648,3 +648,6 @@ chamfers with different distances cannot be combined => zkosení s různými vzd
 nothing to measure => není co měřit
 the new round could not be recognised => nové zaoblení se nepodařilo rozpoznat
 the selected edge could not be found after removing the neighbouring rounds => vybranou hranu se po odstranění sousedních zaoblení nepodařilo najít
+
+# ---- Preview of a round or chamfer that does not fit ----
+too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered => příliš velké pro sousední plochy, nebo se hrany stýkají tak, že nejdou zaoblit ani zkosit

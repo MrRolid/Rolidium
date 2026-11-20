@@ -342,7 +342,14 @@ fn handle(work: Work) -> Done {
                 } else {
                     body.2.fillet(&ids, size)
                 }
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| match e {
+                    // the preview must stay quick: no search for the largest size here (the real operation does that); and the
+                    // technical text of the kernel is not for the user
+                    rolidium_kernel::KernelError::Native(_) => {
+                        "too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered".to_string()
+                    }
+                    e => e.to_string(),
+                })?;
                 mesh_entry(&(body.0, body.1.clone(), r.solid, body.3))
             })(),
         ),

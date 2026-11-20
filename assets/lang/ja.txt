@@ -648,3 +648,6 @@ chamfers with different distances cannot be combined => 距離の異なる面取
 nothing to measure => 測定するものがありません
 the new round could not be recognised => 新しい丸めを認識できませんでした
 the selected edge could not be found after removing the neighbouring rounds => 隣の丸めを取り除いたあと、選んだ辺が見つかりませんでした
+
+# ---- Preview of a round or chamfer that does not fit ----
+too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered => 隣の面に対して大きすぎるか、辺の接し方が丸め・面取りに向いていません

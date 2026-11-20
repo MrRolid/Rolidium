@@ -471,6 +471,7 @@ mod coverage {
         "The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it.",
         "The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works.",
         "The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances",
+        "too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered",
         "The round or chamfer cannot be changed here: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];

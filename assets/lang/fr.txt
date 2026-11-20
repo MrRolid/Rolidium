@@ -648,3 +648,6 @@ chamfers with different distances cannot be combined => des chanfreins de distan
 nothing to measure => il n'y a rien à mesurer
 the new round could not be recognised => le nouvel arrondi n'a pas pu être reconnu
 the selected edge could not be found after removing the neighbouring rounds => l'arête choisie n'a pas pu être retrouvée après le retrait des arrondis voisins
+
+# ---- Preview of a round or chamfer that does not fit ----
+too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered => trop grand pour les faces voisines, ou les arêtes se rejoignent de façon à ne pas pouvoir être arrondies ni chanfreinées
