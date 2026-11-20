@@ -22,6 +22,9 @@ pub struct Mesh {
     /// One face index per triangle.
     pub tri_face: Vec<u32>,
     pub edges: Vec<EdgePolyline>,
+    /// The largest distance (mm) of the triangles and of the edge polylines from the exact shape that this mesh was made for;
+    /// 0 when not known.
+    pub deflection: f64,
 }
 
 fn vec3s(f: &[f32]) -> Vec<Vec3> {
@@ -47,6 +50,7 @@ impl Mesh {
             indices: m.indices,
             tri_face: m.tri_face,
             edges,
+            deflection: 0.0,
         }
     }
 

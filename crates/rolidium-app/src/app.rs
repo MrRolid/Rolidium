@@ -42,6 +42,7 @@ mod pick;
 mod planemove;
 mod planepick;
 mod properties;
+mod remesh;
 mod revolve;
 mod selftest;
 mod snap;
@@ -304,6 +305,7 @@ pub struct App {
     fill_entities: Vec<(SketchId, EntityId)>,
     fill_pending: bool,
     join: jointool::JoinUi,
+    remesh: remesh::RemeshState,
     guide: crate::guide::Guide,
     /// Where the Pull button of the left column was drawn (the guide points at it).
     pull_btn_rect: Rect,
@@ -482,6 +484,7 @@ impl App {
             fill_entities: Vec::new(),
             fill_pending: false,
             join: Default::default(),
+            remesh: Default::default(),
             guide,
             pull_btn_rect: Rect::NOTHING,
             joint_cache: Default::default(),
@@ -561,6 +564,7 @@ impl App {
             return;
         }
         let job = self.doc.plan(command);
+        self.cancel_remesh();
         if self.worker.send(Work::Command(job)) {
             self.busy = Busy::Command;
         } else {
@@ -698,6 +702,7 @@ impl App {
                     }
                 }
                 Done::EdgePreview(ticket, r) => self.edge_preview_done(ticket, r),
+                Done::Remesh(ticket, r) => self.remesh_done(ticket, r),
             }
         }
     }
@@ -3463,6 +3468,7 @@ impl eframe::App for App {
         self.poll_worker();
         self.selftest_tick(&ctx);
         self.guide_tick();
+        self.remesh_tick(&ctx);
 
         egui::Panel::top("toolbar")
             .resizable(false)

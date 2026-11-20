@@ -68,6 +68,14 @@ pub enum Work {
     Meshes {
         bodies: Vec<BodyInput>,
     },
+    /// New display meshes for the current zoom (in the background, while the person looks at the model).
+    Remesh {
+        ticket: u64,
+        /// The bodies with the deflection and triangle count of their present meshes.
+        bodies: Vec<(BodyInput, Option<(f64, usize)>)>,
+        pixel_mm: f64,
+        max_triangles: usize,
+    },
     ExportStl {
         solids: Vec<Solid>,
         path: PathBuf,
@@ -113,6 +121,7 @@ pub enum Done {
     Export(Result<(PathBuf, usize), String>),
     MeshStats(u64, Result<usize, String>),
     EdgePreview(u64, Result<MeshEntry, String>),
+    Remesh(u64, Result<Vec<MeshEntry>, String>),
 }
 
 pub struct Worker {
@@ -121,8 +130,26 @@ pub struct Worker {
 }
 
 fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
+    let mesh = b.2.display_mesh().map_err(|e| e.to_string())?;
+    entry_of(b, mesh)
+}
+
+/// The entry of a body for a mesh made for the current zoom (`pixel_mm` per pixel), with at most `max_triangles` triangles.
+fn mesh_entry_view(
+    b: &BodyInput,
+    pixel_mm: f64,
+    max_triangles: usize,
+    previous: Option<(f64, usize)>,
+) -> Result<MeshEntry, String> {
+    let mesh = b
+        .2
+        .view_mesh(pixel_mm, max_triangles, previous)
+        .map_err(|e| e.to_string())?;
+    entry_of(b, mesh)
+}
+
+fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
     let (id, name, solid, color) = b;
-    let mesh = solid.display_mesh().map_err(|e| e.to_string())?;
     let mut sums = vec![(glam::Vec3::ZERO, 0u32); solid.face_count()];
     for (t, tri) in mesh.indices.chunks_exact(3).enumerate() {
         let f = mesh.tri_face[t] as usize;
@@ -322,6 +349,19 @@ fn handle(work: Work) -> Done {
                 Ok(n)
             })(),
         ),
+        Work::Remesh {
+            ticket,
+            bodies,
+            pixel_mm,
+            max_triangles,
+        } => Done::Remesh(
+            ticket,
+            bodies
+                .iter()
+                .map(|(b, prev)| mesh_entry_view(b, pixel_mm, max_triangles, *prev))
+                .filter(|r| r.as_ref().map_or(true, |m| !m.mesh.indices.is_empty()))
+                .collect(),
+        ),
         Work::EdgePreview {
             ticket,
             body,
@@ -391,6 +431,7 @@ impl Worker {
                     let (kind, ticket) = match &work {
                         Work::MeshStats { ticket, .. } => (3, *ticket),
                         Work::EdgePreview { ticket, .. } => (4, *ticket),
+                        Work::Remesh { ticket, .. } => (6, *ticket),
                         Work::SaveFile { .. }
                         | Work::OpenFile { .. }
                         | Work::ReadStep { .. }
@@ -413,6 +454,8 @@ impl Worker {
                                 Done::MeshStats(ticket, Err(msg))
                             } else if matches!(kind, 4) {
                                 Done::EdgePreview(ticket, Err(msg))
+                            } else if matches!(kind, 6) {
+                                Done::Remesh(ticket, Err(msg))
                             } else if is_cmd {
                                 Done::Command(Err(msg))
                             } else if is_mesh {

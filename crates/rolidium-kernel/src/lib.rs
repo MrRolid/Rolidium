@@ -21,6 +21,11 @@ pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
 pub use glam::{DVec3, Vec3};
+/// Angular deflection (rad) of the display meshes: no facet turns by more than this from its neighbour.
+pub const VIEW_ANGLE: f64 = 0.12;
+/// The display mesh deviates from the exact shape by at most this fraction of a pixel.
+pub const VIEW_PIXEL_FRACTION: f64 = 0.4;
+
 pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
 pub use mesh::{EdgePolyline, Mesh};
@@ -391,11 +396,9 @@ impl Solid {
 
     /// Triangulate with the given linear (mm) and angular (rad) deflection.
     pub fn mesh(&self, linear: f64, angular: f64) -> Result<Mesh> {
-        Ok(Mesh::from_native(native::mesh_shape(
-            &self.shape,
-            linear,
-            angular,
-        )?))
+        let mut m = Mesh::from_native(native::mesh_shape(&self.shape, linear, angular)?);
+        m.deflection = linear;
+        Ok(m)
     }
 
     /// Triangulation tuned for display: the chord error scales with the size of the part.
@@ -403,7 +406,39 @@ impl Solid {
         // only the box is needed here; the full properties (volume, area) cost much more
         let b = native::bounds_of(&self.shape)?;
         let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2])).length();
-        self.mesh((diag * 0.0004).clamp(0.005, 0.5), 0.35)
+        self.mesh((diag * 0.0004).clamp(0.005, 0.5), VIEW_ANGLE)
+    }
+
+    /// Triangulation for a view in which one pixel is `pixel_mm` millimetres wide: the triangles and the edge polylines
+    /// deviate from the exact curves by at most half a pixel, so that a circle across the whole window looks round. `previous`
+    /// is a mesh of this solid made earlier (its deflection and triangle count): the number of triangles is kept under
+    /// `max_triangles` by raising the deflection when the estimate from it says the cap would be passed (the number grows about
+    /// with one over the deflection on curved faces).
+    pub fn view_mesh(&self, pixel_mm: f64, max_triangles: usize, previous: Option<(f64, usize)>) -> Result<Mesh> {
+        let b = native::bounds_of(&self.shape)?;
+        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2])).length().max(1e-6);
+        let mut linear = (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
+        if let Some((d0, n0)) = previous {
+            if d0 > 0.0 && n0 > 0 {
+                let estimate = n0 as f64 * (d0 / linear).max(1.0);
+                if estimate > max_triangles as f64 {
+                    linear = (d0 * n0 as f64 / max_triangles as f64).max(linear);
+                }
+            }
+        }
+        let mut angle = VIEW_ANGLE;
+        let mut m = self.mesh(linear, angle)?;
+        // the estimate can be off: coarser again (also in the angle) while the cap is passed
+        for _ in 0..3 {
+            if m.triangle_count() <= max_triangles {
+                break;
+            }
+            let ratio = (m.triangle_count() as f64 / max_triangles as f64).max(1.5);
+            linear *= ratio;
+            angle = (angle * ratio.sqrt()).min(0.6);
+            m = self.mesh(linear, angle)?;
+        }
+        Ok(m)
     }
 
     pub fn write_step(&self) -> Result<Vec<u8>> {

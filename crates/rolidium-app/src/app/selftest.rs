@@ -790,6 +790,47 @@ impl App {
                 st.wait_frames = 2;
             }
             43 => {
+                // smooth display: a circle across the whole window deviates by less than half a pixel
+                use rolidium_kernel::Solid;
+                self.replace_document(Document::new(), None);
+                let cyl = Solid::cylinder(20.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+                let _ = self.doc.apply(Command::AddSolids { solids: vec![cyl] });
+                self.request_meshes();
+                st.wait_frames = 2;
+            }
+            44 => {
+                if self.meshes.is_empty() {
+                    self.selftest = Some(st);
+                    return;
+                }
+                let before = self.meshes[0].mesh.triangle_count();
+                self.camera.set_view(StandardView::Top);
+                self.camera.target = Vec3::new(0.0, 0.0, 30.0);
+                // the circle (radius 20) fills the height of the view
+                self.camera.distance = 2.1 * 20.0 / (2.0 * (self.camera.fov_y * 0.5).tan());
+                self.remesh_now();
+                let px = self.pixel_mm();
+                let m = &self.meshes[0].mesh;
+                let worst = m
+                    .edges
+                    .iter()
+                    .filter(|e| e.points.len() > 8)
+                    .flat_map(|e| e.points.windows(2).map(|w| {
+                        let mid = (w[0] + w[1]) * 0.5;
+                        (20.0 - (mid.x * mid.x + mid.y * mid.y).sqrt()).abs()
+                    }))
+                    .fold(0.0_f32, f32::max);
+                println!(
+                    "selftest: zoomed circle: {px:.4} mm per pixel, worst deviation {worst:.4} mm, {before} -> {} triangles",
+                    m.triangle_count()
+                );
+                check(&mut st, "a circle across the window deviates by less than half a pixel", f64::from(worst) <= 0.5 * px);
+                check(&mut st, "the zoomed mesh is finer than the first one", m.triangle_count() > before);
+                self.layers_changed = true;
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "zoomed-circle");
+            }
+            45 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
