@@ -105,11 +105,23 @@ impl Default for SweepUi {
 pub struct CurveCache {
     defs: Vec<(CurveId, CurveDef)>,
     pub lines: Vec<(CurveId, Vec<Vec3>)>,
+    /// The deflection (mm) the polylines were made with.
+    pub tol: f64,
 }
 
-fn polyline_of(def: &CurveDef) -> Vec<Vec3> {
+/// The deflection of the curve polylines for a pixel of `pixel_mm`: 0.4 of a pixel (like the edges of the bodies), rounded
+/// down to a power of two so that the polylines are rebuilt only when the zoom changes by a factor of two.
+pub(super) fn curve_tolerance(pixel_mm: f64) -> f64 {
+    if !pixel_mm.is_finite() || pixel_mm <= 0.0 {
+        return 0.05;
+    }
+    let t = (pixel_mm * 0.4).clamp(0.002, 0.5);
+    2f64.powf(t.log2().floor())
+}
+
+fn polyline_of(def: &CurveDef, tol: f64) -> Vec<Vec3> {
     def.path()
-        .and_then(|p| p.polyline(0.05))
+        .and_then(|p| p.polyline(tol))
         .map(|v| v.iter().map(|p| p.as_vec3()).collect())
         .unwrap_or_default()
 }
@@ -119,12 +131,33 @@ fn pairs(pts: &[Vec3]) -> Vec<Vec3> {
 }
 
 impl App {
+    /// The deflection (mm) the curve polylines are made with now.
+    pub(super) fn curve_tol(&self) -> f64 {
+        if self.curve_cache.tol > 0.0 {
+            self.curve_cache.tol
+        } else {
+            0.05
+        }
+    }
+
     pub(super) fn refresh_curve_cache(&mut self) {
         let now: Vec<(CurveId, CurveDef)> = self.doc.curves().iter().map(|c| (c.id, c.def.clone())).collect();
-        if now != self.curve_cache.defs {
-            self.curve_cache.lines = now.iter().map(|(id, d)| (*id, polyline_of(d))).collect();
+        let wanted = curve_tolerance(self.pixel_mm());
+        let tol = self.curve_cache.tol;
+        // finer when the view came closer, coarser (to save memory) only when it went much further away
+        let retol = tol <= 0.0 || wanted < tol * 0.99 || wanted > tol * 3.9;
+        if now != self.curve_cache.defs || retol {
+            let t = if retol { wanted } else { tol };
+            self.curve_cache.lines = now.iter().map(|(id, d)| (*id, polyline_of(d, t))).collect();
             self.curve_cache.defs = now;
+            self.curve_cache.tol = t;
             self.layers_changed = true;
+            if retol {
+                self.helix.preview_key.clear();
+                if self.tool == Tool::Sweep {
+                    self.sweep_refresh_preview();
+                }
+            }
         }
     }
 
@@ -614,7 +647,8 @@ impl App {
 
     fn helix_refresh_preview(&mut self) {
         let key = format!(
-            "{:?}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{:?}|{}|{}|{}|{}|{}|{}|{}",
+            self.curve_cache.tol,
             self.helix.axis.map(|(o, a)| (o.to_array(), a.to_array())),
             self.helix.diameter,
             self.helix.pitch,
@@ -634,7 +668,7 @@ impl App {
             Some(def) => match CurveDef::Helix(def).path() {
                 Ok(p) => {
                     self.helix.preview = p
-                        .polyline(0.1)
+                        .polyline(self.curve_tol())
                         .map(|v| v.iter().map(|p| p.as_vec3()).collect())
                         .unwrap_or_default()
                 }
@@ -768,7 +802,7 @@ impl App {
     /// The points of a path in order, for drawing.
     pub(super) fn sweep_path_points(&self, path: &SweepPath) -> Vec<Vec3> {
         let to_vec = |p: Result<rolidium_kernel::Path, rolidium_kernel::KernelError>| -> Vec<Vec3> {
-            p.and_then(|p| p.polyline(0.05))
+            p.and_then(|p| p.polyline(self.curve_tol()))
                 .map(|v| v.iter().map(|p| p.as_vec3()).collect())
                 .unwrap_or_default()
         };
@@ -910,7 +944,7 @@ impl App {
         if outline.len() < 3 || pts.len() < 2 {
             return;
         }
-        let outline = super::lofttool::resample_loop(&outline, 48);
+        let outline = super::lofttool::resample_loop(&outline, 96);
         // the profile is carried to the nearer end of the path, then along it
         let nearer = |a: Vec3, b: Vec3, q: Vec3| {
             if (a - q).length() <= (b - q).length() {
@@ -925,7 +959,8 @@ impl App {
         if reversed {
             path.reverse();
         }
-        let step = (path.len() / 120).max(1);
+        // nearly every point of the path (the path is already as fine as the zoom needs), at most 600 frames
+        let step = (path.len() / 600).max(1);
         let mut frames: Vec<Vec<Vec3>> = Vec::new();
         let mut q = glam::Quat::IDENTITY;
         let mut prev_t = (path[1] - path[0]).normalize_or_zero();
@@ -1066,5 +1101,23 @@ impl App {
             self.sweep = SweepUi::default();
             self.layers_changed = true;
         }
+    }
+}
+
+#[cfg(test)]
+mod tolerance_tests {
+    use super::curve_tolerance;
+
+    #[test]
+    fn the_curve_tolerance_follows_the_pixel_size_in_powers_of_two() {
+        // 0.4 of a pixel, rounded down to a power of two
+        let t = curve_tolerance(0.1);
+        assert!(t <= 0.04 && t > 0.02, "{t}");
+        assert_eq!(curve_tolerance(0.1), curve_tolerance(0.12));
+        assert!(curve_tolerance(0.01) < curve_tolerance(0.1));
+        // limits
+        assert!(curve_tolerance(1e-9) >= 0.001);
+        assert!(curve_tolerance(1e6) <= 0.5);
+        assert_eq!(curve_tolerance(f64::NAN), 0.05);
     }
 }

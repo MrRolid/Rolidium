@@ -312,6 +312,40 @@ mod tests {
         assert!((path.length - length).abs() < 1e-6, "{}", path.length);
     }
 
+    /// The longest chord of a drawn curve must stay within the requested deflection of the circle it follows (this is what keeps a
+    /// helix round at any zoom: the application asks for 0.4 of a pixel).
+    #[test]
+    fn a_helix_polyline_stays_within_the_requested_deflection() {
+        let h = CurveDef::Helix(HelixDef {
+            origin: DVec3::ZERO,
+            axis: DVec3::Z,
+            x_dir: DVec3::X,
+            radius: 20.0,
+            pitch: 5.0,
+            turns: 4.0,
+            right: true,
+            start_deg: 0.0,
+            cone_deg: 0.0,
+        });
+        let path = h.path().unwrap();
+        let mut last = 0usize;
+        for tol in [0.1, 0.02, 0.004] {
+            let pts = path.polyline(tol).unwrap();
+            // a chord of the circle of radius 20 deviates by at most the sag chord^2 / (8 R) (flat projection)
+            let worst = pts
+                .windows(2)
+                .map(|w| {
+                    let (a, b) = (w[0], w[1]);
+                    let c = ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();
+                    c * c / (8.0 * 20.0)
+                })
+                .fold(0.0, f64::max);
+            assert!(worst <= tol * 1.05, "tolerance {tol}: sag {worst}");
+            assert!(pts.len() > last, "a finer tolerance gives more points");
+            last = pts.len();
+        }
+    }
+
     #[test]
     fn moving_a_curve_moves_its_points_and_its_axis() {
         let h = CurveDef::Helix(HelixDef {
