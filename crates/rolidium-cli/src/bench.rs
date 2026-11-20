@@ -409,5 +409,37 @@ pub fn times() -> i32 {
         );
     }
     println!("\nThe 'total' of a script includes building the part from scratch (sketches, curves, the operations and their checks).");
+
+    // The display mesh follows the zoom: the time and the triangles at the zoom of the whole part and when zoomed in 10 and 100 times.
+    println!("\nDisplay mesh for the zoom (deviation under half a pixel of a 900 px high view; at most {MAX_VIEW_TRIANGLES} triangles)\n");
+    println!("{:<34} {:>10} {:>10} {:>12}", "part", "zoom", "ms", "triangles");
+    let spring = {
+        let mut r = crate::Runner::new();
+        r.quiet = true;
+        r.run_script(&script_without_files(include_str!("../../../examples/08-spring.txt")))
+            .unwrap();
+        r.doc.bodies().last().unwrap().solid.clone()
+    };
+    let cylinder = Solid::cylinder(20.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+    for (name, solid) in [
+        ("cylinder (3 faces)", &cylinder),
+        (&format!("part with {} faces", big.face_count()) as &str, &big),
+        ("spring (example 08)", &spring),
+    ] {
+        let props = solid.props().unwrap();
+        let diag = (props.max - props.min).length();
+        let mut previous = None;
+        for zoom in [1.0, 10.0, 100.0] {
+            let pixel = diag / 900.0 / zoom;
+            let t = std::time::Instant::now();
+            let m = solid.view_mesh(pixel, MAX_VIEW_TRIANGLES, previous).unwrap();
+            let ms = t.elapsed().as_secs_f64() * 1e3;
+            previous = Some((m.deflection, m.triangle_count()));
+            println!("{:<34} {:>9}x {:>10.1} {:>12}", name, zoom, ms, m.triangle_count());
+        }
+    }
     0
 }
+
+/// The cap of the display mesh of one body (the same as in the program).
+const MAX_VIEW_TRIANGLES: usize = 1_500_000;
