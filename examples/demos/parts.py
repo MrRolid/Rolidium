@@ -141,3 +141,65 @@ def grease_nipple(s, f):
     f.ext("w", 0, 2, ("circle", 0, 0, 3), "add", joins=False)
     f.ext("w", 2, 6, ("circle", 0, 0, 5), "add")
     return [start]
+
+
+# ---- spindle with a clamp mount -------------------------------------------------------------------------------------------------------
+# Local frame: w along the spindle, from the top (w = 0) toward the tool (w = 200 is the end of the body); the tool end is the `nose`.
+def spindle_body(s, f):
+    """The housing of a router spindle: a cylinder of 65 x 200 and a nose of 40 x 15 with a bore of 6.2 for the
+    cutter (the nose runs from w = 200 to 215). One body."""
+    start = s.n + 1
+    f.ext("w", 0, 200, ("circle", 0, 0, 65), "add", joins=False)
+    f.ext("w", 200, 215, ("circle", 0, 0, 40), "add")
+    f.ext("w", 205, 216, ("circle", 0, 0, 6.2), "cut")
+    return [start]
+
+
+def spindle_nut(s, f):
+    """The collet nut: 30 x 22 on the nose (w = 215 .. 237), bore 6.2 for the cutter. One body."""
+    start = s.n + 1
+    f.ext("w", 215, 237, ("circle", 0, 0, 30), "add", joins=False)
+    f.ext("w", 214, 238, ("circle", 0, 0, 6.2), "cut")
+    return [start]
+
+
+def cutter(s, f):
+    """An end mill of 6 mm: 55 long, from w = 205 (inside the nose) to 260, a smooth cylinder (the flutes are not drawn). One body."""
+    start = s.n + 1
+    f.ext("w", 205, 260, ("circle", 0, 0, 6), "add", joins=False)
+    return [start]
+
+
+def spindle_cap(s, f):
+    """The cap on the top of the spindle: 60 x 12 (w = -12 .. 0). One body."""
+    start = s.n + 1
+    f.ext("w", -12, 0, ("circle", 0, 0, 60), "add", joins=False)
+    return [start]
+
+
+def cable_gland(s, f):
+    """A cable gland of 16 x 14 on the cap (w = -26 .. -12), 18 mm off the axis along +u. One body."""
+    start = s.n + 1
+    f.ext("w", -26, -12, ("circle", 18, 0, 16), "add", joins=False)
+    f.ext("w", -26, -22, ("circle", 18, 0, 8), "cut")
+    return [start]
+
+
+def spindle_mount(s, f):
+    """The clamp mount of the spindle: a block 90 x 90 x 60 (u, v from -45 to 45, w = 70 .. 130) with a clamping bore of 65.1, a slit of 1.5 mm
+    toward +v, two holes across the slit for M6 clamp screws (heads in pockets on +u) and four holes of 6.6 to bolt it down (along v, at u = +-38).
+    One body."""
+    start = s.n + 1
+    f.ext("w", 70, 130, ("rect", -45, -45, 45, 45), "add", joins=False)
+    f.ext("w", 69, 131, ("circle", 0, 0, 65.1), "cut")
+    f.ext("w", 69, 131, ("rect", -0.75, 0, 0.75, 46), "cut")                       # the slit from the bore to the front face (+v)
+    for w in MOUNT_SCREWS:
+        f.ext("u", -46, 46, ("circle", 38, w, 6.4), "cut")                          # across the slit at v = 38
+        f.ext("u", 38, 46, ("circle", 38, w, 11), "cut")                            # the pocket for the head of the screw on +u
+    for sx in (-38, 38):
+        for w in (80, 120):
+            f.ext("v", -46, 46, ("circle", sx, w, 6.6), "cut")
+    return [start]
+
+
+MOUNT_SCREWS = (85, 115)    # where the two clamp screws are along the spindle

@@ -1,0 +1,2 @@
+# detail: from the front, the clamp mount with its holes and the slit
+render @OUT@/@NAME@-detail.png 1920 1080 front

@@ -1,0 +1,89 @@
+# Router spindle with a clamp mount: housing 65 x 200, nose with a collet nut and a cutter of 6 mm, a cap with a cable gland, and the clamp mount (bore 65, slit 1.5, two M6 clamp screws, four holes to bolt it down). The tool points down (-Z). Eight bodies.
+# Every part is built far away (the staging area) and moved into place (parts that touch would be joined into one body by Pull).
+# bodies: 8
+# volume: 1006190.014
+# no-overlap: yes
+sketch xy 4800
+circle 5000 5000 65
+pull-region 0 200 add
+sketch xy 4785
+circle 5000 5000 40
+pull-region 0 15 add
+sketch xy 4784
+circle 5000 5000 6.2
+pull-region 0 11 cut
+move -5000 -5000 -5000 body 1
+sketch xy 4763
+circle 5000 5000 30
+pull-region 0 22 add
+sketch xy 4762
+circle 5000 5000 6.2
+pull-region 0 24 cut
+move -5000 -5000 -5000 body 2
+sketch xy 4740
+circle 5000 5000 6
+pull-region 0 55 add
+move -5000 -5000 -5000 body 3
+sketch xy 5000
+circle 5000 5000 60
+pull-region 0 12 add
+move -5000 -5000 -5000 body 4
+sketch xy 5012
+circle 5018 5000 16
+pull-region 0 14 add
+sketch xy 5022
+circle 5018 5000 8
+pull-region 0 4 cut
+move -5000 -5000 -5000 body 5
+sketch xy 4870
+rect 4955 4955 5045 5045
+pull-region 0 60 add
+sketch xy 4869
+circle 5000 5000 65.1
+pull-region 0 62 cut
+sketch xy 4869
+rect 4999.25 5000 5000.75 5046
+pull-region 0 62 cut
+sketch yz 4954
+circle 5038 4915 6.4
+pull-region 0 92 cut
+sketch yz 5038
+circle 5038 4915 11
+pull-region 0 8 cut
+sketch yz 4954
+circle 5038 4885 6.4
+pull-region 0 92 cut
+sketch yz 5038
+circle 5038 4885 11
+pull-region 0 8 cut
+sketch xz -5046
+circle 4962 4920 6.6
+pull-region 0 92 cut
+sketch xz -5046
+circle 4962 4880 6.6
+pull-region 0 92 cut
+sketch xz -5046
+circle 5038 4920 6.6
+pull-region 0 92 cut
+sketch xz -5046
+circle 5038 4880 6.6
+pull-region 0 92 cut
+move -5000 -5000 -5000 body 6
+sketch yz 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 4930
+circle 5000 5000 5.8
+pull-region 0 70 add
+sketch yz 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4962 -4962 -5085 body 7
+move 0.0000 0.0000 -30.0000 copy body 7
+export-step target/demos/09-spindle-mount/09-spindle-mount.step
+info
