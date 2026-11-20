@@ -630,3 +630,21 @@ Skipped because they failed to start earlier: {}. => Ignorés car ils n'ont pas 
 Try all backends again => Réessayer tous les backends
 Rolidium cannot start => Rolidium ne peut pas démarrer
 Rolidium could not start its graphics: no graphics backend worked. {}\n\nUpdating the driver of your graphics card usually helps. You can also try a backend by hand: start the program with --backend dx12, --backend vulkan or --backend gl; --backend auto forgets the backends that were skipped. The log is here: {} => Rolidium n'a pas pu démarrer les graphismes : aucun backend graphique n'a fonctionné. {}\n\nMettre à jour le pilote de la carte graphique aide en général. Tu peux aussi essayer un backend à la main : lance le programme avec --backend dx12, --backend vulkan ou --backend gl ; --backend auto oublie les backends ignorés. Le journal se trouve ici : {}
+
+# ---- Messages of rounds, chamfers and other kernel operations ----
+The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it. => Le rayon de {} mm ne convient pas à ces arêtes. Le plus grand rayon possible est d'environ {} mm ; une face voisine le limite.
+The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it. => Le chanfrein de {} mm ne convient pas à ces arêtes. Le plus grand chanfrein possible est d'environ {} mm ; une face voisine le limite.
+The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded => Le rayon de {} mm ne convient pas à ces arêtes et aucun rayon ne fonctionne ici : les arêtes se rejoignent de façon à ne pas pouvoir être arrondies
+The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered => Le chanfrein de {} mm ne convient pas à ces arêtes et aucun chanfrein ne fonctionne ici : les arêtes se rejoignent de façon à ne pas pouvoir être chanfreinées
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works. => Le chanfrein de {} mm à {} degrés ne convient pas à ces arêtes. La plus grande distance possible est d'environ {} mm (la seconde distance est alors de {} mm) ; une face voisine la limite. En échangeant les deux côtés (Inverser), on peut aller jusqu'à environ {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. => Le chanfrein de {} mm à {} degrés ne convient pas à ces arêtes. La plus grande distance possible est d'environ {} mm (la seconde distance est alors de {} mm) ; une face voisine la limite.
+The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works. => Le chanfrein de {} mm à {} degrés ne convient pas à ces arêtes. En échangeant les deux côtés (Inverser), on peut aller jusqu'à environ {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances => Le chanfrein de {} mm à {} degrés ne convient pas à ces arêtes et aucune distance ne fonctionne ici : les arêtes se rejoignent de façon à ne pas pouvoir être chanfreinées avec deux distances
+The loft failed: {} => La transition a échoué : {}
+This edge cannot be a loft profile: {} => Cette arête ne peut pas être un profil de transition : {}
+a neighbouring round could not be found again => un arrondi voisin n'a pas pu être retrouvé
+a neighbouring round could not be removed cleanly => un arrondi voisin n'a pas pu être retiré proprement
+chamfers with different distances cannot be combined => des chanfreins de distances différentes ne peuvent pas être combinés
+nothing to measure => il n'y a rien à mesurer
+the new round could not be recognised => le nouvel arrondi n'a pas pu être reconnu
+the selected edge could not be found after removing the neighbouring rounds => l'arête choisie n'a pas pu être retrouvée après le retrait des arrondis voisins

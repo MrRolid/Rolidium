@@ -630,3 +630,21 @@ Skipped because they failed to start earlier: {}. => Omitidos porque antes no ar
 Try all backends again => Probar todos los backends de nuevo
 Rolidium cannot start => Rolidium no puede iniciarse
 Rolidium could not start its graphics: no graphics backend worked. {}\n\nUpdating the driver of your graphics card usually helps. You can also try a backend by hand: start the program with --backend dx12, --backend vulkan or --backend gl; --backend auto forgets the backends that were skipped. The log is here: {} => Rolidium no pudo iniciar los gráficos: ningún backend gráfico funcionó. {}\n\nActualizar el controlador de la tarjeta gráfica suele ayudar. También puedes probar un backend a mano: inicia el programa con --backend dx12, --backend vulkan o --backend gl; --backend auto olvida los backends omitidos. El registro está aquí: {}
+
+# ---- Messages of rounds, chamfers and other kernel operations ----
+The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it. => El radio de {} mm no cabe en estos bordes. El radio máximo que funciona es de unos {} mm; lo limita una cara vecina.
+The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it. => El chaflán de {} mm no cabe en estos bordes. El chaflán máximo que funciona es de unos {} mm; lo limita una cara vecina.
+The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded => El radio de {} mm no cabe en estos bordes y aquí no funciona ningún radio: los bordes se unen de forma que no se pueden redondear
+The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered => El chaflán de {} mm no cabe en estos bordes y aquí no funciona ningún chaflán: los bordes se unen de forma que no se pueden achaflanar
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works. => El chaflán de {} mm a {} grados no cabe en estos bordes. La distancia máxima que funciona es de unos {} mm (la segunda distancia es entonces {} mm); la limita una cara vecina. Con los lados intercambiados (Invertir) funciona hasta unos {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. => El chaflán de {} mm a {} grados no cabe en estos bordes. La distancia máxima que funciona es de unos {} mm (la segunda distancia es entonces {} mm); la limita una cara vecina.
+The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works. => El chaflán de {} mm a {} grados no cabe en estos bordes. Con los lados intercambiados (Invertir) funciona hasta unos {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances => El chaflán de {} mm a {} grados no cabe en estos bordes y aquí no funciona ninguna distancia: los bordes se unen de forma que no se pueden achaflanar con dos distancias
+The loft failed: {} => La transición falló: {}
+This edge cannot be a loft profile: {} => Este borde no puede ser un perfil de transición: {}
+a neighbouring round could not be found again => no se pudo volver a encontrar un redondeo vecino
+a neighbouring round could not be removed cleanly => no se pudo quitar limpiamente un redondeo vecino
+chamfers with different distances cannot be combined => los chaflanes con distancias distintas no se pueden combinar
+nothing to measure => no hay nada que medir
+the new round could not be recognised => no se pudo reconocer el nuevo redondeo
+the selected edge could not be found after removing the neighbouring rounds => no se pudo encontrar el borde elegido tras quitar los redondeos vecinos

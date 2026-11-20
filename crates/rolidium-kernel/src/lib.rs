@@ -18,7 +18,7 @@ mod ops;
 mod sweep;
 pub mod timing;
 
-pub use blend::CHAIN_ANGLE_DEG;
+pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
 pub use glam::{DVec3, Vec3};
 pub use measure::{measure, Angle, Elem, Measurement};
 pub use mesh::{EdgePolyline, Mesh};

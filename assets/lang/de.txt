@@ -630,3 +630,21 @@ Skipped because they failed to start earlier: {}. => Übersprungen, weil sie fr�
 Try all backends again => Alle Backends erneut versuchen
 Rolidium cannot start => Rolidium kann nicht gestartet werden
 Rolidium could not start its graphics: no graphics backend worked. {}\n\nUpdating the driver of your graphics card usually helps. You can also try a backend by hand: start the program with --backend dx12, --backend vulkan or --backend gl; --backend auto forgets the backends that were skipped. The log is here: {} => Rolidium konnte die Grafik nicht starten: Kein Grafik-Backend hat funktioniert. {}\n\nOft hilft die Aktualisierung des Grafikkartentreibers. Du kannst ein Backend auch von Hand versuchen: Starte das Programm mit --backend dx12, --backend vulkan oder --backend gl; --backend auto vergisst die übersprungenen Backends. Das Protokoll liegt hier: {}
+
+# ---- Messages of rounds, chamfers and other kernel operations ----
+The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it. => Der Radius von {} mm passt nicht an diese Kanten. Der größte Radius, der funktioniert, beträgt etwa {} mm; eine benachbarte Fläche begrenzt ihn.
+The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it. => Die Fase von {} mm passt nicht an diese Kanten. Die größte Fase, die funktioniert, beträgt etwa {} mm; eine benachbarte Fläche begrenzt sie.
+The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded => Der Radius von {} mm passt nicht an diese Kanten, und hier funktioniert kein Radius: Die Kanten treffen sich so, dass sie nicht verrundet werden können
+The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered => Die Fase von {} mm passt nicht an diese Kanten, und hier funktioniert keine Fase: Die Kanten treffen sich so, dass sie nicht gefast werden können
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works. => Die Fase von {} mm bei {} Grad passt nicht an diese Kanten. Der größte Abstand, der funktioniert, beträgt etwa {} mm (der zweite Abstand ist dann {} mm); eine benachbarte Fläche begrenzt ihn. Mit vertauschten Seiten (Umkehren) funktionieren bis zu etwa {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. => Die Fase von {} mm bei {} Grad passt nicht an diese Kanten. Der größte Abstand, der funktioniert, beträgt etwa {} mm (der zweite Abstand ist dann {} mm); eine benachbarte Fläche begrenzt ihn.
+The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works. => Die Fase von {} mm bei {} Grad passt nicht an diese Kanten. Mit vertauschten Seiten (Umkehren) funktionieren bis zu etwa {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances => Die Fase von {} mm bei {} Grad passt nicht an diese Kanten, und hier funktioniert kein Abstand: Die Kanten treffen sich so, dass sie nicht mit zwei Abständen gefast werden können
+The loft failed: {} => Der Übergang ist fehlgeschlagen: {}
+This edge cannot be a loft profile: {} => Diese Kante kann kein Übergangsprofil sein: {}
+a neighbouring round could not be found again => eine benachbarte Verrundung konnte nicht wiedergefunden werden
+a neighbouring round could not be removed cleanly => eine benachbarte Verrundung konnte nicht sauber entfernt werden
+chamfers with different distances cannot be combined => Fasen mit unterschiedlichen Abständen können nicht zusammengefasst werden
+nothing to measure => es gibt nichts zu messen
+the new round could not be recognised => die neue Verrundung konnte nicht erkannt werden
+the selected edge could not be found after removing the neighbouring rounds => die gewählte Kante konnte nach dem Entfernen der benachbarten Verrundungen nicht gefunden werden

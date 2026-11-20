@@ -10,6 +10,44 @@
 use crate::{nat as native, DVec3, EdgeId, KernelError, Result, Solid};
 use std::collections::HashMap;
 
+/// The largest size below `size` (a failing size of a round or chamfer) for which `works` still succeeds, found by halving the
+/// interval between a size that works and `size`. `None` when even a tiny size fails (the edges cannot be treated at any
+/// size). The result is rounded down (to 0.1 mm, or to 0.01 mm below 1 mm), so it is a size that works and one a person can type.
+pub fn largest_working_size(size: f64, mut works: impl FnMut(f64) -> bool) -> Option<f64> {
+    if !(size.is_finite() && size > 0.0) {
+        return None;
+    }
+    // look downwards for a size that works (halving each time, down to 1/128 of the failing size or 0.1 mm), then narrow the gap
+    let (mut lo, mut hi) = (0.0, size);
+    let mut v = size;
+    for _ in 0..7 {
+        v *= 0.5;
+        if v < 0.1 {
+            break;
+        }
+        if works(v) {
+            lo = v;
+            break;
+        }
+        hi = v;
+    }
+    if lo == 0.0 {
+        return None;
+    }
+    for _ in 0..12 {
+        let mid = 0.5 * (lo + hi);
+        if works(mid) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let step = if lo >= 1.0 { 0.1 } else { 0.01 };
+    let nice = (lo / step).floor() * step;
+    // the rounded-down value was never tried itself; it lies below a size that worked, so it works as well
+    Some(if nice > 0.0 { nice } else { lo })
+}
+
 /// Angle (degrees) up to which two edges meeting at a vertex count as one smooth chain.
 pub const CHAIN_ANGLE_DEG: f64 = 20.0;
 

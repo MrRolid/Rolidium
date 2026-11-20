@@ -355,11 +355,38 @@ mod coverage {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
     }
 
+    /// `{size}` / `{distance:.1}` (a value named inside the text) becomes `{}`: that is how the message is translated.
+    fn inline_values(s: &str) -> String {
+        let mut out = String::new();
+        let mut rest = s;
+        while let Some(i) = rest.find('{') {
+            out.push_str(&rest[..i]);
+            let after = &rest[i + 1..];
+            match after.find('}') {
+                Some(j)
+                    if after[..j]
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '.' || c == '+')
+                        && !after[..j].is_empty() =>
+                {
+                    out.push_str("{}");
+                    rest = &after[j + 1..];
+                }
+                _ => {
+                    out.push('{');
+                    rest = after;
+                }
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+
     /// Texts handed to `tr`/`trf`/`set_status`/`Invalid` as string literals, found in the sources.
     fn scan(text: &str, out: &mut Vec<String>) {
         let text = text.split("#[cfg(test)]").next().unwrap_or(text);
         let bytes = text.as_bytes();
-        for name in ["tr", "trf", "set_status", "set_status_quiet", "Invalid"] {
+        for name in ["tr", "trf", "set_status", "set_status_quiet", "Invalid", "fail"] {
             let pat = format!("{name}(");
             let mut from = 0;
             while let Some(i) = text[from..].find(&pat) {
@@ -369,6 +396,8 @@ mod coverage {
                     continue;
                 }
                 let rest = text[from..].trim_start();
+                // `Invalid(format!("... {size} ..."))`: the message with its values in the place of the names
+                let rest = rest.strip_prefix("format!(").map_or(rest, str::trim_start);
                 if let Some(lit) = rest.strip_prefix('"') {
                     let mut s = String::new();
                     let mut chars = lit.chars();
@@ -383,9 +412,7 @@ mod coverage {
                             c => s.push(c),
                         }
                     }
-                    if !s.contains("{size}") {
-                        out.push(s);
-                    }
+                    out.push(inline_values(&s));
                 }
             }
         }
@@ -436,6 +463,14 @@ mod coverage {
         "The chamfer of {} mm does not fit these edges (it is too large or the edges meet in a way that cannot be chamfered)",
         "The radius of {} mm does not fit here (it is too large for the neighbouring faces)",
         "The chamfer of {} mm does not fit here (it is too large for the neighbouring faces)",
+        "The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it.",
+        "The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it.",
+        "The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded",
+        "The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered",
+        "The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works.",
+        "The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it.",
+        "The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works.",
+        "The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances",
         "The round or chamfer cannot be changed here: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];
@@ -443,15 +478,9 @@ mod coverage {
     fn all_keys() -> Vec<String> {
         let mut files = Vec::new();
         rs_files(&root().join("crates/rolidium-app/src"), &mut files);
-        for f in [
-            "crates/rolidium-doc/src/lib.rs",
-            "crates/rolidium-kernel/src/ops.rs",
-            "crates/rolidium-kernel/src/lib.rs",
-            "crates/rolidium-kernel/src/sweep.rs",
-            "crates/rolidium-doc/src/curves.rs",
-        ] {
-            files.push(root().join(f));
-        }
+        // every message of the kernel and of the document that can reach the user
+        rs_files(&root().join("crates/rolidium-kernel/src"), &mut files);
+        rs_files(&root().join("crates/rolidium-doc/src"), &mut files);
         let mut keys = Vec::new();
         for f in files {
             let name = f.file_name().unwrap().to_string_lossy().to_string();
@@ -591,6 +620,61 @@ mod coverage {
                 assert!(!v.is_empty(), "{code}: empty translation of '{k}'");
             }
             assert!(text.contains("@name"), "{code}: no language name");
+        }
+    }
+
+    /// The messages that the operations really produce (with their values filled in) are translated in every language file:
+    /// none of them may reach the user in English.
+    #[test]
+    fn real_operation_messages_are_translated_in_every_language() {
+        use rolidium_doc::{Command, Document};
+        use rolidium_kernel::DVec3;
+        let mut d = Document::new();
+        d.apply(Command::AddBox {
+            name: "Box".into(),
+            min: DVec3::ZERO,
+            max: DVec3::new(40.0, 30.0, 20.0),
+        })
+        .unwrap();
+        let body = d.bodies()[0].id;
+        let s = d.body(body).unwrap().solid.clone();
+        let edge = s
+            .edges()
+            .find(|e| {
+                let i = s.edge_info(*e).unwrap();
+                (i.start.x - i.end.x).abs() < 1e-9 && (i.start.y - i.end.y).abs() < 1e-9 && i.start.x < 1.0 && i.start.y < 1.0
+            })
+            .unwrap()
+            .0;
+        let mut messages: Vec<String> = Vec::new();
+        for chamfer in [false, true] {
+            messages.push(
+                d.apply(Command::FilletEdges { body, edges: vec![edge], size: 500.0, chamfer })
+                    .unwrap_err()
+                    .to_string(),
+            );
+        }
+        messages.push(
+            d.apply(Command::ChamferAngled { body, edges: vec![edge], distance: 500.0, angle_deg: 30.0, flip: false })
+                .unwrap_err()
+                .to_string(),
+        );
+        messages.push(
+            d.apply(Command::ChamferAngled { body, edges: vec![], distance: 5.0, angle_deg: 30.0, flip: false })
+                .unwrap_err()
+                .to_string(),
+        );
+        for (code, text) in [
+            ("cs", include_str!("../../../assets/lang/cs.txt")),
+            ("de", include_str!("../../../assets/lang/de.txt")),
+            ("es", include_str!("../../../assets/lang/es.txt")),
+            ("fr", include_str!("../../../assets/lang/fr.txt")),
+            ("ja", include_str!("../../../assets/lang/ja.txt")),
+        ] {
+            let c = Catalog::parse(text);
+            for m in &messages {
+                assert_ne!(&c.translate(m), m, "{code}: not translated: {m}");
+            }
         }
     }
 }

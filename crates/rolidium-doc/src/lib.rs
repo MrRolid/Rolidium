@@ -839,12 +839,13 @@ impl Job {
                 }
                 let r = if *chamfer { b.solid.chamfer(&ids, *size) } else { b.solid.fillet(&ids, *size) }
                     .map_err(|e| match e {
-                        KernelError::Native(_) if *chamfer => KernelError::Invalid(format!(
-                            "The chamfer of {size} mm does not fit these edges (it is too large or the edges meet in a way that cannot be chamfered)"
-                        )),
-                        KernelError::Native(_) => KernelError::Invalid(format!(
-                            "The radius of {size} mm does not fit these edges (it is too large or the edges meet in a way that cannot be rounded)"
-                        )),
+                        KernelError::Native(_) => {
+                            let solid = &b.solid;
+                            let largest = rolidium_kernel::largest_working_size(*size, |v| {
+                                if *chamfer { solid.chamfer(&ids, v) } else { solid.fillet(&ids, v) }.is_ok()
+                            });
+                            blend_too_large(*size, largest, *chamfer)
+                        }
                         e => e,
                     })?;
                 remap_features(&mut b.features, &r.history);
@@ -890,9 +891,16 @@ impl Job {
                     .into());
                 }
                 let r = b.solid.chamfer_angled(&ids, *distance, *angle_deg, *flip).map_err(|e| match e {
-                    KernelError::Native(_) => KernelError::Invalid(format!(
-                        "The chamfer of {distance} mm at {angle_deg} degrees does not fit these edges (too large, or the edges meet in a way that cannot be chamfered with two distances)"
-                    )),
+                    KernelError::Native(_) => {
+                        let solid = &b.solid;
+                        let largest = |flip: bool| {
+                            rolidium_kernel::largest_working_size(*distance, |v| {
+                                solid.chamfer_angled(&ids, v, *angle_deg, flip).is_ok()
+                            })
+                        };
+                        let (l1, l2) = (largest(*flip), largest(!*flip));
+                        angled_too_large(*distance, *angle_deg, l1, l2)
+                    }
                     e => e,
                 })?;
                 remap_features(&mut b.features, &r.history);
@@ -1979,6 +1987,56 @@ pub fn combine_volume_ok(op: BooleanOp, target: f64, tool: f64, result: f64) -> 
         BooleanOp::Cut => result > 0.0 && result <= target + tol,
         BooleanOp::Common => result > 0.0 && result <= target.min(tool) + tol,
     }
+}
+
+/// A length for a message: at most two decimals, no trailing zeros ("2.5", "10").
+fn mm(v: f64) -> String {
+    let t = format!("{v:.2}");
+    t.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// The message of a round or chamfer that does not fit: the size, the largest one that still works and why.
+fn blend_too_large(size: f64, largest: Option<f64>, chamfer: bool) -> KernelError {
+    let size = mm(size);
+    KernelError::Invalid(match (largest, chamfer) {
+        (Some(m), false) => format!(
+            "The radius of {size} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it.",
+            mm(m)
+        ),
+        (Some(m), true) => format!(
+            "The chamfer of {size} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it.",
+            mm(m)
+        ),
+        (None, false) => format!(
+            "The radius of {size} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded"
+        ),
+        (None, true) => format!(
+            "The chamfer of {size} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered"
+        ),
+    })
+}
+
+/// The same for the chamfer with a distance and an angle; `swapped` is the largest distance with the two sides exchanged (Flip).
+fn angled_too_large(distance: f64, angle_deg: f64, largest: Option<f64>, swapped: Option<f64>) -> KernelError {
+    let (d, a) = (mm(distance), mm(angle_deg));
+    let second = |m: f64| mm(m * angle_deg.to_radians().tan());
+    KernelError::Invalid(match (largest, swapped) {
+        (Some(m), Some(f)) if f > m * 1.05 => format!(
+            "The chamfer of {d} mm at {a} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works.",
+            mm(m), second(m), mm(f)
+        ),
+        (Some(m), _) => format!(
+            "The chamfer of {d} mm at {a} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it.",
+            mm(m), second(m)
+        ),
+        (None, Some(f)) => format!(
+            "The chamfer of {d} mm at {a} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works.",
+            mm(f)
+        ),
+        (None, None) => format!(
+            "The chamfer of {d} mm at {a} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances"
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -3712,5 +3770,123 @@ mod loft_edge_tests {
         let cyl = std::f64::consts::PI * 100.0 * 20.0;
         let cone = std::f64::consts::PI * 30.0 / 3.0 * (100.0 + 50.0 + 25.0);
         assert!((v - (cyl + cone)).abs() < 0.1, "{v}");
+    }
+
+    fn doc_with_box() -> (Document, BodyId) {
+        let mut d = Document::new();
+        d.apply(Command::AddBox {
+            name: "Box".into(),
+            min: DVec3::ZERO,
+            max: DVec3::new(40.0, 30.0, 20.0),
+        })
+        .unwrap();
+        let id = d.bodies()[0].id;
+        (d, id)
+    }
+
+    /// The number that follows `marker` in a message.
+    fn number_after(msg: &str, marker: &str) -> f64 {
+        let rest = &msg[msg.find(marker).unwrap_or_else(|| panic!("'{marker}' not in '{msg}'")) + marker.len()..];
+        let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap();
+        rest[..end].parse().unwrap()
+    }
+
+    fn vertical_edge(d: &Document, id: BodyId) -> u32 {
+        let s = &d.body(id).unwrap().solid;
+        s.edges()
+            .find(|e| {
+                let i = s.edge_info(*e).unwrap();
+                (i.start.x - i.end.x).abs() < 1e-9
+                    && (i.start.y - i.end.y).abs() < 1e-9
+                    && i.start.x < 1.0
+                    && i.start.y < 1.0
+            })
+            .unwrap()
+            .0
+    }
+
+    #[test]
+    fn a_round_or_chamfer_that_does_not_fit_says_the_largest_size_that_does() {
+        for chamfer in [false, true] {
+            let (mut d, id) = doc_with_box();
+            let e = vertical_edge(&d, id);
+            let cmd = |size: f64| Command::FilletEdges {
+                body: id,
+                edges: vec![e],
+                size,
+                chamfer,
+            };
+            let msg = d.apply(cmd(100.0)).unwrap_err().to_string();
+            assert!(msg.contains("largest"), "{msg}");
+            let best = number_after(&msg, "works is about ");
+            assert!(best > 5.0 && best < 100.0, "{msg}");
+            // the size in the message really works, and the document was not changed by the failure
+            d.apply(cmd(best)).unwrap_or_else(|e| panic!("{best} does not work: {e}"));
+        }
+    }
+
+    #[test]
+    fn the_angled_chamfer_names_the_largest_distance_and_the_flip() {
+        let (mut d, id) = doc_with_box();
+        let e = vertical_edge(&d, id);
+        let cmd = |distance: f64, flip: bool| Command::ChamferAngled {
+            body: id,
+            edges: vec![e],
+            distance,
+            angle_deg: 30.0,
+            flip,
+        };
+        let msg = d.apply(cmd(100.0, false)).unwrap_err().to_string();
+        assert!(msg.contains("at 30 degrees") && msg.contains("largest distance"), "{msg}");
+        let best = number_after(&msg, "works is about ");
+        assert!(msg.contains("second distance is then"), "{msg}");
+        d.apply(cmd(best, false)).unwrap_or_else(|e| panic!("{best} does not work: {e}"));
+    }
+
+    /// A pipe with a thin wall: a long distance on the narrow ring fails, and the message says what works and that Flip helps.
+    #[test]
+    fn a_long_chamfer_on_a_thin_pipe_wall_names_the_wall_and_the_flip() {
+        use rolidium_kernel::{BooleanOp, EdgeKind, Solid};
+        let outer = Solid::cylinder(32.5, 39.0, DVec3::ZERO, DVec3::Z).unwrap();
+        let bore = Solid::cylinder(26.0, 39.0, DVec3::ZERO, DVec3::Z).unwrap();
+        let pipe = outer.boolean(&bore, BooleanOp::Cut).unwrap().solid;
+        let run = |flip: bool| {
+            let mut d = Document::new();
+            d.apply(Command::AddSolids { solids: vec![pipe.clone()] }).unwrap();
+            let id = d.bodies()[0].id;
+            let solid = d.body(id).unwrap().solid.clone();
+            let edge = solid
+                .edges()
+                .find(|e| {
+                    let i = solid.edge_info(*e).unwrap();
+                    i.kind == EdgeKind::Circle && (i.radius - 26.0).abs() < 1e-6 && i.start.z > 38.0
+                })
+                .unwrap();
+            d.apply(Command::ChamferAngled {
+                body: id,
+                edges: vec![edge.0],
+                distance: 10.0,
+                angle_deg: 3.0,
+                flip,
+            })
+            .map_or_else(|e| e.to_string(), |_| "ok".into())
+        };
+        let msgs = vec![run(false), run(true)];
+        // one of the two sides is the 6.5 mm wide ring: it fails, says about 6.4 mm, and the other side works
+        let failing: Vec<&String> = msgs.iter().filter(|m| *m != "ok").collect();
+        assert_eq!(failing.len(), 1, "{msgs:?}");
+        let best = number_after(failing[0], "works is about ");
+        assert!((6.0..6.5).contains(&best), "{}", failing[0]);
+        assert!(failing[0].contains("Flip"), "{}", failing[0]);
+    }
+
+    #[test]
+    fn a_largest_size_is_found_by_halving() {
+        use rolidium_kernel::largest_working_size;
+        let m = largest_working_size(10.0, |v| v <= 2.3).unwrap();
+        assert!((2.2..=2.3).contains(&m), "{m}");
+        assert_eq!(largest_working_size(10.0, |_| false), None);
+        assert!(largest_working_size(10.0, |v| v < 0.01).is_none());
+        assert!(largest_working_size(10.0, |v| v < 0.5).is_some());
     }
 }

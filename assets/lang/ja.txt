@@ -630,3 +630,21 @@ Skipped because they failed to start earlier: {}. => 以前に起動に失敗し
 Try all backends again => すべてのバックエンドを再試行
 Rolidium cannot start => Rolidium を起動できません
 Rolidium could not start its graphics: no graphics backend worked. {}\n\nUpdating the driver of your graphics card usually helps. You can also try a backend by hand: start the program with --backend dx12, --backend vulkan or --backend gl; --backend auto forgets the backends that were skipped. The log is here: {} => Rolidium はグラフィックスを開始できませんでした。使用できるバックエンドがありませんでした。{}\n\nグラフィックスカードのドライバを更新すると解決することが多いです。バックエンドを手動で試すこともできます。--backend dx12、--backend vulkan、--backend gl を付けて起動してください。--backend auto はスキップされたバックエンドを忘れます。ログの場所: {}
+
+# ---- Messages of rounds, chamfers and other kernel operations ----
+The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it. => 半径 {} mm はこれらの辺には大きすぎます。使える最大の半径は約 {} mm で、隣の面がそれを制限しています。
+The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it. => 面取り {} mm はこれらの辺には大きすぎます。使える最大の面取りは約 {} mm で、隣の面がそれを制限しています。
+The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded => 半径 {} mm は使えず、ここではどの半径でも丸められません。辺の接し方が丸め処理に向いていません
+The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered => 面取り {} mm は使えず、ここではどの面取りもできません。辺の接し方が面取りに向いていません
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works. => {} mm、{} 度の面取りはこれらの辺には大きすぎます。使える最大の距離は約 {} mm（もう一方の距離は {} mm）で、隣の面がそれを制限しています。両側を入れ替える（反転）と約 {} mm まで使えます。
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. => {} mm、{} 度の面取りはこれらの辺には大きすぎます。使える最大の距離は約 {} mm（もう一方の距離は {} mm）で、隣の面がそれを制限しています。
+The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works. => {} mm、{} 度の面取りはこれらの辺には大きすぎます。両側を入れ替える（反転）と約 {} mm まで使えます。
+The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances => {} mm、{} 度の面取りは使えず、ここではどの距離でも二つの距離での面取りができません。辺の接し方が面取りに向いていません
+The loft failed: {} => ロフトに失敗しました: {}
+This edge cannot be a loft profile: {} => この辺はロフトのプロファイルにできません: {}
+a neighbouring round could not be found again => 隣の丸めを再び見つけられませんでした
+a neighbouring round could not be removed cleanly => 隣の丸めをきれいに取り除けませんでした
+chamfers with different distances cannot be combined => 距離の異なる面取りは組み合わせられません
+nothing to measure => 測定するものがありません
+the new round could not be recognised => 新しい丸めを認識できませんでした
+the selected edge could not be found after removing the neighbouring rounds => 隣の丸めを取り除いたあと、選んだ辺が見つかりませんでした

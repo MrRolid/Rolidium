@@ -630,3 +630,21 @@ Skipped because they failed to start earlier: {}. => Přeskakované, protože d�
 Try all backends again => Zkusit všechny backendy znovu
 Rolidium cannot start => Rolidium nelze spustit
 Rolidium could not start its graphics: no graphics backend worked. {}\n\nUpdating the driver of your graphics card usually helps. You can also try a backend by hand: start the program with --backend dx12, --backend vulkan or --backend gl; --backend auto forgets the backends that were skipped. The log is here: {} => Rolidium nemohl spustit grafiku: nefungoval žádný grafický backend. {}\n\nObvykle pomůže aktualizace ovladače grafické karty. Backend můžeš zkusit i ručně: spusť program s --backend dx12, --backend vulkan nebo --backend gl; --backend auto zapomene přeskakované backendy. Log je tady: {}
+
+# ---- Messages of rounds, chamfers and other kernel operations ----
+The radius of {} mm does not fit these edges. The largest radius that works is about {} mm; a neighbouring face limits it. => Poloměr {} mm se na tyto hrany nehodí. Největší poloměr, který projde, je asi {} mm; omezuje ho sousední plocha.
+The chamfer of {} mm does not fit these edges. The largest chamfer that works is about {} mm; a neighbouring face limits it. => Zkosení {} mm se na tyto hrany nehodí. Největší zkosení, které projde, je asi {} mm; omezuje ho sousední plocha.
+The radius of {} mm does not fit these edges, and no radius works here: the edges meet in a way that cannot be rounded => Poloměr {} mm se na tyto hrany nehodí a žádný poloměr tu nejde: hrany se stýkají tak, že nejdou zaoblit
+The chamfer of {} mm does not fit these edges, and no chamfer works here: the edges meet in a way that cannot be chamfered => Zkosení {} mm se na tyto hrany nehodí a žádné zkosení tu nejde: hrany se stýkají tak, že nejdou zkosit
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. With the two sides swapped (Flip) up to about {} mm works. => Zkosení {} mm pod úhlem {} stupňů se na tyto hrany nehodí. Největší vzdálenost, která projde, je asi {} mm (druhá vzdálenost je pak {} mm); omezuje ji sousední plocha. Po prohození stran (Prohodit) projde až asi {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges. The largest distance that works is about {} mm (the second distance is then {} mm); a neighbouring face limits it. => Zkosení {} mm pod úhlem {} stupňů se na tyto hrany nehodí. Největší vzdálenost, která projde, je asi {} mm (druhá vzdálenost je pak {} mm); omezuje ji sousední plocha.
+The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works. => Zkosení {} mm pod úhlem {} stupňů se na tyto hrany nehodí. Po prohození stran (Prohodit) projde až asi {} mm.
+The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances => Zkosení {} mm pod úhlem {} stupňů se na tyto hrany nehodí a žádná vzdálenost tu nejde: hrany se stýkají tak, že nejdou zkosit dvěma vzdálenostmi
+The loft failed: {} => Přechod se nepodařil: {}
+This edge cannot be a loft profile: {} => Tato hrana nemůže být profilem přechodu: {}
+a neighbouring round could not be found again => sousední zaoblení se nepodařilo znovu najít
+a neighbouring round could not be removed cleanly => sousední zaoblení se nepodařilo čistě odstranit
+chamfers with different distances cannot be combined => zkosení s různými vzdálenostmi nejde spojit
+nothing to measure => není co měřit
+the new round could not be recognised => nové zaoblení se nepodařilo rozpoznat
+the selected edge could not be found after removing the neighbouring rounds => vybranou hranu se po odstranění sousedních zaoblení nepodařilo najít
