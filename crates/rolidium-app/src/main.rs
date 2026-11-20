@@ -117,7 +117,13 @@ fn main() -> eframe::Result {
         .enumerate()
         .find(|(i, a)| !a.starts_with('-') && !(*i > 0 && valued.contains(&args[*i - 1].as_str())))
         .map(|(_, a)| a.into());
-    let exit_after_first_frame = args.iter().any(|a| a == "--measure-start");
+    let bench_run = args.iter().any(|a| a == "--bench");
+    app::BENCH_RUN.store(bench_run, std::sync::atomic::Ordering::Relaxed);
+    if bench_run && open_path.is_none() {
+        eprintln!("--bench needs a file: rolidium --bench model.rolidium");
+        std::process::exit(2);
+    }
+    let exit_after_first_frame = args.iter().any(|a| a == "--measure-start") || bench_run;
     if args
         .iter()
         .any(|a| a == "--version" || a == "-V" || a == "--help" || a == "-h" || a == "--diagnose")
@@ -143,6 +149,8 @@ fn main() -> eframe::Result {
              --window-size WxH  size of the window at start, e.g. 1280x720\n\
              --selftest <dir>   drive the main tools automatically, save screenshots into <dir>, exit 0 on success\n\
              --measure-start    print the time to the first rendered frame and exit\n\
+             --bench <file>     open the file, time the first frame with content, turn the view for 5 s and time the frames; print the\n\
+                                result with the graphics adapter and the backend, write it to rolidium.log and exit\n\
              --bench-viewport   render 1 000 000 triangles for 10 s with vsync off, print and save rolidium-bench.txt"
         );
         return Ok(());

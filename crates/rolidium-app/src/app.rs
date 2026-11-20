@@ -223,6 +223,8 @@ pub struct App {
     exit_after_first_frame: bool,
     /// `--measure-start` with ROLIDIUM_MEASURE_VIEW set: frame times while the view turns (frames, durations, last frame).
     measure_view: Option<(usize, Vec<f64>, Instant)>,
+    measure_started: Option<Instant>,
+    first_frame_ms_value: f64,
     last_pointer: Option<Pos2>,
     render_state: egui_wgpu::RenderState,
     fitted: bool,
@@ -413,6 +415,8 @@ impl App {
             first_frame_done: false,
             exit_after_first_frame,
             measure_view: None,
+            measure_started: None,
+            first_frame_ms_value: 0.0,
             last_pointer: None,
             render_state: rs,
             fitted: false,
@@ -3959,12 +3963,15 @@ impl eframe::App for App {
             self.first_frame_done = true;
             let ms = self.started.elapsed().as_secs_f64() * 1000.0;
             log(&format!("first frame with content after {ms:.0} ms"));
+            self.first_frame_ms_value = ms;
             if let Some(b) = &mut self.bench {
                 b.first_frame_ms = ms;
             }
             if self.exit_after_first_frame {
                 println!("time to first frame: {ms:.0} ms");
-                if std::env::var_os("ROLIDIUM_MEASURE_VIEW").is_some() {
+                if std::env::var_os("ROLIDIUM_MEASURE_VIEW").is_some()
+                    || BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed)
+                {
                     // the time of a pick and of the frames while the view turns, then exit (see docs/DECISIONS.md D38, the router demo)
                     let rect = self.viewport_rect;
                     let mut t: Vec<f64> = (0..40)
@@ -3996,16 +4003,38 @@ impl eframe::App for App {
             times.push(last.elapsed().as_secs_f64() * 1e3);
             *last = Instant::now();
             *n += 1;
-            let done = *n >= 60;
+            let bench = BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed);
+            let started = self.measure_started.get_or_insert_with(Instant::now);
+            // `--bench` turns the view for 5 seconds; the old measuring (ROLIDIUM_MEASURE_VIEW) for 60 frames
+            let done = if bench { started.elapsed().as_secs_f64() >= 5.0 } else { *n >= 60 };
             if done {
-                let mut t = times.split_off(2);
+                let seconds = started.elapsed().as_secs_f64();
+                let mut t = times.split_off(2.min(times.len().saturating_sub(1)));
                 t.sort_by(|a, b| a.total_cmp(b));
-                println!(
-                    "frame while turning: median {:.1} ms, worst {:.1} ms ({} frames)",
+                let text = format!(
+                    "frame while turning: median {:.1} ms, worst {:.1} ms ({} frames in {:.1} s)",
                     t[t.len() / 2],
                     t[t.len() - 1],
-                    t.len()
+                    t.len(),
+                    seconds
                 );
+                println!("{text}");
+                let adapter = self
+                    .adapter_description
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim_start_matches("name: ")
+                    .to_string();
+                println!("graphics adapter: {adapter}");
+                println!("graphics interface (backend): {}", self.backend);
+                log(&format!(
+                    "bench: first frame with content after {:.0} ms; {text}; adapter {}; backend {}; {} bodies",
+                    self.first_frame_ms_value,
+                    adapter,
+                    self.backend,
+                    self.doc.bodies().len()
+                ));
                 crate::startup::finish();
                 std::process::exit(0);
             }
@@ -4014,6 +4043,9 @@ impl eframe::App for App {
         }
     }
 }
+
+/// Set by `rolidium --bench file`: after the first frame the view turns for 5 seconds and the frame times are reported.
+pub static BENCH_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Applies the chosen appearance (`dark`, `light` or `system`) to the window.
 pub fn apply_theme(ctx: &egui::Context, theme: &str) {
