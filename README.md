@@ -172,6 +172,7 @@ Useful options of the application: `rolidium file.rolidium` opens a document, `r
 | `U` | Pull *up to* a vertex, edge or face |
 | `Enter` / `Esc` | Confirm / cancel (`Esc` also cancels a long calculation) |
 | `Delete` | Delete the selection |
+| `F2` | Rename the selected body (also a double click on its name in the list) |
 | `Ctrl`+click, `Shift`+click | Add to or remove from the selection |
 | `Shift` while dragging | Switch snapping off |
 | `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Shift+Z`) | Undo, redo |

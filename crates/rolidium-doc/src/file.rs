@@ -1157,3 +1157,54 @@ mod tests {
         assert!(Solid::read_step_all(b"garbage").is_err());
     }
 }
+
+#[cfg(test)]
+mod name_tests {
+    use super::*;
+    use crate::{Command, Document};
+    use rolidium_kernel::DVec3;
+
+    #[test]
+    fn names_are_saved_and_come_back_and_an_old_file_opens_as_before() {
+        let mut d = Document::new();
+        for (i, name) in ["Frame profile left", "Frame profile left", ""]
+            .iter()
+            .enumerate()
+        {
+            d.apply(Command::AddBox {
+                name: (*name).into(),
+                min: DVec3::new(i as f64 * 20.0, 0.0, 0.0),
+                max: DVec3::new(i as f64 * 20.0 + 10.0, 10.0, 10.0),
+            })
+            .unwrap();
+        }
+        let bytes = save_to_bytes(&d, None, "test").unwrap();
+        let back = load_from_bytes(&bytes).unwrap();
+        let names: Vec<&str> = back.state.bodies.iter().map(|b| b.name.as_str()).collect();
+        assert_eq!(names, vec!["Frame profile left", "Frame profile left", "Body 3"]);
+        // a file whose bodies have no name entry (written before names were chosen freely) gets the default names
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        let mut out = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut out);
+            for i in 0..zip.len() {
+                let mut f = zip.by_index(i).unwrap();
+                let name = f.name().unwrap().to_string();
+                let mut data = Vec::new();
+                std::io::Read::read_to_end(&mut f, &mut data).unwrap();
+                if name.starts_with("bodies/") && name.ends_with(".json") {
+                    let mut j: serde_json::Value = serde_json::from_slice(&data).unwrap();
+                    j.as_object_mut().unwrap().remove("name");
+                    data = serde_json::to_vec(&j).unwrap();
+                }
+                w.start_file(name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
+                std::io::Write::write_all(&mut w, &data).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        let old = load_from_bytes(&out.into_inner()).unwrap();
+        assert_eq!(old.state.bodies.len(), 3);
+        assert!(old.state.bodies.iter().all(|b| !b.name.is_empty()));
+    }
+}

@@ -190,6 +190,8 @@ pub mod ffi {
         type StepWriter;
         fn new_step_writer() -> UniquePtr<StepWriter>;
         fn step_writer_add(w: Pin<&mut StepWriter>, shape: &Shape) -> Result<()>;
+        fn step_writer_add_named(w: Pin<&mut StepWriter>, shape: &Shape, name: &str) -> Result<()>;
+        fn read_step_names(data: &[u8]) -> Result<Vec<String>>;
         fn step_writer_finish(w: Pin<&mut StepWriter>) -> Result<Vec<u8>>;
         fn write_step(shape: &Shape) -> Result<Vec<u8>>;
         fn read_step(data: &[u8]) -> Result<SharedPtr<Shape>>;

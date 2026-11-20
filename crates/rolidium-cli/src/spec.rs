@@ -17,6 +17,8 @@ pub enum Kind {
     Int,
     /// A word or a text without spaces.
     Text,
+    /// A free text (a name): written between quotes, up to 100 characters, no quote or control character.
+    Name,
     /// One of the listed words.
     Enum(&'static [&'static str]),
     /// A switch: written as its keyword when true.
@@ -111,6 +113,15 @@ pub struct Cmd {
 
 const AXIS: Kind = Kind::Enum(&["x", "y", "z"]);
 const MODE: Kind = Kind::Enum(&["auto", "add", "cut"]);
+/// The modes of the panel of the window for a shape pulled from a sketch: auto, a new body, add, cut.
+const MODE_NEW: Kind = Kind::Enum(&["auto", "new", "add", "cut"]);
+const NAME: Param = p(
+    "name",
+    Kind::Name,
+    "Name of the new body (free text, may repeat; the default is 'Body N'). Names are kept by later operations, copies get the same name, a merged body keeps the name of its target.",
+)
+.opt()
+.word("name");
 const BODY: Param = p(
     "body",
     Kind::Int,
@@ -218,9 +229,18 @@ pub static COMMANDS: &[Cmd] = &[
             p("x", Kind::Num, "Size along X").unit("mm").range(0.001, 1.0e5),
             p("y", Kind::Num, "Size along Y").unit("mm").range(0.001, 1.0e5),
             p("z", Kind::Num, "Size along Z").unit("mm").range(0.001, 1.0e5),
+            NAME,
         ],
         true,
         "box 10 20 30",
+    ),
+    c(
+        "rename",
+        "rename_body",
+        "Change the name of a body (free text, may repeat). The name is saved in the file and written to STEP files.",
+        &[p("name", Kind::Name, "The new name"), BODY],
+        true,
+        "",
     ),
     c(
         "sketch",
@@ -308,7 +328,8 @@ Mode auto joins the result to a body it touches or makes a new body, add joins, 
         &[
             p("region", Kind::Int, "Region index from list_regions (0 is the first)").range(0.0, 10000.0),
             p("distance", Kind::Num, "Extrusion distance, may be negative").unit("mm").range(-1.0e5, 1.0e5),
-            p("mode", MODE, "auto, add or cut").opt(),
+            p("mode", MODE_NEW, "auto, new, add or cut").opt(),
+            NAME,
         ],
         true,
         "",
@@ -485,6 +506,7 @@ Fails with an explanation when the swept body would cut through itself (profile 
             p("chain", Kind::Nums, "Alternative path: sketch number and shape number of a sketch chain").opt().word("chain").items(2, 2),
             p("mode", Kind::Enum(&["auto", "new", "add", "cut"]), "auto, new, add or cut").opt(),
             p("rounded", Kind::Flag, "Round the corners of the path").opt().word("rounded"),
+            NAME,
         ],
         true,
         "",
@@ -496,6 +518,7 @@ Fails with an explanation when the swept body would cut through itself (profile 
         &[
             p("kind", Kind::Enum(&["ruled", "smooth"]), "ruled or smooth"),
             p("mode", Kind::Enum(&["new", "add", "cut"]), "new, add or cut").opt(),
+            NAME,
         ],
         true,
         "",
@@ -509,7 +532,8 @@ The axis must not pass through the region.",
             p("region", Kind::Int, "Region index in the current sketch").range(0.0, 10000.0),
             p("axis", AXIS, "x, y or z"),
             p("angle", Kind::Num, "Angle (360 for a full turn)").unit("degrees").range(0.1, 360.0),
-            p("mode", MODE, "auto, add or cut").opt(),
+            p("mode", MODE_NEW, "auto, new, add or cut").opt(),
+            NAME,
         ],
         true,
         "",
@@ -629,7 +653,7 @@ fn kind_schema(p: &Param) -> Value {
         Kind::Int => {
             o.insert("type".into(), json!("integer"));
         }
-        Kind::Text | Kind::Path | Kind::Words => {
+        Kind::Text | Kind::Name | Kind::Path | Kind::Words => {
             o.insert("type".into(), json!("string"));
         }
         Kind::Flag => {
@@ -786,6 +810,20 @@ pub fn to_line(
                 {
                     words.push(p.word.unwrap_or(p.name).to_string());
                 }
+            }
+            Kind::Name => {
+                let s = v.as_str().ok_or_else(|| format!("'{}' must be a text", p.name))?;
+                if s.trim().is_empty()
+                    || s.chars().count() > 100
+                    || s.chars().any(|c| c.is_control() || c == '"')
+                {
+                    return Err(format!(
+                        "'{}' must be a text of 1 to 100 characters without quotes",
+                        p.name
+                    ));
+                }
+                words.extend(p.word.map(String::from));
+                words.push(format!("\"{s}\""));
             }
             Kind::Text => {
                 let s = v.as_str().ok_or_else(|| format!("'{}' must be a text", p.name))?;

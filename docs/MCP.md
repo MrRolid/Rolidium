@@ -74,6 +74,7 @@ On Windows use `"command": "C:\\path\\to\\rolidium.exe"` (the same arguments).
 | `export_step` | Write a body as a STEP file (for other CAD programs) |
 | `import_step` | Add the solids of a STEP file as new bodies |
 | `add_box` | Add a box (a body) with one corner at the origin and the opposite corner at (x, y, z) |
+| `rename_body` | Change the name of a body (free text, may repeat) |
 | `start_sketch` | Choose where the next sketch shapes (line, rect, circle, arc) are drawn: a base plane (xy, xz or yz, optionally moved along … |
 | `sketch_line` | Draw a straight line in the current sketch |
 | `sketch_rectangle` | Draw an axis-aligned rectangle in the current sketch from one corner to the opposite one (a closed region) |

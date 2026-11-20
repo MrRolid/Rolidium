@@ -572,6 +572,18 @@ impl Solid {
         }
         Ok(native::step_writer_finish(w.pin_mut())?)
     }
+    /// Like [`Self::write_step_many`], with the name of every solid written into the file.
+    pub fn write_step_named(solids: &[(Solid, String)]) -> Result<Vec<u8>> {
+        let mut w = native::new_step_writer();
+        for (s, name) in solids {
+            native::step_writer_add_named(w.pin_mut(), &s.shape, name)?;
+        }
+        Ok(native::step_writer_finish(w.pin_mut())?)
+    }
+    /// The names of the solids of a STEP file in the order of [`Self::read_step_all`] (empty text where there is none).
+    pub fn read_step_names(data: &[u8]) -> Result<Vec<String>> {
+        Ok(native::read_step_names(data)?)
+    }
     pub fn read_step(data: &[u8]) -> Result<Solid> {
         Solid::from_shape(native::read_step(data)?).validated()
     }
@@ -590,6 +602,29 @@ impl Solid {
             let one = Solid::from_shape(native::solid_at(&shape, i)?);
             if native::check_shape(&one.shape) {
                 ok.push(one);
+            } else {
+                skipped.push(format!("solid {} of the file is not valid", i + 1));
+            }
+        }
+        Ok((ok, skipped))
+    }
+
+    /// Like [`Self::read_step_all`], with the name of each solid (empty where the file has none).
+    #[allow(clippy::type_complexity)]
+    pub fn read_step_all_named(data: &[u8]) -> Result<(Vec<(Solid, String)>, Vec<String>)> {
+        let names = native::read_step_names(data).unwrap_or_default();
+        let shape = native::read_step(data)?;
+        let n = native::solid_count(&shape);
+        if n == 0 {
+            return Err(KernelError::Invalid(
+                "The STEP file contains no solid bodies (only surfaces or curves)".into(),
+            ));
+        }
+        let (mut ok, mut skipped) = (Vec::new(), Vec::new());
+        for i in 0..n {
+            let one = Solid::from_shape(native::solid_at(&shape, i)?);
+            if native::check_shape(&one.shape) {
+                ok.push((one, names.get(i as usize).cloned().unwrap_or_default()));
             } else {
                 skipped.push(format!("solid {} of the file is not valid", i + 1));
             }

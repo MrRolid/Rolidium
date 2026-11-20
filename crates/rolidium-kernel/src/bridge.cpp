@@ -80,6 +80,14 @@
 #include <GeomAbs_SurfaceType.hxx>
 #include <Poly_Triangulation.hxx>
 #include <STEPControl_Reader.hxx>
+#include <StepRepr_RepresentationItem.hxx>
+#include <TCollection_HAsciiString.hxx>
+#include <TransferBRep.hxx>
+#include <TransferBRep_ShapeMapper.hxx>
+#include <Transfer_FinderProcess.hxx>
+#include <XSControl_TransferReader.hxx>
+#include <XSControl_TransferWriter.hxx>
+#include <XSControl_WorkSession.hxx>
 #include <STEPControl_Writer.hxx>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Face.hxx>
@@ -1386,6 +1394,42 @@ void step_writer_add(StepWriter& w, const Shape& sh) {
         if (w.w.Transfer(sh.s, STEPControl_AsIs, true, progress()) != IFSelect_RetDone) { check_cancelled(); fail("STEP transfer failed"); }
         w.count++;
         return 0;
+    });
+}
+
+// Like step_writer_add, and the name is written as the name of the solid (MANIFOLD_SOLID_BREP).
+void step_writer_add_named(StepWriter& w, const Shape& sh, rust::Str name) {
+    step_writer_add(w, sh);
+    try {
+        Handle(Transfer_FinderProcess) fp = w.w.WS()->TransferWriter()->FinderProcess();
+        Handle(TransferBRep_ShapeMapper) m = TransferBRep::ShapeMapper(fp, sh.s);
+        Handle(Standard_Transient) ent;
+        if (!m.IsNull() && fp->FindTypedTransient(m, STANDARD_TYPE(StepRepr_RepresentationItem), ent)) {
+            Handle(StepRepr_RepresentationItem) item = Handle(StepRepr_RepresentationItem)::DownCast(ent);
+            if (!item.IsNull()) item->SetName(new TCollection_HAsciiString(std::string(name).c_str()));
+        }
+    } catch (...) {}
+}
+
+// The names of the solids of a STEP file, in the order of solid_at ("" where the file has none).
+rust::Vec<rust::String> read_step_names(rust::Slice<const uint8_t> data) {
+    return guarded("read_step_names", [&] {
+        std::istringstream is(std::string((const char*)data.data(), data.size()));
+        STEPControl_Reader r;
+        if (r.ReadStream("memory.step", is) != IFSelect_RetDone) fail("not a readable STEP file");
+        if (r.TransferRoots() <= 0) fail("STEP file contains no transferable shapes");
+        TopoDS_Shape all = r.OneShape();
+        rust::Vec<rust::String> out;
+        for (TopExp_Explorer ex(all, TopAbs_SOLID); ex.More(); ex.Next()) {
+            std::string nm;
+            try {
+                Handle(Standard_Transient) e = r.WS()->TransferReader()->EntityFromShapeResult(ex.Current(), 1);
+                Handle(StepRepr_RepresentationItem) item = Handle(StepRepr_RepresentationItem)::DownCast(e);
+                if (!item.IsNull() && !item->Name().IsNull()) nm = item->Name()->ToCString();
+            } catch (...) {}
+            out.push_back(rust::String(nm));
+        }
+        return out;
     });
 }
 

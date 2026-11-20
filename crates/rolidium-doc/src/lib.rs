@@ -49,6 +49,8 @@ pub enum PullMode {
     Auto,
     Add,
     Cut,
+    /// Always a body of its own, even where it touches another body.
+    New,
 }
 
 impl PullMode {
@@ -56,7 +58,7 @@ impl PullMode {
     pub fn apply(self, distance: f64) -> f64 {
         match self {
             PullMode::Auto => distance,
-            PullMode::Add => distance.abs(),
+            PullMode::Add | PullMode::New => distance.abs(),
             PullMode::Cut => -distance.abs(),
         }
     }
@@ -410,6 +412,10 @@ pub enum Command {
     /// Add solids (STEP import) as new bodies.
     AddSolids {
         solids: Vec<Solid>,
+    },
+    /// Like `AddSolids`, with names (an empty name gets the usual "Body N").
+    AddNamedSolids {
+        solids: Vec<(Solid, String)>,
     },
 }
 
@@ -952,6 +958,21 @@ impl Job {
                 let mut c;
                 let mut notice = None;
                 match target {
+                    _ if *mode == PullMode::New => {
+                        // a body of its own, whatever it touches
+                        let id = self.next_id;
+                        st.body_counter += 1;
+                        st.bodies.push(Body {
+                            id,
+                            name: format!("Body {}", st.body_counter),
+                            solid: tool,
+                            color: [0.72, 0.76, 0.82],
+                            visible: true,
+                            features: Vec::new(),
+                            material: None,
+                        });
+                        c = (id, None);
+                    }
                     None if *mode == PullMode::Cut => {
                         // cutting: the volume is taken out of every body it overlaps (holes and pockets from a sketch on a plane)
                         let mut cut_any = false;
@@ -1686,7 +1707,7 @@ impl Job {
                         first.get_or_insert(id);
                         st.bodies.push(Body {
                             id,
-                            name: format!("Body {}", st.body_counter),
+                            name: st.bodies[pos].name.clone(),
                             solid: r.solid,
                             color: st.bodies[pos].color,
                             visible: true,
@@ -1769,7 +1790,13 @@ impl Job {
                         }
                         done.ok_or(last)?
                     }
-                    (t, _) => apply_tool(&mut st, t, tool, op, self.next_id)?,
+                    (t, _) => apply_tool(
+                        &mut st,
+                        if *mode == PullMode::New { None } else { t },
+                        tool,
+                        op,
+                        self.next_id,
+                    )?,
                 };
                 st.sketches[idx].sketch.remove(&reg.exclusive_entities);
                 if st.sketches[idx].sketch.is_empty() {
@@ -2158,18 +2185,30 @@ impl Job {
                 out.notice = notice;
                 Ok(out)
             }
-            Command::AddSolids { solids } => {
-                if solids.is_empty() {
+            Command::AddSolids { .. } | Command::AddNamedSolids { .. } => {
+                let named: Vec<(Solid, String)> = match &self.command {
+                    Command::AddSolids { solids } => {
+                        solids.iter().map(|s| (s.clone(), String::new())).collect()
+                    }
+                    Command::AddNamedSolids { solids } => solids.clone(),
+                    _ => Vec::new(),
+                };
+                if named.is_empty() {
                     return Err(KernelError::Invalid("there is nothing to add".into()).into());
                 }
                 let mut first = None;
-                for (i, solid) in solids.iter().enumerate() {
+                for (i, (solid, name)) in named.iter().enumerate() {
                     st.body_counter += 1;
                     let id = self.next_id + i as u64;
                     first.get_or_insert(id);
+                    let name = name.trim();
                     st.bodies.push(Body {
                         id,
-                        name: format!("Body {}", st.body_counter),
+                        name: if name.is_empty() {
+                            format!("Body {}", st.body_counter)
+                        } else {
+                            name.to_string()
+                        },
                         solid: solid.clone(),
                         color: [0.72, 0.76, 0.82],
                         visible: true,
@@ -4677,5 +4716,130 @@ mod loft_edge_tests {
             curves::CurveDef::Polyline { points, .. } => assert_eq!(points.len(), 4, "{points:?}"),
             _ => panic!(),
         }
+    }
+}
+
+#[cfg(test)]
+mod naming_tests {
+    use super::*;
+    use rolidium_kernel::DVec3;
+    use rolidium_sketch::{DVec2, Entity};
+
+    fn named_box(d: &mut Document, name: &str, at: f64) -> BodyId {
+        d.apply(Command::AddBox {
+            name: name.into(),
+            min: DVec3::new(at, 0.0, 0.0),
+            max: DVec3::new(at + 10.0, 10.0, 10.0),
+        })
+        .unwrap();
+        d.bodies().last().unwrap().id
+    }
+
+    #[test]
+    fn a_name_is_free_text_it_may_repeat_and_it_survives_operations() {
+        let mut d = Document::new();
+        let a = named_box(&mut d, "Frame profile left", 0.0);
+        let b = named_box(&mut d, "Frame profile left", 30.0);
+        assert_eq!(
+            d.body(a).unwrap().name,
+            d.body(b).unwrap().name,
+            "names may repeat"
+        );
+        // an operation keeps the name: pull a face, round an edge
+        let face = d.body(a).unwrap().solid.faces().find(|f| {
+            let i = d.body(a).unwrap().solid.face_info(*f).unwrap();
+            i.normal.z > 0.99
+        });
+        d.apply(Command::PullFace {
+            body: a,
+            face: face.unwrap(),
+            distance: 5.0,
+            mode: PullMode::Auto,
+        })
+        .unwrap();
+        assert_eq!(d.body(a).unwrap().name, "Frame profile left");
+        // a copy has the same name
+        let p = d.body(b).unwrap().solid.props().unwrap();
+        d.apply(Command::Move {
+            bodies: vec![b],
+            translation: DVec3::new(0.0, 50.0, 0.0),
+            pivot: (p.min + p.max) * 0.5,
+            axis: DVec3::Z,
+            angle: 0.0,
+            copy: true,
+        })
+        .unwrap();
+        assert_eq!(d.bodies().last().unwrap().name, "Frame profile left");
+    }
+
+    #[test]
+    fn renaming_is_one_step_that_undo_takes_back() {
+        let mut d = Document::new();
+        let a = named_box(&mut d, "Plate", 0.0);
+        d.apply(Command::Rename {
+            target: ItemId::Body(a),
+            name: "  Lid  ".into(),
+        })
+        .unwrap();
+        assert_eq!(d.body(a).unwrap().name, "Lid");
+        assert!(d.undo());
+        assert_eq!(d.body(a).unwrap().name, "Plate");
+        assert!(d
+            .apply(Command::Rename {
+                target: ItemId::Body(a),
+                name: "  ".into()
+            })
+            .is_err());
+    }
+
+    #[test]
+    fn a_merged_body_keeps_the_name_of_its_target_and_a_new_pull_mode_makes_a_body_of_its_own() {
+        let mut d = Document::new();
+        let a = named_box(&mut d, "Base", 0.0);
+        let b = named_box(&mut d, "Tool", 10.0); // touches a face of Base
+        d.apply(Command::Combine {
+            target: a,
+            tools: vec![b],
+            op: CombineOp::Merge,
+            keep_tools: false,
+        })
+        .unwrap();
+        assert_eq!(d.bodies().len(), 1);
+        assert_eq!(d.bodies()[0].name, "Base");
+        // New mode: the pulled volume touches the body but stays a body of its own
+        let mut d = Document::new();
+        named_box(&mut d, "Base", 0.0);
+        d.apply(Command::AddEntity {
+            target: SketchTarget::New {
+                plane: PlaneDef::base(),
+                body: None,
+            },
+            entity: Entity::Rect {
+                a: DVec2::new(0.0, 0.0),
+                b: DVec2::new(5.0, 5.0),
+            },
+        })
+        .unwrap();
+        let sk = d.sketches()[0].id;
+        d.apply(Command::PullRegion {
+            sketch: sk,
+            region: 0,
+            distance: 20.0,
+            mode: PullMode::New,
+        })
+        .unwrap();
+        assert_eq!(d.bodies().len(), 2, "a new body although it overlaps Base");
+    }
+
+    #[test]
+    fn named_solids_are_added_with_their_names() {
+        let mut d = Document::new();
+        let s = Solid::cuboid(DVec3::ZERO, DVec3::new(1.0, 1.0, 1.0)).unwrap();
+        d.apply(Command::AddNamedSolids {
+            solids: vec![(s.clone(), "Z ball screw".into()), (s, String::new())],
+        })
+        .unwrap();
+        assert_eq!(d.bodies()[0].name, "Z ball screw");
+        assert!(d.bodies()[1].name.starts_with("Body "));
     }
 }

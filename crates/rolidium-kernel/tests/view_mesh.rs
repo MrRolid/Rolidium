@@ -125,3 +125,19 @@ fn the_box_test_for_bodies_that_are_far_apart_and_those_that_are_close() {
     let (lo, hi) = far.bounding_box().unwrap();
     assert!((lo.x - 50.0).abs() < 1e-6 && (hi.x - 60.0).abs() < 1e-6);
 }
+
+#[test]
+fn step_files_carry_the_names_of_the_solids() {
+    let a = Solid::cuboid(DVec3::ZERO, DVec3::new(10.0, 10.0, 10.0)).unwrap();
+    let b = Solid::cylinder(5.0, 8.0, DVec3::new(30.0, 0.0, 0.0), DVec3::Z).unwrap();
+    let data =
+        Solid::write_step_named(&[(a, "Frame profile left".into()), (b, "Screw M5x16".into())]).unwrap();
+    let (back, skipped) = Solid::read_step_all_named(&data).unwrap();
+    assert!(skipped.is_empty());
+    let names: Vec<&str> = back.iter().map(|(_, n)| n.as_str()).collect();
+    assert_eq!(names, vec!["Frame profile left", "Screw M5x16"]);
+    // a file without names (the unnamed writer) reads back with empty names
+    let plain = Solid::write_step_many(&[back[0].0.clone()]).unwrap();
+    let (again, _) = Solid::read_step_all_named(&plain).unwrap();
+    assert_eq!(again.len(), 1);
+}

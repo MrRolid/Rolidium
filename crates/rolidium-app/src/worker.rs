@@ -72,7 +72,7 @@ pub enum Work {
         path: PathBuf,
     },
     ExportStep {
-        solids: Vec<Solid>,
+        solids: Vec<(Solid, String)>,
         path: PathBuf,
     },
     Meshes {
@@ -122,7 +122,7 @@ pub enum Done {
     /// Saved: the path, the state that was written and whether it was an autosave.
     Saved(Result<(PathBuf, Arc<State>, bool), String>),
     Opened(Result<(PathBuf, Box<Loaded>), String>),
-    StepRead(Result<(Vec<Solid>, Vec<String>), String>),
+    StepRead(Result<(Vec<(Solid, String)>, Vec<String>), String>),
     StepExported(Result<PathBuf, String>),
     /// A background job died with an internal error.
     Failed(String),
@@ -331,10 +331,10 @@ fn handle(work: Work) -> Done {
         Work::ReadStep { path } => Done::StepRead(
             std::fs::read(&path)
                 .map_err(|e| format!("cannot read {}: {e}", path.display()))
-                .and_then(|d| Solid::read_step_all(&d).map_err(|e| e.to_string())),
+                .and_then(|d| Solid::read_step_all_named(&d).map_err(|e| e.to_string())),
         ),
         Work::ExportStep { solids, path } => Done::StepExported(
-            Solid::write_step_many(&solids)
+            Solid::write_step_named(&solids)
                 .map_err(|e| e.to_string())
                 .and_then(|d| {
                     std::fs::write(&path, d).map_err(|e| format!("cannot write {}: {e}", path.display()))

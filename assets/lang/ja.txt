@@ -698,3 +698,4 @@ If the edges are not closed or not flat, a message says why. => 辺が閉じて�
 Joins open lines and curves that almost meet. Select the lines you want (nothing selected means the whole sketch), choose the largest gap to bridge, and the dashed preview shows the new connections. Enter confirms, Esc cancels. Tiny gaps are closed by moving the ends together; larger ones get a short line. => ほぼ接している開いた線や曲線を結合します。線を選び（何も選ばなければスケッチ全体）、橋渡しする最大のすき間を決めると、点線のプレビューに新しい接続が表示されます。Enter で確定、Esc で取り消します。ごく小さなすき間は端点を寄せて閉じ、大きなものは短い線で結びます。
 Ends are paired starting with the closest ones; every end is used at most once. => 端点は近いものから順に組にし、同じ端点は一度しか使いません。
 Ends that stay free are highlighted in the preview. => 自由なまま残る端点はプレビューで強調表示されます。
+F2 or a double click on the name renames it => F2 または名前をダブルクリックで名前を変更します

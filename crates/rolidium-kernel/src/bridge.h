@@ -100,6 +100,8 @@ public:
 };
 std::unique_ptr<StepWriter> new_step_writer();
 void step_writer_add(StepWriter& w, const Shape& shape);
+void step_writer_add_named(StepWriter& w, const Shape& shape, rust::Str name);
+rust::Vec<rust::String> read_step_names(rust::Slice<const uint8_t> data);
 rust::Vec<uint8_t> step_writer_finish(StepWriter& w);
 void sewer_add(Sewer& sewer, const Shape& shape);
 std::shared_ptr<Shape> sewer_finish(Sewer& sewer);

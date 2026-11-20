@@ -462,3 +462,34 @@ fn export_step_and_stl_write_all_bodies_unless_one_is_chosen() {
     assert_eq!(text.matches("facet normal").count(), 24);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn bodies_can_be_named_when_made_renamed_and_the_names_go_through_step() {
+    let dir = std::env::temp_dir().join(format!("rolidium-names-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let step = dir.join("n.step");
+    let mut r = Runner::new();
+    r.quiet = true;
+    r.run_script(&format!(
+        "box 10 10 10 name \"Frame profile left\"\n\
+         sketch xy\nrect 2 2 5 5\npull-region 0 20 new name \"Screw M5x16\"\n\
+         rename \"Z ball screw\" body 2\n\
+         export-step {}\nimport-step {}",
+        step.display(),
+        step.display()
+    ))
+    .unwrap();
+    let names: Vec<&str> = r.doc.bodies().iter().map(|b| b.name.as_str()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "Frame profile left",
+            "Z ball screw",
+            "Frame profile left",
+            "Z ball screw"
+        ]
+    );
+    // `new` makes a body of its own although the pull touches the first body
+    assert_eq!(r.doc.bodies().len(), 4);
+    let _ = std::fs::remove_dir_all(&dir);
+}

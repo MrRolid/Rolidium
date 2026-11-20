@@ -292,7 +292,7 @@ impl App {
     }
 
     /// The imported solids arrived: add them as bodies.
-    pub(super) fn step_read(&mut self, solids: Vec<rolidium_kernel::Solid>, skipped: Vec<String>) {
+    pub(super) fn step_read(&mut self, solids: Vec<(rolidium_kernel::Solid, String)>, skipped: Vec<String>) {
         let (n, k) = (solids.len(), skipped.len());
         for s in &skipped {
             log(&format!("STEP import skipped: {s}"));
@@ -305,7 +305,7 @@ impl App {
             return;
         }
         self.pending = None;
-        self.submit(Command::AddSolids { solids });
+        self.submit(Command::AddNamedSolids { solids });
         self.fitted = false;
         if k > 0 {
             self.set_status(
@@ -376,7 +376,13 @@ impl App {
                             }
                         }
                         Purpose::ExportStep => {
-                            let solids = self.visible_solids();
+                            let solids: Vec<(rolidium_kernel::Solid, String)> = self
+                                .doc
+                                .bodies()
+                                .iter()
+                                .filter(|b| b.visible)
+                                .map(|b| (b.solid.clone(), b.name.clone()))
+                                .collect();
                             if self.worker.send(Work::ExportStep { solids, path }) {
                                 self.busy = Busy::File;
                                 self.set_status("Writing the STEP file…", false);

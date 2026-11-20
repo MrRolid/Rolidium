@@ -38,6 +38,10 @@ preview.png                 optional, 320 x 240 isometric picture (only when a G
 }
 ```
 
+`name` is the name of the body: free text chosen by the user (1 to 100 characters), not translated, and it may repeat. The program keeps it through
+operations (pulls, rounds, cuts; a merged body keeps the name of its target, a copy gets the same name) and writes it into STEP files as the name
+of the solid (and reads it back). A file without a `name` (written before the names could be chosen) is opened with the default names "Body N".
+
 Face indices are positions in the face order of the BREP as OpenCASCADE reads it (the writer/reader keep that order; the check
 `face_count` guards it). If the check fails, or an index is out of range, the features are dropped and the user is told; the
 geometry itself is never affected.

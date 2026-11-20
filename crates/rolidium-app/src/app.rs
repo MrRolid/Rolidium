@@ -1767,6 +1767,13 @@ impl App {
         if key == Key::Delete {
             return self.delete_selected();
         }
+        if key == Key::F2 {
+            // F2 renames the selected body
+            if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
+                self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+            }
+            return;
+        }
         if self.sk.is_some() && self.line3_key(key) {
             return;
         }
@@ -3606,6 +3613,10 @@ impl eframe::App for App {
                                 if r.clicked() {
                                     clicked = Some(b.id);
                                 }
+                                if r.double_clicked() {
+                                    // a double click renames (Enter confirms, Esc cancels)
+                                    self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+                                }
                                 r.context_menu(|ui| {
                                     if ui.button(tr("Delete")).clicked() {
                                         tree_cmd = Some((
@@ -3808,6 +3819,7 @@ impl eframe::App for App {
                 }
                 if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
                     ui.label(trf("Body: {} (Delete removes it)", std::slice::from_ref(&b.name)));
+                    ui.weak(tr("F2 or a double click on the name renames it"));
                 }
                 if self.entity_sel.is_some() {
                     ui.label(tr("Sketch shape (Delete removes it)"));

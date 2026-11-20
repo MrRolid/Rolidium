@@ -246,6 +246,45 @@ impl Runner {
         if tokens.is_empty() {
             return Ok(());
         }
+        // `name "Text"` anywhere (except where a command has a name of its own) names the bodies the command creates
+        let mut new_name = None;
+        if !matches!(
+            tokens[0].as_str(),
+            "rename" | "material" | "delete" | "describe" | "select"
+        ) {
+            if let Some(i) = tokens.iter().position(|t| t == "name") {
+                if let Some(n) = tokens.get(i + 1).cloned() {
+                    if n.trim().is_empty() || n.chars().count() > 100 {
+                        return Err("a name must have 1 to 100 characters".into());
+                    }
+                    new_name = Some(n);
+                    tokens.drain(i..=i + 1);
+                }
+            }
+        }
+        let before: Vec<BodyId> = self.doc.bodies().iter().map(|b| b.id).collect();
+        let r = self.run_line_tokens(tokens);
+        if let (Ok(()), Some(name)) = (&r, new_name) {
+            let created: Vec<BodyId> = self
+                .doc
+                .bodies()
+                .iter()
+                .map(|b| b.id)
+                .filter(|id| !before.contains(id))
+                .collect();
+            for id in created {
+                self.doc
+                    .apply(Command::Rename {
+                        target: rolidium_doc::ItemId::Body(id),
+                        name: name.clone(),
+                    })
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        r
+    }
+
+    fn run_line_tokens(&mut self, mut tokens: Vec<String>) -> Result<(), String> {
         // `body N` anywhere in the line chooses the body the command works on
         self.target_body = None;
         if tokens[0] != "delete" {
@@ -272,10 +311,25 @@ impl Runner {
                 None | Some("auto") => Ok(PullMode::Auto),
                 Some("add") => Ok(PullMode::Add),
                 Some("cut") => Ok(PullMode::Cut),
-                Some(o) => Err(format!("unknown mode '{o}' (use add, cut or auto)")),
+                Some("new") => Ok(PullMode::New),
+                Some(o) => Err(format!("unknown mode '{o}' (use auto, new, add or cut)")),
             }
         };
         match w[0] {
+            "rename" => {
+                let name = w.get(1).ok_or("rename needs a name")?;
+                if name.trim().is_empty() || name.chars().count() > 100 {
+                    return Err("a name must have 1 to 100 characters".into());
+                }
+                let id = self.first_body()?;
+                self.doc
+                    .apply(Command::Rename {
+                        target: rolidium_doc::ItemId::Body(id),
+                        name: (*name).to_string(),
+                    })
+                    .map_err(|e| e.to_string())?;
+                self.say(format!("renamed to \"{name}\""));
+            }
             "box" => {
                 let (x, y, z) = (num(1)?, num(2)?, num(3)?);
                 self.doc
@@ -1127,6 +1181,7 @@ impl Runner {
                     None | Some("auto") => PullMode::Auto,
                     Some("add") => PullMode::Add,
                     Some("cut") => PullMode::Cut,
+                    Some("new") => PullMode::New,
                     Some(o) => return Err(format!("unknown mode '{o}'")),
                 };
                 self.doc
@@ -1169,14 +1224,14 @@ impl Runner {
             "import-step" => {
                 let path = w.get(1).ok_or("import-step needs a file name")?;
                 let data = std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"))?;
-                let (solids, skipped) = Solid::read_step_all(&data).map_err(|e| e.to_string())?;
+                let (solids, skipped) = Solid::read_step_all_named(&data).map_err(|e| e.to_string())?;
                 for s in &skipped {
                     self.say(format!("skipped: {s}"));
                 }
                 let n = solids.len();
                 if n > 0 {
                     self.doc
-                        .apply(Command::AddSolids { solids })
+                        .apply(Command::AddNamedSolids { solids })
                         .map_err(|e| e.to_string())?;
                 }
                 self.say(format!(
@@ -1386,15 +1441,20 @@ impl Runner {
             "export-step" => {
                 let path = w.get(1).ok_or("export-step needs a file name")?;
                 // `body N` exports that body, else all bodies go into one file
-                let solids: Vec<Solid> = if self.target_body.is_some() {
-                    vec![self.doc.body(self.first_body()?).unwrap().solid.clone()]
+                let solids: Vec<(Solid, String)> = if self.target_body.is_some() {
+                    let b = self.doc.body(self.first_body()?).unwrap();
+                    vec![(b.solid.clone(), b.name.clone())]
                 } else {
-                    self.doc.bodies().iter().map(|b| b.solid.clone()).collect()
+                    self.doc
+                        .bodies()
+                        .iter()
+                        .map(|b| (b.solid.clone(), b.name.clone()))
+                        .collect()
                 };
                 if solids.is_empty() {
                     self.first_body()?;
                 }
-                let data = Solid::write_step_many(&solids).map_err(|e| e.to_string())?;
+                let data = Solid::write_step_named(&solids).map_err(|e| e.to_string())?;
                 std::fs::write(path, data).map_err(|e| e.to_string())?;
                 self.say(format!("wrote {path}"));
             }
