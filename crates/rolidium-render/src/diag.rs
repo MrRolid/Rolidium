@@ -243,6 +243,7 @@ pub fn render_test_scene(
             id: 1,
             mesh: &mesh,
             color: [0.62, 0.68, 0.76],
+            stamp: 0,
         }],
     );
     let plane = PlaneDef::base();

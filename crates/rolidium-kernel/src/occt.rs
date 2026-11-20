@@ -169,6 +169,8 @@ pub mod ffi {
         fn solid_distance(a: &Shape, b: &Shape) -> Result<f64>;
         fn bounds_of(shape: &Shape) -> Result<Vec<f64>>;
         fn take_stages() -> String;
+        fn set_threads(n: i32);
+        fn shared_keys(shape: &Shape) -> Result<Vec<u64>>;
         fn cancel_requested() -> bool;
         fn make_path(data: &[f64]) -> Result<SharedPtr<Shape>>;
         fn edges_wire(shape: &Shape, edges: &[u32]) -> Result<SharedPtr<Shape>>;

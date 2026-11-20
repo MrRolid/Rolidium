@@ -80,15 +80,22 @@ fn prop(label: &str, value: String) -> Prop {
 impl App {
     /// What the Selection panel lists for the current selection.
     pub(super) fn selection_properties(&mut self) -> Vec<Prop> {
+        // what the properties depend on: the selected bodies and their shapes (not the other bodies: an operation somewhere else
+        // in the document does not make them be calculated again)
+        let shape_of = |b: BodyId| self.doc.body(b).map(|b| b.solid.shape_id());
         let key = format!(
-            "{:?}|{:?}|{:?}|{:?}|{}",
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
             self.body_sel,
             self.body_sel
                 .and_then(|b| self.doc.body(b))
                 .map(|b| b.material.clone()),
+            self.body_sel.and_then(shape_of),
             self.selection,
+            self.selection
+                .iter()
+                .map(|(b, _)| shape_of(*b))
+                .collect::<Vec<_>>(),
             self.edge_sel,
-            Arc::as_ptr(&self.meshes) as usize
         );
         if let Some((k, v)) = &self.prop_cache {
             if *k == key {

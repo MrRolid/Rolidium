@@ -22,7 +22,9 @@ Cargo workspace; dependency direction is strictly downwards.
 * Every modelling result is checked (`BRepCheck_Analyzer`, exactly one solid) before it is returned.
 * The document only changes through `Document::commit`, which rejects results computed from an older revision.
 * The UI never calls the kernel for modelling: a worker thread computes the operation and the display meshes;
-  panics in the worker are caught and reported, the document stays at its last valid state.
+  panics in the worker are caught and reported, the document stays at its last valid state. The autosave has a thread of its own, so it never keeps an operation waiting.
+* The display meshes and the facts about the faces of a body are made by `rolidium_doc::display::MeshCache`, once per kernel shape: an operation, Undo or Redo costs what the changed bodies cost, not what
+  the document costs (D39). `rolidium_kernel::par` runs the same work for independent bodies on several threads (D40).
 * Errors are logged to `$XDG_STATE_HOME/rolidium/rolidium.log` (default `~/.local/state/rolidium/`).
 
 ## Identity of faces

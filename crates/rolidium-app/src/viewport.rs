@@ -42,9 +42,16 @@ impl CallbackTrait for ViewportCb {
                         id: e.id,
                         mesh: &e.mesh,
                         color: e.color,
+                        stamp: e.stamp,
                     })
                     .collect();
-                r.set_bodies(device, &draws);
+                let t = std::time::Instant::now();
+                let made = r.set_bodies(device, &draws);
+                crate::logging::log(&format!(
+                    "scene on the graphics card: {} bodies, buffers made for {made}, {:.1} ms",
+                    draws.len(),
+                    t.elapsed().as_secs_f64() * 1e3
+                ));
             }
             if let Some(l) = &self.layers {
                 r.set_layers(device, l);

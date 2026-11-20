@@ -57,6 +57,8 @@ struct Globals {
 
 pub struct BodyDraw<'a> {
     pub id: u64,
+    /// Identifies the mesh (0: unknown). A body with the same stamp in the same slot as before keeps its buffers on the card.
+    pub stamp: u64,
     pub mesh: &'a Mesh,
     pub color: [f32; 3],
 }
@@ -103,6 +105,8 @@ pub struct Frame {
 
 struct GpuBody {
     id: u64,
+    stamp: u64,
+    color: [f32; 3],
     vbuf: wgpu::Buffer,
     ibuf: wgpu::Buffer,
     index_count: u32,
@@ -524,8 +528,10 @@ impl Renderer {
     }
 
     /// Replaces all bodies. The pick slot of a body is its index in `bodies`.
-    pub fn set_bodies(&mut self, device: &wgpu::Device, bodies: &[BodyDraw]) {
-        self.bodies.clear();
+    /// Returns how many bodies had their buffers made (the others kept theirs).
+    pub fn set_bodies(&mut self, device: &wgpu::Device, bodies: &[BodyDraw]) -> usize {
+        let mut made = 0usize;
+        let mut old: Vec<Option<GpuBody>> = std::mem::take(&mut self.bodies).into_iter().map(Some).collect();
         self.pick_result = ID_NONE;
         self.ids_dirty = true;
         for b in bodies {
@@ -534,6 +540,25 @@ impl Renderer {
                 continue;
             }
             let slot = self.bodies.len();
+            // the same mesh in the same slot (the slot is part of the pick ids in the vertices): the buffers stay
+            if b.stamp != 0 {
+                if let Some(o) = old
+                    .get_mut(slot)
+                    .and_then(|o| o.take_if(|o| o.stamp == b.stamp && o.id == b.id))
+                {
+                    let mut o = o;
+                    if o.color != b.color {
+                        o.bind = uniform_bind(
+                            device,
+                            &self.body_layout,
+                            [b.color[0], b.color[1], b.color[2], 1.0],
+                        );
+                        o.color = b.color;
+                    }
+                    self.bodies.push(o);
+                    continue;
+                }
+            }
             let verts: Vec<Vertex> = (0..m.positions.len())
                 .map(|i| Vertex {
                     pos: m.positions[i].to_array(),
@@ -559,6 +584,7 @@ impl Renderer {
                     target.push(w[1].to_array());
                 }
             }
+            made += 1;
             let soft_empty = soft.is_empty();
             if soft_empty {
                 soft.push([0.0; 3]);
@@ -570,6 +596,8 @@ impl Renderer {
             );
             self.bodies.push(GpuBody {
                 id: b.id,
+                stamp: b.stamp,
+                color: b.color,
                 vbuf: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("body vertices"),
                     contents: bytemuck::cast_slice(&verts),
@@ -597,6 +625,7 @@ impl Renderer {
             });
         }
         // Slots refer to the position in `bodies`; keep a dense mapping.
+        made
     }
 
     /// Body ID of a pick slot, in the order bodies were given to `set_bodies`

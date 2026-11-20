@@ -28,6 +28,7 @@ fn id_buffer_identifies_faces() {
             id: 77,
             mesh: &mesh,
             color: [0.7, 0.7, 0.7],
+            stamp: 0,
         }],
     );
 
@@ -103,6 +104,7 @@ fn offscreen_render_is_not_blank_and_highlights() {
             id: 1,
             mesh: &mesh,
             color: [0.7, 0.7, 0.7],
+            stamp: 0,
         }],
     );
     let mut cam = Camera::default();
@@ -159,6 +161,7 @@ fn grid_is_visible_far_away_at_a_low_viewing_angle() {
             id: 1,
             mesh: &mesh,
             color: [0.7, 0.7, 0.75],
+            stamp: 0,
         }],
     );
     let mut cam = Camera::default();

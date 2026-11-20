@@ -280,6 +280,9 @@ The STEP file contains no valid solid, nothing was imported => Soubor STEP neobs
 The STEP file contains no solid bodies (only surfaces or curves) => Soubor STEP neobsahuje žádná tělesa (jen plochy nebo křivky)
 there is nothing to add => není co přidat
 Autosave every (minutes, 0 = off) => Automatické ukládání po (minutách, 0 = vypnuto)
+Calculation threads (Auto = one per core less one) => Vlákna pro výpočty (Auto = počet jader mínus jedna)
+The environment variable ROLIDIUM_THREADS overrides this choice. => Proměnná prostředí ROLIDIUM_THREADS má před touto volbou přednost.
+Threads in use: {} => Používaná vlákna: {}
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Toto není platný soubor Rolidium, nebo je poškozený: {}. Nic se nezměnilo.
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => Tento soubor uložila novější verze Rolidium (formát souboru {}; tento program umí nejvýš {}). Soubor se neotevřel a nezměnil. Aktualizujte prosím Rolidium.
 

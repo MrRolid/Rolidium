@@ -52,6 +52,7 @@ pub mod bench;
 pub mod describe;
 pub mod entry;
 pub mod mcp;
+pub mod phases;
 pub mod soft;
 pub mod spec;
 
@@ -1540,6 +1541,7 @@ impl Runner {
             .map(|(id, m, c)| BodyDraw {
                 id: *id,
                 mesh: m,
+                stamp: 0,
                 color: *c,
             })
             .collect();

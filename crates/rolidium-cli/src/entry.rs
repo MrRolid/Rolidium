@@ -11,7 +11,7 @@ USAGE:
     rolidium-cli exec \"<command>\" ...   run commands given on the command line
     ... --file model.rolidium           (run/exec) open the file first if it exists and save it afterwards
     rolidium-cli bench                  measure the performance targets
-    rolidium-cli times                  table of the times of the main operations, with their stages
+    rolidium-cli times [machine|open]   table of the times of the main operations, with their stages (machine: only the small operations in the big document)
     rolidium-cli --version
     rolidium-cli help
 
@@ -20,6 +20,8 @@ See the documentation of the rolidium-cli crate for details.";
 
 /// The command-line tool (`rolidium-cli`, or `rolidium cli`). `args` are the arguments after the program name; returns the exit code.
 pub fn cli(mut args: Vec<String>) -> i32 {
+    // the number of threads: one per core less one, or ROLIDIUM_THREADS
+    rolidium_kernel::par::configure(0);
     // `--file <path>`: work on a document file
     let file = args.iter().position(|a| a == "--file").and_then(|i| {
         if i + 1 < args.len() {
@@ -48,7 +50,7 @@ pub fn cli(mut args: Vec<String>) -> i32 {
             0
         }
         Some("bench") => crate::bench::run(),
-        Some("times") => crate::bench::times(),
+        Some("times") => crate::bench::times(args.get(1).map(String::as_str)),
         Some("help") | Some("--help") | Some("-h") | None => {
             println!("{CLI_HELP}");
             0
@@ -108,6 +110,7 @@ See docs/MCP.md.";
 
 /// The MCP server (`rolidium-mcp`, or `rolidium mcp`). Returns the exit code.
 pub fn mcp(mut args: Vec<String>) -> i32 {
+    rolidium_kernel::par::configure(0);
     let mut take = |name: &str| -> Option<String> {
         let i = args.iter().position(|a| a == name)?;
         if i + 1 < args.len() {

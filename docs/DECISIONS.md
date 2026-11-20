@@ -355,3 +355,54 @@ Pull joins bodies that touch, and Revolve turns about an axis through the origin
 staging area, or the origin for revolved parts) and move it: a move never joins bodies. Python scripts (`rdm.py`, `parts.py`) write the scenarios; the program runs the
 scenarios (`build.txt`). A cut of a sketch on a plane first compared every body with the cutting volume by the exact distance (seconds each on parts with many
 faces); a test of the boxes now comes first (`Solid::may_be_within`), which made the building of the router 15 times faster.
+
+## D39: The cost of an operation depends on the bodies that changed
+
+In a document of 340 bodies a small operation took 2 to 4 seconds on the computer of the person who tried it (here, under load, about 8 seconds): after every
+operation and every Undo the worker made the display mesh and the facts about the faces (`MeshEntry`) of *all* bodies, the window sent all of them to the graphics
+card (four buffers and a bind group per body), the autosave wrote all bodies on the same thread that does the operations, and some code walked over all vertices.
+Now:
+
+* `rolidium_doc::display::MeshCache` keeps the entry of every body by the identity of its kernel shape (`Solid::shape_id`); an operation makes entries only for the
+  solids that are new. The refined meshes of the zoom go into the same cache, so an unchanged body keeps its fine mesh. Rename and select cost nothing in the kernel.
+* Every entry has a `stamp`. The renderer keeps the buffers of a body whose stamp and slot are the same as before (`Renderer::set_bodies` returns how many it made).
+  The slot is part of the pick ids in the vertices, so a body behind a removed one is made again; that is the rare case (a merge, a delete).
+* Undo stores a snapshot of the document (`Arc<State>`): the bodies are `Solid` handles that share the kernel shape, so a step costs the list, not the geometry.
+* The autosave has a thread of its own, and the BREP bytes of a solid are kept (`Solid::write_brep`), so an unchanged body is not written again; the file has no
+  display triangulation any more (`BinTools::Write` without triangles), which also means the writer never touches what a mesher is changing.
+* The box of the scene is taken from the boxes of the faces, not from all vertices. The mass of a body is computed for the selected body only (cached volume).
+* The checks against the other bodies start with the boxes (`Solid::may_be_within`, D38).
+
+Measured with `rolidium-cli times machine` and `rolidium --bench file` (see the tables in the report of this change and `docs/PERFORMANCE.md`).
+
+## D40: Threads
+
+One setting for everything: `rolidium_kernel::par`. The number is one per core less one (at least one); Settings has Auto, 1, 2, 4, 8, and `ROLIDIUM_THREADS`
+(a number or `auto`) overrides it, also for `rolidium cli` and `rolidium mcp`. The same number goes to Open CASCADE (`OSD_ThreadPool`, and the parallel mode
+of the booleans, of the meshing and of the checks is switched off with one thread).
+
+What runs on several threads, and what does not:
+
+* **Display meshes** of many bodies (after opening, after an operation that made several bodies, for the zoom): yes. Every native call used to take one global lock
+  (`g_lock`), which also kept two meshes from being made at once. Meshing, the BREP writer and reader, the box and the list of shared parts are the calls that only read
+  their own shape or write what belongs to it, and they run without the lock (`guarded_free`); meshing has an indicator of its own (the shared one keeps the state of
+  one run). Bodies are meshed at the same time only when they share nothing: `Solid::shared_keys` lists the identities of the faces, edges, vertices and of the
+  geometry (surfaces, curves) of a solid, and `par::share_groups` puts bodies that have one in common into one group that is worked on by one thread.
+* **Opening a file:** the BREP of the bodies is read on several threads.
+* **Booleans:** Open CASCADE's own parallel mode (it was always on; now it follows the number of threads). Two booleans are not run at once: the lock stays.
+* **Not parallel:** the checks of touching and overlapping bodies (they are booleans and distance calculations behind the lock; with the boxes first, few bodies are
+  left), STEP export and import (one writer and one reader object), the validity check, the face properties. Where I am not sure that a function is safe for
+  several threads, it keeps the lock.
+* The window does not wait for any of it: everything runs on the worker threads.
+
+Tests: `crates/rolidium-kernel/tests/parallel.rs` compares triangles, face counts, volumes and validity of 60 mixed bodies for 1, 2, 4 and 8 threads, repeats the
+4-thread run 50 times and checks the grouping of bodies that share data.
+
+## D41: Zoom budget, view after a sketch, New body in the Pull panel
+
+* A body in view is made finer for the pixel *at its own distance* (the nearest face of it in view), not for the pixel at the point looked at; a body far behind it
+  stays as it is. The 600 000 triangles are shared by the bodies in view by their size on the screen (at least 6 000 each, at most 150 000), the biggest first, 48
+  bodies in one go; the rest follows. A small hole in a big plate is round after the refinement (the self test: a hole of 6 mm in a document of 301 bodies deviates
+  0.010 mm at 0.027 mm per pixel).
+* Leaving a sketch turns the view back to the direction it had before the sketch, but the centre and the distance stay where the sketch was.
+* The Pull panel offers New body for the region of a sketch (and in Revolve); for the face of a body it offers Auto, Add and Cut.

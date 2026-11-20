@@ -77,6 +77,13 @@ impl From<cxx::Exception> for KernelError {
     }
 }
 
+pub mod par;
+
+/// How many threads Open CASCADE may use inside one operation (0: its default, one per core; 1: no parallel mode).
+pub(crate) fn set_native_threads(n: usize) {
+    native::set_threads(n.min(256) as i32);
+}
+
 /// Asks the running operation (on any thread) to stop as soon as it can. The flag stays set until [`reset_cancel`].
 pub fn request_cancel() {
     native::set_cancel(true);
@@ -220,6 +227,8 @@ pub struct Solid {
     bbox: std::sync::Arc<std::sync::OnceLock<[f64; 6]>>,
     /// Edge ends and adjacency for smooth chains (built when first needed).
     chain_index: std::sync::Arc<std::sync::OnceLock<blend::ChainIndex>>,
+    /// The BRep bytes of the shape for the file (an unchanged body is not written again at every autosave).
+    brep: std::sync::Arc<std::sync::OnceLock<std::sync::Arc<Vec<u8>>>>,
 }
 
 impl std::fmt::Debug for Solid {
@@ -244,6 +253,7 @@ impl Solid {
             volume: Default::default(),
             bbox: Default::default(),
             chain_index: Default::default(),
+            brep: Default::default(),
         }
     }
     pub(crate) fn raw(&self) -> &native::Shape {
@@ -350,6 +360,18 @@ impl Solid {
     /// Short technical summary (solids, shells, orientation, largest tolerances) for diagnostics.
     pub fn diagnostics(&self) -> Result<String> {
         Ok(native::shape_diag(&self.shape)?)
+    }
+
+    /// The identities of the faces, edges and vertices of the solid: solids that have one in common share data in the kernel
+    /// and must not be worked on at the same moment.
+    pub fn shared_keys(&self) -> Result<Vec<u64>> {
+        Ok(native::shared_keys(&self.shape)?)
+    }
+
+    /// An identifier of the native shape: equal for clones of one solid, different for solids made by an operation.
+    /// (Valid while a clone of the solid is alive, which is how the display caches use it.)
+    pub fn shape_id(&self) -> usize {
+        &*self.shape as *const native::Shape as usize
     }
 
     /// The box around the solid (cached): the smallest and the largest corner.
@@ -633,8 +655,13 @@ impl Solid {
     }
 
     /// Native BREP serialisation (document storage).
-    pub fn write_brep(&self) -> Result<Vec<u8>> {
-        Ok(native::write_brep(&self.shape)?)
+    pub fn write_brep(&self) -> Result<std::sync::Arc<Vec<u8>>> {
+        if let Some(b) = self.brep.get() {
+            return Ok(b.clone());
+        }
+        let b = std::sync::Arc::new(native::write_brep(&self.shape)?);
+        let _ = self.brep.set(b.clone());
+        Ok(b)
     }
     pub fn read_brep(data: &[u8]) -> Result<Solid> {
         Solid::from_shape(native::read_brep(data)?).validated()

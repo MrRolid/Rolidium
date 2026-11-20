@@ -127,6 +127,7 @@ impl App {
         self.clear_edge_preview();
         self.pull = None;
         self.sk = None;
+        self.view_before_sketch = None;
         self.pending = None;
         self.up_to = None;
         self.hover_region = None;

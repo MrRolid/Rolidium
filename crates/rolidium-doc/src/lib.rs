@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 pub use rolidium_sketch;
 
+pub mod display;
 pub mod file;
 
 #[derive(Debug, thiserror::Error)]

@@ -15,7 +15,7 @@ around it (see the list at the end), and the pictures are what the program draws
 | 07 | [Linear guide with a carriage](07-linear-guide/) | 5 | a drawn profile, 0.1 mm clearances |
 | 08 | [Machine vise](08-machine-vise/) | 14 | a real thread by sweep along a helix |
 | 09 | [Spindle with a clamp mount](09-spindle-mount/) | 8 | a clamp with a slit and screws |
-| 10 | [Gantry CNC router](10-cnc-router/) | 340 | everything above, 340 named bodies, no overlaps, one connected piece |
+| 10 | [Gantry CNC router](10-cnc-router/) | 340 | everything above, 340 named bodies; the base is built by the script, the model is then worked on by hand in the window |
 
 ![overview](../../docs/images/demos-overview.png)
 
@@ -23,6 +23,10 @@ around it (see the list at the end), and the pictures are what the program draws
 and `preview.png`.
 
 ## Building them
+
+The machine (10) has two parts: the script builds the *base* (`10-cnc-router-base.*`), and `10-cnc-router/10-cnc-router.rolidium` is the model that was worked on by hand in the window from that base. The outputs of
+the demo come from that file. `scripts/refresh-machine.sh` makes them again after the file was replaced (STEP, pictures, the 3840 x 2160 picture, preview, overview, `dist/demos`, the zip and its checksum).
+
 
     cargo build --release -p rolidium-app
     examples/demos/build-all.sh target/release/rolidium

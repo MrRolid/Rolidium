@@ -372,12 +372,20 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
     };
     let mut max_id = 0u64;
     let mut dropped = 0usize;
-    for b in manifest
+    let body_list = manifest
         .get("bodies")
         .and_then(Value::as_array)
         .cloned()
-        .unwrap_or_default()
-    {
+        .unwrap_or_default();
+    // The bodies are independent of each other: their shapes are read on several threads (the zip is read in one go first).
+    let brep_data: Vec<Option<Vec<u8>>> = body_list
+        .iter()
+        .map(|b| b["brep"].as_str().and_then(|n| read_entry(&mut zip, n).ok()))
+        .collect();
+    let mut solids_read: Vec<Option<Result<Solid, String>>> = rolidium_kernel::par::map(&brep_data, |d| {
+        d.as_ref().map(|d| Solid::read_brep(d).map_err(|e| e.to_string()))
+    });
+    for (bi, b) in body_list.iter().enumerate() {
         let id = b["id"].as_u64().ok_or_else(|| corrupt("a body without an id"))?;
         let (brep_name, meta_name) = (
             b["brep"]
@@ -389,8 +397,15 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
                 .ok_or_else(|| corrupt("a body without data"))?
                 .to_string(),
         );
-        let solid = Solid::read_brep(&read_entry(&mut zip, &brep_name)?)
-            .map_err(|e| corrupt(format!("body {id}: {e}")))?;
+        let solid = match solids_read[bi].take() {
+            Some(Ok(s)) => s,
+            Some(Err(e)) => return Err(corrupt(format!("body {id}: {e}"))),
+            None => {
+                // the entry could not be read in the first pass: the same error as before
+                let data = read_entry(&mut zip, &brep_name)?;
+                Solid::read_brep(&data).map_err(|e| corrupt(format!("body {id}: {e}")))?
+            }
+        };
         let mut meta: Map<String, Value> =
             match serde_json::from_slice(&read_entry(&mut zip, &meta_name)?).map_err(corrupt)? {
                 Value::Object(m) => m,

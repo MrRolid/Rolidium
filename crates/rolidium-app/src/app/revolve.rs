@@ -410,6 +410,7 @@ impl App {
                     ui.label(tr("Mode"));
                     for (m, name) in [
                         (PullMode::Auto, "Auto"),
+                        (PullMode::New, "New body"),
                         (PullMode::Add, "Add"),
                         (PullMode::Cut, "Cut"),
                     ] {

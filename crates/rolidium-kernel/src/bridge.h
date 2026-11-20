@@ -84,6 +84,8 @@ rust::String shape_diag(const Shape& shape);
 double solid_distance(const Shape& a, const Shape& b);
 rust::Vec<double> bounds_of(const Shape& shape);
 rust::String take_stages();
+void set_threads(int32_t n);
+rust::Vec<uint64_t> shared_keys(const Shape& shape);
 bool cancel_requested();
 std::shared_ptr<Shape> make_path(rust::Slice<const double> data);
 std::shared_ptr<Shape> edges_wire(const Shape& shape, rust::Slice<const uint32_t> edges);

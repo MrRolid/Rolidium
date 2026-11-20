@@ -280,6 +280,9 @@ The STEP file contains no valid solid, nothing was imported => Die STEP-Datei en
 The STEP file contains no solid bodies (only surfaces or curves) => Die STEP-Datei enthält keine Volumenkörper (nur Flächen oder Kurven)
 there is nothing to add => es gibt nichts hinzuzufügen
 Autosave every (minutes, 0 = off) => Automatisch speichern alle (Minuten, 0 = aus)
+Calculation threads (Auto = one per core less one) => Threads für Berechnungen (Auto = Anzahl der Kerne minus eins)
+The environment variable ROLIDIUM_THREADS overrides this choice. => Die Umgebungsvariable ROLIDIUM_THREADS hat Vorrang vor dieser Auswahl.
+Threads in use: {} => Verwendete Threads: {}
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Dies ist keine gültige Rolidium-Datei oder sie ist beschädigt: {}. Es wurde nichts geändert.
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => Diese Datei wurde von einer neueren Rolidium-Version gespeichert (Dateiformat {}; dieses Programm versteht bis {}). Sie wurde nicht geöffnet und nicht verändert. Bitte Rolidium aktualisieren.
 

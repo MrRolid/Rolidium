@@ -63,6 +63,10 @@ or in a project file `.mcp.json` / in the settings of Claude Desktop:
 
 On Windows use `"command": "C:\\path\\to\\rolidium.exe"` (the same arguments).
 
+## Threads
+
+The server uses one thread per core less one for the calculations that can share the work (at least one). `ROLIDIUM_THREADS=2` (a number, or `auto`) changes that, for `rolidium mcp` and `rolidium cli` alike.
+
 ## The tools
 
 | Tool | What it does |

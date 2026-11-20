@@ -136,7 +136,11 @@ About window has "Run the guide again". Opening a file, restoring after a crash,
 
 ## Measuring the speed on your computer
 
-`rolidium --bench model.rolidium` opens the file in the window, times the first frame, turns the view for 5 seconds and prints the time of a frame (median and worst) with the name of the graphics adapter and the interface (Vulkan, Metal, DX12 or OpenGL); the result is also written to `rolidium.log`. The demo models in `examples/demos` are good files to try (the CNC router has 340 bodies).
+`rolidium --bench model.rolidium` opens the file in the window, times the first frame, turns the view for 5 seconds and prints the time of a frame (median and worst) with the name of the graphics adapter and the interface (Vulkan, Metal, DX12 or OpenGL); the result is also written to `rolidium.log`. After that it makes small changes to a small body of the document (a move, a pull, a rename, a selection, Undo and Redo) and prints how long each took from the confirmation to the frame that shows the result. The demo models in `examples/demos` are good files to try (the CNC router has 340 bodies).
+
+`rolidium cli times` prints a table of the times of the main operations with their stages, and `rolidium cli times machine` the stages of a small operation in a big document (the router if its file is found, else a synthetic document of 340 bodies) next to the same operation on the body alone.
+
+**Threads.** The calculations use one thread per core less one (at least one). Settings has the choice Auto, 1, 2, 4 and 8, and the environment variable `ROLIDIUM_THREADS` (a number, or `auto`) overrides it; it also applies to `rolidium cli` and `rolidium mcp`.
 
 ## Headless use
 

@@ -4,7 +4,7 @@ A `.rolidium` file is a **zip archive** (deflate). All text is UTF-8 JSON, units
 
 ```
 manifest.json               required
-bodies/<id>.brep            required per body: OpenCASCADE binary BREP of the solid
+bodies/<id>.brep            required per body: OpenCASCADE binary BREP of the solid (without display triangulation; older files may carry it, it is ignored)
 bodies/<id>.json            required per body: metadata
 sketches/<id>.json          one per sketch
 preview.png                 optional, 320 x 240 isometric picture (only when a GPU adapter was available)

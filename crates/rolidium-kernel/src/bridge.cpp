@@ -70,6 +70,8 @@
 #include <BRepTools_History.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <Geom_Curve.hxx>
+#include <Geom_Surface.hxx>
 #include <Bnd_Box.hxx>
 #include <BinTools.hxx>
 #include <GC_MakeArcOfCircle.hxx>
@@ -98,6 +100,8 @@
 #include <Standard_Failure.hxx>
 #include <TopAbs_ShapeEnum.hxx>
 #include <TopExp.hxx>
+#include <OSD_ThreadPool.hxx>
+#include <atomic>
 #include <TopExp_Explorer.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
@@ -119,9 +123,10 @@ std::recursive_mutex g_lock;
 
 [[noreturn]] void fail(const std::string& what) { throw std::runtime_error(what); }
 
-template <typename F>
-auto guarded(const char* name, F&& f) -> decltype(f()) {
-    std::lock_guard<std::recursive_mutex> lock(g_lock);
+template <bool Lock, typename F>
+auto guarded_impl(const char* name, F&& f) -> decltype(f()) {
+    std::unique_lock<std::recursive_mutex> lock(g_lock, std::defer_lock);
+    if (Lock) lock.lock();
     static const bool quiet = [] {
         // Open CASCADE prints diagnostics to stdout; we report errors through Results instead.
         Message::DefaultMessenger()->RemovePrinters(STANDARD_TYPE(Message_Printer));
@@ -140,6 +145,17 @@ auto guarded(const char* name, F&& f) -> decltype(f()) {
     }
 }
 
+// Every native call runs one at a time, except the ones that only read their own shape (or write only what belongs to it) and are
+// made to run for many bodies at once: those use `guarded_free`. The caller never works on two shapes that share data at the same moment.
+template <typename F>
+auto guarded(const char* name, F&& f) -> decltype(f()) {
+    return guarded_impl<true>(name, std::forward<F>(f));
+}
+template <typename F>
+auto guarded_free(const char* name, F&& f) -> decltype(f()) {
+    return guarded_impl<false>(name, std::forward<F>(f));
+}
+
 
 // ---- cancelling a long operation ----
 // A flag that the application sets from another thread; the long Open CASCADE algorithms (booleans, rounds, lofts, sweeps,
@@ -148,6 +164,10 @@ static std::atomic<bool> g_cancel{false};
 
 // ---- timing of the stages of an operation (for the `times` table of the command line tool) ----
 static thread_local std::vector<std::pair<std::string, double>> g_stages;
+
+// Number of threads Open CASCADE may use inside one operation (0: its default, one per core). 1 turns the parallel modes off.
+static std::atomic<int> g_threads{0};
+static bool run_parallel() { return g_threads.load() != 1; }
 
 struct StageTimer {
     const char* name;
@@ -182,7 +202,7 @@ static TopoDS_Shape cut_cancellable(const TopoDS_Shape& a, const TopoDS_Shape& b
     tools.Append(b);
     cut.SetArguments(args);
     cut.SetTools(tools);
-    cut.SetRunParallel(true);
+    cut.SetRunParallel(run_parallel());
     {
         StageTimer st("boolean cut");
         cut.Build(progress());
@@ -575,7 +595,7 @@ bool has_self_intersections(const Shape& sh) {
         std::lock_guard<std::recursive_mutex> lock(g_lock);
         BOPAlgo_ArgumentAnalyzer an;
         an.SetShape1(sh.s);
-        an.SetRunParallel(true);
+        an.SetRunParallel(run_parallel());
         an.SelfInterMode() = true;
         an.SmallEdgeMode() = false;
         an.RebuildFaceMode() = false;
@@ -640,7 +660,7 @@ OpResult boolean_op(const Shape& a, const Shape& b, uint32_t op, bool unify) {
         tools.Append(b.s);
         alg->SetArguments(args);
         alg->SetTools(tools);
-        alg->SetRunParallel(true);
+        alg->SetRunParallel(run_parallel());
         {
             StageTimer st("boolean");
             alg->Build(progress());
@@ -1095,7 +1115,9 @@ MeshData mesh_shape(const Shape& sh, double linear, double angular) {
 // and kept for the callers.)
 MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, double coarse, rust::Slice<const uint8_t> fine) {
     (void)coarse;
-    return guarded("mesh", [&] {
+    return guarded_free("mesh", [&] {
+        // an indicator of its own: the shared one keeps the state of one run and meshing runs for many bodies at once
+        Handle(CancelIndicator) ind = new CancelIndicator();
         BRepTools::Clean(sh.s);
         const bool partial = fine.size() > 0;
         auto is_fine = [&](int fi) { return !partial || (fi - 1 < (int)fine.size() && fine[fi - 1] != 0); };
@@ -1103,10 +1125,10 @@ MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, doub
         mp.Deflection = linear;
         mp.Angle = angular;
         mp.Relative = false;
-        mp.InParallel = true;
+        mp.InParallel = run_parallel();
         StageTimer st("mesh");
         if (!partial) {
-            BRepMesh_IncrementalMesh im(sh.s, mp, progress());
+            BRepMesh_IncrementalMesh im(sh.s, mp, ind->Start());
         } else {
             BRep_Builder bb;
             TopoDS_Compound comp;
@@ -1114,7 +1136,7 @@ MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, doub
             for (int fi = 1; fi <= sh.faces.Extent(); ++fi) {
                 if (is_fine(fi)) bb.Add(comp, sh.faces.FindKey(fi));
             }
-            BRepMesh_IncrementalMesh im(comp, mp, progress());
+            BRepMesh_IncrementalMesh im(comp, mp, ind->Start());
         }
         check_cancelled();
         MeshData m;
@@ -1252,7 +1274,7 @@ bool check_shape(const Shape& sh) {
 
 // Bounding box only: min x y z, max x y z (the same box props() gives).
 rust::Vec<double> bounds_of(const Shape& sh) {
-    return guarded("bounds", [&] {
+    return guarded_free("bounds", [&] {
         rust::Vec<double> out;
         Bnd_Box bb;
         BRepBndLib::AddOptimal(sh.s, bb, false, false);
@@ -1447,9 +1469,9 @@ rust::Vec<uint8_t> step_writer_finish(StepWriter& w) {
 }
 
 rust::Vec<uint8_t> write_brep(const Shape& sh) {
-    return guarded("write_brep", [&] {
+    return guarded_free("write_brep", [&] {
         std::ostringstream os;
-        BinTools::Write(sh.s, os);
+        BinTools::Write(sh.s, os, false, false, BinTools_FormatVersion_CURRENT);  // no triangulation: the file does not carry display meshes, and the writer does not touch what a mesher may be changing
         std::string s = os.str();
         rust::Vec<uint8_t> out;
         out.reserve(s.size());
@@ -1459,11 +1481,55 @@ rust::Vec<uint8_t> write_brep(const Shape& sh) {
 }
 
 std::shared_ptr<Shape> read_brep(rust::Slice<const uint8_t> data) {
-    return guarded("read_brep", [&] {
+    return guarded_free("read_brep", [&] {
         std::istringstream is(std::string((const char*)data.data(), data.size()));
         TopoDS_Shape s;
         BinTools::Read(s, is);
         return wrap(s);
+    });
+}
+
+}  // namespace rol
+
+namespace rol {
+
+void set_threads(int32_t n) {
+    static std::mutex m;
+    std::lock_guard<std::mutex> lock(m);
+    if (n == g_threads.load()) return;
+    g_threads.store(n);
+    if (n > 0) {
+        try {
+            OSD_ThreadPool::DefaultPool()->Init(n);
+        } catch (...) {
+            // the pool is working for another thread right now and cannot change its size: the number takes effect at the next start
+        }
+    }
+}
+
+// The identities of the parts (faces, edges, vertices) of the shape: two shapes that have one in common share data.
+rust::Vec<uint64_t> shared_keys(const Shape& sh) {
+    return guarded_free("keys", [&] {
+        rust::Vec<uint64_t> out;
+        for (TopAbs_ShapeEnum t : {TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX}) {
+            TopTools_IndexedMapOfShape m;
+            TopExp::MapShapes(sh.s, t, m);
+            for (int i = 1; i <= m.Extent(); ++i) {
+                const TopoDS_Shape& p = m.FindKey(i);
+                out.push_back((uint64_t)(uintptr_t)p.TShape().get());
+                // the geometry too: shapes that have the same surface or curve are not meshed at the same moment either
+                TopLoc_Location loc;
+                if (t == TopAbs_FACE) {
+                    Handle(Geom_Surface) g = BRep_Tool::Surface(TopoDS::Face(p), loc);
+                    if (!g.IsNull()) out.push_back((uint64_t)(uintptr_t)g.get());
+                } else if (t == TopAbs_EDGE) {
+                    double a, b;
+                    Handle(Geom_Curve) g = BRep_Tool::Curve(TopoDS::Edge(p), loc, a, b);
+                    if (!g.IsNull()) out.push_back((uint64_t)(uintptr_t)g.get());
+                }
+            }
+        }
+        return out;
     });
 }
 

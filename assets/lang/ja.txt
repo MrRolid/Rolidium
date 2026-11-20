@@ -280,6 +280,9 @@ The STEP file contains no valid solid, nothing was imported => STEPファイル�
 The STEP file contains no solid bodies (only surfaces or curves) => STEPファイルにソリッドボディがありません (サーフェスまたは曲線のみ)
 there is nothing to add => 追加するものがありません
 Autosave every (minutes, 0 = off) => 自動保存の間隔 (分、0 = オフ)
+Calculation threads (Auto = one per core less one) => 計算スレッド数 (自動 = コア数 − 1)
+The environment variable ROLIDIUM_THREADS overrides this choice. => 環境変数 ROLIDIUM_THREADS が指定されている場合は、この設定より優先されます。
+Threads in use: {} => 使用中のスレッド数: {}
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Rolidium の有効なファイルではないか、破損しています: {}。何も変更されていません。
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => このファイルはより新しい Rolidium で保存されました (ファイル形式 {}。このプログラムは {} まで対応)。開かず、変更もしていません。Rolidium を更新してください。
 

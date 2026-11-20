@@ -412,6 +412,11 @@ impl App {
         let mut dismiss = false;
         let mut chamfer = self.edge_chamfer;
         let mut mode = self.pull_mode;
+        // New body belongs to the pull of a sketch region; a face of a body is pulled in Auto, Add or Cut
+        let is_region = matches!(target, Target::Region { .. });
+        if !is_region && mode == PullMode::New {
+            mode = PullMode::Auto;
+        }
         let mut edge_text = None;
         let show_angle = (is_edges && chamfer)
             || matches!(
@@ -525,12 +530,9 @@ impl App {
             if pull_controls {
                 ui.horizontal(|ui| {
                     ui.label(tr("Mode"));
-                    for (m, name) in [
-                        (PullMode::Auto, "Auto"),
-                        (PullMode::Add, "Add"),
-                        (PullMode::Cut, "Cut"),
-                    ] {
-                        ui.selectable_value(&mut mode, m, tr(name));
+                    let modes = pull_modes(is_region);
+                    for (m, name) in modes {
+                        ui.selectable_value(&mut mode, *m, tr(name));
                     }
                 })
                 .response
@@ -722,5 +724,36 @@ impl App {
             (_, Act::Revolve) => self.begin_revolve(),
             _ => {}
         }
+    }
+}
+
+/// The modes the Pull panel offers: New body only for the region of a sketch, not for a face of a body.
+pub(super) fn pull_modes(region: bool) -> &'static [(PullMode, &'static str)] {
+    if region {
+        &[
+            (PullMode::Auto, "Auto"),
+            (PullMode::New, "New body"),
+            (PullMode::Add, "Add"),
+            (PullMode::Cut, "Cut"),
+        ]
+    } else {
+        &[
+            (PullMode::Auto, "Auto"),
+            (PullMode::Add, "Add"),
+            (PullMode::Cut, "Cut"),
+        ]
+    }
+}
+
+#[cfg(test)]
+mod pull_mode_tests {
+    use super::*;
+
+    #[test]
+    fn new_body_is_offered_for_a_sketch_region_and_not_for_a_face() {
+        assert!(pull_modes(true).iter().any(|(m, _)| *m == PullMode::New));
+        assert!(!pull_modes(false).iter().any(|(m, _)| *m == PullMode::New));
+        assert_eq!(pull_modes(false).len(), 3);
+        assert_eq!(pull_modes(true)[0].0, PullMode::Auto);
     }
 }

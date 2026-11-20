@@ -52,6 +52,7 @@
 # link: 335 329 the clamp screws sit in the pockets of the mount
 # bodies: 340
 # volume: 22228681.143
+# user-model: yes
 # no-overlap: yes
 # connected: yes
 # slow: yes
@@ -3958,5 +3959,4 @@ rename "Screw M6x100" body 337
 move 0.0000 0.0000 -40.0000 copy body 337
 move 0.0000 76.0000 0.0000 copy body 337
 move 0.0000 76.0000 -40.0000 copy body 337
-export-step target/demos/10-cnc-router/10-cnc-router.step
 info

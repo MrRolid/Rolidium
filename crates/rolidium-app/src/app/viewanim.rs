@@ -223,13 +223,23 @@ impl App {
         self.animate_to(to);
     }
 
-    /// The sketch ended: back to the view from before.
+    /// The sketch ended: the view turns back to the direction it had before, but what it looks at stays where the sketch was.
     pub(super) fn return_from_sketch(&mut self) {
         if let Some(c) = self.view_before_sketch.take() {
             if self.settings.auto_turn_view {
-                self.animate_to(c);
+                self.animate_to(view_after_sketch(&c, &self.camera));
             }
         }
+    }
+}
+
+/// The view after leaving a sketch: the direction of the view from before the sketch, the centre and the distance as they are now
+/// (the view was framed on the sketch), so that the work does not jump away to where the view was before.
+pub(super) fn view_after_sketch(before: &Camera, now: &Camera) -> Camera {
+    Camera {
+        yaw: before.yaw,
+        pitch: before.pitch,
+        ..*now
     }
 }
 
@@ -265,6 +275,23 @@ mod tests {
                 assert!(up_is_z(&blend(&cur, &c, ease(k as f32 / 10.0))));
             }
         }
+    }
+
+    #[test]
+    fn leaving_a_sketch_keeps_the_view_centre_at_the_sketch() {
+        // before the sketch the view looked at the origin; the sketch is far away and the view was framed on it
+        let before = Camera::default();
+        let now = Camera {
+            target: Vec3::new(420.0, -130.0, 75.0),
+            distance: 60.0,
+            yaw: 0.0,
+            pitch: 1.5,
+            ..Camera::default()
+        };
+        let after = view_after_sketch(&before, &now);
+        assert_eq!(after.target, now.target, "the centre must stay at the sketch");
+        assert_eq!(after.distance, now.distance);
+        assert_eq!((after.yaw, after.pitch), (before.yaw, before.pitch));
     }
 
     #[test]

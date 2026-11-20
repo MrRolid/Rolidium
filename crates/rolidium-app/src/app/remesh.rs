@@ -13,6 +13,10 @@ use rolidium_kernel::VIEW_PIXEL_FRACTION;
 /// a half for a part like a spring, and the display must stay fast for a big model.
 pub(super) const MAX_TRIANGLES_PER_BODY: usize = 150_000;
 pub(super) const MAX_TRIANGLES_TOTAL: usize = 600_000;
+/// Even a small body in view gets this much (a hole in it must be round).
+const MIN_TRIANGLES_PER_BODY: usize = 6_000;
+/// The bodies made finer in one go.
+const MAX_BODIES_PER_BATCH: usize = 48;
 /// The view must be still this long before the meshes are made again (inertia).
 const QUIET_SECONDS: f32 = 0.35;
 /// New meshes when a face in view is this much coarser than the zoom asks for (finer) ...
@@ -73,13 +77,38 @@ impl App {
         self.camera.view_proj(r.width() / r.height().max(1.0))
     }
 
-    /// Whether the body of `e` needs a new mesh for the pixel `need`; the faces in view are returned with it.
-    fn needs_remesh(&self, e: &MeshEntry, need: f64, vp: &glam::Mat4) -> Option<Vec<bool>> {
-        let want = need * VIEW_PIXEL_FRACTION;
+    /// The size of one screen pixel in millimetres at `p` (a perspective view: further away, a pixel is wider).
+    fn pixel_mm_at(&self, p: Vec3) -> f64 {
+        let h = (self.viewport_rect.height() * self.egui_ctx.pixels_per_point()).max(1.0) as f64;
+        let d = (p - self.camera.eye()).length().max(self.camera.distance * 0.02) as f64;
+        2.0 * d * (self.camera.fov_y as f64 * 0.5).tan() / h
+    }
+
+    /// Whether the body of `e` needs a new mesh; the faces in view are returned with the pixel size of the body: the one at its
+    /// nearest face in view (a body far behind the one looked at needs no fine mesh for the zoom of the centre), and its size
+    /// on the screen in pixels (the weight for the share of the triangle budget).
+    fn needs_remesh(&self, e: &MeshEntry, vp: &glam::Mat4) -> Option<(Vec<bool>, f64, f32)> {
         let fine = faces_in_view(e, vp);
         if !fine.iter().any(|f| *f) {
             return None;
         }
+        // the nearest point of the faces in view and the box of them
+        let eye = self.camera.eye();
+        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+        let mut nearest = f32::MAX;
+        for (f, _) in e.faces.iter().zip(&fine).filter(|(_, v)| **v) {
+            if f.bounds.0.x > f.bounds.1.x {
+                continue;
+            }
+            lo = lo.min(f.bounds.0);
+            hi = hi.max(f.bounds.1);
+            nearest = nearest.min(eye.clamp(f.bounds.0, f.bounds.1).distance(eye));
+        }
+        if nearest == f32::MAX {
+            return None;
+        }
+        let need = self.pixel_mm_at(eye + (lo + hi - eye * 2.0).normalize_or_zero() * nearest.max(1e-3));
+        let want = need * VIEW_PIXEL_FRACTION;
         let asked = |i: usize| {
             e.mesh
                 .face_deflection
@@ -98,7 +127,42 @@ impl App {
                 .enumerate()
                 .filter(|(_, f)| **f)
                 .all(|(i, _)| asked(i) * COARSER_FACTOR < want);
-        (finer || coarser).then_some(fine)
+        // the size on the screen: the box of the faces in view over the pixel
+        let pixels = ((hi - lo).length() as f64 / need).clamp(8.0, 4000.0) as f32;
+        (finer || coarser).then_some((fine, need, pixels))
+    }
+
+    /// The bodies that need a finer (or coarser) mesh for the present view, the biggest on the screen first: each with its own
+    /// pixel size and its share of the triangle budget. The second value is false when nothing is due.
+    pub(super) fn remesh_batch(&self) -> (Vec<RemeshBody>, bool) {
+        let vp = self.view_matrix();
+        let mut due: Vec<(&MeshEntry, Vec<bool>, f64, f32)> = self
+            .meshes
+            .iter()
+            .filter(|e| self.doc.body(e.id).is_some_and(|b| b.visible))
+            .filter_map(|e| self.needs_remesh(e, &vp).map(|(f, n, w)| (e, f, n, w)))
+            .collect();
+        let any = !due.is_empty();
+        // the bodies that are biggest on the screen first, a batch at a time (the rest follows when this one is done)
+        due.sort_by(|a, b| b.3.total_cmp(&a.3));
+        due.truncate(MAX_BODIES_PER_BATCH);
+        // the budget of triangles goes to the bodies by their size on the screen
+        let weights: f32 = due.iter().map(|d| d.3).sum::<f32>().max(1.0);
+        let bodies: Vec<RemeshBody> = due
+            .into_iter()
+            .filter_map(|(e, fine, need_b, w)| {
+                let b = self.doc.body(e.id)?;
+                let share = (MAX_TRIANGLES_TOTAL as f32 * w / weights) as usize;
+                Some(RemeshBody {
+                    body: (b.id, b.name.clone(), b.solid.clone(), b.color),
+                    base: e.mesh.clone(),
+                    fine,
+                    pixel_mm: need_b,
+                    max_triangles: share.clamp(MIN_TRIANGLES_PER_BODY, MAX_TRIANGLES_PER_BODY),
+                })
+            })
+            .collect();
+        (bodies, any)
     }
 
     /// Once a frame: starts the remeshing when it is due.
@@ -123,14 +187,8 @@ impl App {
         if self.remesh.inflight.is_some() || !self.idle() || self.pull.is_some() || self.view_anim.is_some() {
             return;
         }
-        let vp = self.view_matrix();
-        let due: Vec<(&MeshEntry, Vec<bool>)> = self
-            .meshes
-            .iter()
-            .filter(|e| self.doc.body(e.id).is_some_and(|b| b.visible))
-            .filter_map(|e| self.needs_remesh(e, need, &vp).map(|f| (e, f)))
-            .collect();
-        if due.is_empty() {
+        let (bodies, any) = self.remesh_batch();
+        if !any {
             return;
         }
         let quiet = self
@@ -141,29 +199,12 @@ impl App {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
             return;
         }
-        let bodies: Vec<RemeshBody> = due
-            .into_iter()
-            .filter_map(|(e, fine)| {
-                let b = self.doc.body(e.id)?;
-                Some(RemeshBody {
-                    body: (b.id, b.name.clone(), b.solid.clone(), b.color),
-                    base: e.mesh.clone(),
-                    fine,
-                })
-            })
-            .collect();
         if bodies.is_empty() {
             return;
         }
-        let n = self.meshes.len().max(1);
         self.remesh.ticket += 1;
         let ticket = self.remesh.ticket;
-        let sent = self.worker.send(Work::Remesh {
-            ticket,
-            bodies,
-            pixel_mm: need,
-            max_triangles: MAX_TRIANGLES_PER_BODY.min(MAX_TRIANGLES_TOTAL / n),
-        });
+        let sent = self.worker.send(Work::Remesh { ticket, bodies });
         if sent {
             self.remesh.inflight = Some((ticket, self.doc.revision(), need));
         }
@@ -203,22 +244,17 @@ impl App {
         ));
     }
 
-    /// For the self-test: the meshes made at once for the present zoom.
+    /// For the self-test: the meshes made at once for the present zoom, by the same choice of bodies and budget as the program uses.
     pub(super) fn remesh_now(&mut self) {
-        let need = self.pixel_mm();
-        let entries: Vec<MeshEntry> = self
-            .doc
-            .bodies()
-            .iter()
-            .filter(|b| b.visible)
-            .filter_map(|b| {
-                let m = b.solid.view_mesh(need, MAX_TRIANGLES_PER_BODY, None).ok()?;
-                let mut e = self.meshes.iter().find(|e| e.id == b.id)?.clone();
-                e.mesh = m;
-                Some(e)
-            })
-            .collect();
-        self.set_meshes(entries);
+        let (bodies, _) = self.remesh_batch();
+        let made = crate::worker::remesh_entries(&bodies);
+        let mut all: Vec<MeshEntry> = self.meshes.iter().cloned().collect();
+        for e in made.into_iter().flatten() {
+            if let Some(slot) = all.iter_mut().find(|o| o.id == e.id) {
+                *slot = e;
+            }
+        }
+        self.set_meshes(all);
     }
 }
 
@@ -254,14 +290,15 @@ mod tests {
             id: 1,
             name: String::new(),
             mesh: Default::default(),
-            faces: vec![
+            faces: std::sync::Arc::new(vec![
                 face(Vec3::splat(-5.0), Vec3::splat(5.0)),
                 face(Vec3::new(500.0, 0.0, 0.0), Vec3::new(510.0, 5.0, 5.0)),
                 face(Vec3::new(0.0, 0.0, 200.0), Vec3::new(5.0, 5.0, 210.0)),
                 // a big face that only partly overlaps the view still counts
                 face(Vec3::new(-1000.0, -2.0, -2.0), Vec3::new(1000.0, 2.0, 2.0)),
-            ],
+            ]),
             color: [1.0; 3],
+            stamp: 0,
         };
         assert_eq!(faces_in_view(&e, &vp), vec![true, false, false, true]);
     }

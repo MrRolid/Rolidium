@@ -13,7 +13,8 @@
 //! * the model survives a STEP export and import with the same volume, and a save to a `.rolidium` file and an open.
 //!
 //! The quick demos run in `cargo test`; the slow ones (`# slow: yes` in the header) are in a test marked `#[ignore]`, run with
-//! `cargo test -p rolidium-cli --test demos -- --ignored`.
+//! `cargo test -p rolidium-cli --test demos -- --ignored` (the same run also checks the file of the person who worked on the router by hand, see the end
+//! of this file).
 
 use rolidium_cli::Runner;
 use rolidium_kernel::{BooleanOp, KernelError, Solid};
@@ -303,5 +304,105 @@ fn the_slow_demos_build_and_match_their_headers() {
     let _g = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     for d in demo_dirs().iter().filter(|d| is_slow(d)) {
         check_demo(d);
+    }
+}
+
+// ---- the model of the router that the person worked on by hand -----------------------------------------------------------------
+// `examples/demos/10-cnc-router/10-cnc-router.rolidium` is the person's file (the script gives the base, `10-cnc-router-base`). It is
+// not held to the strict checks of a script: it must open, every body must be valid, and it must survive a STEP round trip. The bodies
+// that overlap and the ones that touch nothing are only listed in the message, for the person to look at.
+
+fn machine_file() -> Option<PathBuf> {
+    let p = demos_dir().join("10-cnc-router/10-cnc-router.rolidium");
+    p.is_file().then_some(p)
+}
+
+#[test]
+#[ignore = "slow: the machine has 340 bodies (about 90 s)"]
+fn the_machine_file_of_the_person_opens_and_round_trips() {
+    let Some(path) = machine_file() else {
+        println!("no examples/demos/10-cnc-router/10-cnc-router.rolidium: nothing to check");
+        return;
+    };
+    let _g = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    let t = std::time::Instant::now();
+    let loaded =
+        rolidium_doc::file::load_file(&path).unwrap_or_else(|e| panic!("the machine does not open: {e}"));
+    let open_s = t.elapsed().as_secs_f64();
+    let bodies = &loaded.state.bodies;
+    assert!(!bodies.is_empty());
+    for b in bodies {
+        assert!(
+            b.solid.is_valid(),
+            "body {} {} is not a valid solid",
+            b.id,
+            b.name
+        );
+    }
+    let default_named = bodies.iter().filter(|b| b.name.starts_with("Body ")).count();
+    let total: f64 = bodies.iter().map(|b| b.solid.volume().unwrap()).sum();
+    // STEP there and back: the bodies, their names and the volume
+    let named: Vec<(Solid, String)> = bodies.iter().map(|b| (b.solid.clone(), b.name.clone())).collect();
+    let step = Solid::write_step_named(&named).unwrap();
+    let (back, skipped) = Solid::read_step_all_named(&step).unwrap();
+    assert!(skipped.is_empty(), "STEP: {skipped:?}");
+    assert_eq!(back.len(), bodies.len(), "STEP bodies");
+    let vb: f64 = back.iter().map(|(s, _)| s.volume().unwrap()).sum();
+    assert!(
+        (vb - total).abs() <= total * 1e-5 + 1e-6,
+        "STEP volume {vb} vs {total}"
+    );
+    let names_kept = back.iter().zip(bodies).filter(|((_, n), b)| *n == b.name).count();
+    println!(
+        "the machine of the person: {} bodies ({default_named} with a default name), volume {total:.3}, opened in {open_s:.1} s, STEP names kept {names_kept}",
+        bodies.len()
+    );
+    assert_eq!(names_kept, bodies.len(), "names in the STEP file");
+}
+
+/// Lists (in the message, never as a failure) the bodies of the person's machine that overlap and the ones that touch no other body with
+/// a face. Run with `cargo test -p rolidium-cli --test demos -- --ignored --nocapture machine_file_lists`.
+#[test]
+#[ignore = "slow: checks all pairs of bodies of the machine"]
+fn machine_file_lists_overlaps_and_loose_bodies() {
+    let Some(path) = machine_file() else {
+        println!("no examples/demos/10-cnc-router/10-cnc-router.rolidium: nothing to list");
+        return;
+    };
+    let _g = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    let loaded = rolidium_doc::file::load_file(&path).unwrap();
+    let solids: Vec<Solid> = loaded.state.bodies.iter().map(|b| b.solid.clone()).collect();
+    let names: Vec<String> = loaded.state.bodies.iter().map(|b| b.name.clone()).collect();
+    let pairs = overlapping_pairs(&solids, &names);
+    println!("\nbodies that share volume: {}", pairs.len());
+    for (a, b, v) in &pairs {
+        println!("  {a}  x  {b}   ({v:.3} mm3)");
+    }
+    let n = solids.len();
+    let mut touching = vec![false; n];
+    for i in 0..n {
+        for j in i + 1..n {
+            if touch_by_face(&solids[i], &solids[j]) {
+                touching[i] = true;
+                touching[j] = true;
+            }
+        }
+    }
+    let loose: Vec<&String> = (0..n).filter(|i| !touching[*i]).map(|i| &names[i]).collect();
+    println!("\nbodies that touch no other body with a face: {}", loose.len());
+    for l in &loose {
+        println!("  {l}");
+    }
+    let groups = loose_groups(&solids, &names, &[], &[]);
+    println!(
+        "\nseparate pieces: {}",
+        if groups.is_empty() { 1 } else { groups.len() }
+    );
+    for g in &groups {
+        println!(
+            "  [{} bodies] {}",
+            g.len(),
+            g.iter().take(6).cloned().collect::<Vec<_>>().join("; ")
+        );
     }
 }

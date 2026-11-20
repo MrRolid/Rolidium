@@ -48,8 +48,9 @@ pub fn million_triangle_entry() -> MeshEntry {
     MeshEntry {
         id: 1,
         name: "Benchmark sheet".into(),
-        mesh: m,
-        faces: vec![face],
+        mesh: std::sync::Arc::new(m),
+        faces: std::sync::Arc::new(vec![face]),
         color: [0.7, 0.72, 0.8],
+        stamp: 0,
     }
 }

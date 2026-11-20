@@ -947,6 +947,109 @@ impl App {
                 }
             }
             47 => {
+                // a document of many bodies (a machine): a big plate with a small hole, 300 screws; the zoom must make the hole round
+                use rolidium_kernel::{BooleanOp, Solid};
+                self.replace_document(Document::new(), None);
+                let plate =
+                    Solid::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1200.0, 800.0, 20.0)).unwrap();
+                let hole = Solid::cylinder(3.0, 30.0, DVec3::new(100.0, 100.0, -5.0), DVec3::Z).unwrap();
+                let plate = plate.boolean(&hole, BooleanOp::Cut).unwrap().solid;
+                let mut solids = vec![(plate, "Table plate".to_string())];
+                for i in 0..300 {
+                    let (x, y) = (150.0 + (i % 20) as f64 * 50.0, 150.0 + (i / 20) as f64 * 40.0);
+                    let shank = Solid::cylinder(2.5, 20.0, DVec3::new(x, y, 20.0), DVec3::Z).unwrap();
+                    let head = Solid::cylinder(4.0, 4.0, DVec3::new(x, y, 40.0), DVec3::Z).unwrap();
+                    let screw = shank.boolean(&head, BooleanOp::Fuse).unwrap().solid;
+                    solids.push((screw, format!("Screw {i}")));
+                }
+                let _ = self.doc.apply(Command::AddNamedSolids { solids });
+                self.request_meshes();
+                st.wait_frames = 2;
+            }
+            48 => {
+                if self.meshes.len() < 301 {
+                    self.selftest = Some(st);
+                    return;
+                }
+                // look down at the hole in the plate (it fills a third of the height of the view), settle, measure the circle
+                self.view_anim = None;
+                self.sk = None;
+                self.tool = Tool::Select;
+                self.camera.set_view(StandardView::Top);
+                self.camera.target = Vec3::new(100.0, 100.0, 20.0);
+                self.camera.distance = 17.0 / (2.0 * (self.camera.fov_y * 0.5).tan());
+                let first = self.meshes[0].mesh.triangle_count();
+                self.remesh_now();
+                let px = self.pixel_mm();
+                let m = &self.meshes[0].mesh;
+                let (cx, cy, r) = (100.0_f32, 100.0_f32, 3.0_f32);
+                let ring = |p: &Vec3| (((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt() - r).abs() < 0.05;
+                let segments: usize = m
+                    .edges
+                    .iter()
+                    .filter(|e| e.points.len() > 3 && e.points.iter().all(ring))
+                    .map(|e| e.points.len() - 1)
+                    .sum();
+                let worst = m
+                    .edges
+                    .iter()
+                    .filter(|e| e.points.len() > 3 && e.points.iter().all(ring))
+                    .flat_map(|e| {
+                        e.points.windows(2).map(|w| {
+                            let mid = (w[0] + w[1]) * 0.5;
+                            (r - ((mid.x - cx).powi(2) + (mid.y - cy).powi(2)).sqrt()).abs()
+                        })
+                    })
+                    .fold(0.0_f32, f32::max);
+                println!(
+                    "selftest: hole in the plate of a document of {} bodies: {px:.4} mm per pixel, {segments} segments, worst deviation {worst:.5} mm, {first} -> {} triangles",
+                    self.meshes.len(),
+                    m.triangle_count()
+                );
+                check(
+                    &mut st,
+                    "the hole in the table plate of a big document deviates by less than half a pixel after the zoom",
+                    segments >= 24 && f64::from(worst) <= 0.5 * px,
+                );
+                // the triangles of the face too: the cylinder wall of the hole, seen from above, is a ring of narrow strips
+                let tris = self.meshes[0].mesh.triangle_count();
+                check(
+                    &mut st,
+                    "the plate got finer triangles for the hole",
+                    tris > first,
+                );
+                self.layers_changed = true;
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "zoomed-hole-in-plate");
+            }
+            49 => {
+                // a screw head in the same document: its outline is a circle too
+                self.camera.target = Vec3::new(150.0, 150.0, 44.0);
+                self.camera.distance = 12.0 / (2.0 * (self.camera.fov_y * 0.5).tan());
+                self.remesh_now();
+                let px = self.pixel_mm();
+                let m = &self.meshes[1].mesh;
+                let (cx, cy, r) = (150.0_f32, 150.0_f32, 4.0_f32);
+                let ring = |p: &Vec3| (((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt() - r).abs() < 0.05;
+                let worst = m
+                    .edges
+                    .iter()
+                    .filter(|e| e.points.len() > 3 && e.points.iter().all(ring))
+                    .flat_map(|e| {
+                        e.points.windows(2).map(|w| {
+                            let mid = (w[0] + w[1]) * 0.5;
+                            (r - ((mid.x - cx).powi(2) + (mid.y - cy).powi(2)).sqrt()).abs()
+                        })
+                    })
+                    .fold(0.0_f32, f32::max);
+                println!("selftest: screw head: {px:.4} mm per pixel, worst deviation {worst:.5} mm");
+                check(
+                    &mut st,
+                    "the outline of a screw head deviates by less than half a pixel after the zoom",
+                    worst > 0.0 && f64::from(worst) <= 0.5 * px,
+                );
+            }
+            50 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

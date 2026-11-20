@@ -64,6 +64,8 @@ pub struct Settings {
     pub volume: f64,
     /// Minutes between autosaves; 0 switches autosave off.
     pub autosave_minutes: u32,
+    /// Threads for the calculations: 0 = automatic (one per core less one).
+    pub threads: u32,
     /// Last folder used in the file dialogs.
     pub file_dir: String,
     /// Recently used documents, newest first.
@@ -107,6 +109,7 @@ impl Default for Settings {
             sound: true,
             volume: 0.5,
             autosave_minutes: 2,
+            threads: 0,
             file_dir: String::new(),
             recent: Vec::new(),
             recent_dirs: Vec::new(),
@@ -152,6 +155,7 @@ impl Settings {
                 "language" => s.language = v.to_string(),
                 "sound" => s.sound = v != "false",
                 "volume" => s.volume = v.parse().unwrap_or(s.volume),
+                "threads" => s.threads = v.parse().unwrap_or(0).min(256),
                 "autosave_minutes" => s.autosave_minutes = v.parse().unwrap_or(s.autosave_minutes).min(240),
                 "file_dir" => s.file_dir = v.to_string(),
                 "recent" if !v.is_empty() => s.recent.push(v.to_string()),
@@ -206,10 +210,11 @@ impl Settings {
             let _ = std::fs::create_dir_all(d);
         }
         let text = format!(
-            "theme={}\nbackend={}\nautosave_minutes={}\nfile_dir={}\nexport_dir={}\npreset={}\ndeviation={}\nangle_deg={}\nascii={}\ngrid_step={}\nsnap={}\nlanguage={}\nsound={}\nvolume={}\n",
+            "theme={}\nbackend={}\nautosave_minutes={}\nthreads={}\nfile_dir={}\nexport_dir={}\npreset={}\ndeviation={}\nangle_deg={}\nascii={}\ngrid_step={}\nsnap={}\nlanguage={}\nsound={}\nvolume={}\n",
             self.theme,
             self.backend,
             self.autosave_minutes,
+            self.threads,
             self.file_dir,
             self.export_dir,
             self.preset,
@@ -270,6 +275,7 @@ mod tests {
             sound: false,
             volume: 0.25,
             autosave_minutes: 5,
+            threads: 4,
             file_dir: "/x".into(),
             recent: vec!["/a/b.rolidium".into(), "/c.rolidium".into()],
             recent_dirs: vec!["/d".into(), "/e".into()],

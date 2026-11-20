@@ -269,6 +269,7 @@ fn viewport_bench() {
             id: 1,
             mesh: &mesh,
             color: [0.7, 0.7, 0.75],
+            stamp: 0,
         }],
     );
     let mut cam = Camera::default();
@@ -339,7 +340,18 @@ fn script_without_files(text: &str) -> String {
 }
 
 /// `rolidium-cli times`: a table of the times of the main operations, to compare after every phase.
-pub fn times() -> i32 {
+pub fn times(what: Option<&str>) -> i32 {
+    match what {
+        Some("machine") => {
+            crate::phases::machine_times();
+            return 0;
+        }
+        Some("open") => {
+            crate::phases::open_times();
+            return 0;
+        }
+        _ => {}
+    }
     println!("Times of the main operations (median of the runs; the stages are averages; release build recommended)\n");
     let mut rows = Vec::new();
 
@@ -486,6 +498,7 @@ pub fn times() -> i32 {
             );
         }
     }
+    crate::phases::machine_times();
     0
 }
 

@@ -27,7 +27,15 @@ features is visible. 0.2.0 is the first public release.
 - One program with three modes (window, `cli`, `mcp`) instead of three programs: one copy of the geometry kernel in the package, so the
   package is much smaller. `rolidium mcp-config` prints ready-made commands to connect the MCP server to a client.
 
+- Speed in a big document: an operation, Undo or Redo makes the display meshes only of the bodies that changed (a document of 340 bodies took seconds for every small operation), the graphics card keeps the buffers of the others, and the autosave has a thread of its own. `rolidium cli times` has the stages of a small operation in a big document next to the same operation on the body alone, and a test guards the ratio.
+- Several cores: the display meshes of many bodies, the reading of the bodies of a file and the booleans of the kernel use more threads (one per core less one by default; Settings: Auto, 1, 2, 4, 8; the variable `ROLIDIUM_THREADS`, also for `cli` and `mcp`). Bodies that share data in the kernel are never worked on at the same time; a test compares the results for 1, 2, 4 and 8 threads.
+- The list of bodies on the right marks the bodies picked in the model and scrolls to the last one.
+- The Pull panel has the mode New body for a region of a sketch.
+
 ### Fixed
+- Small holes and screw heads in a big document were drawn as polygons when zoomed in: a body is now refined for the pixel at its own distance and the triangle budget is shared by the size of the bodies on the screen.
+- After leaving a sketch the view jumped back to where it was before the sketch (often the origin); it now keeps looking at the sketch.
+- `rolidium --bench` no longer prints the time of a pick (it measured something else and showed 0.0 ms).
 - The Settings and About buttons in the left column were cut off at the bottom (the status bar covered the column); the whole column now fits
   a window 720 px high (checked by the self test at 1280 x 720 and 1920 x 1080).
 - Unavailable buttons now have the same white text as the available ones; the unavailability shows in the background, the frame, the dimmed icon and the indicator.

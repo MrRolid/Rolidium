@@ -6,8 +6,8 @@
 
 use crate::logging::log;
 use rolidium_doc::file::Loaded;
-use rolidium_doc::{BodyId, Computed, DocError, Document, Job, State};
-use rolidium_kernel::{DVec3, FaceKind, Mesh, Solid};
+use rolidium_doc::{Computed, DocError, Document, Job, State};
+use rolidium_kernel::{Mesh, Solid};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -18,36 +18,15 @@ use std::sync::Arc;
 pub struct RemeshBody {
     pub body: BodyInput,
     /// The present mesh of the body: the faces out of view are taken from it.
-    pub base: Mesh,
+    pub base: Arc<Mesh>,
     pub fine: Vec<bool>,
+    /// The size of a pixel (mm) at this body, and the most triangles it may get.
+    pub pixel_mm: f64,
+    pub max_triangles: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct FaceMeta {
-    pub kind: FaceKind,
-    pub normal: DVec3,
-    pub origin: DVec3,
-    pub area: f64,
-    pub centroid: glam::Vec3,
-    /// The box around the triangles of the face (for the test whether it is in view).
-    pub bounds: (glam::Vec3, glam::Vec3),
-    /// Complete hole or pin: its diameter.
-    pub cyl_diameter: Option<f64>,
-    /// Flat circular face belonging to a hole or pin: (cylindrical face, diameter).
-    pub disc: Option<(u32, f64)>,
-}
-
-#[derive(Clone)]
-pub struct MeshEntry {
-    pub id: BodyId,
-    #[allow(dead_code)]
-    pub name: String,
-    pub mesh: Mesh,
-    pub faces: Vec<FaceMeta>,
-    pub color: [f32; 3],
-}
-
-pub type BodyInput = (BodyId, String, Solid, [f32; 3]);
+use rolidium_doc::display::{entry_of, mesh_entry, MeshCache};
+pub use rolidium_doc::display::{BodyInput, FaceMeta, MeshEntry};
 
 /// A GPU the worker may use to render the preview picture stored in a file.
 pub struct GpuHandle {
@@ -83,8 +62,6 @@ pub enum Work {
         ticket: u64,
         /// The bodies with the deflection and triangle count of their present meshes.
         bodies: Vec<RemeshBody>,
-        pixel_mm: f64,
-        max_triangles: usize,
     },
     ExportStl {
         solids: Vec<Solid>,
@@ -139,83 +116,26 @@ pub enum Done {
 
 pub struct Worker {
     tx: Sender<Work>,
+    atx: Sender<Work>,
     rx: Receiver<(Done, f32)>,
 }
 
-fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
-    let mesh = b.2.display_mesh().map_err(|e| e.to_string())?;
-    entry_of(b, mesh)
-}
-
 /// The entry of a body for a mesh made for the current zoom (`pixel_mm` per pixel), with at most `max_triangles` triangles.
-fn mesh_entry_view(r: &RemeshBody, pixel_mm: f64, max_triangles: usize) -> Result<MeshEntry, String> {
+fn mesh_entry_view(r: &RemeshBody) -> Result<MeshEntry, String> {
     let b = &r.body;
     let mesh =
-        b.2.view_mesh_faces(pixel_mm, &r.fine, max_triangles, Some(&r.base))
+        b.2.view_mesh_faces(r.pixel_mm, &r.fine, r.max_triangles, Some(&*r.base))
             .map_err(|e| e.to_string())?;
     entry_of(b, mesh)
 }
 
-fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
-    let (id, name, solid, color) = b;
-    let mut sums = vec![(glam::Vec3::ZERO, 0u32); solid.face_count()];
-    let mut bounds = vec![(glam::Vec3::splat(f32::MAX), glam::Vec3::splat(f32::MIN)); solid.face_count()];
-    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
-        let f = mesh.tri_face[t] as usize;
-        for &i in tri {
-            let p = mesh.positions[i as usize];
-            sums[f].0 += p;
-            sums[f].1 += 1;
-            bounds[f].0 = bounds[f].0.min(p);
-            bounds[f].1 = bounds[f].1.max(p);
-        }
-    }
-    let mut faces = Vec::with_capacity(sums.len());
-    for (i, f) in solid.faces().enumerate() {
-        let info = solid.face_info(f).map_err(|e| e.to_string())?;
-        let (sum, n) = sums[i];
-        faces.push(FaceMeta {
-            kind: info.kind,
-            normal: info.normal,
-            origin: info.origin,
-            area: info.area,
-            centroid: if n > 0 { sum / n as f32 } else { glam::Vec3::ZERO },
-            bounds: bounds[i],
-            cyl_diameter: None,
-            disc: None,
-        });
-    }
-    // Hole/pin information for the dimension panel (only cheap candidates are examined).
-    for (i, f) in solid.faces().enumerate() {
-        match faces[i].kind {
-            FaceKind::Cylinder => {
-                if let Ok(Some(c)) = solid.cylinder_info(f) {
-                    faces[i].cyl_diameter = Some(c.radius * 2.0);
-                }
-            }
-            FaceKind::Plane => {
-                if let Ok(Some((cyl, r))) = solid.disc_partner(f) {
-                    faces[i].disc = Some((cyl.0, r * 2.0));
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(MeshEntry {
-        id: *id,
-        name: name.clone(),
-        mesh,
-        faces,
-        color: *color,
-    })
+/// The finer meshes for these bodies (independent bodies on several threads).
+pub fn remesh_entries(bodies: &[RemeshBody]) -> Vec<Result<MeshEntry, String>> {
+    rolidium_kernel::par::map_groups(bodies, |r| &r.body.2, mesh_entry_view)
 }
 
-fn meshes_of(bodies: &[BodyInput]) -> Result<Vec<MeshEntry>, String> {
-    bodies
-        .iter()
-        .map(mesh_entry)
-        .filter(|r| r.as_ref().map_or(true, |m| !m.mesh.indices.is_empty()))
-        .collect()
+fn meshes_of(bodies: &[BodyInput], cache: &mut MeshCache) -> Result<Vec<MeshEntry>, String> {
+    cache.entries(bodies)
 }
 
 /// A small isometric picture of the model for the file (None if the GPU cannot be used).
@@ -241,6 +161,7 @@ fn preview_png(gpu: &GpuHandle, meshes: &[MeshEntry]) -> Option<Vec<u8>> {
             id: m.id,
             mesh: &m.mesh,
             color: m.color,
+            stamp: m.stamp,
         })
         .collect();
     r.set_bodies(&gpu.device, &draws);
@@ -266,9 +187,12 @@ fn describe_panic(p: Box<dyn std::any::Any + Send>) -> String {
         .unwrap_or_else(|| "unknown panic".into())
 }
 
-fn handle(work: Work) -> Done {
+fn handle(work: Work, cache: &mut MeshCache) -> Done {
     // a cancel request belongs to the job that was running; every new job starts clean
-    rolidium_kernel::reset_cancel();
+    // (the autosave runs beside the operations and must not clear their cancel request)
+    if !matches!(work, Work::SaveFile { autosave: true, .. }) {
+        rolidium_kernel::reset_cancel();
+    }
     match work {
         Work::Command(job) => {
             // for the GUI tests: pretend the operation takes this long (it still reacts to Cancel)
@@ -296,7 +220,7 @@ fn handle(work: Work) -> Done {
                     .filter(|b| b.visible)
                     .map(|b| (b.id, b.name.clone(), b.solid.clone(), b.color))
                     .collect();
-                let meshes = meshes_of(&inputs)?;
+                let meshes = meshes_of(&inputs, cache)?;
                 Ok((c, meshes))
             });
             // where the time went (the same stages as `rolidium-cli times`), for the log
@@ -344,7 +268,7 @@ fn handle(work: Work) -> Done {
                 })
                 .map(|_| path),
         ),
-        Work::Meshes { bodies } => Done::Meshes(meshes_of(&bodies)),
+        Work::Meshes { bodies } => Done::Meshes(meshes_of(&bodies, cache)),
         Work::MeshStats {
             solids,
             params,
@@ -362,19 +286,18 @@ fn handle(work: Work) -> Done {
                 Ok(n)
             })(),
         ),
-        Work::Remesh {
-            ticket,
-            bodies,
-            pixel_mm,
-            max_triangles,
-        } => Done::Remesh(
-            ticket,
-            bodies
-                .iter()
-                .map(|r| mesh_entry_view(r, pixel_mm, max_triangles))
+        Work::Remesh { ticket, bodies } => Done::Remesh(ticket, {
+            // independent bodies on several cores; the refined meshes stay in the cache for the next operation
+            let made = remesh_entries(&bodies);
+            for (r, e) in bodies.iter().zip(&made) {
+                if let Ok(e) = e {
+                    cache.replace(e, &r.body.2);
+                }
+            }
+            made.into_iter()
                 .filter(|r| r.as_ref().map_or(true, |m| !m.mesh.indices.is_empty()))
-                .collect(),
-        ),
+                .collect()
+        }),
         Work::EdgePreview {
             ticket,
             body,
@@ -432,64 +355,80 @@ fn handle(work: Work) -> Done {
     }
 }
 
+fn worker_loop(wrx: Receiver<Work>, wtx: Sender<(Done, f32)>, ctx: eframe::egui::Context) {
+    let mut cache = MeshCache::default();
+    while let Ok(work) = wrx.recv() {
+        let t0 = std::time::Instant::now();
+        let (kind, ticket) = match &work {
+            Work::MeshStats { ticket, .. } => (3, *ticket),
+            Work::EdgePreview { ticket, .. } => (4, *ticket),
+            Work::Remesh { ticket, .. } => (6, *ticket),
+            Work::SaveFile { .. }
+            | Work::OpenFile { .. }
+            | Work::ReadStep { .. }
+            | Work::ExportStep { .. } => (5, 0),
+            _ => (0, 0),
+        };
+        let is_cmd = matches!(work, Work::Command(_));
+        let is_mesh = matches!(work, Work::Meshes { .. });
+        let done = match catch_unwind(AssertUnwindSafe(|| handle(work, &mut cache))) {
+            Ok(d) => d,
+            Err(p) => {
+                let msg = format!(
+                    "Internal error while computing the operation; the model was not changed ({})",
+                    describe_panic(p)
+                );
+                log(&format!("worker panic: {msg}"));
+                if matches!(kind, 5) {
+                    Done::Failed(msg)
+                } else if matches!(kind, 3) {
+                    Done::MeshStats(ticket, Err(msg))
+                } else if matches!(kind, 4) {
+                    Done::EdgePreview(ticket, Err(msg))
+                } else if matches!(kind, 6) {
+                    Done::Remesh(ticket, Err(msg))
+                } else if is_cmd {
+                    Done::Command(Err(msg))
+                } else if is_mesh {
+                    Done::Meshes(Err(msg))
+                } else {
+                    Done::Export(Err(msg))
+                }
+            }
+        };
+        if wtx.send((done, t0.elapsed().as_secs_f32() * 1000.0)).is_err() {
+            break;
+        }
+        ctx.request_repaint();
+    }
+}
+
 impl Worker {
     pub fn spawn(ctx: eframe::egui::Context) -> Self {
         let (tx, wrx) = channel::<Work>();
         let (wtx, rx) = channel::<(Done, f32)>();
+        // The autosave has a thread of its own: writing the file image of a big document takes a while and must never keep
+        // an operation waiting.
+        let (atx, arx) = channel::<Work>();
+        {
+            let (wtx, ctx) = (wtx.clone(), ctx.clone());
+            std::thread::Builder::new()
+                .name("rolidium-autosave".into())
+                .spawn(move || worker_loop(arx, wtx, ctx))
+                .expect("cannot start autosave thread");
+        }
         std::thread::Builder::new()
             .name("rolidium-worker".into())
-            .spawn(move || {
-                while let Ok(work) = wrx.recv() {
-                    let t0 = std::time::Instant::now();
-                    let (kind, ticket) = match &work {
-                        Work::MeshStats { ticket, .. } => (3, *ticket),
-                        Work::EdgePreview { ticket, .. } => (4, *ticket),
-                        Work::Remesh { ticket, .. } => (6, *ticket),
-                        Work::SaveFile { .. }
-                        | Work::OpenFile { .. }
-                        | Work::ReadStep { .. }
-                        | Work::ExportStep { .. } => (5, 0),
-                        _ => (0, 0),
-                    };
-                    let is_cmd = matches!(work, Work::Command(_));
-                    let is_mesh = matches!(work, Work::Meshes { .. });
-                    let done = match catch_unwind(AssertUnwindSafe(|| handle(work))) {
-                        Ok(d) => d,
-                        Err(p) => {
-                            let msg = format!(
-                                "Internal error while computing the operation; the model was not changed ({})",
-                                describe_panic(p)
-                            );
-                            log(&format!("worker panic: {msg}"));
-                            if matches!(kind, 5) {
-                                Done::Failed(msg)
-                            } else if matches!(kind, 3) {
-                                Done::MeshStats(ticket, Err(msg))
-                            } else if matches!(kind, 4) {
-                                Done::EdgePreview(ticket, Err(msg))
-                            } else if matches!(kind, 6) {
-                                Done::Remesh(ticket, Err(msg))
-                            } else if is_cmd {
-                                Done::Command(Err(msg))
-                            } else if is_mesh {
-                                Done::Meshes(Err(msg))
-                            } else {
-                                Done::Export(Err(msg))
-                            }
-                        }
-                    };
-                    if wtx.send((done, t0.elapsed().as_secs_f32() * 1000.0)).is_err() {
-                        break;
-                    }
-                    ctx.request_repaint();
-                }
-            })
+            .spawn(move || worker_loop(wrx, wtx, ctx))
             .expect("cannot start worker thread");
-        Worker { tx, rx }
+        Worker { tx, atx, rx }
     }
 
     pub fn send(&self, w: Work) -> bool {
-        self.tx.send(w).is_ok()
+        match w {
+            Work::SaveFile { autosave: true, .. } => self.atx.send(w).is_ok(),
+            w => self.tx.send(w).is_ok(),
+        }
     }
 
     pub fn poll(&self) -> Option<(Done, f32)> {

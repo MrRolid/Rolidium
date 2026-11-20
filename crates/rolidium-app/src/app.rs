@@ -30,6 +30,7 @@ mod combinetool;
 mod curvetools;
 mod dock;
 mod edgepull;
+mod editbench;
 mod files;
 mod filltool;
 mod guide_ui;
@@ -237,11 +238,14 @@ pub struct App {
     last_frame: Instant,
     backend: String,
     bench: Option<Bench>,
+    edit_bench: Option<editbench::EditBench>,
     viewport_rect: Rect,
     hover_obj: Option<Obj>,
     entity_sel: Option<(SketchId, EntityId)>,
     edge_sel: Vec<(BodyId, u32)>,
     body_sel: Option<BodyId>,
+    /// The body whose row the list on the right was last scrolled to.
+    tree_seen: Option<BodyId>,
     settings: Settings,
     export: ExportDialog,
     help: Help,
@@ -368,6 +372,7 @@ impl App {
         cc.egui_ctx
             .all_styles_mut(|st| st.interaction.tooltip_delay = 0.5);
         let settings = Settings::load();
+        rolidium_kernel::par::configure(settings.threads as usize);
         let guide = crate::guide::Guide::new(settings.guide_mask, settings.guide_enabled);
         i18n::set_language(&settings.language);
         apply_theme(&cc.egui_ctx, &settings.theme);
@@ -429,11 +434,13 @@ impl App {
             last_frame: Instant::now(),
             backend: format!("{:?}", info.backend),
             bench: None,
+            edit_bench: None,
             viewport_rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)),
             hover_obj: None,
             entity_sel: None,
             edge_sel: Vec::new(),
             body_sel: None,
+            tree_seen: None,
             export: ExportDialog::new(&settings),
             settings,
             help: Help::load(),
@@ -735,12 +742,7 @@ impl App {
         let key = Arc::as_ptr(&self.meshes) as usize;
         if self.scene_radius_cache.0 != key {
             let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-            for m in self.meshes.iter() {
-                for p in &m.mesh.positions {
-                    lo = lo.min(*p);
-                    hi = hi.max(*p);
-                }
-            }
+            scene_bounds(&self.meshes, &mut lo, &mut hi);
             let r = if lo.x <= hi.x {
                 (hi - lo).length() * 0.5
             } else {
@@ -753,12 +755,7 @@ impl App {
 
     fn fit_all(&mut self) {
         let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-        for m in self.meshes.iter() {
-            for p in &m.mesh.positions {
-                lo = lo.min(*p);
-                hi = hi.max(*p);
-            }
-        }
+        scene_bounds(&self.meshes, &mut lo, &mut hi);
         if lo.x <= hi.x {
             let mut to = self.camera;
             to.fit(lo, hi);
@@ -1281,6 +1278,12 @@ impl App {
         }
         match kind {
             PullKind::Face { body, face } => {
+                // a face of a body is pulled in Auto, Add or Cut (New body belongs to the regions of a sketch)
+                let mode = if mode == PullMode::New {
+                    PullMode::Auto
+                } else {
+                    mode
+                };
                 self.pending = Some(PendingPull {
                     body,
                     origin,
@@ -2506,10 +2509,10 @@ impl App {
             if self.pull_mode != PullMode::Auto && !matches!(p.kind, PullKind::Edges { .. }) {
                 text.push_str(&format!(
                     " [{}]",
-                    tr(if self.pull_mode == PullMode::Add {
-                        "Add"
-                    } else {
-                        "Cut"
+                    tr(match self.pull_mode {
+                        PullMode::Add => "Add",
+                        PullMode::New => "New body",
+                        _ => "Cut",
                     })
                 ));
             }
@@ -3361,6 +3364,40 @@ impl App {
                     }
                 });
                 ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label(tr("Calculation threads (Auto = one per core less one)"));
+                    let label = if self.settings.threads == 0 {
+                        tr("Auto")
+                    } else {
+                        self.settings.threads.to_string()
+                    };
+                    egui::ComboBox::from_id_salt("threads")
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            for n in [0u32, 1, 2, 4, 8] {
+                                let t = if n == 0 { tr("Auto") } else { n.to_string() };
+                                if ui.selectable_value(&mut self.settings.threads, n, t).changed() {
+                                    changed = true;
+                                }
+                            }
+                        });
+                });
+                ui.label(
+                    egui::RichText::new(trf(
+                        "Threads in use: {}",
+                        &[rolidium_kernel::par::threads().to_string()],
+                    ))
+                    .weak()
+                    .small(),
+                );
+                ui.label(
+                    egui::RichText::new(tr(
+                        "The environment variable ROLIDIUM_THREADS overrides this choice.",
+                    ))
+                    .weak()
+                    .small(),
+                );
+                ui.separator();
                 if ui
                     .checkbox(&mut self.settings.sound, tr("Sound on error"))
                     .changed()
@@ -3385,6 +3422,7 @@ impl App {
                 });
             });
         if changed {
+            rolidium_kernel::par::configure(self.settings.threads as usize);
             i18n::set_language(&self.settings.language);
             self.settings.save();
             self.layers_changed = true;
@@ -3488,6 +3526,7 @@ impl eframe::App for App {
         self.busy_tick();
         self.view_tick(&ctx);
         self.bench_tick(&ctx);
+        self.edit_bench_tick(&ctx);
         self.poll_worker();
         self.selftest_tick(&ctx);
         self.guide_tick();
@@ -3593,6 +3632,24 @@ impl eframe::App for App {
                     .show(ui, |ui| {
                         let mut clicked = None;
                         let bodies: Vec<rolidium_doc::Body> = self.doc.bodies().to_vec();
+                        // the bodies picked in the model are marked in the list, and the list scrolls to the last one picked
+                        let marked: std::collections::HashSet<BodyId> = self
+                            .selection
+                            .iter()
+                            .map(|s| s.0)
+                            .chain(self.body_sel)
+                            .chain(self.move_sel.iter().copied())
+                            .collect();
+                        let last_picked = self
+                            .body_sel
+                            .or_else(|| self.selection.last().map(|s| s.0))
+                            .or_else(|| self.move_sel.last().copied());
+                        let scroll_to = if last_picked != self.tree_seen {
+                            last_picked
+                        } else {
+                            None
+                        };
+                        self.tree_seen = last_picked;
                         for b in &bodies {
                             ui.horizontal(|ui| {
                                 if icons::eye_button(ui, b.visible).clicked() {
@@ -3613,7 +3670,10 @@ impl eframe::App for App {
                                 if !b.visible {
                                     t = t.to_string();
                                 }
-                                let r = ui.selectable_label(self.body_sel == Some(b.id), t);
+                                let r = ui.selectable_label(marked.contains(&b.id), t);
+                                if scroll_to == Some(b.id) {
+                                    r.scroll_to_me(Some(egui::Align::Center));
+                                }
                                 if r.clicked() {
                                     clicked = Some(b.id);
                                 }
@@ -3972,25 +4032,7 @@ impl eframe::App for App {
                 if std::env::var_os("ROLIDIUM_MEASURE_VIEW").is_some()
                     || BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed)
                 {
-                    // the time of a pick and of the frames while the view turns, then exit (see docs/DECISIONS.md D38, the router demo)
-                    let rect = self.viewport_rect;
-                    let mut t: Vec<f64> = (0..40)
-                        .map(|i| {
-                            let p = Pos2::new(
-                                rect.min.x + rect.width() * (0.2 + 0.6 * ((i * 7 % 10) as f32 / 10.0)),
-                                rect.min.y + rect.height() * (0.2 + 0.6 * ((i * 3 % 10) as f32 / 10.0)),
-                            );
-                            let t0 = Instant::now();
-                            let _ = self.pick_object(p, rect, false, false);
-                            t0.elapsed().as_secs_f64() * 1e3
-                        })
-                        .collect();
-                    t.sort_by(|a, b| a.total_cmp(b));
-                    println!(
-                        "pick: median {:.1} ms, worst {:.1} ms (40 picks)",
-                        t[t.len() / 2],
-                        t[t.len() - 1]
-                    );
+                    // the frames while the view turns, then the small operations (see docs/DECISIONS.md D38, D39)
                     self.measure_view = Some((0, Vec::new(), Instant::now()));
                     self.exit_after_first_frame = false;
                 } else {
@@ -4039,6 +4081,10 @@ impl eframe::App for App {
                     self.backend,
                     self.doc.bodies().len()
                 ));
+                if BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed) && self.start_edit_bench() {
+                    self.measure_view = None;
+                    return;
+                }
                 crate::startup::finish();
                 std::process::exit(0);
             }
@@ -4132,6 +4178,18 @@ fn marks_for(
     }
     out.truncate(16);
     out
+}
+
+/// The box around all meshes, from the boxes of their faces (no walk over all vertices after every change).
+fn scene_bounds(meshes: &[MeshEntry], lo: &mut Vec3, hi: &mut Vec3) {
+    for m in meshes {
+        for f in m.faces.iter() {
+            if f.bounds.0.x <= f.bounds.1.x {
+                *lo = lo.min(f.bounds.0);
+                *hi = hi.max(f.bounds.1);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

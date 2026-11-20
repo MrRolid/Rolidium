@@ -4,6 +4,13 @@
 
 A router with a work area of 600 x 400 mm, built from the parts of the demos before it. It is the stress test of the set: 340 bodies, about 3800 script lines.
 
+**How it was made, truthfully:** the *base* was built by the script `build.py` (`build.txt`, run by `rolidium cli`); its result is `10-cnc-router-base.rolidium`. After that the model was worked on by hand in
+the window (material taken away and added, chamfers, reinforcements). **`10-cnc-router.rolidium` in this folder is that hand-made model (it is put here by the person who made it, and the shapes in it are not changed by the repository; as long as the file is not here, the outputs come from the script's base).** Every
+output of this demo (the STEP file, the pictures, the 3840 x 2160 picture, the preview, the overview and the zip) is made from that file, not from the script. The description below is the description of the
+script's base; the hand-made model differs from it where it was edited. To make the outputs again after the file was replaced: `scripts/refresh-machine.sh`.
+The strict checks of the test (no overlap, one connected piece) hold for the script's base; for the hand-made file the test only requires that it opens, that every body is valid and that it survives a STEP round trip,
+and it lists the bodies that overlap and the ones that touch nothing (`cargo test -p rolidium-cli --test demos -- --ignored --nocapture machine_file_lists`).
+
 **Axes:** X is the travel of the portal along the long profiles of the frame, Y is the travel of the carrier along the cross beam of the portal, Z is vertical.
 The bodies are listed by group (frame, table, X axis, portal, Y axis, Z axis, spindle); the screws are at the end of their group. Every body has a name ("Frame profile long left",
 "X motor left", "Z ball screw", "Screw M5x24").
