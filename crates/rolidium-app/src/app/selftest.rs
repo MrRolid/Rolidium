@@ -707,6 +707,89 @@ impl App {
                 st.wait_frames = 2;
             }
             39 => {
+                // Fill: the inner circle of a pipe becomes a region, the Pull tool starts with it, a pull down gives a full cylinder
+                use rolidium_kernel::{BooleanOp, EdgeKind, Solid};
+                let outer = Solid::cylinder(20.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+                let bore = Solid::cylinder(12.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+                let pipe = outer.boolean(&bore, BooleanOp::Cut).unwrap().solid;
+                self.replace_document(Document::new(), None);
+                self.settings.guide_enabled = false;
+                self.guide.enabled = false;
+                let _ = self.doc.apply(Command::AddSolids { solids: vec![pipe] });
+                let id = self.doc.bodies()[0].id;
+                let s = self.doc.bodies()[0].solid.clone();
+                let e = s
+                    .edges()
+                    .find(|e| {
+                        let i = s.edge_info(*e).unwrap();
+                        i.kind == EdgeKind::Circle && (i.radius - 12.0).abs() < 1e-6 && i.start.z > 29.0
+                    })
+                    .unwrap();
+                self.edge_sel = vec![(id, e.0)];
+                self.request_meshes();
+                st.wait_frames = 2;
+            }
+            40 => {
+                if self.meshes.is_empty() {
+                    self.selftest = Some(st);
+                    return;
+                }
+                self.activate_fill();
+                st.wait_frames = 3;
+            }
+            41 => {
+                check(
+                    &mut st,
+                    "Fill makes a region of the inner circle and the Pull tool starts with it",
+                    self.tool == Tool::Pull && self.pull.is_some() && self.region_sel.is_some(),
+                );
+                if let Some(p) = &mut self.pull {
+                    p.d_mouse = -30.0;
+                }
+                self.commit_pull();
+                st.wait_frames = 3;
+            }
+            42 => {
+                let v = self.doc.bodies().first().and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
+                check(
+                    &mut st,
+                    "pulling the filled circle down gives a full cylinder",
+                    self.doc.bodies().len() == 1 && (v - std::f64::consts::PI * 400.0 * 30.0).abs() < 1e-3,
+                );
+                // Join ends: a square with gaps in the corners
+                self.replace_document(Document::new(), None);
+                let g = 0.3;
+                let v2 = rolidium_doc::rolidium_sketch::DVec2::new;
+                let mut sk = None;
+                for (a, b) in [
+                    (v2(g, 0.0), v2(10.0 - g, 0.0)),
+                    (v2(10.0, g), v2(10.0, 10.0 - g)),
+                    (v2(10.0 - g, 10.0), v2(g, 10.0)),
+                    (v2(0.0, 10.0 - g), v2(0.0, g)),
+                ] {
+                    let c = self
+                        .doc
+                        .apply(Command::AddEntity {
+                            target: match sk {
+                                None => SketchTarget::New { plane: PlaneDef::base(), body: None },
+                                Some(id) => SketchTarget::Existing(id),
+                            },
+                            entity: Entity::Line { a, b },
+                        })
+                        .unwrap();
+                    sk = sk.or(c.created_sketch);
+                }
+                self.tool = Tool::Select;
+                self.activate_join();
+                let joined = self.join_plan().map_or(0, |(_, p)| p.joined());
+                check(&mut st, "Join ends finds the four gaps of the square", joined == 4);
+                self.join_apply();
+                self.refresh_regions();
+                let regions: usize = self.regions.iter().map(|r| r.regions.len()).sum();
+                check(&mut st, "after joining the square has a region", regions == 1);
+                st.wait_frames = 2;
+            }
+            43 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

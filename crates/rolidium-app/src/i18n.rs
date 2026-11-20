@@ -472,6 +472,12 @@ mod coverage {
         "The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances",
         "too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered",
         "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own",
+        "There is no such edge",
+        "These edges do not form a closed loop, so there is nothing to fill",
+        "These edges do not lie in one plane, so they cannot be filled with a flat region",
+        "Several edges meet here, so it is not clear which loop is meant. Select the edges of the loop one by one",
+        "There is nothing to fill yet: draw lines or open a model",
+        "There are no open lines to join yet: draw lines or a 3D line first",
         "The round or chamfer cannot be changed here: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];

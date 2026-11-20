@@ -488,6 +488,20 @@ impl App {
             if r.clicked() {
                 self.activate_fill();
             }
+            icons::stateful();
+            let r = icons::icon_button_why(
+                ui,
+                &self.help,
+                "join",
+                &format!("{} (J)", tr("Join ends")),
+                self.tool == Tool::Join,
+                busy.or(self.join_unavailable()),
+                34.0,
+                "J",
+            );
+            if r.clicked() {
+                self.activate_join();
+            }
         });
         let no_edge = if self.edge_sel.is_empty() {
             Some("Select an edge first")

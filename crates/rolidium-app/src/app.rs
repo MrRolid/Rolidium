@@ -31,6 +31,7 @@ mod curvetools;
 mod dock;
 mod edgepull;
 mod files;
+mod jointool;
 mod filltool;
 mod guide_ui;
 mod lofttool;
@@ -108,6 +109,7 @@ pub enum Tool {
     Helix,
     Measure,
     Fill,
+    Join,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -301,6 +303,7 @@ pub struct App {
     /// Fill tool: sketch lines chosen so far, and whether a Fill command is running (its result starts the Pull tool).
     fill_entities: Vec<(SketchId, EntityId)>,
     fill_pending: bool,
+    join: jointool::JoinUi,
     guide: crate::guide::Guide,
     /// Where the Pull button of the left column was drawn (the guide points at it).
     pull_btn_rect: Rect,
@@ -478,6 +481,7 @@ impl App {
             chain_cache: Default::default(),
             fill_entities: Vec::new(),
             fill_pending: false,
+            join: Default::default(),
             guide,
             pull_btn_rect: Rect::NOTHING,
             joint_cache: Default::default(),
@@ -1832,7 +1836,7 @@ impl App {
                     self.cancel_move();
                 } else if self.pull.is_some() || self.up_to.is_some() {
                     self.cancel_pull();
-                } else if self.measure_escape() {
+                } else if self.measure_escape() || self.join_cancel() {
                 } else {
                     self.clear_selection();
                 }
@@ -1870,6 +1874,7 @@ impl App {
             Key::U => self.begin_up_to(),
             Key::E => self.activate_measure(),
             Key::F => self.activate_fill(),
+            Key::J => self.activate_join(),
             _ => {}
         }
         let _ = rect;
@@ -2539,6 +2544,7 @@ impl App {
         self.move_paint(ui, rect);
         self.loft_paint(ui, rect);
         self.line3_paint(ui, rect);
+        self.join_paint(ui, rect);
         self.measure_paint(ui, rect);
         self.paint_plane_labels(ui, rect);
     }
@@ -2655,6 +2661,7 @@ impl App {
             }
             Tool::Helix => self.helix_input(resp, pointer, rect),
             Tool::Fill => self.fill_input(resp, pointer, rect),
+            Tool::Join => self.join_input(resp, pointer, rect),
             Tool::Measure => {
                 let raw_face = self.hovered_face();
                 self.measure_input(resp, pointer, rect, raw_face);
@@ -3389,6 +3396,7 @@ impl App {
             }
             (None, Tool::Loft) => tr("Loft: click the profiles (sketch regions or flat faces) in the order they should be joined, then Apply or Enter."),
             (None, Tool::Combine) => tr("Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter."),
+            (None, Tool::Join) => tr("Join ends: select the lines (Shift adds more; nothing selected means the whole sketch), choose the largest gap, Enter confirms"),
             (None, Tool::Fill) => tr("Fill: click an edge of a hole or opening, or the lines of a shape that is not filled yet. Shift adds more."),
             (None, Tool::Measure) => tr("Measure: click two elements (vertex, edge, face, point of a sketch or curve). Esc clears."),
             (None, Tool::Sweep) => tr("Sweep: click the profile, then the path; choose the mode and press Apply or Enter."),
@@ -3865,6 +3873,7 @@ impl eframe::App for App {
         self.helix_panel(&ctx, vr);
         self.sweep_panel(&ctx, vr);
         self.line3_panel(&ctx, vr);
+        self.join_panel(&ctx, vr);
         self.revolve_panel(&ctx, vr);
         self.plane_window(&ctx);
         self.handle_export_dialog(&ctx);

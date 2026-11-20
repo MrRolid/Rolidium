@@ -89,6 +89,8 @@ pub struct Settings {
     /// The guide of the first steps is on, and the milestones it has seen (see `guide.rs`).
     pub guide_enabled: bool,
     pub guide_mask: u8,
+    /// The largest gap of the Join ends tool, mm.
+    pub join_gap: f64,
 }
 
 impl Default for Settings {
@@ -118,6 +120,7 @@ impl Default for Settings {
             new_doc_sketch: true,
             guide_enabled: true,
             guide_mask: 0,
+            join_gap: 1.0,
         }
     }
 }
@@ -163,6 +166,7 @@ impl Settings {
                 "new_doc_sketch" => s.new_doc_sketch = v != "false",
                 "guide_enabled" => s.guide_enabled = v != "false",
                 "guide_mask" => s.guide_mask = v.parse().unwrap_or(0),
+                "join_gap" => s.join_gap = v.parse().ok().filter(|g: &f64| g.is_finite() && *g > 0.0).unwrap_or(1.0),
                 _ => {}
             }
         }
@@ -214,8 +218,8 @@ impl Settings {
         );
         let mut text = text;
         text.push_str(&format!(
-            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\n",
-            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask
+            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\n",
+            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap
         ));
         if let Some(i) = self.donate_index {
             text.push_str(&format!("donate_index={i}\n"));
@@ -278,6 +282,7 @@ mod tests {
             new_doc_sketch: false,
             guide_enabled: false,
             guide_mask: 5,
+            join_gap: 0.25,
         };
         s.save();
         assert_eq!(Settings::load(), s);
