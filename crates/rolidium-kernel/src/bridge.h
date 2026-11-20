@@ -74,6 +74,8 @@ public:
 };
 std::shared_ptr<Shape> edge_face(const Shape& shape, uint32_t index);
 rust::Vec<double> edge_ends(const Shape& shape, uint32_t index);
+/// Middle point of the edge, then centre and axis when it is a circle (zeros otherwise): 9 numbers.
+rust::Vec<double> edge_geom(const Shape& shape, uint32_t index);
 bool has_self_intersections(const Shape& shape);
 rust::Vec<double> shape_distance(const Shape& a, std::array<uint32_t, 2> ka, std::array<double, 3> pa, const Shape& b, std::array<uint32_t, 2> kb, std::array<double, 3> pb);
 void set_cancel(bool on);

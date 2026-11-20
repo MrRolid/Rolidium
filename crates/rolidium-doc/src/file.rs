@@ -263,6 +263,9 @@ pub fn save_to_bytes(
             );
             j.insert("target_body".into(), json!(s.target));
             j.insert("visible".into(), json!(s.visible));
+            if s.fill {
+                j.insert("fill".into(), json!(true));
+            }
             j.insert(
                 "entities".into(),
                 Value::Array(s.sketch.entities().iter().map(|(_, e)| entity_json(e)).collect()),
@@ -522,8 +525,9 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             target: j.get("target_body").and_then(Value::as_u64),
             sketch,
             visible: j.get("visible").and_then(Value::as_bool).unwrap_or(true),
+            fill: j.get("fill").and_then(Value::as_bool).unwrap_or(false),
         };
-        take_keys(&mut j, &["name", "plane", "target_body", "entities", "visible"]);
+        take_keys(&mut j, &["name", "plane", "target_body", "entities", "visible", "fill"]);
         if !unknown.is_empty() {
             j.insert("entities_unknown".into(), Value::Array(unknown));
         }

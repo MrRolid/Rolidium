@@ -142,6 +142,8 @@ pub struct SketchDoc {
     pub target: Option<BodyId>,
     pub sketch: Sketch,
     pub visible: bool,
+    /// Made by Fill: the region fills a hole or opening, so pulling it adds material in either direction.
+    pub fill: bool,
 }
 
 /// Everything the document contains at one moment. Snapshots are cheap (`Arc`).
@@ -239,6 +241,12 @@ pub enum Command {
         face: FaceId,
         distance: f64,
         mode: PullMode,
+    },
+    /// Fill: the closed planar loop of edges of a body (a hole, the inner circle of a pipe) becomes a sketch with a region on the
+    /// loop's plane, from the exact geometry of the edges. Pull the region to close the hole or to make a plug.
+    FillLoop {
+        body: BodyId,
+        edges: Vec<u32>,
     },
     AddEntity {
         target: SketchTarget,
@@ -609,6 +617,35 @@ impl Job {
                 c.touched_body = Some(*body);
                 Ok(c)
             }
+            Command::FillLoop { body, edges } => {
+                let b = st.bodies.iter().find(|b| b.id == *body).ok_or(DocError::NoSuchBody)?;
+                let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
+                let lp = b
+                    .solid
+                    .planar_loop(&ids)
+                    .map_err(|e| KernelError::Invalid(e.message().into()))?;
+                let plane = PlaneDef::from_face(lp.origin, lp.normal);
+                let mut sketch = Sketch::new();
+                for e in &lp.edges {
+                    sketch.add(loop_edge_entity(&plane, e)?)?;
+                }
+                if sketch.regions().is_empty() {
+                    return Err(KernelError::Invalid(rolidium_kernel::LoopError::NotClosed.message().into()).into());
+                }
+                st.sketch_counter += 1;
+                st.sketches.push(SketchDoc {
+                    id: self.next_id,
+                    name: format!("Fill {}", st.sketch_counter),
+                    plane,
+                    target: Some(*body),
+                    sketch,
+                    visible: true,
+                    fill: true,
+                });
+                let mut c = self.done(st, "Fill");
+                c.created_sketch = Some(self.next_id);
+                Ok(c)
+            }
             Command::AddEntity { target, entity } => {
                 entity.validate()?;
                 let mut created = None;
@@ -623,6 +660,7 @@ impl Job {
                             target: *body,
                             sketch: Sketch::new(),
                             visible: true,
+                            fill: false,
                         });
                         created = Some(self.next_id);
                         self.next_id
@@ -654,7 +692,9 @@ impl Job {
                 let plane = st.sketches[idx].plane;
                 let target = st.sketches[idx].target;
                 let profile = region_profile(reg);
-                let distance = &(if target.is_some() {
+                let fill = st.sketches[idx].fill;
+                // a filled region keeps the sign of the distance (outwards adds a plug, inwards fills the hole); no cutting
+                let distance = &(if target.is_some() && !fill {
                     mode.apply(*distance)
                 } else {
                     *distance
@@ -741,7 +781,7 @@ impl Job {
                             .position(|b| b.id == bid)
                             .ok_or(DocError::TargetGone)?;
                         let before = st.bodies[bpos].solid.volume()?;
-                        let op = if *distance > 0.0 {
+                        let op = if *distance > 0.0 || fill {
                             BooleanOp::Fuse
                         } else {
                             BooleanOp::Cut
@@ -750,6 +790,9 @@ impl Job {
                             // Fusing can only fall apart into two solids when the prism does not
                             // touch the body at all: that is a new, separate body.
                             Err(KernelError::SplitResult) if op == BooleanOp::Fuse => {
+                                notice = Some(
+                                    "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own".to_string(),
+                                );
                                 let id = self.next_id;
                                 st.body_counter += 1;
                                 st.bodies.push(Body {
@@ -2109,6 +2152,38 @@ fn angled_too_large(
             "The chamfer of {d} mm at {a} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances"
         ),
     })
+}
+
+/// A loop edge redrawn in the plane of the sketch: a line, a circle or an arc (the exact curve, not a polyline).
+fn loop_edge_entity(plane: &PlaneDef, e: &rolidium_kernel::LoopEdge) -> Result<Entity, KernelError> {
+    use rolidium_kernel::EdgeKind;
+    match e.kind {
+        EdgeKind::Line => Ok(Entity::Line {
+            a: plane.to_2d(e.start),
+            b: plane.to_2d(e.end),
+        }),
+        EdgeKind::Circle => {
+            let c = plane.to_2d(e.center.unwrap_or(e.mid));
+            let (a, m, z) = (plane.to_2d(e.start), plane.to_2d(e.mid), plane.to_2d(e.end));
+            if (e.start - e.end).length() < 1e-7 {
+                return Ok(Entity::Circle { center: c, radius: e.radius });
+            }
+            let ang = |p: rolidium_sketch::DVec2| (p.y - c.y).atan2(p.x - c.x);
+            let tau = std::f64::consts::TAU;
+            let ccw = |from: f64, to: f64| (to - from).rem_euclid(tau);
+            // the arc runs counter-clockwise from the start to the end when the middle lies on that way, else the other way round
+            let (s0, s1, sm) = (ang(a), ang(z), ang(m));
+            let (start, sweep) = if ccw(s0, sm) <= ccw(s0, s1) {
+                (s0, ccw(s0, s1))
+            } else {
+                (s1, ccw(s1, s0))
+            };
+            Ok(Entity::Arc { center: c, radius: e.radius, start, sweep })
+        }
+        EdgeKind::Other => Err(KernelError::Invalid(
+            "The loop contains an edge that is neither a straight line nor a circular arc, which Fill cannot redraw yet".into(),
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -4056,4 +4131,71 @@ mod loft_edge_tests {
         assert_eq!(d.bodies().len(), 1);
         assert!((d.bodies()[0].solid.volume().unwrap() - 1000.0).abs() < 1e-6);
     }
+    fn pipe_doc() -> (Document, BodyId, u32) {
+        use rolidium_kernel::{BooleanOp, EdgeKind, Solid};
+        let outer = Solid::cylinder(20.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+        let bore = Solid::cylinder(12.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
+        let pipe = outer.boolean(&bore, BooleanOp::Cut).unwrap().solid;
+        let mut d = Document::new();
+        d.apply(Command::AddSolids { solids: vec![pipe] }).unwrap();
+        let id = d.bodies()[0].id;
+        let s = d.body(id).unwrap().solid.clone();
+        let e = s
+            .edges()
+            .find(|e| {
+                let i = s.edge_info(*e).unwrap();
+                i.kind == EdgeKind::Circle && (i.radius - 12.0).abs() < 1e-6 && i.start.z > 29.0
+            })
+            .unwrap();
+        (d, id, e.0)
+    }
+
+    #[test]
+    fn fill_the_inner_circle_of_a_pipe_and_pull_down_gives_a_full_cylinder() {
+        let (mut d, id, e) = pipe_doc();
+        let c = d.apply(Command::FillLoop { body: id, edges: vec![e] }).unwrap();
+        let sk = c.created_sketch.unwrap();
+        // the region is a disc of the exact radius, on the plane of the top
+        let regions = d.sketch(sk).unwrap().sketch.regions();
+        assert_eq!(regions.len(), 1);
+        assert!((regions[0].area() - std::f64::consts::PI * 144.0).abs() < 1e-9, "{}", regions[0].area());
+        d.apply(Command::PullRegion { sketch: sk, region: 0, distance: -30.0, mode: PullMode::Auto })
+            .unwrap();
+        assert_eq!(d.bodies().len(), 1, "the plug joins the pipe");
+        let v = d.bodies()[0].solid.volume().unwrap();
+        assert!((v - std::f64::consts::PI * 400.0 * 30.0).abs() < 1e-6, "{v}");
+        assert!(d.bodies()[0].solid.is_valid());
+        // one Undo takes the plug away again
+        assert!(d.undo());
+        assert!((d.bodies()[0].solid.volume().unwrap() - std::f64::consts::PI * (400.0 - 144.0) * 30.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn fill_and_pull_up_makes_a_plug_on_top_that_touches_the_pipe_only_along_the_circle() {
+        let (mut d, id, e) = pipe_doc();
+        let sk = d
+            .apply(Command::FillLoop { body: id, edges: vec![e] })
+            .unwrap()
+            .created_sketch
+            .unwrap();
+        let c = d
+            .apply(Command::PullRegion { sketch: sk, region: 0, distance: 10.0, mode: PullMode::Auto })
+            .unwrap();
+        // one solid cannot be made of a contact along a line: the plug is a body of its own, and the user is told
+        assert!(c.notice.is_some());
+        assert_eq!(d.bodies().len(), 2);
+        let plug = d.bodies().iter().map(|b| b.solid.volume().unwrap()).fold(f64::MAX, f64::min);
+        assert!((plug - std::f64::consts::PI * 144.0 * 10.0).abs() < 1e-6, "{plug}");
+    }
+
+    #[test]
+    fn fill_says_why_when_the_edges_do_not_make_a_loop() {
+        let (mut d, id) = doc_with_box();
+        let s = d.body(id).unwrap().solid.clone();
+        let one = s.edges().next().unwrap().0;
+        let err = d.apply(Command::FillLoop { body: id, edges: vec![one] }).unwrap_err().to_string();
+        assert!(err.contains("Several edges meet") || err.contains("closed loop"), "{err}");
+        assert!(d.apply(Command::FillLoop { body: id, edges: vec![] }).is_err());
+    }
+
 }

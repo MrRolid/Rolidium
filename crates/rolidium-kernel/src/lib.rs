@@ -11,6 +11,7 @@
 //! * shapes are immutable, so a failed operation can never damage its inputs.
 
 mod blend;
+mod looptool;
 mod measure;
 mod mesh;
 mod occt;
@@ -20,6 +21,7 @@ pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
 pub use glam::{DVec3, Vec3};
+pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
 pub use mesh::{EdgePolyline, Mesh};
 pub use ops::{

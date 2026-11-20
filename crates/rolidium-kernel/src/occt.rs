@@ -144,6 +144,7 @@ pub mod ffi {
 
         fn edge_face(shape: &Shape, index: u32) -> Result<SharedPtr<Shape>>;
         fn edge_ends(shape: &Shape, index: u32) -> Result<Vec<f64>>;
+        fn edge_geom(shape: &Shape, index: u32) -> Result<Vec<f64>>;
         fn has_self_intersections(shape: &Shape) -> bool;
         fn shape_distance(
             a: &Shape,

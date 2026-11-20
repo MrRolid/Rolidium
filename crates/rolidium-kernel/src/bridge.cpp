@@ -523,6 +523,26 @@ EdgeInfo edge_info(const Shape& sh, uint32_t index) {
     });
 }
 
+rust::Vec<double> edge_geom(const Shape& sh, uint32_t index) {
+    return guarded("edge_geom", [&] {
+        const TopoDS_Edge& e = edge_at(sh, index);
+        BRepAdaptor_Curve c(e);
+        rust::Vec<double> out;
+        gp_Pnt m = c.Value(0.5 * (c.FirstParameter() + c.LastParameter()));
+        out.push_back(m.X()); out.push_back(m.Y()); out.push_back(m.Z());
+        if (c.GetType() == GeomAbs_Circle) {
+            gp_Circ ci = c.Circle();
+            gp_Pnt o = ci.Location();
+            gp_Dir n = ci.Axis().Direction();
+            out.push_back(o.X()); out.push_back(o.Y()); out.push_back(o.Z());
+            out.push_back(n.X()); out.push_back(n.Y()); out.push_back(n.Z());
+        } else {
+            for (int i = 0; i < 6; ++i) out.push_back(0.0);
+        }
+        return out;
+    });
+}
+
 // Start point, start tangent, end point, end tangent of an edge (tangents are unit vectors in the direction of the curve parameter).
 rust::Vec<double> edge_ends(const Shape& sh, uint32_t index) {
     return guarded("edge_ends", [&] {
