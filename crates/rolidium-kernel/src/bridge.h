@@ -105,6 +105,7 @@ void sewer_add(Sewer& sewer, const Shape& shape);
 std::shared_ptr<Shape> sewer_finish(Sewer& sewer);
 
 MeshData mesh_shape(const Shape& shape, double linear, double angular);
+MeshData mesh_shape_regions(const Shape& shape, double linear, double angular, double coarse, rust::Slice<const uint8_t> fine);
 bool check_shape(const Shape& shape);
 Props props(const Shape& shape);
 rust::Vec<double> section_plane(const Shape& shape, std::array<double, 3> origin, std::array<double, 3> normal, double tolerance);

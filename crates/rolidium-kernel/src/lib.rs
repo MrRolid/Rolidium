@@ -21,10 +21,17 @@ pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
 pub use glam::{DVec3, Vec3};
-/// Angular deflection (rad) of the display meshes: no facet turns by more than this from its neighbour.
-pub const VIEW_ANGLE: f64 = 0.12;
+/// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
+/// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.
+pub const VIEW_ANGLE: f64 = 0.5;
 /// The display mesh deviates from the exact shape by at most this fraction of a pixel.
 pub const VIEW_PIXEL_FRACTION: f64 = 0.4;
+/// The first display mesh after an operation is rough: its deflection is this fraction of the size of the part (about two pixels of a
+/// window of 900 px); the finer mesh for the zoom is made afterwards in the background.
+pub const FIRST_DISPLAY_FRACTION: f64 = 0.002;
+/// At most this many triangles are made for the faces in view in one go: meshing them costs about 15 microseconds a triangle when few
+/// faces are meshed at once (no parallelism), and the background work must be done in about a second and a half.
+pub const FINE_TRIANGLE_BUDGET: usize = 60_000;
 
 pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
@@ -398,6 +405,7 @@ impl Solid {
     pub fn mesh(&self, linear: f64, angular: f64) -> Result<Mesh> {
         let mut m = Mesh::from_native(native::mesh_shape(&self.shape, linear, angular)?);
         m.deflection = linear;
+        m.face_deflection = vec![linear; self.face_count()];
         Ok(m)
     }
 
@@ -406,7 +414,7 @@ impl Solid {
         // only the box is needed here; the full properties (volume, area) cost much more
         let b = native::bounds_of(&self.shape)?;
         let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2])).length();
-        self.mesh((diag * 0.0004).clamp(0.005, 0.5), VIEW_ANGLE)
+        self.mesh((diag * FIRST_DISPLAY_FRACTION).clamp(0.005, 0.5), VIEW_ANGLE)
     }
 
     /// Triangulation for a view in which one pixel is `pixel_mm` millimetres wide: the triangles and the edge polylines
@@ -420,12 +428,8 @@ impl Solid {
         max_triangles: usize,
         previous: Option<(f64, usize)>,
     ) -> Result<Mesh> {
-        let b = native::bounds_of(&self.shape)?;
-        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2]))
-            .length()
-            .max(1e-6);
-        let mut linear =
-            (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
+        let (diag, mut linear) = self.view_linear(pixel_mm)?;
+        let _ = diag;
         if let Some((d0, n0)) = previous {
             if d0 > 0.0 && n0 > 0 {
                 let estimate = n0 as f64 * (d0 / linear).max(1.0);
@@ -443,10 +447,76 @@ impl Solid {
             }
             let ratio = (m.triangle_count() as f64 / max_triangles as f64).max(1.5);
             linear *= ratio;
-            angle = (angle * ratio.sqrt()).min(0.6);
+            angle = (angle * ratio.sqrt()).min(0.8);
             m = self.mesh(linear, angle)?;
         }
         Ok(m)
+    }
+
+    /// The size of the part and the linear deflection for a pixel of `pixel_mm`.
+    fn view_linear(&self, pixel_mm: f64) -> Result<(f64, f64)> {
+        let b = native::bounds_of(&self.shape)?;
+        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2]))
+            .length()
+            .max(1e-6);
+        let linear =
+            (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
+        Ok((diag, linear))
+    }
+
+    /// The faces marked in `fine` (one flag per face; the faces in view) are triangulated again for the pixel of `pixel_mm`
+    /// millimetres; the triangles and edges of the other faces are taken from `base`, a mesh of this solid made earlier (it is made
+    /// here when not given). Only the faces in view are meshed, so the time follows what is on the screen. The whole mesh stays under
+    /// `max_triangles`: the deflection of the faces in view is raised when the estimate (the triangles of a face grow with one over the
+    /// deflection) says that the cap would be passed.
+    pub fn view_mesh_faces(
+        &self,
+        pixel_mm: f64,
+        fine: &[bool],
+        max_triangles: usize,
+        base: Option<&Mesh>,
+    ) -> Result<Mesh> {
+        let n = self.face_count();
+        let (_, mut linear) = self.view_linear(pixel_mm)?;
+        let requested = linear;
+        let owned;
+        let base = match base {
+            Some(b) => b,
+            None => {
+                owned = self.display_mesh()?;
+                &owned
+            }
+        };
+        let per_face = base.triangles_per_face(n);
+        let defl = |i: usize| base.face_deflection.get(i).copied().filter(|d| *d > 0.0).unwrap_or(base.deflection);
+        let is_fine = |i: usize| fine.get(i).copied().unwrap_or(false);
+        let fixed: f64 = (0..n).filter(|i| !is_fine(*i)).map(|i| per_face[i] as f64).sum();
+        let grows: f64 = (0..n).filter(|i| is_fine(*i)).map(|i| per_face[i] as f64 * defl(i)).sum();
+        // the faces in view get at most the budget, and the whole mesh stays under the cap (aim a little lower: the estimate is rough)
+        let room = ((max_triangles as f64 - fixed).max(max_triangles as f64 * 0.2)).min(FINE_TRIANGLE_BUDGET as f64) * 0.9;
+        if grows > 0.0 && grows / linear > room {
+            linear = (grows / room).max(linear);
+        }
+        let mask: Vec<u8> = (0..n).map(|i| is_fine(i) as u8).collect();
+        if !mask.contains(&1) {
+            return Ok(base.clone());
+        }
+        let mut angle = VIEW_ANGLE;
+        let mut out = base.clone();
+        for attempt in 0..4 {
+            let part = Mesh::from_native(native::mesh_shape_regions(&self.shape, linear, angle, linear, &mask)?);
+            out = base.merged_with(&part, &mask);
+            out.deflection = linear;
+            out.face_deflection = (0..n).map(|i| if is_fine(i) { requested } else { defl(i) }).collect();
+            if out.triangle_count() as f64 <= max_triangles as f64 * 1.25 || attempt == 3 {
+                break;
+            }
+            // the estimate can be off: coarser again (also in the angle) while the cap is passed
+            let ratio = (out.triangle_count() as f64 / max_triangles as f64).max(1.5);
+            linear *= ratio;
+            angle = (angle * ratio.sqrt()).min(0.8);
+        }
+        Ok(out)
     }
 
     pub fn write_step(&self) -> Result<Vec<u8>> {

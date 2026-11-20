@@ -410,9 +410,12 @@ pub fn times() -> i32 {
     }
     println!("\nThe 'total' of a script includes building the part from scratch (sketches, curves, the operations and their checks).");
 
-    // The display mesh follows the zoom: the time and the triangles at the zoom of the whole part and when zoomed in 10 and 100 times.
-    println!("\nDisplay mesh for the zoom (deviation under half a pixel of a 900 px high view; at most {MAX_VIEW_TRIANGLES} triangles)\n");
-    println!("{:<34} {:>10} {:>10} {:>12}", "part", "zoom", "ms", "triangles");
+    // The display mesh: the first display after an operation (rough), then the faces in view for the zoom, made in the background.
+    println!("\nDisplay mesh: the first display after an operation, then the faces in view for the zoom (deviation under 0.4 of a pixel of a 900 px high view; at most {MAX_VIEW_TRIANGLES} triangles per body)\n");
+    println!(
+        "{:<28} {:>9} {:>9} {:>11} {:>11} {:>12}",
+        "part", "zoom", "ms", "triangles", "faces", "deviation mm"
+    );
     let spring = {
         let mut r = crate::Runner::new();
         r.quiet = true;
@@ -430,19 +433,56 @@ pub fn times() -> i32 {
     ] {
         let props = solid.props().unwrap();
         let diag = (props.max - props.min).length();
-        let mut previous = None;
-        for zoom in [1.0, 10.0, 100.0] {
+        let centre = ((props.max + props.min) * 0.5).as_vec3();
+        let nfaces = solid.face_count();
+        let first = solid.display_mesh().unwrap();
+        let ms = time_ms(5, || solid.display_mesh().unwrap());
+        println!(
+            "{:<28} {:>9} {:>9.1} {:>11} {:>8}/{:<3} {:>12.4}",
+            name,
+            "first",
+            ms,
+            first.triangle_count(),
+            nfaces,
+            nfaces,
+            first.deflection
+        );
+        for zoom in [1.0f64, 10.0, 100.0] {
             let pixel = diag / 900.0 / zoom;
-            let t = std::time::Instant::now();
-            let m = solid.view_mesh(pixel, MAX_VIEW_TRIANGLES, previous).unwrap();
-            let ms = t.elapsed().as_secs_f64() * 1e3;
-            previous = Some((m.deflection, m.triangle_count()));
+            // the faces whose box meets the box of the view (a cube of the size the window shows around the middle of the part)
+            let half = (diag as f32 / zoom as f32 * 0.5 * 0.75).max(1e-6);
+            let mut lo = vec![glam::Vec3::splat(f32::MAX); nfaces];
+            let mut hi = vec![glam::Vec3::splat(f32::MIN); nfaces];
+            for (t, tri) in first.indices.as_chunks::<3>().0.iter().enumerate() {
+                let f = first.tri_face[t] as usize;
+                for &i in tri {
+                    lo[f] = lo[f].min(first.positions[i as usize]);
+                    hi[f] = hi[f].max(first.positions[i as usize]);
+                }
+            }
+            let fine: Vec<bool> = (0..nfaces)
+                .map(|f| {
+                    zoom <= 1.0
+                        || (0..3).all(|k| lo[f][k] <= centre[k] + half && hi[f][k] >= centre[k] - half)
+                })
+                .collect();
+            let m = solid
+                .view_mesh_faces(pixel, &fine, MAX_VIEW_TRIANGLES, Some(&first))
+                .unwrap();
+            let ms = time_ms(3, || {
+                solid
+                    .view_mesh_faces(pixel, &fine, MAX_VIEW_TRIANGLES, Some(&first))
+                    .unwrap()
+            });
             println!(
-                "{:<34} {:>9}x {:>10.1} {:>12}",
+                "{:<28} {:>8}x {:>9.1} {:>11} {:>8}/{:<3} {:>12.4}",
                 name,
                 zoom,
                 ms,
-                m.triangle_count()
+                m.triangle_count(),
+                fine.iter().filter(|f| **f).count(),
+                nfaces,
+                m.deflection
             );
         }
     }
@@ -450,4 +490,4 @@ pub fn times() -> i32 {
 }
 
 /// The cap of the display mesh of one body (the same as in the program).
-const MAX_VIEW_TRIANGLES: usize = 1_500_000;
+const MAX_VIEW_TRIANGLES: usize = 150_000;

@@ -20,6 +20,8 @@ pub mod ffi {
         edge_ids: Vec<u32>,
         /// 1 for an edge whose two faces continue each other smoothly (or a seam of one face), else 0.
         edge_smooth: Vec<u8>,
+        /// One byte per face: 1 when the face was triangulated with the fine deflection.
+        face_fine: Vec<u8>,
     }
 
     struct FaceInfo {
@@ -132,6 +134,13 @@ pub mod ffi {
         fn sewer_finish(sewer: Pin<&mut Sewer>) -> Result<SharedPtr<Shape>>;
 
         fn mesh_shape(shape: &Shape, linear: f64, angular: f64) -> Result<MeshData>;
+        fn mesh_shape_regions(
+            shape: &Shape,
+            linear: f64,
+            angular: f64,
+            coarse: f64,
+            fine: &[u8],
+        ) -> Result<MeshData>;
         fn check_shape(shape: &Shape) -> bool;
         fn props(shape: &Shape) -> Result<Props>;
         /// Section with a plane: flat encoding, see `section` in lib.rs.

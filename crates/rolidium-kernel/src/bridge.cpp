@@ -1079,18 +1079,40 @@ std::shared_ptr<Shape> sewer_finish(Sewer& sw) {
 }
 
 MeshData mesh_shape(const Shape& sh, double linear, double angular) {
+    return mesh_shape_regions(sh, linear, angular, linear, rust::Slice<const uint8_t>());
+}
+
+// Faces marked in `fine` (one byte per face) are triangulated with the deflection `linear`; the others are left out (the caller keeps the
+// triangles it has of them), and so are the edges that border no fine face. An empty mask means all faces, with `linear`. (`coarse` is unused
+// and kept for the callers.)
+MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, double coarse, rust::Slice<const uint8_t> fine) {
+    (void)coarse;
     return guarded("mesh", [&] {
         BRepTools::Clean(sh.s);
+        const bool partial = fine.size() > 0;
+        auto is_fine = [&](int fi) { return !partial || (fi - 1 < (int)fine.size() && fine[fi - 1] != 0); };
         IMeshTools_Parameters mp;
         mp.Deflection = linear;
         mp.Angle = angular;
         mp.Relative = false;
         mp.InParallel = true;
         StageTimer st("mesh");
-        BRepMesh_IncrementalMesh im(sh.s, mp, progress());
+        if (!partial) {
+            BRepMesh_IncrementalMesh im(sh.s, mp, progress());
+        } else {
+            BRep_Builder bb;
+            TopoDS_Compound comp;
+            bb.MakeCompound(comp);
+            for (int fi = 1; fi <= sh.faces.Extent(); ++fi) {
+                if (is_fine(fi)) bb.Add(comp, sh.faces.FindKey(fi));
+            }
+            BRepMesh_IncrementalMesh im(comp, mp, progress());
+        }
         check_cancelled();
         MeshData m;
         for (int fi = 1; fi <= sh.faces.Extent(); ++fi) {
+            m.face_fine.push_back(is_fine(fi) ? 1 : 0);
+            if (!is_fine(fi)) continue;
             const TopoDS_Face& f = TopoDS::Face(sh.faces.FindKey(fi));
             TopLoc_Location loc;
             Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(f, loc);
@@ -1138,6 +1160,17 @@ MeshData mesh_shape(const Shape& sh, double linear, double angular) {
         for (int ei = 1; ei <= sh.edges.Extent(); ++ei) {
             const TopoDS_Edge& e = TopoDS::Edge(sh.edges.FindKey(ei));
             if (BRep_Tool::Degenerated(e)) continue;
+            if (partial) {
+                bool any = false;
+                int ie0 = e2f.FindIndex(e);
+                if (ie0 > 0) {
+                    for (const TopoDS_Shape& f : e2f.FindFromIndex(ie0)) {
+                        int fi = sh.faces.FindIndex(f);
+                        if (fi > 0 && is_fine(fi)) any = true;
+                    }
+                }
+                if (!any) continue;
+            }
             {
                 uint8_t smooth = 0;
                 int ie = e2f.FindIndex(e);

@@ -14,6 +14,14 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 /// What the UI needs to know about a face without asking the kernel.
+/// A body to be meshed again for the zoom: the body, its present mesh, and the faces that are in view (the others stay as they are).
+pub struct RemeshBody {
+    pub body: BodyInput,
+    /// The present mesh of the body: the faces out of view are taken from it.
+    pub base: Mesh,
+    pub fine: Vec<bool>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct FaceMeta {
     pub kind: FaceKind,
@@ -21,6 +29,8 @@ pub struct FaceMeta {
     pub origin: DVec3,
     pub area: f64,
     pub centroid: glam::Vec3,
+    /// The box around the triangles of the face (for the test whether it is in view).
+    pub bounds: (glam::Vec3, glam::Vec3),
     /// Complete hole or pin: its diameter.
     pub cyl_diameter: Option<f64>,
     /// Flat circular face belonging to a hole or pin: (cylindrical face, diameter).
@@ -72,7 +82,7 @@ pub enum Work {
     Remesh {
         ticket: u64,
         /// The bodies with the deflection and triangle count of their present meshes.
-        bodies: Vec<(BodyInput, Option<(f64, usize)>)>,
+        bodies: Vec<RemeshBody>,
         pixel_mm: f64,
         max_triangles: usize,
     },
@@ -135,14 +145,10 @@ fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
 }
 
 /// The entry of a body for a mesh made for the current zoom (`pixel_mm` per pixel), with at most `max_triangles` triangles.
-fn mesh_entry_view(
-    b: &BodyInput,
-    pixel_mm: f64,
-    max_triangles: usize,
-    previous: Option<(f64, usize)>,
-) -> Result<MeshEntry, String> {
+fn mesh_entry_view(r: &RemeshBody, pixel_mm: f64, max_triangles: usize) -> Result<MeshEntry, String> {
+    let b = &r.body;
     let mesh =
-        b.2.view_mesh(pixel_mm, max_triangles, previous)
+        b.2.view_mesh_faces(pixel_mm, &r.fine, max_triangles, Some(&r.base))
             .map_err(|e| e.to_string())?;
     entry_of(b, mesh)
 }
@@ -150,11 +156,15 @@ fn mesh_entry_view(
 fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
     let (id, name, solid, color) = b;
     let mut sums = vec![(glam::Vec3::ZERO, 0u32); solid.face_count()];
+    let mut bounds = vec![(glam::Vec3::splat(f32::MAX), glam::Vec3::splat(f32::MIN)); solid.face_count()];
     for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
         let f = mesh.tri_face[t] as usize;
         for &i in tri {
-            sums[f].0 += mesh.positions[i as usize];
+            let p = mesh.positions[i as usize];
+            sums[f].0 += p;
             sums[f].1 += 1;
+            bounds[f].0 = bounds[f].0.min(p);
+            bounds[f].1 = bounds[f].1.max(p);
         }
     }
     let mut faces = Vec::with_capacity(sums.len());
@@ -167,6 +177,7 @@ fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
             origin: info.origin,
             area: info.area,
             centroid: if n > 0 { sum / n as f32 } else { glam::Vec3::ZERO },
+            bounds: bounds[i],
             cyl_diameter: None,
             disc: None,
         });
@@ -357,7 +368,7 @@ fn handle(work: Work) -> Done {
             ticket,
             bodies
                 .iter()
-                .map(|(b, prev)| mesh_entry_view(b, pixel_mm, max_triangles, *prev))
+                .map(|r| mesh_entry_view(r, pixel_mm, max_triangles))
                 .filter(|r| r.as_ref().map_or(true, |m| !m.mesh.indices.is_empty()))
                 .collect(),
         ),

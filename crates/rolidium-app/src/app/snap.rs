@@ -266,6 +266,7 @@ mod tests {
             origin,
             area: 1.0,
             centroid: glam::Vec3::ZERO,
+            bounds: (glam::Vec3::ZERO, glam::Vec3::ZERO),
             cyl_diameter: None,
             disc: None,
         }

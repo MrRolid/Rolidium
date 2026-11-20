@@ -6,17 +6,21 @@
 //! STL export do not use these meshes.
 
 use super::*;
+use crate::worker::RemeshBody;
 use rolidium_kernel::VIEW_PIXEL_FRACTION;
 
-/// At most this many triangles for one body, and for all bodies together (so that a big model does not slow the display down).
-pub(super) const MAX_TRIANGLES_PER_BODY: usize = 1_500_000;
-pub(super) const MAX_TRIANGLES_TOTAL: usize = 3_000_000;
+/// At most this many triangles for one body, and for all bodies together: the background work must stay within about a second and
+/// a half for a part like a spring, and the display must stay fast for a big model.
+pub(super) const MAX_TRIANGLES_PER_BODY: usize = 150_000;
+pub(super) const MAX_TRIANGLES_TOTAL: usize = 600_000;
 /// The view must be still this long before the meshes are made again (inertia).
 const QUIET_SECONDS: f32 = 0.35;
-/// New meshes when the pixel is this much smaller than the one the meshes were made for (finer) ...
+/// New meshes when a face in view is this much coarser than the zoom asks for (finer) ...
 const FINER_FACTOR: f64 = 1.4;
-/// ... or this much larger (coarser: saves triangles after zooming out).
+/// ... or when everything in view is this much finer than needed (coarser: saves triangles after zooming out).
 const COARSER_FACTOR: f64 = 4.0;
+/// Coarser meshes are only worth making for a mesh with more triangles than this.
+const COARSER_MIN_TRIANGLES: usize = 40_000;
 
 #[derive(Default)]
 pub(super) struct RemeshState {
@@ -24,9 +28,37 @@ pub(super) struct RemeshState {
     moved_at: Option<Instant>,
     ticket: u64,
     inflight: Option<(u64, u64, f64)>,
-    /// The meshes (by address) and the pixel size they were made for.
-    key: usize,
-    pixel: f64,
+}
+
+/// The faces of `e` whose box is (at least partly) in view for the view-projection `m`.
+pub(super) fn faces_in_view(e: &MeshEntry, m: &glam::Mat4) -> Vec<bool> {
+    e.faces
+        .iter()
+        .map(|f| {
+            let (lo, hi) = f.bounds;
+            if lo.x > hi.x {
+                return true; // no triangles known: leave it to the safe side
+            }
+            // outside when all eight corners are on the outer side of one of the planes of the view
+            let corners: Vec<glam::Vec4> = (0..8)
+                .map(|i| {
+                    let p = Vec3::new(
+                        if i & 1 == 0 { lo.x } else { hi.x },
+                        if i & 2 == 0 { lo.y } else { hi.y },
+                        if i & 4 == 0 { lo.z } else { hi.z },
+                    );
+                    *m * p.extend(1.0)
+                })
+                .collect();
+            let all = |test: &dyn Fn(&glam::Vec4) -> bool| corners.iter().all(test);
+            !(all(&|c| c.x > c.w)
+                || all(&|c| c.x < -c.w)
+                || all(&|c| c.y > c.w)
+                || all(&|c| c.y < -c.w)
+                || all(&|c| c.z > c.w)
+                || all(&|c| c.w <= 0.0))
+        })
+        .collect()
 }
 
 impl App {
@@ -36,14 +68,34 @@ impl App {
         2.0 * self.camera.distance as f64 * (self.camera.fov_y as f64 * 0.5).tan() / h
     }
 
-    /// The pixel size the present meshes were made for, from their deflection (the smallest over the bodies).
-    fn built_pixel(&self) -> f64 {
-        self.meshes
-            .iter()
-            .map(|m| m.mesh.deflection)
-            .filter(|d| *d > 0.0)
-            .fold(f64::INFINITY, f64::min)
-            / VIEW_PIXEL_FRACTION
+    fn view_matrix(&self) -> glam::Mat4 {
+        let r = self.viewport_rect;
+        self.camera.view_proj(r.width() / r.height().max(1.0))
+    }
+
+    /// Whether the body of `e` needs a new mesh for the pixel `need`; the faces in view are returned with it.
+    fn needs_remesh(&self, e: &MeshEntry, need: f64, vp: &glam::Mat4) -> Option<Vec<bool>> {
+        let want = need * VIEW_PIXEL_FRACTION;
+        let fine = faces_in_view(e, vp);
+        if !fine.iter().any(|f| *f) {
+            return None;
+        }
+        let asked = |i: usize| {
+            e.mesh
+                .face_deflection
+                .get(i)
+                .copied()
+                .filter(|d| *d > 0.0)
+                .unwrap_or(e.mesh.deflection)
+        };
+        let finer = fine.iter().enumerate().any(|(i, f)| *f && asked(i) > want * FINER_FACTOR);
+        let coarser = e.mesh.triangle_count() > COARSER_MIN_TRIANGLES
+            && fine
+                .iter()
+                .enumerate()
+                .filter(|(_, f)| **f)
+                .all(|(i, _)| asked(i) * COARSER_FACTOR < want);
+        (finer || coarser).then_some(fine)
     }
 
     /// Once a frame: starts the remeshing when it is due.
@@ -61,22 +113,21 @@ impl App {
             self.remesh.last_view = Some(v);
             self.remesh.moved_at = Some(Instant::now());
         }
-        let key = Arc::as_ptr(&self.meshes) as usize;
-        if key != self.remesh.key {
-            self.remesh.key = key;
-            self.remesh.pixel = self.built_pixel();
-        }
         let need = self.pixel_mm();
-        if !need.is_finite() || need <= 0.0 || !self.remesh.pixel.is_finite() {
+        if !need.is_finite() || need <= 0.0 {
             return;
         }
-        let due = self.remesh.pixel > need * FINER_FACTOR || need > self.remesh.pixel * COARSER_FACTOR;
-        if !due
-            || self.remesh.inflight.is_some()
-            || !self.idle()
-            || self.pull.is_some()
-            || self.view_anim.is_some()
-        {
+        if self.remesh.inflight.is_some() || !self.idle() || self.pull.is_some() || self.view_anim.is_some() {
+            return;
+        }
+        let vp = self.view_matrix();
+        let due: Vec<(&MeshEntry, Vec<bool>)> = self
+            .meshes
+            .iter()
+            .filter(|e| self.doc.body(e.id).is_some_and(|b| b.visible))
+            .filter_map(|e| self.needs_remesh(e, need, &vp).map(|f| (e, f)))
+            .collect();
+        if due.is_empty() {
             return;
         }
         let quiet = self
@@ -87,24 +138,21 @@ impl App {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
             return;
         }
-        let bodies: Vec<_> = self
-            .doc
-            .bodies()
-            .iter()
-            .filter(|b| b.visible)
-            .map(|b| {
-                let prev = self
-                    .meshes
-                    .iter()
-                    .find(|m| m.id == b.id)
-                    .map(|m| (m.mesh.deflection, m.mesh.triangle_count()));
-                ((b.id, b.name.clone(), b.solid.clone(), b.color), prev)
+        let bodies: Vec<RemeshBody> = due
+            .into_iter()
+            .filter_map(|(e, fine)| {
+                let b = self.doc.body(e.id)?;
+                Some(RemeshBody {
+                    body: (b.id, b.name.clone(), b.solid.clone(), b.color),
+                    base: e.mesh.clone(),
+                    fine,
+                })
             })
             .collect();
         if bodies.is_empty() {
             return;
         }
-        let n = bodies.len().max(1);
+        let n = self.meshes.len().max(1);
         self.remesh.ticket += 1;
         let ticket = self.remesh.ticket;
         let sent = self.worker.send(Work::Remesh {
@@ -125,7 +173,7 @@ impl App {
         }
     }
 
-    /// The new meshes arrived: they replace the old ones unless the model changed meanwhile.
+    /// The new meshes arrived: they replace the old ones of the same bodies unless the model changed meanwhile.
     pub(super) fn remesh_done(&mut self, ticket: u64, r: Result<Vec<MeshEntry>, String>) {
         let Some((t, rev, need)) = self.remesh.inflight else {
             return;
@@ -139,9 +187,14 @@ impl App {
             return;
         }
         let tris: usize = entries.iter().map(|m| m.mesh.triangle_count()).sum();
-        self.set_meshes(entries);
-        self.remesh.key = Arc::as_ptr(&self.meshes) as usize;
-        self.remesh.pixel = need;
+        let mut all: Vec<MeshEntry> = self.meshes.iter().cloned().collect();
+        for e in entries {
+            match all.iter_mut().find(|o| o.id == e.id) {
+                Some(slot) => *slot = e,
+                None => all.push(e),
+            }
+        }
+        self.set_meshes(all);
         log(&format!(
             "display meshes made again for {need:.4} mm per pixel: {tris} triangles"
         ));
@@ -163,5 +216,48 @@ impl App {
             })
             .collect();
         self.set_meshes(entries);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rolidium_kernel::{DVec3, FaceKind};
+
+    fn face(lo: Vec3, hi: Vec3) -> crate::worker::FaceMeta {
+        crate::worker::FaceMeta {
+            kind: FaceKind::Plane,
+            normal: DVec3::Z,
+            origin: DVec3::ZERO,
+            area: 1.0,
+            centroid: (lo + hi) * 0.5,
+            bounds: (lo, hi),
+            cyl_diameter: None,
+            disc: None,
+        }
+    }
+
+    #[test]
+    fn faces_outside_the_view_are_not_made_finer() {
+        // a camera looking at the origin from 100 mm above; the faces: one in the middle, one far to the side, one behind the camera
+        let mut cam = rolidium_render::Camera::default();
+        cam.target = Vec3::ZERO;
+        cam.distance = 100.0;
+        cam.pitch = 1.5;
+        let vp = cam.view_proj(1.5);
+        let e = MeshEntry {
+            id: 1,
+            name: String::new(),
+            mesh: Default::default(),
+            faces: vec![
+                face(Vec3::splat(-5.0), Vec3::splat(5.0)),
+                face(Vec3::new(500.0, 0.0, 0.0), Vec3::new(510.0, 5.0, 5.0)),
+                face(Vec3::new(0.0, 0.0, 200.0), Vec3::new(5.0, 5.0, 210.0)),
+                // a big face that only partly overlaps the view still counts
+                face(Vec3::new(-1000.0, -2.0, -2.0), Vec3::new(1000.0, 2.0, 2.0)),
+            ],
+            color: [1.0; 3],
+        };
+        assert_eq!(faces_in_view(&e, &vp), vec![true, false, false, true]);
     }
 }

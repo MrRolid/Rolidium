@@ -25,6 +25,8 @@ pub struct Mesh {
     /// The largest distance (mm) of the triangles and of the edge polylines from the exact shape that this mesh was made for;
     /// 0 when not known.
     pub deflection: f64,
+    /// The linear deflection (mm) each B-rep face was asked for (0 when not known); the faces outside the view are coarser.
+    pub face_deflection: Vec<f64>,
 }
 
 fn vec3s(f: &[f32]) -> Vec<Vec3> {
@@ -55,7 +57,60 @@ impl Mesh {
             tri_face: m.tri_face,
             edges,
             deflection: 0.0,
+            face_deflection: Vec::new(),
         }
+    }
+
+    /// The number of triangles of each of `faces` B-rep faces.
+    pub fn triangles_per_face(&self, faces: usize) -> Vec<usize> {
+        let mut n = vec![0usize; faces];
+        for f in &self.tri_face {
+            if let Some(c) = n.get_mut(*f as usize) {
+                *c += 1;
+            }
+        }
+        n
+    }
+
+    /// This mesh with the faces marked in `mask` (and the edges in `part`) taken from `part`, a mesh of those faces only.
+    pub fn merged_with(&self, part: &Mesh, mask: &[u8]) -> Mesh {
+        let mut out = Mesh {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            tri_face: Vec::new(),
+            edges: Vec::new(),
+            deflection: self.deflection,
+            face_deflection: Vec::new(),
+        };
+        // the triangles of the faces that are kept (their vertices are copied as they are used)
+        let mut remap: Vec<u32> = vec![u32::MAX; self.positions.len()];
+        for (t, tri) in self.indices.as_chunks::<3>().0.iter().enumerate() {
+            let f = self.tri_face[t] as usize;
+            if mask.get(f) == Some(&1) {
+                continue;
+            }
+            for &i in tri {
+                let slot = &mut remap[i as usize];
+                if *slot == u32::MAX {
+                    *slot = out.positions.len() as u32;
+                    out.positions.push(self.positions[i as usize]);
+                    out.normals.push(self.normals[i as usize]);
+                }
+                out.indices.push(*slot);
+            }
+            out.tri_face.push(f as u32);
+        }
+        let base = out.positions.len() as u32;
+        out.positions.extend_from_slice(&part.positions);
+        out.normals.extend_from_slice(&part.normals);
+        out.indices.extend(part.indices.iter().map(|i| i + base));
+        out.tri_face.extend_from_slice(&part.tri_face);
+        // the edges: the new polylines replace the old ones with the same edge
+        let new_ids: std::collections::HashSet<u32> = part.edges.iter().map(|e| e.edge.0).collect();
+        out.edges = self.edges.iter().filter(|e| !new_ids.contains(&e.edge.0)).cloned().collect();
+        out.edges.extend(part.edges.iter().cloned());
+        out
     }
 
     pub fn triangle_count(&self) -> usize {
