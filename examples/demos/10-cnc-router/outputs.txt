@@ -1,0 +1,3 @@
+# a picture of 3840 x 2160 for the machine, and a detail: the Z axis and the spindle seen from the front
+render @OUT@/@NAME@-4k.png 3840 2160 iso
+render @OUT@/@NAME@-detail.png 1920 1080 front

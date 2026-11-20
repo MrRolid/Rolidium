@@ -9,6 +9,7 @@ features is visible. 0.2.0 is the first public release.
 ## [0.2.0] - unreleased
 
 ### Added
+- Demo models (`examples/demos`, CC0): ten models from an electronics box to a CNC router with 188 bodies, built by scripts for `rolidium cli`, with a test that checks their bodies, volumes and that no two bodies overlap.
 - First steps: a new empty document starts in a sketch on the XY plane with the Circle tool; the isometric view is shown for half a second
   at the start, then it turns square to the plane. A guide of short hints leads to the first body (draw, press P, pull, how to turn and
   move the view, drawing on a face); hints can be closed, the guide switched off and run again from the About window; the progress is remembered.

@@ -45,7 +45,7 @@ def nema23_motor(s, f):
     for sx in (-1, 1):
         for sy in (-1, 1):
             f.ext("w", -4.5, 1, ("circle", sx * 23.57, sy * 23.57, 5), "cut")        # four blind holes 4.5 deep
-            f.chamfer(7, sx * 27.8, sy * 27.8, -30)                                  # the corners of the body
+            f.chamfer(7, sx * 27.8, sy * 27.8, -30, body=start)                                 # the corners of the body
     f.ext("w", -50, -38, ("rect", -6, 27.8, 6, 34), "add")                           # the cable box
     return [start]
 
@@ -281,3 +281,50 @@ def bearing_block(s, f):
 
 
 _IDX_ = {"x": 0, "y": 1, "z": 2}
+
+
+# ---- aluminium profile, ball screw, nut ---------------------------------------------------------------------------------------------------
+def alu_outline(width, height, slots):
+    """Outline of a T-slot aluminium profile, width (u) x height (v), as a closed polygon. `slots` is a dict with the centres of the T-slots on each side:
+    {'bottom': [...], 'right': [...], 'top': [...], 'left': [...]} (the positions along the side, counted from the start of the side going round
+    counterclockwise: bottom left to right, right bottom to top, top right to left, left top to bottom). A T-slot: opening 8 wide through a lip 3 thick,
+    a cavity 16 wide to a depth of 9."""
+    pts = []
+    corners = [((0, 0), (1, 0), width), ((width, 0), (0, 1), height), ((width, height), (-1, 0), width), ((0, height), (0, -1), height)]
+    for (name, (o, e, length)) in zip(("bottom", "right", "top", "left"), corners):
+        n = (-e[1], e[0])            # inward: to the left of the direction of travel
+        pts.append(o)
+        for c in sorted(slots.get(name, [])):
+            for (t, d) in [(c - 4, 0), (c - 4, 3), (c - 8, 3), (c - 8, 9), (c + 8, 9), (c + 8, 3), (c + 4, 3), (c + 4, 0)]:
+                pts.append((o[0] + e[0] * t + n[0] * d, o[1] + e[1] * t + n[1] * d))
+    return pts
+
+
+def alu_profile(s, f, width, height, length, bores):
+    """A T-slot profile `width` x `height` (u, v from 0), `length` long along w, with the given centre bores (list of (u, v)), slots in the middle of the sides
+    (two on the long sides of an 80 mm side). One body."""
+    start = s.n + 1
+    def centres(length_side):
+        return [20] if length_side <= 40 else [20, length_side - 20]
+    slots = {"bottom": centres(width), "right": centres(height), "top": centres(width), "left": centres(height)}
+    f.ext("w", 0, length, ("poly", alu_outline(width, height, slots)), "add", joins=False)
+    for (u, v) in bores:
+        f.ext("w", -1, length + 1, ("circle", u, v, 8.5), "cut")
+    return [start]
+
+
+def ball_screw(s, f, w_a, w_b, w_c, w_d):
+    """A ball screw drawn as a smooth cylinder of 16 from w_b to w_c with journals of 7.98 from w_a to w_b and from w_c to w_d. One body."""
+    start = s.n + 1
+    f.ext("w", w_b, w_c, ("circle", 0, 0, 16), "add", joins=False)
+    f.ext("w", w_a, w_b, ("circle", 0, 0, 7.98), "add")
+    f.ext("w", w_c, w_d, ("circle", 0, 0, 7.98), "add")
+    return [start]
+
+
+def screw_nut(s, f, length=20):
+    """A nut for the ball screw: 26 x length (w = 0 .. length), a smooth bore of 16.1. One body."""
+    start = s.n + 1
+    f.ext("w", 0, length, ("circle", 0, 0, 26), "add", joins=False)
+    f.ext("w", -1, length + 1, ("circle", 0, 0, 16.1), "cut")
+    return [start]

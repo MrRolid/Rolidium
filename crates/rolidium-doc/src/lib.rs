@@ -957,7 +957,9 @@ impl Job {
                         let mut cut_any = false;
                         let mut first_id = None;
                         for b in st.bodies.iter_mut() {
-                            if !b.solid.distance_to(&tool).is_ok_and(|d| d < 1e-6) {
+                            if !b.solid.may_be_within(&tool, 1e-6)
+                                || !b.solid.distance_to(&tool).is_ok_and(|d| d < 1e-6)
+                            {
                                 continue;
                             }
                             let before = b.solid.volume()?;
@@ -987,7 +989,10 @@ impl Job {
                             Vec::new()
                         } else {
                             (0..st.bodies.len())
-                                .filter(|i| st.bodies[*i].solid.distance_to(&tool).is_ok_and(|d| d < 1e-6))
+                                .filter(|i| {
+                                    st.bodies[*i].solid.may_be_within(&tool, 1e-6)
+                                        && st.bodies[*i].solid.distance_to(&tool).is_ok_and(|d| d < 1e-6)
+                                })
                                 .collect()
                         };
                         let mut acc = tool.clone();

@@ -435,3 +435,30 @@ fn join_ends_closes_a_rectangle_with_gaps() {
     r.run_script("pull-region 0 5").unwrap();
     assert_eq!(r.doc.bodies().len(), 1);
 }
+
+#[test]
+fn export_step_and_stl_write_all_bodies_unless_one_is_chosen() {
+    let dir = std::env::temp_dir().join(format!("rolidium-export-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let step = dir.join("all.step");
+    let one = dir.join("one.step");
+    let stl = dir.join("all.stl");
+    let mut r = Runner::new();
+    r.quiet = true;
+    r.run_script(&format!(
+        "box 10 10 10\nbox 5 5 5\nmove 20 0 0 body 2\nexport-step {}\nexport-step {} body 2\nexport-stl {} --ascii",
+        step.display(),
+        one.display(),
+        stl.display()
+    ))
+    .unwrap();
+    let (all, _) = rolidium_kernel::Solid::read_step_all(&std::fs::read(&step).unwrap()).unwrap();
+    assert_eq!(all.len(), 2);
+    let (only, _) = rolidium_kernel::Solid::read_step_all(&std::fs::read(&one).unwrap()).unwrap();
+    assert_eq!(only.len(), 1);
+    assert!((only[0].volume().unwrap() - 125.0).abs() < 1e-6);
+    // 12 triangles per box
+    let text = std::fs::read_to_string(&stl).unwrap();
+    assert_eq!(text.matches("facet normal").count(), 24);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -16,8 +16,8 @@
 //! edit-feature <i> <size> # change the size of round/chamfer <i>; size 0 brings the sharp edge back
 //! undo | redo
 //! info                    # print bodies, volume, face count
-//! export-stl out.stl [--deviation <mm>] [--angle <deg>] [--ascii]   (defaults: 0.02 mm, 10 deg, binary)
-//! export-step out.step
+//! export-stl out.stl [--deviation <mm>] [--angle <deg>] [--ascii]   (defaults: 0.02 mm, 10 deg, binary; all bodies, or `body N`)
+//! export-step out.step   (all bodies, or `body N`)
 //! move <dx> <dy> <dz> [copy]   # move body 1; rotate <x|y|z> <degrees> [copy] turns it about its centre
 //! revolve <region> <x|y|z> <degrees> [add|cut]   # revolve a region of the current sketch about a world axis
 //! save [file.rolidium]    # write the document (to the file it was opened from, or the given one)
@@ -1327,7 +1327,15 @@ impl Runner {
             }
             "export-stl" => {
                 let path = w.get(1).ok_or("export-stl needs a file name")?;
-                let id = self.first_body()?;
+                // `body N` exports that body, else all bodies go into one file
+                let ids: Vec<BodyId> = if self.target_body.is_some() {
+                    vec![self.first_body()?]
+                } else {
+                    self.doc.bodies().iter().map(|b| b.id).collect()
+                };
+                if ids.is_empty() {
+                    self.first_body()?;
+                }
                 let (mut dev, mut ang, mut ascii) = (0.02_f64, 10.0_f64, false);
                 let mut k = 2;
                 while k < w.len() {
@@ -1355,13 +1363,17 @@ impl Runner {
                 if !(0.001..=10.0).contains(&dev) || !(1.0..=90.0).contains(&ang) {
                     return Err("deviation must be 0.001..10 mm and angle 1..90 degrees".into());
                 }
-                let mesh = self
-                    .doc
-                    .body(id)
-                    .unwrap()
-                    .solid
-                    .mesh(dev, ang.to_radians())
-                    .map_err(|e| e.to_string())?;
+                let mut mesh = rolidium_kernel::Mesh::default();
+                for id in &ids {
+                    let m = self
+                        .doc
+                        .body(*id)
+                        .unwrap()
+                        .solid
+                        .mesh(dev, ang.to_radians())
+                        .map_err(|e| e.to_string())?;
+                    mesh.append(&m);
+                }
                 let mut f = std::io::BufWriter::new(std::fs::File::create(path).map_err(|e| e.to_string())?);
                 if ascii {
                     mesh.write_stl_ascii(&mut f).map_err(|e| e.to_string())?;
@@ -1373,14 +1385,16 @@ impl Runner {
             }
             "export-step" => {
                 let path = w.get(1).ok_or("export-step needs a file name")?;
-                let id = self.first_body()?;
-                let data = self
-                    .doc
-                    .body(id)
-                    .unwrap()
-                    .solid
-                    .write_step()
-                    .map_err(|e| e.to_string())?;
+                // `body N` exports that body, else all bodies go into one file
+                let solids: Vec<Solid> = if self.target_body.is_some() {
+                    vec![self.doc.body(self.first_body()?).unwrap().solid.clone()]
+                } else {
+                    self.doc.bodies().iter().map(|b| b.solid.clone()).collect()
+                };
+                if solids.is_empty() {
+                    self.first_body()?;
+                }
+                let data = Solid::write_step_many(&solids).map_err(|e| e.to_string())?;
                 std::fs::write(path, data).map_err(|e| e.to_string())?;
                 self.say(format!("wrote {path}"));
             }
@@ -1446,7 +1460,8 @@ impl Runner {
         camera.set_view(view);
         camera.fit(lo, hi);
         // the meshes are made for this picture, like the window does for its zoom: under half a pixel from the exact shape
-        let pixel_mm = 2.0 * f64::from(camera.distance) * (f64::from(camera.fov_y) * 0.5).tan() / f64::from(h.max(1));
+        let pixel_mm =
+            2.0 * f64::from(camera.distance) * (f64::from(camera.fov_y) * 0.5).tan() / f64::from(h.max(1));
         let cap = (1_500_000 / self.doc.bodies().len().max(1)).clamp(20_000, 300_000);
         let meshes: Vec<_> = self
             .doc

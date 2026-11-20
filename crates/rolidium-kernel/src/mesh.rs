@@ -108,9 +108,23 @@ impl Mesh {
         out.tri_face.extend_from_slice(&part.tri_face);
         // the edges: the new polylines replace the old ones with the same edge
         let new_ids: std::collections::HashSet<u32> = part.edges.iter().map(|e| e.edge.0).collect();
-        out.edges = self.edges.iter().filter(|e| !new_ids.contains(&e.edge.0)).cloned().collect();
+        out.edges = self
+            .edges
+            .iter()
+            .filter(|e| !new_ids.contains(&e.edge.0))
+            .cloned()
+            .collect();
         out.edges.extend(part.edges.iter().cloned());
         out
+    }
+
+    /// Adds the triangles of `other` (used to write several bodies into one STL file).
+    pub fn append(&mut self, other: &Mesh) {
+        let base = self.positions.len() as u32;
+        self.positions.extend_from_slice(&other.positions);
+        self.normals.extend_from_slice(&other.normals);
+        self.indices.extend(other.indices.iter().map(|i| i + base));
+        self.tri_face.extend_from_slice(&other.tri_face);
     }
 
     pub fn triangle_count(&self) -> usize {

@@ -694,7 +694,13 @@ impl App {
                     self.left_bottom_rect.max.y,
                     self.status_top
                 );
-                check(&mut st, &format!("the left column fits or scrolls with the File block and Settings visible ({name})"), fits);
+                check(
+                    &mut st,
+                    &format!(
+                        "the left column fits or scrolls with the File block and Settings visible ({name})"
+                    ),
+                    fits,
+                );
                 shot(&mut st, ctx, &name);
                 if st.layout_i + 1 < LAYOUTS.len() {
                     st.layout_i += 1;
@@ -917,16 +923,19 @@ impl App {
                     return;
                 }
                 let vr = self.viewport_rect;
-                let inside = self
-                    .docks
-                    .rect(kind)
-                    .is_some_and(|r| r.min.x >= vr.min.x && r.max.x <= vr.max.x && r.min.y >= vr.min.y && r.max.y <= vr.max.y);
+                let inside = self.docks.rect(kind).is_some_and(|r| {
+                    r.min.x >= vr.min.x && r.max.x <= vr.max.x && r.min.y >= vr.min.y && r.max.y <= vr.max.y
+                });
                 println!(
                     "selftest: the {kind} panel {:?} model area {:?}",
                     self.docks.rect(kind),
                     vr
                 );
-                check(&mut st, &format!("the {kind} panel starts inside the model area"), inside);
+                check(
+                    &mut st,
+                    &format!("the {kind} panel starts inside the model area"),
+                    inside,
+                );
                 if kind == "sweep" {
                     shot(&mut st, ctx, "tool-panel-1280x720");
                 }

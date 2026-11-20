@@ -333,8 +333,25 @@ in `rolidium-sketch/src/join.rs` and is shared by the window, the CLI and the MC
 ## D36: Display meshes follow the zoom
 
 The display mesh is made for a pixel size: the deviation of the triangles and of the edge polylines (from exact curves with an adaptive
-tangential deflection) is 0.4 of a pixel, the angle between facets at most 0.12 rad. When the view has been still for 0.35 s and the meshes
+tangential deflection) is 0.4 of a pixel (superseded in D37 for the angle and the caps). When the view has been still for 0.35 s and the meshes
 were made for a pixel more than 1.4 times larger (or 4 times smaller), the worker makes them again; the result is dropped when the model
 changed meanwhile, and a running remesh is cancelled when an operation starts. At most 1.5 million triangles per body and 3 million in all
 (the deflection is raised when an estimate from the previous mesh passes the cap). The kernel, measurements and the STL export do not use
 these meshes.
+
+## D37: Rough first display, in-view faces refined within a budget
+
+After an operation a body is shown at once with a rough mesh (deflection 0.2 % of its size, about 2 pixels of a 900 px window); the refinement for the zoom
+comes later in the background. The angular limit of the display meshes is 0.5 rad and only a safety limit: the density is set by the deviation in pixels, so a
+shape that is small on the screen is not made denser than its size asks for (0.12 rad had made the spring 3 times slower). When the view is zoomed in, only the
+faces whose box meets the view are meshed again (`Solid::view_mesh_faces`: the rest is taken from the present mesh, the edges of the faces in view are made
+again); they get at most 60 000 new triangles and the whole mesh stays under 150 000 per body (600 000 in all), which keeps the work for a part like the
+spring within about 1.5 s. When the cap is reached the deviation is larger than 0.4 pixel (the spring at 100x: about 7 pixels) - the honest limit of
+meshing whole faces; the next step would be to cut the faces to the view.
+
+## D38: The demo models are built from parts that are moved into place
+
+Pull joins bodies that touch, and Revolve turns about an axis through the origin, so the demos (`examples/demos`) build every part in an empty place (the
+staging area, or the origin for revolved parts) and move it: a move never joins bodies. Python scripts (`rdm.py`, `parts.py`) write the scenarios; the program runs the
+scenarios (`build.txt`). A cut of a sketch on a plane first compared every body with the cutting volume by the exact distance (seconds each on parts with many
+faces); a test of the boxes now comes first (`Solid::may_be_within`), which made the building of the router 15 times faster.

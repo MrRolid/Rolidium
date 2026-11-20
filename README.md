@@ -33,6 +33,8 @@ To build the program yourself, see [BUILDING.md](BUILDING.md).
 
 ## Example parts
 
+Ten bigger models, from an electronics box to a gantry CNC router with 188 bodies, are in [`examples/demos`](examples/demos/) (public domain, CC0 1.0, while the rest of the repository is AGPL-3.0-only).
+
 Every part below is built by a short script for the headless tool, see [`examples/`](examples). The scripts run in the test suite
 and check the volume of the result, so they stay correct.
 
@@ -210,7 +212,7 @@ Code contributions from outside are not accepted for now; [CONTRIBUTING.md](CONT
 
 ## Licence
 
-Rolidium is free software licensed under the **GNU Affero General Public License, version 3 only** (AGPL-3.0-only); see [LICENSE](LICENSE).
+Rolidium is free software licensed under the **GNU Affero General Public License, version 3 only** (AGPL-3.0-only); see [LICENSE](LICENSE). The demo models in `examples/demos` (models, scripts, descriptions and pictures) are under **CC0 1.0** (see `examples/demos/LICENSE`).
 
 * **Commercial licence**: if the AGPL does not suit you (for example to build Rolidium into a closed product), a commercial licence is
   available. Write to connect@rolid.com.

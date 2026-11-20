@@ -107,11 +107,15 @@ fn check_demo(dir: &Path) {
     r.quiet = true;
     // scripts may read parts made by the demos before them: they are looked up from the demo folder's `out/` (see build-all.sh)
     let t = std::time::Instant::now();
-    r.run_script(&script_of(&text)).unwrap_or_else(|e| panic!("{name}: {e}"));
+    r.run_script(&script_of(&text))
+        .unwrap_or_else(|e| panic!("{name}: {e}"));
     let build_s = t.elapsed().as_secs_f64();
     let solids: Vec<Solid> = r.doc.bodies().iter().map(|b| b.solid.clone()).collect();
     assert_eq!(solids.len(), bodies, "{name}: number of bodies");
-    assert!(solids.iter().all(|s| s.is_valid()), "{name}: a body is not a valid solid");
+    assert!(
+        solids.iter().all(|s| s.is_valid()),
+        "{name}: a body is not a valid solid"
+    );
     let total: f64 = solids.iter().map(|s| s.volume().unwrap()).sum();
     assert!(
         (total - volume).abs() <= volume * 1e-4 + 0.05,
@@ -127,15 +131,25 @@ fn check_demo(dir: &Path) {
     assert!(skipped.is_empty(), "{name}: STEP: {skipped:?}");
     assert_eq!(back.len(), solids.len(), "{name}: STEP bodies");
     let vb: f64 = back.iter().map(|s| s.volume().unwrap()).sum();
-    assert!((vb - total).abs() <= total * 1e-5 + 1e-6, "{name}: STEP volume {vb} vs {total}");
+    assert!(
+        (vb - total).abs() <= total * 1e-5 + 1e-6,
+        "{name}: STEP volume {vb} vs {total}"
+    );
     // save and open
     let tmp = std::env::temp_dir().join(format!("rolidium-demo-{name}-{}.rolidium", std::process::id()));
     rolidium_doc::file::save_file(&r.doc, &tmp, None, "test").unwrap_or_else(|e| panic!("{name}: save: {e}"));
     let opened = rolidium_doc::file::load_file(&tmp).unwrap_or_else(|e| panic!("{name}: open: {e}"));
     let _ = std::fs::remove_file(&tmp);
-    assert_eq!(opened.state.bodies.len(), solids.len(), "{name}: bodies after open");
+    assert_eq!(
+        opened.state.bodies.len(),
+        solids.len(),
+        "{name}: bodies after open"
+    );
     BUILT.lock().unwrap().push(name.clone());
-    println!("demo {name}: {} bodies, volume {total:.3}, built in {build_s:.1} s", solids.len());
+    println!(
+        "demo {name}: {} bodies, volume {total:.3}, built in {build_s:.1} s",
+        solids.len()
+    );
 }
 
 fn is_slow(dir: &Path) -> bool {

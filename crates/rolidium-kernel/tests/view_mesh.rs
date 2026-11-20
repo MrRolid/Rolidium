@@ -64,14 +64,22 @@ fn only_the_faces_in_view_are_made_finer_and_the_others_stay_as_they_were() {
     let n = s.face_count();
     let base = s.display_mesh().unwrap();
     // the faces of the hole (cylinder) are in view, the rest is not
-    let fine: Vec<bool> = s.faces().map(|f| s.face_info(f).unwrap().kind == FaceKind::Cylinder).collect();
+    let fine: Vec<bool> = s
+        .faces()
+        .map(|f| s.face_info(f).unwrap().kind == FaceKind::Cylinder)
+        .collect();
     assert!(fine.iter().any(|f| *f) && fine.iter().any(|f| !*f));
     let m = s.view_mesh_faces(0.001, &fine, 1_000_000, Some(&base)).unwrap();
     let per_base = base.triangles_per_face(n);
     let per_new = m.triangles_per_face(n);
     for i in 0..n {
         if fine[i] {
-            assert!(per_new[i] > per_base[i], "face {i}: {} -> {}", per_base[i], per_new[i]);
+            assert!(
+                per_new[i] > per_base[i],
+                "face {i}: {} -> {}",
+                per_base[i],
+                per_new[i]
+            );
             assert!(m.face_deflection[i] < base.face_deflection[i]);
         } else {
             assert_eq!(per_new[i], per_base[i], "face {i} out of view must not change");
@@ -83,7 +91,11 @@ fn only_the_faces_in_view_are_made_finer_and_the_others_stay_as_they_were() {
     assert!(m.indices.iter().all(|i| (*i as usize) < m.positions.len()));
     assert_eq!(m.indices.len() / 3, m.tri_face.len());
     let exact = s.props().unwrap().volume;
-    assert!((m.signed_volume() - exact).abs() < exact * 0.01, "{} vs {exact}", m.signed_volume());
+    assert!(
+        (m.signed_volume() - exact).abs() < exact * 0.01,
+        "{} vs {exact}",
+        m.signed_volume()
+    );
     // the edges of the faces that were not meshed again are kept, those of the hole are finer
     assert_eq!(m.edges.len(), base.edges.len());
 }
@@ -95,4 +107,21 @@ fn the_faces_in_view_stay_under_the_budget() {
     let fine = vec![true; s.face_count()];
     let m = s.view_mesh_faces(1e-5, &fine, 5_000, Some(&base)).unwrap();
     assert!(m.triangle_count() <= 6_250, "{}", m.triangle_count());
+}
+
+#[test]
+fn the_box_test_for_bodies_that_are_far_apart_and_those_that_are_close() {
+    let a = Solid::cuboid(DVec3::ZERO, DVec3::new(10.0, 10.0, 10.0)).unwrap();
+    let far = Solid::cuboid(DVec3::new(50.0, 0.0, 0.0), DVec3::new(60.0, 10.0, 10.0)).unwrap();
+    let touching = Solid::cuboid(DVec3::new(10.0, 0.0, 0.0), DVec3::new(20.0, 10.0, 10.0)).unwrap();
+    let inside = Solid::cuboid(DVec3::new(2.0, 2.0, 2.0), DVec3::new(4.0, 4.0, 4.0)).unwrap();
+    assert!(!a.may_be_within(&far, 1e-6));
+    assert!(a.may_be_within(&touching, 1e-6));
+    assert!(a.may_be_within(&inside, 1e-6));
+    assert!(
+        a.may_be_within(&far, 50.0),
+        "a larger gap counts the far one as near"
+    );
+    let (lo, hi) = far.bounding_box().unwrap();
+    assert!((lo.x - 50.0).abs() < 1e-6 && (hi.x - 60.0).abs() < 1e-6);
 }

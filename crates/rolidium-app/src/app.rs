@@ -221,6 +221,8 @@ pub struct App {
     started: Instant,
     first_frame_done: bool,
     exit_after_first_frame: bool,
+    /// `--measure-start` with ROLIDIUM_MEASURE_VIEW set: frame times while the view turns (frames, durations, last frame).
+    measure_view: Option<(usize, Vec<f64>, Instant)>,
     last_pointer: Option<Pos2>,
     render_state: egui_wgpu::RenderState,
     fitted: bool,
@@ -410,6 +412,7 @@ impl App {
             started,
             first_frame_done: false,
             exit_after_first_frame,
+            measure_view: None,
             last_pointer: None,
             render_state: rs,
             fitted: false,
@@ -3949,9 +3952,53 @@ impl eframe::App for App {
             }
             if self.exit_after_first_frame {
                 println!("time to first frame: {ms:.0} ms");
+                if std::env::var_os("ROLIDIUM_MEASURE_VIEW").is_some() {
+                    // the time of a pick and of the frames while the view turns, then exit (see docs/DECISIONS.md D38, the router demo)
+                    let rect = self.viewport_rect;
+                    let mut t: Vec<f64> = (0..40)
+                        .map(|i| {
+                            let p = Pos2::new(
+                                rect.min.x + rect.width() * (0.2 + 0.6 * ((i * 7 % 10) as f32 / 10.0)),
+                                rect.min.y + rect.height() * (0.2 + 0.6 * ((i * 3 % 10) as f32 / 10.0)),
+                            );
+                            let t0 = Instant::now();
+                            let _ = self.pick_object(p, rect, false, false);
+                            t0.elapsed().as_secs_f64() * 1e3
+                        })
+                        .collect();
+                    t.sort_by(|a, b| a.total_cmp(b));
+                    println!(
+                        "pick: median {:.1} ms, worst {:.1} ms (40 picks)",
+                        t[t.len() / 2],
+                        t[t.len() - 1]
+                    );
+                    self.measure_view = Some((0, Vec::new(), Instant::now()));
+                    self.exit_after_first_frame = false;
+                } else {
+                    crate::startup::finish();
+                    std::process::exit(0);
+                }
+            }
+        }
+        if let Some((n, times, last)) = &mut self.measure_view {
+            times.push(last.elapsed().as_secs_f64() * 1e3);
+            *last = Instant::now();
+            *n += 1;
+            let done = *n >= 60;
+            if done {
+                let mut t = times.split_off(2);
+                t.sort_by(|a, b| a.total_cmp(b));
+                println!(
+                    "frame while turning: median {:.1} ms, worst {:.1} ms ({} frames)",
+                    t[t.len() / 2],
+                    t[t.len() - 1],
+                    t.len()
+                );
                 crate::startup::finish();
                 std::process::exit(0);
             }
+            self.camera.orbit(6.0, 0.0);
+            ctx.request_repaint();
         }
     }
 }

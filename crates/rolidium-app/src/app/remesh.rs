@@ -88,7 +88,10 @@ impl App {
                 .filter(|d| *d > 0.0)
                 .unwrap_or(e.mesh.deflection)
         };
-        let finer = fine.iter().enumerate().any(|(i, f)| *f && asked(i) > want * FINER_FACTOR);
+        let finer = fine
+            .iter()
+            .enumerate()
+            .any(|(i, f)| *f && asked(i) > want * FINER_FACTOR);
         let coarser = e.mesh.triangle_count() > COARSER_MIN_TRIANGLES
             && fine
                 .iter()

@@ -203,7 +203,8 @@ impl Solid {
         }
         if first.is_err() {
             // a cut that falls into pieces is the caller's business; bodies that are really apart have nothing to check
-            let apart = self.distance_to(other).map(|d| d > 1e-6).unwrap_or(false);
+            let apart = !self.may_be_within(other, 1e-6)
+                || self.distance_to(other).map(|d| d > 1e-6).unwrap_or(false);
             if apart || (op == BooleanOp::Cut && matches!(first, Err(KernelError::SplitResult))) {
                 return first;
             }

@@ -216,6 +216,8 @@ pub struct Solid {
     shape: SharedPtr<native::Shape>,
     /// Volume is expensive on large parts and the shape is immutable, so cache it.
     volume: std::sync::Arc<std::sync::OnceLock<f64>>,
+    /// The box around the shape (cached for the same reason).
+    bbox: std::sync::Arc<std::sync::OnceLock<[f64; 6]>>,
     /// Edge ends and adjacency for smooth chains (built when first needed).
     chain_index: std::sync::Arc<std::sync::OnceLock<blend::ChainIndex>>,
 }
@@ -240,6 +242,7 @@ impl Solid {
         Solid {
             shape,
             volume: Default::default(),
+            bbox: Default::default(),
             chain_index: Default::default(),
         }
     }
@@ -347,6 +350,26 @@ impl Solid {
     /// Short technical summary (solids, shells, orientation, largest tolerances) for diagnostics.
     pub fn diagnostics(&self) -> Result<String> {
         Ok(native::shape_diag(&self.shape)?)
+    }
+
+    /// The box around the solid (cached): the smallest and the largest corner.
+    pub fn bounding_box(&self) -> Result<(DVec3, DVec3)> {
+        if let Some(b) = self.bbox.get() {
+            return Ok((DVec3::new(b[0], b[1], b[2]), DVec3::new(b[3], b[4], b[5])));
+        }
+        let v = native::bounds_of(&self.shape)?;
+        let b = [v[0], v[1], v[2], v[3], v[4], v[5]];
+        let _ = self.bbox.set(b);
+        Ok((DVec3::new(b[0], b[1], b[2]), DVec3::new(b[3], b[4], b[5])))
+    }
+
+    /// Whether the two solids may be closer than `gap` mm: false when their boxes are further apart (a cheap test that saves the exact
+    /// distance, which costs much more on parts with many faces).
+    pub fn may_be_within(&self, other: &Solid, gap: f64) -> bool {
+        match (self.bounding_box(), other.bounding_box()) {
+            (Ok((a0, a1)), Ok((b0, b1))) => (0..3).all(|k| a0[k] <= b1[k] + gap && b0[k] <= a1[k] + gap),
+            _ => true,
+        }
     }
 
     /// Smallest distance to another solid in mm; 0 when they touch, overlap or one lies inside the other.
@@ -488,12 +511,23 @@ impl Solid {
             }
         };
         let per_face = base.triangles_per_face(n);
-        let defl = |i: usize| base.face_deflection.get(i).copied().filter(|d| *d > 0.0).unwrap_or(base.deflection);
+        let defl = |i: usize| {
+            base.face_deflection
+                .get(i)
+                .copied()
+                .filter(|d| *d > 0.0)
+                .unwrap_or(base.deflection)
+        };
         let is_fine = |i: usize| fine.get(i).copied().unwrap_or(false);
         let fixed: f64 = (0..n).filter(|i| !is_fine(*i)).map(|i| per_face[i] as f64).sum();
-        let grows: f64 = (0..n).filter(|i| is_fine(*i)).map(|i| per_face[i] as f64 * defl(i)).sum();
+        let grows: f64 = (0..n)
+            .filter(|i| is_fine(*i))
+            .map(|i| per_face[i] as f64 * defl(i))
+            .sum();
         // the faces in view get at most the budget, and the whole mesh stays under the cap (aim a little lower: the estimate is rough)
-        let room = ((max_triangles as f64 - fixed).max(max_triangles as f64 * 0.2)).min(FINE_TRIANGLE_BUDGET as f64) * 0.9;
+        let room = ((max_triangles as f64 - fixed).max(max_triangles as f64 * 0.2))
+            .min(FINE_TRIANGLE_BUDGET as f64)
+            * 0.9;
         if grows > 0.0 && grows / linear > room {
             linear = (grows / room).max(linear);
         }
@@ -504,10 +538,18 @@ impl Solid {
         let mut angle = VIEW_ANGLE;
         let mut out = base.clone();
         for attempt in 0..4 {
-            let part = Mesh::from_native(native::mesh_shape_regions(&self.shape, linear, angle, linear, &mask)?);
+            let part = Mesh::from_native(native::mesh_shape_regions(
+                &self.shape,
+                linear,
+                angle,
+                linear,
+                &mask,
+            )?);
             out = base.merged_with(&part, &mask);
             out.deflection = linear;
-            out.face_deflection = (0..n).map(|i| if is_fine(i) { requested } else { defl(i) }).collect();
+            out.face_deflection = (0..n)
+                .map(|i| if is_fine(i) { requested } else { defl(i) })
+                .collect();
             if out.triangle_count() as f64 <= max_triangles as f64 * 1.25 || attempt == 3 {
                 break;
             }

@@ -24,9 +24,18 @@ pub static ICONS: &[(&str, &str)] = &[
     ("file_new", include_str!("../../../assets/icons/file_new.svg")),
     ("file_open", include_str!("../../../assets/icons/file_open.svg")),
     ("file_save", include_str!("../../../assets/icons/file_save.svg")),
-    ("file_save_as", include_str!("../../../assets/icons/file_save_as.svg")),
-    ("import_step", include_str!("../../../assets/icons/import_step.svg")),
-    ("export_step", include_str!("../../../assets/icons/export_step.svg")),
+    (
+        "file_save_as",
+        include_str!("../../../assets/icons/file_save_as.svg"),
+    ),
+    (
+        "import_step",
+        include_str!("../../../assets/icons/import_step.svg"),
+    ),
+    (
+        "export_step",
+        include_str!("../../../assets/icons/export_step.svg"),
+    ),
     ("eye_on", include_str!("../../../assets/icons/eye_on.svg")),
     ("eye_off", include_str!("../../../assets/icons/eye_off.svg")),
     ("move", include_str!("../../../assets/icons/move.svg")),
@@ -43,7 +52,10 @@ pub static ICONS: &[(&str, &str)] = &[
     ("join", include_str!("../../../assets/icons/join.svg")),
     ("measure", include_str!("../../../assets/icons/measure.svg")),
     ("line3d", include_str!("../../../assets/icons/line3d.svg")),
-    ("sketch_plane", include_str!("../../../assets/icons/sketch_plane.svg")),
+    (
+        "sketch_plane",
+        include_str!("../../../assets/icons/sketch_plane.svg"),
+    ),
     ("settings", include_str!("../../../assets/icons/settings.svg")),
 ];
 
@@ -68,9 +80,18 @@ pub static HELP_ART: &[(&str, &str)] = &[
     ("file_new", include_str!("../../../assets/help/file_new.svg")),
     ("file_open", include_str!("../../../assets/help/file_open.svg")),
     ("file_save", include_str!("../../../assets/help/file_save.svg")),
-    ("file_save_as", include_str!("../../../assets/help/file_save_as.svg")),
-    ("import_step", include_str!("../../../assets/help/import_step.svg")),
-    ("export_step", include_str!("../../../assets/help/export_step.svg")),
+    (
+        "file_save_as",
+        include_str!("../../../assets/help/file_save_as.svg"),
+    ),
+    (
+        "import_step",
+        include_str!("../../../assets/help/import_step.svg"),
+    ),
+    (
+        "export_step",
+        include_str!("../../../assets/help/export_step.svg"),
+    ),
     ("move", include_str!("../../../assets/help/move.svg")),
     ("revolve", include_str!("../../../assets/help/revolve.svg")),
     ("eye_on", include_str!("../../../assets/help/eye_on.svg")),
@@ -86,7 +107,10 @@ pub static HELP_ART: &[(&str, &str)] = &[
     ("measure", include_str!("../../../assets/help/measure.svg")),
     ("sweep", include_str!("../../../assets/help/sweep.svg")),
     ("line3d", include_str!("../../../assets/help/line3d.svg")),
-    ("sketch_plane", include_str!("../../../assets/help/sketch_plane.svg")),
+    (
+        "sketch_plane",
+        include_str!("../../../assets/help/sketch_plane.svg"),
+    ),
     ("settings", include_str!("../../../assets/help/settings.svg")),
     ("round", include_str!("../../../assets/help/round.svg")),
     ("chamfer", include_str!("../../../assets/help/chamfer.svg")),
