@@ -1,0 +1,2 @@
+# detail: from the right side, along the axis of the screw
+render @OUT@/@NAME@-detail.png 1920 1080 front

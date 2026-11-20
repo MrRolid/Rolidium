@@ -1,0 +1,158 @@
+# Machine vise: a base 200 x 80 x 25 with a guide and two clamping slots, a fixed and a moving jaw with replaceable inserts (80 x 25 x 8 on two screws each), a lead screw of 16 x 180 with a real thread (pitch 4), a nut in the moving jaw and a crank. Jaws open 60 mm. 14 bodies.
+# Base (the body made by the box command): a guide groove 20 x 8 along X for the tongue of the moving jaw, two clamping slots 12 x 40 through it.
+# bodies: 14
+# volume: 648097.941
+# no-overlap: yes
+# slow: yes
+box 200 80 25
+sketch yz -1
+rect 30 17 50 26
+pull-region 0 202 cut
+sketch xy -1
+rect 8 20 20 60
+pull-region 0 27 cut
+sketch xy -1
+rect 180 20 192 60
+pull-region 0 27 cut
+# Everything else is built far away (the staging area) and moved, because bodies that touch are joined into one by Pull.
+sketch yz 5020
+rect 5000 5025 5080 5075
+pull-region 0 30 add
+sketch yz 5019
+circle 5040 5050 16.4
+pull-region 0 32 cut
+sketch yz 5042
+circle 5015 5050 5.9
+pull-region 0 9 cut
+sketch yz 5042
+circle 5065 5050 5.9
+pull-region 0 9 cut
+move -5000 -5000 -5000 body 2
+sketch yz 5126
+rect 5000 5025 5080 5075
+pull-region 0 30 add
+sketch yz 5126
+rect 5030.1 5017.1 5049.9 5025
+pull-region 0 30 add
+sketch yz 5125
+circle 5040 5050 16.4
+pull-region 0 32 cut
+sketch yz 5130
+circle 5040 5050 26.2
+pull-region 0 20 cut
+sketch yz 5125
+circle 5015 5050 5.9
+pull-region 0 9 cut
+sketch yz 5125
+circle 5065 5050 5.9
+pull-region 0 9 cut
+move -5000 -5000 -5000 body 3
+sketch yz 5050
+rect 5000 5037.5 5080 5062.5
+pull-region 0 8 add
+sketch yz 5049
+circle 5040 5050 16.4
+pull-region 0 10 cut
+sketch yz 5049
+circle 5015 5050 6.4
+pull-region 0 10 cut
+sketch yz 5051.8
+circle 5015 5050 10.4
+pull-region 0 7.2 cut
+sketch yz 5049
+circle 5065 5050 6.4
+pull-region 0 10 cut
+sketch yz 5051.8
+circle 5065 5050 10.4
+pull-region 0 7.2 cut
+move -5000 -5000 -5000 body 4
+sketch yz 5118
+rect 5000 5037.5 5080 5062.5
+pull-region 0 8 add
+sketch yz 5117
+circle 5040 5050 16.4
+pull-region 0 10 cut
+sketch yz 5117
+circle 5015 5050 6.4
+pull-region 0 10 cut
+sketch yz 5117
+circle 5015 5050 10.4
+pull-region 0 7.2 cut
+sketch yz 5117
+circle 5065 5050 6.4
+pull-region 0 10 cut
+sketch yz 5117
+circle 5065 5050 10.4
+pull-region 0 7.2 cut
+move -5000 -5000 -5000 body 5
+sketch yz 5130
+circle 5040 5050 26
+pull-region 0 20 add
+sketch yz 5129
+circle 5040 5050 16.1
+pull-region 0 22 cut
+move -5000 -5000 -5000 body 6
+# Four screws of the inserts: head 10 x 6 in the counterbore, shank 5.8, 9.8 long (M6, the thread is not drawn).
+sketch yz 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 4990.2
+circle 5000 5000 5.8
+pull-region 0 9.8 add
+sketch yz 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4948.2 -4985 -4950 body 7
+move 0.0000 50.0000 0.0000 copy body 7
+sketch yz 4994
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 5000
+circle 5000 5000 5.8
+pull-region 0 9.8 add
+sketch yz 4993
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4875.8 -4985 -4950 body 9
+move 0.0000 50.0000 0.0000 copy body 9
+# The lead screw: a cylinder of 16 x 180 built standing up, with the cross hole for the crank and a thread of pitch 4 (a trapezoid groove swept along a helix, 27 turns), then laid along X.
+sketch xy 5000
+circle 5000 5000 16
+pull-region 0 180 add
+sketch xz -5010
+circle 5000 5010 8.2
+pull-region 0 20 cut
+helix radius 7.2 pitch 4 height 108 at 5000.0 5000.0 5070.0
+sketch xz -5000
+line 5006 5069.7 5008.4 5068.5
+line 5008.4 5068.5 5008.4 5071.5
+line 5008.4 5071.5 5006 5070.3
+line 5006 5070.3 5006 5069.7
+sweep 0 curve 1 cut
+rotate y 90 body 11
+move -4920 -4960 -5040 body 11
+# The crank: a bar of 8 x 100 through the cross hole and two end pieces of 14 x 12.
+sketch xz -5100
+circle 5000 5000 8
+pull-region 0 100 add
+move -5000 -5010 -4950 body 12
+sketch xz -5012
+circle 5000 5000 14
+pull-region 0 12 add
+move -5000 -5022 -4950 body 13
+sketch xz -5012
+circle 5000 5000 14
+pull-region 0 12 add
+move -5000 -4910 -4950 body 14
+export-step target/demos/08-machine-vise/08-machine-vise.step
+info
