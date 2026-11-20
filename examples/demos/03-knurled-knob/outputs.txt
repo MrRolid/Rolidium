@@ -1,0 +1,4 @@
+export-stl @OUT@/@NAME@.stl
+# detail: turned over, the face with the recess, the bore and the keyway
+rotate x 180
+render @OUT@/@NAME@-detail.png 1920 1080 top
