@@ -1,0 +1,2 @@
+# detail: seen from the end of the rail (the profile of the rail, the channel of the carriage with 0.1 mm clearance)
+render @OUT@/@NAME@-detail.png 1920 1080 right

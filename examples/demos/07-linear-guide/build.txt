@@ -1,0 +1,120 @@
+# Linear guide of size 15: a rail 300 mm long with counterbored holes every 60 mm and a carriage with two end caps and a grease nipple; the rail runs along X.
+# Parts are built far away and moved in (parts that touch would be joined into one body by Pull).
+# bodies: 5
+# volume: 117533.047
+# no-overlap: yes
+sketch yz 5000
+line 5007.5 5000 5007.5 5004
+line 5007.5 5004 5006.3 5005.5
+line 5006.3 5005.5 5007.5 5007
+line 5007.5 5007 5007.5 5009
+line 5007.5 5009 5006.3 5010.5
+line 5006.3 5010.5 5007.5 5012
+line 5007.5 5012 5007.5 5015
+line 5007.5 5015 4992.5 5015
+line 4992.5 5015 4992.5 5012
+line 4992.5 5012 4993.7 5010.5
+line 4993.7 5010.5 4992.5 5009
+line 4992.5 5009 4992.5 5007
+line 4992.5 5007 4993.7 5005.5
+line 4993.7 5005.5 4992.5 5004
+line 4992.5 5004 4992.5 5000
+line 4992.5 5000 5007.5 5000
+pull-region 0 300 add
+sketch xy 4999
+circle 5030 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5030 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5090 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5090 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5150 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5150 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5210 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5210 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5270 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5270 5000 7.5
+pull-region 0 6.3 cut
+move -5000 -5000 -5000 body 1
+sketch yz 5000
+line 4976.5 5004 4992.4 5004
+line 4992.4 5004 4992.4 5004.6
+line 4992.4 5004.6 4993.5 5005.5
+line 4993.5 5005.5 4992.4 5006.4
+line 4992.4 5006.4 4992.4 5009.6
+line 4992.4 5009.6 4993.5 5010.5
+line 4993.5 5010.5 4992.4 5011.4
+line 4992.4 5011.4 4992.4 5015.1
+line 4992.4 5015.1 5007.6 5015.1
+line 5007.6 5015.1 5007.6 5011.4
+line 5007.6 5011.4 5006.5 5010.5
+line 5006.5 5010.5 5007.6 5009.6
+line 5007.6 5009.6 5007.6 5006.4
+line 5007.6 5006.4 5006.5 5005.5
+line 5006.5 5005.5 5007.6 5004.6
+line 5007.6 5004.6 5007.6 5004
+line 5007.6 5004 5023.5 5004
+line 5023.5 5004 5023.5 5024
+line 5023.5 5024 4976.5 5024
+line 4976.5 5024 4976.5 5004
+pull-region 0 60 add
+sketch xy 5014
+circle 5015 4981 4.2
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 4981 4.2
+pull-region 0 11 cut
+sketch xy 5014
+circle 5015 5019 4.2
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 5019 4.2
+pull-region 0 11 cut
+move -4880 -5000 -5000 body 2
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4886 -5000 -5000 body 3
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4820 -5000 -5000 body 4
+sketch yz 5000
+circle 5000 5000 3
+pull-region 0 2 add
+sketch yz 5002
+circle 5000 5000 5
+pull-region 0 4 add
+move -4814 -5000 -4981 body 5
+export-step target/demos/07-linear-guide/07-linear-guide.step
+info

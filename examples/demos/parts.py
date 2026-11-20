@@ -88,3 +88,56 @@ def staged(s, axis, sign, final, builder, *args):
     bodies = builder(s, f, *args)
     place(s, bodies, tuple(final[i] - STAGE[i] for i in range(3)))
     return bodies
+
+
+# ---- linear guide (size 15) ------------------------------------------------------------------------------------------------------------
+# Local frame: w along the rail, u across, v up; the rail stands on v = 0 and is symmetric about u = 0.
+RAIL_HALF = [(7.5, 0), (7.5, 4), (6.3, 5.5), (7.5, 7), (7.5, 9), (6.3, 10.5), (7.5, 12), (7.5, 15)]   # right side, from the foot to the top
+CAR_HALF = [(7.6, 4.0), (7.6, 4.6), (6.5, 5.5), (7.6, 6.4), (7.6, 9.6), (6.5, 10.5), (7.6, 11.4), (7.6, 15.1)]   # the channel of the carriage, 0.1 mm clear
+
+
+def mirrored(half):
+    """The closed outline: the right side going up, then the left side coming down."""
+    return half + [(-u, v) for (u, v) in reversed(half)]
+
+
+def linear_rail(s, f, length=300, pitch=60, first=30):
+    """Rail of size 15 (15 x 15, grooves for the balls on both sides), `length` long; counterbored holes (4.5 and 7.5 x 5.3 deep) every `pitch`. One body."""
+    start = s.n + 1
+    f.ext("w", 0, length, ("poly", mirrored(RAIL_HALF)), "add", joins=False)
+    w = first
+    while w < length - 10:
+        f.ext("v", -1, 16, ("circle", 0, w, 4.5), "cut")
+        f.ext("v", 15 - 5.3, 16, ("circle", 0, w, 7.5), "cut")
+        w += pitch
+    return [start]
+
+
+def carriage(s, f, length=60):
+    """Carriage of size 15: 47 wide, `length` long, 24 above the foot of the rail, with a channel that clears the rail by 0.1 mm, four holes for M5
+    (4.2 on 38 x 30). One body. Local w = 0 .. length."""
+    start = s.n + 1
+    # the outline: the left corner, the channel (left side up, right side down) and the right corner, then up and over the top
+    chan = [(-u, v) for (u, v) in CAR_HALF] + [(u, v) for (u, v) in reversed(CAR_HALF)]
+    outline = [(-23.5, 4)] + chan + [(23.5, 4), (23.5, 24), (-23.5, 24)]
+    f.ext("w", 0, length, ("poly", outline), "add", joins=False)
+    for sx in (-19, 19):
+        for dw in (-15, 15):
+            f.ext("v", 14, 25, ("circle", sx, length / 2 + dw, 4.2), "cut")
+    return [start]
+
+
+def end_cap(s, f):
+    """End cap of a carriage: 47 wide, 18 high above the foot of the rail, 6 thick (w = 0..6), with a channel for the rail. One body."""
+    start = s.n + 1
+    outline = [(-23.5, 4), (-7.7, 4), (-7.7, 15.2), (7.7, 15.2), (7.7, 4), (23.5, 4), (23.5, 22), (-23.5, 22)]
+    f.ext("w", 0, 6, ("poly", outline), "add", joins=False)
+    return [start]
+
+
+def grease_nipple(s, f):
+    """A grease nipple: a cylinder of 5 x 4 on a neck of 3 x 2 (the local origin is where it meets the cap, it points to +w). One body."""
+    start = s.n + 1
+    f.ext("w", 0, 2, ("circle", 0, 0, 3), "add", joins=False)
+    f.ext("w", 2, 6, ("circle", 0, 0, 5), "add")
+    return [start]
