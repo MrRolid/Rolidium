@@ -656,3 +656,14 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 There is nothing to add here: the new volume lies entirely inside the body => Hier gibt es nichts hinzuzufügen: Das neue Volumen liegt vollständig im Körper
 The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => Das neue Volumen berührt einen Körper nur an einer Kante oder in einem Punkt, deshalb konnte es nicht angefügt werden und ist ein eigener Körper
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Diese Kanten liegen dort, wo zwei getrennte Körper aufeinandertreffen. Die Körper sind nicht verbunden, daher fügt eine Rundung oder Fase über die Fuge hinweg kein Material hinzu. Kombiniere die Körper zuerst.
+
+# ---- First steps guide ----
+Click once to place the centre of a circle, then click again to set its size. You can also type the size. Other shapes are in the top bar. => Klicke einmal auf den Mittelpunkt des Kreises und noch einmal, um seine Größe festzulegen. Du kannst die Größe auch eintippen. Weitere Formen findest du in der oberen Leiste.
+Your shape is ready. Now pull it out into space: press P (Pull). => Deine Form ist fertig. Zieh sie jetzt in den Raum: Drücke P (Ziehen).
+Grab the shape and drag with the mouse, or type the height and press Enter. => Fasse die Form an und ziehe mit der Maus, oder tippe die Höhe ein und drücke Enter.
+This is your first body. Turn the view: drag with the right or middle mouse button. Move it: the same with Shift held. Zoom: mouse wheel. To draw on any flat face, select it and press K. => Das ist dein erster Körper. Ansicht drehen: mit der rechten oder mittleren Maustaste ziehen. Verschieben: dasselbe mit gedrückter Umschalttaste. Zoomen: Mausrad. Auf jeder ebenen Fläche kannst du weiterzeichnen: wähle sie aus und drücke K.
+Close => Schließen
+Do not show the guide again => Den Assistenten nicht mehr anzeigen
+Run the guide again => Assistenten erneut starten
+A new document starts with a sketch on the XY plane => Ein neues Dokument beginnt mit einer Skizze auf der XY-Ebene
+Show the guide to the first steps => Den Assistenten für die ersten Schritte anzeigen

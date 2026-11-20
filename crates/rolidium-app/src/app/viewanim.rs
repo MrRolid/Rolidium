@@ -122,7 +122,14 @@ impl App {
     pub(super) fn empty_hint_paint(&self, ui: &egui::Ui, rect: Rect) {
         let empty =
             self.doc.bodies().is_empty() && self.doc.sketches().is_empty() && self.doc.curves().is_empty();
-        if !empty || self.sk.is_some() || self.plane_pick || !self.idle() || self.tool != Tool::Select {
+        // the guide has its own hints in an empty document; this quiet text is for when there is none
+        if !empty
+            || self.sk.is_some()
+            || self.plane_pick
+            || !self.idle()
+            || self.tool != Tool::Select
+            || self.guide.due().is_some()
+        {
             return;
         }
         let col = ui.visuals().text_color().gamma_multiply(0.55);

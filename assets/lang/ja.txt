@@ -656,3 +656,14 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 There is nothing to add here: the new volume lies entirely inside the body => 追加するものがありません。新しい体積は完全にボディの内側にあります
 The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => 新しい体積はボディと辺または点でしか接していないため結合できず、独立したボディになりました
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => これらの辺は二つの別々のボディが接する場所にあります。ボディは結合されていないため、丸めや面取りでは継ぎ目をまたいで材料が追加されません。先にボディを結合してください。
+
+# ---- First steps guide ----
+Click once to place the centre of a circle, then click again to set its size. You can also type the size. Other shapes are in the top bar. => 円の中心をクリックし、もう一度クリックして大きさを決めます。大きさは数字で入力することもできます。ほかの図形は上のバーにあります。
+Your shape is ready. Now pull it out into space: press P (Pull). => 図形ができました。次は立体に引き出しましょう。P キー（プル）を押します。
+Grab the shape and drag with the mouse, or type the height and press Enter. => 図形をつかんでマウスでドラッグするか、高さを入力して Enter キーを押します。
+This is your first body. Turn the view: drag with the right or middle mouse button. Move it: the same with Shift held. Zoom: mouse wheel. To draw on any flat face, select it and press K. => これが最初のボディです。視点の回転は右ボタンまたは中ボタンのドラッグ、移動は Shift を押しながら同じ操作、拡大縮小はマウスホイールです。平らな面ならどこにでも描けます。面を選んで K キーを押してください。
+Close => 閉じる
+Do not show the guide again => ガイドを今後表示しない
+Run the guide again => ガイドをもう一度始める
+A new document starts with a sketch on the XY plane => 新しいドキュメントは XY 平面のスケッチから始まる
+Show the guide to the first steps => 最初のステップのガイドを表示する

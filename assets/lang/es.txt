@@ -656,3 +656,14 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 There is nothing to add here: the new volume lies entirely inside the body => No hay nada que añadir: el nuevo volumen queda por completo dentro del cuerpo
 The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => El nuevo volumen solo toca un cuerpo por un borde o en un punto, así que no se pudo unir a él y es un cuerpo propio
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Estos bordes están donde se tocan dos cuerpos separados. Los cuerpos no están unidos, así que un redondeo o chaflán no añadiría material a través de la junta. Combina primero los cuerpos.
+
+# ---- First steps guide ----
+Click once to place the centre of a circle, then click again to set its size. You can also type the size. Other shapes are in the top bar. => Haz clic una vez para colocar el centro del círculo y otra vez para fijar su tamaño. También puedes escribir el tamaño. Otras formas están en la barra superior.
+Your shape is ready. Now pull it out into space: press P (Pull). => Tu forma está lista. Ahora sácala al espacio: pulsa P (Estirar).
+Grab the shape and drag with the mouse, or type the height and press Enter. => Agarra la forma y arrastra con el ratón, o escribe la altura y pulsa Intro.
+This is your first body. Turn the view: drag with the right or middle mouse button. Move it: the same with Shift held. Zoom: mouse wheel. To draw on any flat face, select it and press K. => Este es tu primer cuerpo. Girar la vista: arrastra con el botón derecho o central del ratón. Moverla: lo mismo con Mayús pulsada. Zoom: rueda del ratón. Puedes dibujar sobre cualquier cara plana: selecciónala y pulsa K.
+Close => Cerrar
+Do not show the guide again => No mostrar más la guía
+Run the guide again => Iniciar la guía de nuevo
+A new document starts with a sketch on the XY plane => Un documento nuevo empieza con un boceto en el plano XY
+Show the guide to the first steps => Mostrar la guía de los primeros pasos

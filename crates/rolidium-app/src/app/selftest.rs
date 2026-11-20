@@ -79,7 +79,8 @@ impl App {
             }
         }
         ctx.request_repaint();
-        if !self.idle() || st.shot_pending.is_some() || self.meshes.is_empty() {
+        // the last steps start from an empty document
+        if !self.idle() || st.shot_pending.is_some() || (self.meshes.is_empty() && st.step < 36) {
             self.selftest = Some(st);
             return;
         }
@@ -672,6 +673,40 @@ impl App {
                 shot(&mut st, ctx, &name);
             }
             36 => {
+                // a new document starts in a sketch on XY with the Circle tool, and the view turns square to the plane
+                self.settings.new_doc_sketch = true;
+                self.perform(Pending::New);
+                st.wait_frames = 3;
+            }
+            37 => {
+                let started = self
+                    .sk
+                    .as_ref()
+                    .is_some_and(|s| s.tool == SkTool::Circle && s.plane.same_plane(&PlaneDef::base()));
+                check(&mut st, "a new document starts in a sketch on XY with the Circle tool", started);
+                check(&mut st, "the guide is running in a new document", self.guide.active);
+                if self.view_anim.is_some() {
+                    // the animation (with its pause) is still running: look again next frame
+                    self.selftest = Some(st);
+                    return;
+                }
+                let mut top = self.camera;
+                top.set_view(StandardView::Top);
+                check(
+                    &mut st,
+                    "after the animation the view is square to the plane",
+                    (self.camera.pitch - top.pitch).abs() < 1e-3,
+                );
+                shot(&mut st, ctx, "first-start-sketch");
+            }
+            38 => {
+                // an opened (here: replaced) document does not start a sketch or the guide
+                self.replace_document(Document::new(), None);
+                check(&mut st, "an opened document starts no sketch", self.sk.is_none());
+                check(&mut st, "an opened document does not start the guide", !self.guide.active);
+                st.wait_frames = 2;
+            }
+            39 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

@@ -12,6 +12,7 @@ mod dirs;
 mod exportdialog;
 mod filedialog;
 mod graphics;
+mod guide;
 mod i18n;
 mod icons;
 mod logging;

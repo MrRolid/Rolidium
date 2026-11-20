@@ -31,6 +31,7 @@ mod curvetools;
 mod dock;
 mod edgepull;
 mod files;
+mod guide_ui;
 mod lofttool;
 mod measuretool;
 mod movetool;
@@ -295,6 +296,9 @@ pub struct App {
     rename: Option<(ItemId, String)>,
     chain_cache: std::cell::RefCell<ChainCache>,
     /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
+    guide: crate::guide::Guide,
+    /// Where the Pull button of the left column was drawn (the guide points at it).
+    pull_btn_rect: Rect,
     joint_cache: std::cell::RefCell<Option<((u64, BodyId, Vec<u32>), bool)>>,
     file_path: Option<PathBuf>,
     file_dialog: Option<crate::filedialog::FileDialog>,
@@ -345,6 +349,7 @@ impl App {
         cc.egui_ctx
             .all_styles_mut(|st| st.interaction.tooltip_delay = 0.5);
         let settings = Settings::load();
+        let guide = crate::guide::Guide::new(settings.guide_mask, settings.guide_enabled);
         i18n::set_language(&settings.language);
         apply_theme(&cc.egui_ctx, &settings.theme);
         install_fallback_fonts(&cc.egui_ctx);
@@ -466,6 +471,8 @@ impl App {
             ctx_target: None,
             rename: None,
             chain_cache: Default::default(),
+            guide,
+            pull_btn_rect: Rect::NOTHING,
             joint_cache: Default::default(),
             file_path: None,
             file_dialog: None,
@@ -501,6 +508,9 @@ impl App {
         }
         if let Some(p) = open_path {
             app.perform(Pending::Open(p));
+        } else if !demo && app.selftest.is_none() && app.recovery.is_none() {
+            // a new empty document: straight into a sketch, the isometric view shown for a moment first
+            app.start_first_steps(guide_ui::FIRST_PAUSE);
         }
         app
     }
@@ -1981,6 +1991,7 @@ impl App {
             return;
         }
         let mut open = true;
+        let mut restart_guide = false;
         let addr = crate::support::ADDRESSES[self.donate_idx.min(2)];
         let scroll = std::mem::take(&mut self.about_scroll);
         egui::Window::new(tr("About"))
@@ -1996,6 +2007,9 @@ impl App {
                 ui.label(trf("Developed by {}", &["Martin Vorel".to_string()]));
                 ui.label(trf("Published by {}", &["Rolid spol. s r.o. (connect@rolid.com)".to_string()]));
                 ui.label(tr("Licence: AGPL-3.0-only. Files you create belong to you."));
+                if ui.button(tr("Run the guide again")).clicked() {
+                    restart_guide = true;
+                }
                 ui.horizontal(|ui| {
                     if ui.button(tr("Feedback and bug reports")).clicked() {
                         crate::diagnose::open_path(std::path::Path::new(crate::ISSUES_URL));
@@ -2083,6 +2097,10 @@ impl App {
             });
         if !open {
             self.about_open = false;
+        }
+        if restart_guide {
+            self.about_open = false;
+            self.restart_guide();
         }
     }
 
@@ -3228,6 +3246,22 @@ impl App {
                 {
                     changed = true;
                 }
+                if ui
+                    .checkbox(
+                        &mut self.settings.new_doc_sketch,
+                        tr("A new document starts with a sketch on the XY plane"),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+                if ui
+                    .checkbox(&mut self.settings.guide_enabled, tr("Show the guide to the first steps"))
+                    .changed()
+                {
+                    self.guide.enabled = self.settings.guide_enabled;
+                    changed = true;
+                }
                 ui.horizontal(|ui| {
                     ui.label(tr("Graphics backend"));
                     let before = self.settings.backend.clone();
@@ -3401,6 +3435,7 @@ impl eframe::App for App {
         self.bench_tick(&ctx);
         self.poll_worker();
         self.selftest_tick(&ctx);
+        self.guide_tick();
 
         egui::Panel::top("toolbar")
             .resizable(false)
@@ -3816,6 +3851,7 @@ impl eframe::App for App {
         self.handle_export_dialog(&ctx);
         self.settings_window(&ctx);
         self.about_window(&ctx);
+        self.guide_window(&ctx);
         self.rename_window(&ctx);
         self.dialogs(&ctx);
         self.autosave_tick();

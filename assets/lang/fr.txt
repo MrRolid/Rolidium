@@ -656,3 +656,14 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 There is nothing to add here: the new volume lies entirely inside the body => Il n'y a rien à ajouter : le nouveau volume se trouve entièrement dans le corps
 The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => Le nouveau volume ne touche un corps que par une arête ou en un point ; il n'a donc pas pu lui être joint et forme un corps à part
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Ces arêtes se trouvent là où deux corps séparés se touchent. Les corps ne sont pas joints, donc un arrondi ou un chanfrein n'ajouterait pas de matière à travers la jonction. Combinez d'abord les corps.
+
+# ---- First steps guide ----
+Click once to place the centre of a circle, then click again to set its size. You can also type the size. Other shapes are in the top bar. => Clique une fois pour placer le centre du cercle, puis une seconde fois pour fixer sa taille. Tu peux aussi taper la taille. D'autres formes sont dans la barre du haut.
+Your shape is ready. Now pull it out into space: press P (Pull). => Ta forme est prête. Sors-la maintenant dans l'espace : appuie sur P (Tirer).
+Grab the shape and drag with the mouse, or type the height and press Enter. => Attrape la forme et tire avec la souris, ou tape la hauteur et appuie sur Entrée.
+This is your first body. Turn the view: drag with the right or middle mouse button. Move it: the same with Shift held. Zoom: mouse wheel. To draw on any flat face, select it and press K. => Voici ton premier corps. Tourner la vue : glisse avec le bouton droit ou du milieu de la souris. La déplacer : pareil avec Maj enfoncée. Zoom : molette de la souris. Tu peux dessiner sur n'importe quelle face plane : sélectionne-la et appuie sur K.
+Close => Fermer
+Do not show the guide again => Ne plus afficher le guide
+Run the guide again => Relancer le guide
+A new document starts with a sketch on the XY plane => Un nouveau document commence par une esquisse sur le plan XY
+Show the guide to the first steps => Afficher le guide des premiers pas

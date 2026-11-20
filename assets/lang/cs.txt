@@ -656,3 +656,14 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 There is nothing to add here: the new volume lies entirely inside the body => Není co přidat: nový objem leží celý uvnitř tělesa
 The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => Nový objem se tělesa dotýká jen hranou nebo bodem, takže se k němu nedalo připojit a je to samostatné těleso
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Tyto hrany leží tam, kde se stýkají dvě samostatná tělesa. Tělesa nejsou spojená, takže zaoblení ani zkosení nepřidá materiál přes styk. Nejdřív tělesa spoj nástrojem Kombinovat.
+
+# ---- First steps guide ----
+Click once to place the centre of a circle, then click again to set its size. You can also type the size. Other shapes are in the top bar. => Klikni jednou, kam má přijít střed kružnice, a znovu, jak má být velká. Velikost můžeš i napsat. Další tvary jsou v horní liště.
+Your shape is ready. Now pull it out into space: press P (Pull). => Tvar je hotový. Teď ho vytáhni do prostoru: stiskni P (Tažení).
+Grab the shape and drag with the mouse, or type the height and press Enter. => Chyť tvar a táhni myší, nebo napiš výšku a potvrď Enterem.
+This is your first body. Turn the view: drag with the right or middle mouse button. Move it: the same with Shift held. Zoom: mouse wheel. To draw on any flat face, select it and press K. => Tohle je tvé první těleso. Otočení pohledu: táhni pravým nebo prostředním tlačítkem myši. Posun: totéž se stisknutým Shiftem. Přiblížení: kolečko myši. Na kteroukoli rovnou plochu můžeš kreslit dál: vyber ji a stiskni K.
+Close => Zavřít
+Do not show the guide again => Průvodce už nezobrazovat
+Run the guide again => Spustit průvodce znovu
+A new document starts with a sketch on the XY plane => Nový dokument začíná skicou na rovině XY
+Show the guide to the first steps => Zobrazovat průvodce prvními kroky

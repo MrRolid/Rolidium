@@ -100,6 +100,7 @@ impl App {
                 self.replace_document(Document::new(), None);
                 self.request_meshes();
                 self.set_status("New document", false);
+                self.start_first_steps(0.0);
             }
             Pending::OpenDialog => {
                 self.file_dialog = Some(self.new_file_dialog(Purpose::Open, ""));
@@ -118,7 +119,7 @@ impl App {
         }
     }
 
-    fn replace_document(&mut self, doc: Document, path: Option<PathBuf>) {
+    pub(super) fn replace_document(&mut self, doc: Document, path: Option<PathBuf>) {
         self.doc = doc;
         self.file_path = path;
         self.clear_selection();
@@ -133,6 +134,8 @@ impl App {
         self.layers_changed = true;
         self.fitted = false;
         self.autosave_state = None;
+        // a document that was opened is not where the guide starts; a new one calls `start_first_steps` afterwards
+        self.guide.document_started(false);
         self.set_meshes(Vec::new());
     }
 

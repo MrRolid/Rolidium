@@ -178,10 +178,12 @@ fn add_button(ui: &mut egui::Ui, b: egui::Button<'_>, why_not: Option<&str>, loo
         ui.scope(|ui| {
             let v = ui.visuals_mut();
             let c = v.strong_text_color();
+            // a button that only senses hovering is drawn with the non-interactive look: its text colour is set too
             for w in [
                 &mut v.widgets.inactive,
                 &mut v.widgets.hovered,
                 &mut v.widgets.active,
+                &mut v.widgets.noninteractive,
             ] {
                 w.fg_stroke.color = c;
             }

@@ -452,9 +452,11 @@ impl App {
             ),
         ] {
             let sel = self.tool == tool && self.sk.is_none();
-            if icons::tool_button_why(ui, &self.help, id, &format!("{} ({key})", tr(name)), sel, why)
-                .clicked()
-            {
+            let r = icons::tool_button_why(ui, &self.help, id, &format!("{} ({key})", tr(name)), sel, why);
+            if tool == Tool::Pull {
+                self.pull_btn_rect = r.rect;
+            }
+            if r.clicked() {
                 self.tool = tool;
                 self.leave_sketch();
                 if tool == Tool::Loft {
