@@ -1,0 +1,7 @@
+# detail 1: only the folded box, closer
+delete body 1
+delete body 1
+delete body 1
+delete body 1
+delete body 1
+render @OUT@/@NAME@-detail.png 1920 1080 iso

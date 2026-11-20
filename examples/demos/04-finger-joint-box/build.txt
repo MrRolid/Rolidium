@@ -1,0 +1,232 @@
+# Finger-joint box for a laser cutter: 120 x 80 x 60, material 3 mm, fingers about 10 mm. Five plates (bottom and four walls), once folded up and once laid flat.
+# The five plates laid flat (bodies 1 to 5): bottom, front, back, left, right. Each is a rectangle with the slots cut out of it;
+# the bottom is a core of 114 x 74 with the tabs added to it.
+# bodies: 10
+# volume: 190296.002
+# no-overlap: yes
+sketch xy
+rect 163 3 277 77
+pull-region 0 3 add
+sketch xy
+rect 163 0 173.3636 3
+pull-region 0 3 add
+sketch xy
+rect 183.7273 0 194.0909 3
+pull-region 0 3 add
+sketch xy
+rect 204.4545 0 214.8182 3
+pull-region 0 3 add
+sketch xy
+rect 225.1818 0 235.5455 3
+pull-region 0 3 add
+sketch xy
+rect 245.9091 0 256.2727 3
+pull-region 0 3 add
+sketch xy
+rect 266.6364 0 277 3
+pull-region 0 3 add
+sketch xy
+rect 163 77 173.3636 80
+pull-region 0 3 add
+sketch xy
+rect 183.7273 77 194.0909 80
+pull-region 0 3 add
+sketch xy
+rect 204.4545 77 214.8182 80
+pull-region 0 3 add
+sketch xy
+rect 225.1818 77 235.5455 80
+pull-region 0 3 add
+sketch xy
+rect 245.9091 77 256.2727 80
+pull-region 0 3 add
+sketch xy
+rect 266.6364 77 277 80
+pull-region 0 3 add
+sketch xy
+rect 160 3 163 13.5714
+pull-region 0 3 add
+sketch xy
+rect 160 24.1429 163 34.7143
+pull-region 0 3 add
+sketch xy
+rect 160 45.2857 163 55.8571
+pull-region 0 3 add
+sketch xy
+rect 160 66.4286 163 77
+pull-region 0 3 add
+sketch xy
+rect 277 3 280 13.5714
+pull-region 0 3 add
+sketch xy
+rect 277 24.1429 280 34.7143
+pull-region 0 3 add
+sketch xy
+rect 277 45.2857 280 55.8571
+pull-region 0 3 add
+sketch xy
+rect 277 66.4286 280 77
+pull-region 0 3 add
+sketch xy
+rect 160 100 280 160
+pull-region 0 3 add
+sketch xy -1
+rect 163 99 173.3636 103
+pull-region 0 5 cut
+sketch xy -1
+rect 183.7273 99 194.0909 103
+pull-region 0 5 cut
+sketch xy -1
+rect 204.4545 99 214.8182 103
+pull-region 0 5 cut
+sketch xy -1
+rect 225.1818 99 235.5455 103
+pull-region 0 5 cut
+sketch xy -1
+rect 245.9091 99 256.2727 103
+pull-region 0 5 cut
+sketch xy -1
+rect 266.6364 99 277 103
+pull-region 0 5 cut
+sketch xy -1
+rect 159 110 163 120
+pull-region 0 5 cut
+sketch xy -1
+rect 277 110 281 120
+pull-region 0 5 cut
+sketch xy -1
+rect 159 130 163 140
+pull-region 0 5 cut
+sketch xy -1
+rect 277 130 281 140
+pull-region 0 5 cut
+sketch xy -1
+rect 159 150 163 160
+pull-region 0 5 cut
+sketch xy -1
+rect 277 150 281 160
+pull-region 0 5 cut
+sketch xy
+rect 160 180 280 240
+pull-region 0 3 add
+sketch xy -1
+rect 163 179 173.3636 183
+pull-region 0 5 cut
+sketch xy -1
+rect 183.7273 179 194.0909 183
+pull-region 0 5 cut
+sketch xy -1
+rect 204.4545 179 214.8182 183
+pull-region 0 5 cut
+sketch xy -1
+rect 225.1818 179 235.5455 183
+pull-region 0 5 cut
+sketch xy -1
+rect 245.9091 179 256.2727 183
+pull-region 0 5 cut
+sketch xy -1
+rect 266.6364 179 277 183
+pull-region 0 5 cut
+sketch xy -1
+rect 159 190 163 200
+pull-region 0 5 cut
+sketch xy -1
+rect 277 190 281 200
+pull-region 0 5 cut
+sketch xy -1
+rect 159 210 163 220
+pull-region 0 5 cut
+sketch xy -1
+rect 277 210 281 220
+pull-region 0 5 cut
+sketch xy -1
+rect 159 230 163 240
+pull-region 0 5 cut
+sketch xy -1
+rect 277 230 281 240
+pull-region 0 5 cut
+sketch xy
+rect 300 0 380 60
+pull-region 0 3 add
+sketch xy -1
+rect 303 -1 313.5714 3
+pull-region 0 5 cut
+sketch xy -1
+rect 324.1429 -1 334.7143 3
+pull-region 0 5 cut
+sketch xy -1
+rect 345.2857 -1 355.8571 3
+pull-region 0 5 cut
+sketch xy -1
+rect 366.4286 -1 377 3
+pull-region 0 5 cut
+sketch xy -1
+rect 299 0 303 10
+pull-region 0 5 cut
+sketch xy -1
+rect 377 0 381 10
+pull-region 0 5 cut
+sketch xy -1
+rect 299 20 303 30
+pull-region 0 5 cut
+sketch xy -1
+rect 377 20 381 30
+pull-region 0 5 cut
+sketch xy -1
+rect 299 40 303 50
+pull-region 0 5 cut
+sketch xy -1
+rect 377 40 381 50
+pull-region 0 5 cut
+sketch xy
+rect 300 80 380 140
+pull-region 0 3 add
+sketch xy -1
+rect 303 79 313.5714 83
+pull-region 0 5 cut
+sketch xy -1
+rect 324.1429 79 334.7143 83
+pull-region 0 5 cut
+sketch xy -1
+rect 345.2857 79 355.8571 83
+pull-region 0 5 cut
+sketch xy -1
+rect 366.4286 79 377 83
+pull-region 0 5 cut
+sketch xy -1
+rect 299 80 303 90
+pull-region 0 5 cut
+sketch xy -1
+rect 377 80 381 90
+pull-region 0 5 cut
+sketch xy -1
+rect 299 100 303 110
+pull-region 0 5 cut
+sketch xy -1
+rect 377 100 381 110
+pull-region 0 5 cut
+sketch xy -1
+rect 299 120 303 130
+pull-region 0 5 cut
+sketch xy -1
+rect 377 120 381 130
+pull-region 0 5 cut
+# Copies of the plates stood up into the folded box (bodies 6 to 10): turn about its middle, then move into place.
+# plate 1
+move 0 0 0 copy body 1
+move -160 0 0 body 6
+# plate 2
+rotate x 90 copy body 2
+move -160 -128.5 28.5 body 7
+# plate 3
+rotate x 90 copy body 3
+move -160 -131.5 28.5 body 8
+# plate 4
+rotate x 90 copy body 4
+rotate z 90 body 9
+move -338.5 10 28.5 body 9
+# plate 5
+rotate x 90 copy body 5
+rotate z 90 body 10
+move -221.5 -70 28.5 body 10
+info
