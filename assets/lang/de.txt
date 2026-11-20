@@ -654,7 +654,7 @@ too large for the neighbouring faces, or the edges meet in a way that cannot be 
 
 # ---- Joining new volumes, edges at a joint of bodies ----
 There is nothing to add here: the new volume lies entirely inside the body => Hier gibt es nichts hinzuzufügen: Das neue Volumen liegt vollständig im Körper
-The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => Das neue Volumen berührt einen Körper nur an einer Kante oder in einem Punkt, deshalb konnte es nicht angefügt werden und ist ein eigener Körper
+The new volume touches a body only along an edge or at a point, so it stays a separate body. Pull it down into the hole, or so that it shares a face with the body: then it joins => Das neue Volumen berührt den Körper nur an einer Kante oder in einem Punkt und bleibt deshalb ein eigener Körper. Ziehen Sie es nach unten in das Loch oder so, dass es eine Fläche mit dem Körper teilt: dann verbindet es sich
 These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Diese Kanten liegen dort, wo zwei getrennte Körper aufeinandertreffen. Die Körper sind nicht verbunden, daher fügt eine Rundung oder Fase über die Fuge hinweg kein Material hinzu. Kombiniere die Körper zuerst.
 
 # ---- First steps guide ----

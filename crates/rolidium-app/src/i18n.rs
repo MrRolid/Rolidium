@@ -471,7 +471,7 @@ mod coverage {
         "The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works.",
         "The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances",
         "too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered",
-        "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own",
+        "The new volume touches a body only along an edge or at a point, so it stays a separate body. Pull it down into the hole, or so that it shares a face with the body: then it joins",
         "There is no such edge",
         "These edges do not form a closed loop, so there is nothing to fill",
         "These edges do not lie in one plane, so they cannot be filled with a flat region",
@@ -583,16 +583,23 @@ mod coverage {
         assert!(bad.is_empty(), "Czech text outside assets/lang: {bad:?}");
     }
 
+    /// There are six languages: English (the language of the source texts, so it needs no file) and the five of the files. The tests
+    /// below go through `EMBEDDED`, so every language that is shipped is checked and a new one cannot be forgotten.
+    #[test]
+    fn there_are_six_languages_and_the_tests_cover_all_of_them() {
+        let mut codes: Vec<&str> = EMBEDDED.iter().map(|(c, _)| *c).collect();
+        codes.push("en");
+        codes.sort_unstable();
+        assert_eq!(codes, vec!["cs", "de", "en", "es", "fr", "ja"]);
+        // English is the identity: a message is shown as it is when no translation is loaded
+        set_language("en");
+        assert_eq!(tr("Undo"), "Undo");
+    }
+
     /// Every language file has exactly the keys of the others, with the same placeholders.
     #[test]
     fn all_language_files_have_the_same_keys_and_placeholders() {
-        let files = [
-            ("cs", include_str!("../../../assets/lang/cs.txt")),
-            ("de", include_str!("../../../assets/lang/de.txt")),
-            ("es", include_str!("../../../assets/lang/es.txt")),
-            ("fr", include_str!("../../../assets/lang/fr.txt")),
-            ("ja", include_str!("../../../assets/lang/ja.txt")),
-        ];
+        let files: Vec<(&str, &str)> = EMBEDDED.to_vec();
         let entries = |text: &str| -> Vec<(String, String)> {
             text.lines()
                 .filter(|l| !l.trim().is_empty() && !l.starts_with('#') && !l.starts_with('@'))
@@ -691,13 +698,7 @@ mod coverage {
             .unwrap_err()
             .to_string(),
         );
-        for (code, text) in [
-            ("cs", include_str!("../../../assets/lang/cs.txt")),
-            ("de", include_str!("../../../assets/lang/de.txt")),
-            ("es", include_str!("../../../assets/lang/es.txt")),
-            ("fr", include_str!("../../../assets/lang/fr.txt")),
-            ("ja", include_str!("../../../assets/lang/ja.txt")),
-        ] {
+        for (code, text) in EMBEDDED.iter().copied() {
             let c = Catalog::parse(text);
             for m in &messages {
                 assert_ne!(&c.translate(m), m, "{code}: not translated: {m}");

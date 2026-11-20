@@ -1030,7 +1030,7 @@ impl Job {
                         } else {
                             if !touching.is_empty() {
                                 notice = Some(
-                                    "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own".to_string(),
+                                    "The new volume touches a body only along an edge or at a point, so it stays a separate body. Pull it down into the hole, or so that it shares a face with the body: then it joins".to_string(),
                                 );
                             }
                             let id = self.next_id;
@@ -1064,7 +1064,7 @@ impl Job {
                             // touch the body at all: that is a new, separate body.
                             Err(KernelError::SplitResult) if op == BooleanOp::Fuse => {
                                 notice = Some(
-                                    "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own".to_string(),
+                                    "The new volume touches a body only along an edge or at a point, so it stays a separate body. Pull it down into the hole, or so that it shares a face with the body: then it joins".to_string(),
                                 );
                                 let id = self.next_id;
                                 st.body_counter += 1;
