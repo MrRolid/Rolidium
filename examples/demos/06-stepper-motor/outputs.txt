@@ -1,0 +1,2 @@
+# detail: seen from the front, along the shaft
+render @OUT@/@NAME@-detail.png 1920 1080 right

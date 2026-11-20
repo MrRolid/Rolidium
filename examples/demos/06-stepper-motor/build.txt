@@ -1,0 +1,137 @@
+# NEMA 23 stepper motor with a mounting bracket, a clamp coupling and screws; the shaft points along +X. Nine bodies.
+# Every part is built far away (the staging area) and moved into place, because parts that touch would be joined into one body.
+# bodies: 9
+# volume: 225089.134
+# no-overlap: yes
+sketch yz 4995
+rect 4971.8 4971.8 5028.2 5028.2
+pull-region 0 5 add
+sketch yz 4944
+rect 4972.2 4972.2 5027.8 5027.8
+pull-region 0 51 add
+sketch yz 4939
+rect 4978 4978 5022 5022
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 38.1
+pull-region 0 1.6 add
+sketch yz 5000
+circle 5000 5000 7.98
+pull-region 0 21 add
+sketch xz -5005
+rect 5006 4995 5021 5005
+pull-region 0 1.5 cut
+sketch yz 4995.5
+circle 4976.43 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 4972.2
+sketch yz 4995.5
+circle 4976.43 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 5027.8
+sketch yz 4995.5
+circle 5023.57 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 4972.2
+sketch yz 4995.5
+circle 5023.57 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 5027.8
+sketch yz 4950
+rect 4994 5027.8 5006 5034
+pull-region 0 12 add
+move -5000 -5000 -5000 body 1
+sketch xz -5030
+line 5000 4965 5060 4965
+line 5060 4965 5060 4970
+line 5060 4970 5005 4970
+line 5005 4970 5005 5030
+line 5005 5030 5000 5030
+line 5000 5030 5000 4965
+pull-region 0 60 add
+sketch yz 4999
+circle 5000 5000 38.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 5023.57 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 5023.57 5.5
+pull-region 0 7 cut
+sketch xy 4964
+line 5026 4983.3 5034 4983.3
+arc 5034 4983.3 5037.3 4980 5034 4976.7
+line 5034 4976.7 5026 4976.7
+arc 5026 4976.7 5022.7 4980 5026 4983.3
+pull-region 0 7 cut
+sketch xy 4964
+line 5026 5023.3 5034 5023.3
+arc 5034 5023.3 5037.3 5020 5034 5016.7
+line 5034 5016.7 5026 5016.7
+arc 5026 5016.7 5022.7 5020 5026 5023.3
+pull-region 0 7 cut
+move -5000 -5000 -5000 body 2
+sketch yz 5000
+circle 5000 5000 25
+pull-region 0 30 add
+sketch yz 4999
+circle 5000 5000 8
+pull-region 0 32 cut
+sketch xy 4999.5
+rect 4999 5000 5031 5013.5
+pull-region 0 1 cut
+sketch xy 4986
+circle 5007.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xy 5008
+circle 5007.5 5008.5 6.2
+pull-region 0 6 cut
+sketch xy 4986
+circle 5022.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xy 5008
+circle 5022.5 5008.5 6.2
+pull-region 0 6 cut
+move -4994 -5000 -5000 body 3
+sketch yz 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 4990.5
+circle 5000 5000 4.9
+pull-region 0 9.5 add
+sketch yz 5002.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4995 -5023.57 -5023.57 body 4
+move 0.0000 47.1400 0.0000 copy body 4
+move 0.0000 0.0000 47.1400 copy body 4
+move 0.0000 47.1400 47.1400 copy body 4
+sketch xy 5000
+circle 5000 5000 5.5
+pull-region 0 3 add
+sketch xy 4983
+circle 5000 5000 2.9
+pull-region 0 17 add
+sketch xy 5001.5
+line 5001.4434 5000 5000.7217 5001.25
+line 5000.7217 5001.25 4999.2783 5001.25
+line 4999.2783 5001.25 4998.5566 5000
+line 4998.5566 5000 4999.2783 4998.75
+line 4999.2783 4998.75 5000.7217 4998.75
+line 5000.7217 4998.75 5001.4434 5000
+pull-region 0 2.5 cut
+move -4986.5 -4991.5 -4992 body 8
+move 15.0000 0.0000 0.0000 copy body 8
+export-step target/demos/06-stepper-motor/06-stepper-motor.step
+info
