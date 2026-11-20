@@ -468,14 +468,30 @@ impl App {
                 }
             }
         }
-        ui.label(egui::RichText::new(tr("Edges")).strong());
         let no_edge = if self.edge_sel.is_empty() {
             Some("Select an edge first")
         } else {
             None
         };
-        // side by side: the left column must fit a window 720 px high
+        let undo_why = busy.or(if self.doc.can_undo() {
+            None
+        } else {
+            Some("There is nothing to undo")
+        });
+        let redo_why = busy.or(if self.doc.can_redo() {
+            None
+        } else {
+            Some("There is nothing to redo")
+        });
+        // Edges and Edit side by side: the left column must fit a window 720 px high
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            ui.label(egui::RichText::new(tr("Edges")).strong());
+            ui.add_space(34.0 * 2.0 + 3.0 - ui.min_rect().width().min(70.0) + 4.0);
+            ui.label(egui::RichText::new(tr("Edit")).strong());
+        });
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
             if icons::icon_button_why(
                 ui,
                 &self.help,
@@ -483,7 +499,7 @@ impl App {
                 &tr("Round"),
                 !self.edge_chamfer,
                 no_edge,
-                62.0,
+                34.0,
                 "",
             )
             .clicked()
@@ -497,35 +513,22 @@ impl App {
                 &tr("Chamfer"),
                 self.edge_chamfer,
                 no_edge,
-                62.0,
+                34.0,
                 "",
             )
             .clicked()
             {
                 self.edge_chamfer = true;
             }
-        });
-        ui.separator();
-        ui.label(egui::RichText::new(tr("Edit")).strong());
-        ui.horizontal(|ui| {
-            let undo_why = busy.or(if self.doc.can_undo() {
-                None
-            } else {
-                Some("There is nothing to undo")
-            });
-            let redo_why = busy.or(if self.doc.can_redo() {
-                None
-            } else {
-                Some("There is nothing to redo")
-            });
+            ui.add_space(6.0);
             icons::stateful();
-            if icons::icon_button_why(ui, &self.help, "undo", &tr("Undo"), false, undo_why, 62.0, "")
+            if icons::icon_button_why(ui, &self.help, "undo", &tr("Undo"), false, undo_why, 34.0, "")
                 .clicked()
             {
                 self.undo();
             }
             icons::stateful();
-            if icons::icon_button_why(ui, &self.help, "redo", &tr("Redo"), false, redo_why, 62.0, "")
+            if icons::icon_button_why(ui, &self.help, "redo", &tr("Redo"), false, redo_why, 34.0, "")
                 .clicked()
             {
                 self.redo();
@@ -533,118 +536,99 @@ impl App {
         });
         ui.separator();
         ui.label(egui::RichText::new(tr("View")).strong());
-        for pair in [
-            [
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            for (id, name, v) in [
                 ("view_top", "Top", StandardView::Top),
                 ("view_front", "Front", StandardView::Front),
-            ],
-            [
                 ("view_right", "Right", StandardView::Right),
                 ("view_iso", "Isometric", StandardView::Isometric),
-            ],
-        ] {
-            ui.horizontal(|ui| {
-                for (id, name, v) in pair {
-                    if icons::icon_button_why(ui, &self.help, id, &tr(name), false, None, 62.0, "").clicked()
-                    {
-                        self.animate_standard_view(v);
-                    }
+            ] {
+                if icons::icon_button_why(ui, &self.help, id, &tr(name), false, None, 34.0, "").clicked() {
+                    self.animate_standard_view(v);
                 }
-            });
-        }
+            }
+        });
         if icons::tool_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None).clicked() {
             self.fit_all();
         }
         ui.separator();
-        ui.label(egui::RichText::new(tr("File")).strong());
+        // the File block: framed, with large icons while the column is high enough, smaller ones in a low window
+        let rest_h = ui.min_rect().height();
+        self.left_rest_h = rest_h;
+        let room = self.left_avail_h - rest_h;
+        let big = room > FILE_BLOCK_BIG_H;
         let nothing = if bodies == 0 {
             Some("There is nothing to export")
         } else {
             None
         };
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(3.0, 3.0);
-            let w = 30.0;
-            if icons::icon_button_why(ui, &self.help, "file_new", &tr("New"), false, busy, w, "").clicked() {
-                self.request(Pending::New);
-            }
-            if icons::icon_button_why(ui, &self.help, "file_open", &tr("Open"), false, busy, w, "").clicked()
-            {
-                self.request(Pending::OpenDialog);
-            }
-            if icons::icon_button_why(ui, &self.help, "file_save", &tr("Save"), false, busy, w, "").clicked()
-            {
-                self.save_clicked(false);
-            }
-            if icons::icon_button_why(ui, &self.help, "file_save_as", &tr("Save As"), false, busy, w, "")
-                .clicked()
-            {
-                self.save_clicked(true);
-            }
-            if icons::icon_button_why(
-                ui,
-                &self.help,
-                "import_step",
-                &tr("Import STEP"),
-                false,
-                busy,
-                w,
-                "",
-            )
-            .clicked()
-            {
-                self.import_step_dialog();
-            }
-            if icons::icon_button_why(
-                ui,
-                &self.help,
-                "export_step",
-                &tr("Export STEP"),
-                false,
-                busy.or(nothing),
-                w,
-                "",
-            )
-            .clicked()
-            {
-                self.export_step_dialog();
-            }
-            if icons::icon_button_why(
-                ui,
-                &self.help,
-                "export_stl",
-                &tr("Export STL"),
-                false,
-                busy.or(nothing),
-                w,
-                "",
-            )
-            .clicked()
-            {
-                self.export_stl();
-            }
-        });
-        ui.add_enabled_ui(!self.settings.recent.is_empty() && idle, |ui| {
-            ui.menu_button(tr("Recent files"), |ui| {
-                let recent = self.settings.recent.clone();
-                for r in recent {
-                    let name = std::path::Path::new(&r)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| r.clone());
-                    if ui.button(name).on_hover_text(&r).clicked() {
-                        self.request(Pending::Open(PathBuf::from(r)));
-                        ui.close();
-                    }
+        let dark = ui.visuals().dark_mode;
+        egui::Frame::new()
+            .stroke(Stroke::new(1.5, icons::file_frame_color(dark)))
+            .corner_radius(6.0)
+            .inner_margin(5.0)
+            .show(ui, |ui| {
+                ui.label(egui::RichText::new(tr("File")).strong());
+                let (size, per_row) = if room > FILE_BLOCK_HUGE_H {
+                    (38.0, 3)
+                } else if big {
+                    (32.0, 3)
+                } else {
+                    (22.0, 4)
+                };
+                let items: [(&str, &str, Option<&'static str>, u8); 7] = [
+                    ("file_new", "New", busy, 0),
+                    ("file_open", "Open", busy, 1),
+                    ("file_save", "Save", busy, 2),
+                    ("file_save_as", "Save As", busy, 3),
+                    ("import_step", "Import STEP", busy, 4),
+                    ("export_step", "Export STEP", busy.or(nothing), 5),
+                    ("export_stl", "Export STL", busy.or(nothing), 6),
+                ];
+                let mut clicked = None;
+                ui.spacing_mut().item_spacing = Vec2::new(3.0, 3.0);
+                for row in items.chunks(per_row) {
+                    ui.horizontal(|ui| {
+                        for (id, name, why, n) in row {
+                            if icons::file_button(ui, &self.help, id, &tr(name), *why, size).clicked() {
+                                clicked = Some(*n);
+                            }
+                        }
+                    });
                 }
+                match clicked {
+                    Some(0) => self.request(Pending::New),
+                    Some(1) => self.request(Pending::OpenDialog),
+                    Some(2) => self.save_clicked(false),
+                    Some(3) => self.save_clicked(true),
+                    Some(4) => self.import_step_dialog(),
+                    Some(5) => self.export_step_dialog(),
+                    Some(6) => self.export_stl(),
+                    _ => {}
+                }
+                ui.add_enabled_ui(!self.settings.recent.is_empty() && idle, |ui| {
+                    ui.menu_button(tr("Recent files"), |ui| {
+                        let recent = self.settings.recent.clone();
+                        for r in recent {
+                            let name = std::path::Path::new(&r)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| r.clone());
+                            if ui.button(name).on_hover_text(&r).clicked() {
+                                self.request(Pending::Open(PathBuf::from(r)));
+                                ui.close();
+                            }
+                        }
+                    });
+                });
             });
-        });
     }
 
     /// Settings and About at the bottom of the left column.
     pub(super) fn left_bottom(&mut self, ui: &mut egui::Ui) {
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        let row = ui.horizontal(|ui| {
             if icons::icon_button_why(
                 ui,
                 &self.help,
@@ -675,8 +659,15 @@ impl App {
                 self.about_scroll = false;
             }
         });
+        self.left_bottom_rect = row.response.rect;
     }
 }
+
+/// The height the File block needs with large icons (3 rows of 44 px, the title, the recent files, the frame); with less room above
+/// it the smaller icons are used.
+const FILE_BLOCK_BIG_H: f32 = 200.0;
+/// With this much room the icons are the largest.
+const FILE_BLOCK_HUGE_H: f32 = 330.0;
 
 #[cfg(test)]
 mod tests {

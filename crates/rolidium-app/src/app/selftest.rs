@@ -643,7 +643,35 @@ impl App {
                 );
                 st.wait_frames = 2;
             }
-            32 => {
+            32 | 34 => {
+                // the layout of the left column in a small and in a large window
+                let (w, h) = if st.step == 32 {
+                    (1280.0, 720.0)
+                } else {
+                    (1920.0, 1080.0)
+                };
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(w, h)));
+                st.wait_frames = 12;
+            }
+            33 | 35 => {
+                let screen = ctx.content_rect();
+                let name = format!("left-column-{}x{}", screen.width() as i32, screen.height() as i32);
+                // the window manager may not give exactly the size: the check is about what is shown
+                let fits = !self.left_scrolls
+                    && self.left_bottom_rect.max.y <= self.status_top + 0.5
+                    && self.status_top <= screen.max.y;
+                println!(
+                    "selftest: left column in {}x{}: scrolls {}, Settings row bottom {:.0}, status bar top {:.0}",
+                    screen.width(),
+                    screen.height(),
+                    self.left_scrolls,
+                    self.left_bottom_rect.max.y,
+                    self.status_top
+                );
+                check(&mut st, &format!("the whole left column fits ({name})"), fits);
+                shot(&mut st, ctx, &name);
+            }
+            36 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

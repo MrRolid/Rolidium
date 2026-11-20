@@ -65,14 +65,16 @@ def word(text, x0, y, w, h, pitch):
     return " ".join(letter(c, x0 + i * pitch, y, w, h) for i, c in enumerate(text))
 
 
-SHEET = "M3 2.5 H14.5 L21 8 V21.5 H3 Z M14.5 2.5 V8 H21"
-ARROW_UP = "M12 13 V8.5 M9.8 10.7 L12 8.5 L14.2 10.7"
-ARROW_DOWN = "M12 8.5 V13 M9.8 10.8 L12 13 L14.2 10.8"
-THIN = ' stroke-width="1.1"'
+# The exchange icons: a small sheet with an arrow on top, the format name in large letters BELOW it (not inside it), with a margin
+# to the edge of the icon, so that it stays readable when the icon is drawn large.
+SHEET = "M7 1.5 H14 L18.5 6 V14.5 H7 Z M14 1.5 V6 H18.5"
+ARROW_UP = "M12.75 12.5 V8 M10.9 9.9 L12.75 8 L14.6 9.9"
+ARROW_DOWN = "M12.75 8 V12.5 M10.9 10.6 L12.75 12.5 L14.6 10.6"
+THICK = ' stroke-width="1.5"'
 
 
 def exchange(text, arrow, w, pitch, x0):
-    return neutral(path(SHEET), path(word(text, x0, 15, w, 5, pitch), extra=THIN)) + accent(path(arrow))
+    return neutral(path(SHEET), path(word(text, x0, 16.6, w, 6, pitch), extra=THICK)) + accent(path(arrow))
 
 
 icons = {
@@ -99,7 +101,7 @@ icons = {
     "view_iso": accent(path(CUBE_TOP, (A, ".85")), path(CUBE_LEFT, (A, ".5")), path(CUBE_RIGHT, (A, ".22"))),
     "fit_all": neutral(path("M3.5 8 V3.5 H8 M16 3.5 H20.5 V8 M20.5 16 V20.5 H16 M8 20.5 H3.5 V16")) +
                accent(path("M12 8 L16 10.2 L12 12.4 L8 10.2 Z M8 10.2 V14 L12 16.2 V12.4 M16 10.2 V14 L12 16.2")),
-    "export_stl": exchange("STL", ARROW_UP, 3.6, 4.8, 5.2),
+    "export_stl": exchange("STL", ARROW_UP, 4.8, 7.0, 2.6),
     "round": neutral(path("M3 21 V3 H21", extra=' stroke-dasharray="2 3"'), path("M14 14 L6.2 6.2"), path("M13 14 H15 M14 13 V15")) +
              accent(path("M3 21 V14 A11 11 0 0 1 14 3 H21 V21 Z", ACC_FILL)),
     "chamfer": neutral(path("M3 21 V3 H21", extra=' stroke-dasharray="2 3"'), path("M3 10 H7 M10 3 V7")) +
@@ -108,8 +110,8 @@ icons = {
     "file_open": neutral(path("M3 7 H10 L12 9 H20 V19 H3 Z")) + accent(path("M3 19 L6 12 H22 L19 19", ACC_FILL)),
     "file_save": neutral(path("M4 4 H17 L20 7 V20 H4 Z")) + accent(path("M8 4 V9 H15 V4 M7 20 V13 H17 V20")),
     "file_save_as": neutral(path("M4 4 H17 L20 7 V20 H4 Z"), path("M8 4 V9 H15 V4")) + accent(path("M15 17 H22 M18.5 13.5 V20.5")),
-    "import_step": exchange("STEP", ARROW_DOWN, 2.85, 3.95, 4.6),
-    "export_step": exchange("STEP", ARROW_UP, 2.85, 3.95, 4.6),
+    "import_step": exchange("STEP", ARROW_DOWN, 4.1, 5.65, 1.45),
+    "export_step": exchange("STEP", ARROW_UP, 4.1, 5.65, 1.45),
     "eye_on": neutral(path("M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z")) + accent(path("M12 9 A3 3 0 1 1 11.99 9 Z", ACC_FILL)),
     "eye_off": neutral(path("M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z")) + accent(path("M4 20 L20 4")),
     "move": neutral(path("M4 16 L12 20 L20 16 L12 12 Z")) + accent(path("M12 3 V12 M12 3 L9.5 5.5 M12 3 L14.5 5.5 M12 12 L5 16 M12 12 L19 16")),

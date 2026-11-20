@@ -150,7 +150,7 @@ fn look(why_not: Option<&str>, has_key: bool) -> Look {
     let indicate = has_key || stateful;
     Look {
         indicate,
-        soft_off: indicate && why_not.is_some(),
+        soft_off: why_not.is_some(),
         available: why_not.is_none(),
     }
 }
@@ -368,6 +368,31 @@ pub fn icon_button_why(
     tip(r, help, id, Some(label), why_not, &lk)
 }
 
+/// A big icon-only button of the File block: `size` is the side of the icon, the button is a little larger.
+pub fn file_button(
+    ui: &mut egui::Ui,
+    help: &Help,
+    id: &str,
+    label: &str,
+    why_not: Option<&str>,
+    size: f32,
+) -> egui::Response {
+    let lk = look(why_not, false);
+    let side = size + 8.0;
+    let b = egui::Button::image(dim(icon(id, size), &lk)).min_size(egui::Vec2::splat(side));
+    let r = add_button(ui, b, why_not, &lk);
+    tip(r, help, id, Some(label), why_not, &lk)
+}
+
+/// The colour of the frame around the File block.
+pub fn file_frame_color(dark: bool) -> Color32 {
+    if dark {
+        Color32::from_rgb(214, 186, 96)
+    } else {
+        Color32::from_rgb(176, 138, 30)
+    }
+}
+
 /// The main button of the program (Sketch / Finish sketch): larger, with an accent that is not the blue of a chosen tool.
 pub fn main_button(
     ui: &mut egui::Ui,
@@ -410,8 +435,13 @@ pub const MAIN_FULL_W: f32 = 132.0;
 
 /// A small icon-only button (help card on hover), for the dense file section.
 pub fn icon_button(ui: &mut egui::Ui, help: &Help, id: &str, enabled: bool) -> egui::Response {
-    let b = egui::Button::image(icon(id, 20.0)).min_size(egui::Vec2::new(30.0, 28.0));
-    let r = ui.add_enabled(enabled, b);
+    let lk = Look {
+        indicate: false,
+        soft_off: !enabled,
+        available: enabled,
+    };
+    let b = egui::Button::image(dim(icon(id, 20.0), &lk)).min_size(egui::Vec2::new(30.0, 28.0));
+    let r = add_button(ui, b, if enabled { None } else { Some("") }, &lk);
     r.on_hover_ui(|ui| help.card(ui, id))
 }
 

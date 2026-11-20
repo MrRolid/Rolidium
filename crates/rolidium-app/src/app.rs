@@ -270,6 +270,13 @@ pub struct App {
     about_open: bool,
     donate_idx: usize,
     about_scroll: bool,
+    /// Height of the left column above the File block, and the height available to the column (for the size of the File icons).
+    left_rest_h: f32,
+    left_avail_h: f32,
+    /// For the layout test: the column needed its scroll bar, where the Settings/About row was drawn, where the status bar starts.
+    left_scrolls: bool,
+    left_bottom_rect: Rect,
+    status_top: f32,
     chamfer_angle_text: String,
     chamfer_flip: bool,
     combine: combinetool::CombineUi,
@@ -437,6 +444,11 @@ impl App {
             about_open: false,
             donate_idx,
             about_scroll: false,
+            left_rest_h: 0.0,
+            left_avail_h: 0.0,
+            left_scrolls: false,
+            left_bottom_rect: Rect::NOTHING,
+            status_top: f32::MAX,
             chamfer_angle_text: "45".into(),
             chamfer_flip: false,
             combine: Default::default(),
@@ -3392,18 +3404,76 @@ impl eframe::App for App {
             .exact_size(46.0)
             .show(ui, |ui| self.top_toolbar(ui));
 
+        // declared before the side panels, so that they end above it and nothing of them is hidden under it
+        let status = egui::Panel::bottom("status").resizable(false).show(ui, |ui| {
+            let avail = ui.available_width();
+            let right_w = 600.0_f32.min(avail * 0.6);
+            ui.horizontal(|ui| {
+                ui.allocate_ui_with_layout(
+                    Vec2::new((avail - right_w - 12.0).max(100.0), 20.0),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        let c = if self.status.error {
+                            Color32::from_rgb(255, 120, 110)
+                        } else {
+                            Color32::from_gray(200)
+                        };
+                        ui.add(egui::Label::new(egui::RichText::new(&self.status.text).color(c)).truncate());
+                        if !self.idle() {
+                            ui.spinner();
+                        }
+                        ui.separator();
+                        ui.add(egui::Label::new(egui::RichText::new(self.hint()).weak()).truncate());
+                    },
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        egui::RichText::new(crate::version_string()).color(Color32::from_rgb(150, 200, 255)),
+                    );
+                    ui.separator();
+                    ui.scope(|ui| {
+                        ui.set_max_width(120.0);
+                        ui.add(egui::Label::new(egui::RichText::new(&self.adapter).weak()).truncate());
+                    });
+                    if self.adapter_software {
+                        ui.label(egui::RichText::new(tr("software drawing")).small().color(Color32::from_rgb(220, 160, 80)))
+                            .on_hover_text(tr("The picture is drawn by the processor, not by a graphics card, so it can be slow and may look different. Try another graphics backend in Settings, or update the graphics driver."));
+                    }
+                    ui.separator();
+                    self.grid_controls(ui);
+                    ui.separator();
+                    if icons::icon_button(ui, &self.help, "donate", true).clicked() {
+                        self.about_open = true;
+                        self.about_scroll = true;
+                    }
+                    if let Some(p) = &self.pull {
+                        ui.separator();
+                        ui.strong(trf(
+                            "Distance: {} mm",
+                            &[if p.typed.is_empty() {
+                                fmt_signed(p.d_mouse as f64)
+                            } else {
+                                p.typed.clone()
+                            }],
+                        ));
+                    }
+                });
+            });
+        });
+        self.status_top = status.response.rect.min.y;
+
         egui::Panel::left("tools")
             .resizable(false)
-            .exact_size(150.0)
+            .exact_size(196.0)
             .show(ui, |ui| {
-                let avail = ui.available_height() - 40.0;
-                egui::ScrollArea::vertical()
+                let avail = ui.available_height() - 42.0;
+                self.left_avail_h = avail.max(100.0);
+                let out = egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .max_height(avail.max(100.0))
                     .show(ui, |ui| self.left_column(ui));
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                    self.left_bottom(ui)
-                });
+                self.left_scrolls = out.content_size.y > out.inner_rect.height() + 0.5;
+                self.left_bottom(ui);
             });
 
         egui::Panel::right("tree")
@@ -3721,62 +3791,6 @@ impl eframe::App for App {
                     }
                 }
             });
-
-        egui::Panel::bottom("status").resizable(false).show(ui, |ui| {
-            let avail = ui.available_width();
-            let right_w = 600.0_f32.min(avail * 0.6);
-            ui.horizontal(|ui| {
-                ui.allocate_ui_with_layout(
-                    Vec2::new((avail - right_w - 12.0).max(100.0), 20.0),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        let c = if self.status.error {
-                            Color32::from_rgb(255, 120, 110)
-                        } else {
-                            Color32::from_gray(200)
-                        };
-                        ui.add(egui::Label::new(egui::RichText::new(&self.status.text).color(c)).truncate());
-                        if !self.idle() {
-                            ui.spinner();
-                        }
-                        ui.separator();
-                        ui.add(egui::Label::new(egui::RichText::new(self.hint()).weak()).truncate());
-                    },
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(
-                        egui::RichText::new(crate::version_string()).color(Color32::from_rgb(150, 200, 255)),
-                    );
-                    ui.separator();
-                    ui.scope(|ui| {
-                        ui.set_max_width(120.0);
-                        ui.add(egui::Label::new(egui::RichText::new(&self.adapter).weak()).truncate());
-                    });
-                    if self.adapter_software {
-                        ui.label(egui::RichText::new(tr("software drawing")).small().color(Color32::from_rgb(220, 160, 80)))
-                            .on_hover_text(tr("The picture is drawn by the processor, not by a graphics card, so it can be slow and may look different. Try another graphics backend in Settings, or update the graphics driver."));
-                    }
-                    ui.separator();
-                    self.grid_controls(ui);
-                    ui.separator();
-                    if icons::icon_button(ui, &self.help, "donate", true).clicked() {
-                        self.about_open = true;
-                        self.about_scroll = true;
-                    }
-                    if let Some(p) = &self.pull {
-                        ui.separator();
-                        ui.strong(trf(
-                            "Distance: {} mm",
-                            &[if p.typed.is_empty() {
-                                fmt_signed(p.d_mouse as f64)
-                            } else {
-                                p.typed.clone()
-                            }],
-                        ));
-                    }
-                });
-            });
-        });
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
