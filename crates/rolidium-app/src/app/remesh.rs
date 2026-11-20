@@ -243,10 +243,12 @@ mod tests {
     #[test]
     fn faces_outside_the_view_are_not_made_finer() {
         // a camera looking at the origin from 100 mm above; the faces: one in the middle, one far to the side, one behind the camera
-        let mut cam = rolidium_render::Camera::default();
-        cam.target = Vec3::ZERO;
-        cam.distance = 100.0;
-        cam.pitch = 1.5;
+        let cam = rolidium_render::Camera {
+            target: Vec3::ZERO,
+            distance: 100.0,
+            pitch: 1.5,
+            ..Default::default()
+        };
         let vp = cam.view_proj(1.5);
         let e = MeshEntry {
             id: 1,
