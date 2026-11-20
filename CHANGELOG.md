@@ -9,10 +9,29 @@ features is visible. 0.2.0 is the first public release.
 ## [0.2.0] - unreleased
 
 ### Added
+- First steps: a new empty document starts in a sketch on the XY plane with the Circle tool; the isometric view is shown for half a second
+  at the start, then it turns square to the plane. A guide of short hints leads to the first body (draw, press P, pull, how to turn and
+  move the view, drawing on a face); hints can be closed, the guide switched off and run again from the About window; the progress is remembered.
+- Fill (`F`, `rolidium cli fill`, MCP `fill_loop`): a closed flat loop of edges of a body, sketch lines or a 3D line becomes a region with
+  the exact geometry, and Pull starts with it (closing a hole, a plug).
+- Join ends (`J`, `rolidium cli join-ends`, MCP `join_ends`): free ends of lines, arcs and 3D lines closer than a gap are connected from
+  the closest pairs (tiny gaps welded), with a live preview and one step of Undo.
+- Cut mode of a sketch on a plane takes the volume out of the bodies it overlaps (holes and pockets without a Combine).
+- The display follows the zoom: the display mesh is made again in the background (with inertia) so that a circle across the window deviates
+  less than half a pixel; a cap of triangles protects big models; STL export, measurement and the kernel are not affected.
+- Settings: a new document starts with a sketch, the guide, and the largest gap of Join ends (remembered).
 - One program with three modes (window, `cli`, `mcp`) instead of three programs: one copy of the geometry kernel in the package, so the
   package is much smaller. `rolidium mcp-config` prints ready-made commands to connect the MCP server to a client.
 
 ### Fixed
+- The Settings and About buttons in the left column were cut off at the bottom (the status bar covered the column); the whole column now fits
+  a window 720 px high (checked by the self test at 1280 x 720 and 1920 x 1080).
+- Unavailable buttons now have the same white text as the available ones; the unavailability shows in the background, the frame, the dimmed icon and the indicator.
+- The messages of rounds, chamfers and other operations were partly shown in English in other languages; a test now checks every message that
+  an operation can produce.
+- A round or chamfer that does not fit names the largest size that still works and why (for the chamfer with an angle, both distances, and
+  what Flip would allow).
+- A new volume drawn on a plane that touched or overlapped a body became a separate body, so a later chamfer at the joint only removed material; it now joins the body.
 - Windows: the program crashed at every start on a machine whose Intel integrated-graphics Vulkan driver (`igvk64.dll` 31.0.101.2137)
   fails when loaded. `auto` now tries DirectX 12 first with a real graphics card, then Vulkan, then OpenGL, software last, each backend
   in an instance of its own, so Vulkan is not loaded while DirectX 12 works. A marker file guards the start: when a start did not get
@@ -21,6 +40,8 @@ features is visible. 0.2.0 is the first public release.
   exception is logged, and the diagnostics and the render part of the self test examine every backend in a child process with a time limit.
 
 ### Changed
+- The File block of the left column has a frame, large icons (three sizes by the room available) and the letters STL and STEP are drawn below
+  the sheet so that they are readable; the left column is 196 px wide.
 - The minimum Rust version for building is 1.89 (file locks of the start-up safeguard).
 - The Linux package shrank from 58 to 28 MB and the Windows package from 70 to 25 MB: one copy of the geometry kernel instead of three, and
   symbols are stripped from release builds. On Windows the program is a window program without a console box.

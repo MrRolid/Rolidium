@@ -5,21 +5,28 @@ reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
-**Exact helix geometry and a Thread tool.** Bodies swept along a helix (springs, threads) are built today by a general sweep, and combining
-them with a cylinder can be refused by the volume check in some cases (typically when a spring sticks out through the end faces of the
-cylinder, see D30). The plan is to build springs and threads from exact surfaces so that they combine reliably and the display mesh is
-fast, and to keep rounds and chamfers in the history after a fallback combine. Then a Thread tool: metric ISO threads (M3 to M24) on a
-cylindrical face, external and internal, with clearance for 3D printing, modelled and cosmetic. The test matrix is
-`crates/rolidium-kernel/tests/helix_matrix.rs` (ignored by default, run it with `--ignored`).
+**Pulling cylindrical and conical faces, and a draft of a face by an angle.** Pull works on flat faces today; on a curved face it says
+that it works only on flat ones. The next step is to pull a cylindrical or conical face, which changes the diameter of a hole or a shaft
+(the radius grows or shrinks, a cone keeps its angle), and to tilt a face by a given angle (draft), so that walls can be made sloping
+for casting and printing. Both reuse the dimension panel that already changes the diameter of a hole.
 
 ## Then
 
+* **Exact helix geometry and a Thread tool.** Bodies swept along a helix (springs, threads) are built today by a general sweep, and
+  combining them with a cylinder can be refused by the volume check in some cases (typically when a spring sticks out through the end
+  faces of the cylinder, see D30). The plan is to build springs and threads from exact surfaces so that they combine reliably and the
+  display mesh is fast, and to keep rounds and chamfers in the history after a fallback combine. Then a Thread tool: metric ISO threads
+  (M3 to M24) on a cylindrical face, external and internal, with clearance for 3D printing, modelled and cosmetic. The test matrix is
+  `crates/rolidium-kernel/tests/helix_matrix.rs` (ignored by default, run it with `--ignored`).
 * **Permanent dimensions.** Today measurements are temporary (the Measure tool). Permanent dimensions are built from the same elements
   (`MElem` in `app/measuretool.rs`), stored in the document and shown in the 3D view. See the design notes below.
 * **Units, inches included.** Lengths shown and typed in the chosen unit; the file stays in millimetres.
 * **Text on a body.** Letters engraved into or embossed on a flat face.
 * **Sketch: corner fillet and trim.** Round the corner between two sketch lines with an arc of a given radius, and trim a line at another
   line or shape. General sketch tools, not only for sweep paths.
+* **Notice of a new version.** The program asks the publisher's address at most once a day whether a newer version exists. The request
+  carries only the program version, the operating system and its version, with no identifier of any kind. The person decides at the first
+  start whether it is on, and it can be switched off in Settings. The command-line modes (`cli`, `mcp`) never do it.
 
 ## Later
 

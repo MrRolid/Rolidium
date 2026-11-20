@@ -53,6 +53,11 @@ Everything listed here works today.
 * Pull and push faces and sketch regions with the mouse or a typed distance; add, cut or automatic mode; pull *up to* a vertex, edge or face.
 * Move and rotate bodies, also as a copy.
 * Combine bodies: merge, cut, intersect. Every result is checked against an independent volume calculation, and a result that does not add up is refused.
+* A new volume that touches or overlaps a body joins it (a body of its own only when it touches nothing); cut mode takes it out of the bodies it overlaps.
+* **Fill** (`F`): the closed flat loop an edge belongs to (the edge of a hole, the inner circle of a pipe), or sketch lines or a 3D line, becomes
+  a region with the exact geometry (a circle stays a circle) and Pull starts with it: close a hole or make a plug.
+* **Join ends** (`J`): connects open lines, arcs and 3D lines whose ends are closer than a chosen gap, from the closest pairs; tiny gaps are
+  welded, larger ones get a line; live dashed preview, one step of Undo.
 * Revolve a profile about an axis.
 * Loft between two or more profiles (sketch regions, flat faces or circular edges), ruled or smooth, with rings and holes; a ruled loft
   between coaxial circles is a real cone.
@@ -61,7 +66,7 @@ Everything listed here works today.
 * 3D lines (points that snap to vertices, edge midpoints, circle centres and points of sketches; X, Y, Z locks, typed length, corner radius) and helices
   (axis from a cylindrical face, a straight edge or a point; pitch, height or turns, handedness, start and cone angle) as curves of the document.
 * Round and chamfer edges (also symmetric or with an angle and a side), whole smooth chains (also the pieces of a loft outline), concave edges;
-  every result is checked and a damaged one is refused with a clear message; change the size later or bring the sharp edge back.
+  every result is checked and a damaged one is refused with a clear message that names the largest size that still works; change the size later or bring the sharp edge back.
 * Measure: pick two elements (vertex, sketch or curve point, edge, face); distance with its X, Y, Z parts, angles, the distance of parallel faces or cylinder axes,
   with dimension lines in the view. Ctrl+click takes a point (middle of an edge, centre of a circle).
 * Mass of a body for a chosen material (steel, aluminium, brass, copper, PLA, PETG, ABS or your own density).
@@ -93,6 +98,16 @@ Everything listed here works today.
 * `rolidium cli` (also available as `rolidium-cli` on Linux) runs scripts without a window: build parts, save them, export STL and STEP and render pictures.
 * `rolidium mcp` is an MCP server, so that an AI assistant (Claude Code, Claude Desktop, ...) can build, inspect and export models and get pictures of them
   without a window; see [docs/MCP.md](docs/MCP.md). Files only under a directory given at start, no network, a time limit per operation. `rolidium mcp-config` prints ready-made commands that connect it to a client.
+
+## First steps
+
+A new document starts in a sketch on the XY plane with the Circle tool. At the start of the program you first see the isometric view with
+the grid and the axes for half a second, then the view turns square to the plane (a click or a drag stops the turn). A short guide shows
+hints next to the place they are about: click for the centre of a circle and again for its size (or type it), press `P` to pull the shape into
+space, grab it and drag or type a height and press `Enter`, and, once you have a body, how to turn (right or middle mouse button), move
+(the same with `Shift`) and zoom (mouse wheel) the view and that any flat face can be drawn on (select it, press `K`). Every hint can be closed,
+and "Do not show the guide again" switches the guide off. Settings can turn off the sketch at the start of a new document and the guide; the
+About window has "Run the guide again". Opening a file, restoring after a crash, `--demo` and the `cli` and `mcp` modes do not start it.
 
 ## Known limitations
 
@@ -146,6 +161,8 @@ Useful options of the application: `rolidium file.rolidium` opens a document, `r
 | `S` `P` `M` `I` `L` `W` | Select, Pull, Move, Combine, Loft, Sweep |
 | `H` | Helix |
 | `E` | Measure |
+| `F` | Fill (a closed loop of edges or lines becomes a region) |
+| `J` | Join ends (connect open lines that almost meet) |
 | `K` | Sketch (on the selected flat face, or choose a base plane) |
 | `L` `R` `C` `A` (in a sketch) | Line, rectangle, circle, arc |
 | `V` / `D` (in a sketch) | Plan view / leave the sketch and go back to 3D |
@@ -170,10 +187,12 @@ up too. Corrections of the existing translations are very welcome as issues.
 A rough order, with no dates. Details and design notes are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 **Next**
-* Exact helix geometry and a Thread tool (metric threads on cylindrical faces).
+* Pulling cylindrical and conical faces (change the diameter of a hole or a shaft) and a draft of a face by a given angle.
 
 **Then**
+* Exact helix geometry and a Thread tool (metric threads on cylindrical faces).
 * Permanent dimensions, units (inches), text on a body, corner fillet and trim in sketches.
+* A notice of a new version (at most one request a day; only the program version and the system; the person decides; never in `cli` and `mcp`).
 
 **Later**
 * Import STL and recognise faces so a mesh becomes an editable solid.

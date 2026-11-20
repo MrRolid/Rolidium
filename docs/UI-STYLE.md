@@ -30,9 +30,15 @@ Rules for everything visible in the window. New tools and buttons follow them.
   New drawing-related tools (Sweep, helix, dimensions, ...) are added to this bar as further items of `toolbar_items()`; the bar
   adapts by itself: labels and icons while there is room, only icons in a narrower window, and what still does not fit goes under a
   "More" button (`layout_mode` in `app/toolbar.rs`, unit tested).
-* **Left column**: Tools (Select, Pull, Move, Combine, Loft), Edges (Round, Chamfer), Edit, View, File, then Settings and About.
-  It must fit a 1280 x 720 window without scrolling; Undo/Redo, the views and Settings/About are icon pairs to save height.
-* **A button never disappears and never moves.** One that cannot be used in the current state is greyed out and its tooltip starts
+* **Left column**: Tools (Select, Pull, Move, Combine, Loft, Sweep, Measure, then Fill and Join ends as icons), Edges (Round, Chamfer) and Edit side by side, View, File, then Settings and About.
+  It must fit a 1280 x 720 window without scrolling (the self test measures it at 1280 x 720 and 1920 x 1080 and saves screenshots); the
+  status bar is declared before the side panels, so that they end above it. Rows are tight (2 px) and Edges/Edit and the four views are single rows.
+* **File block**: a frame with a yellowish edge (`icons::file_frame_color`), large icon buttons (`icons::file_button`): 38 px icons in 3 columns
+  when there are 330 px or more to spare, 32 px when there are 200 px, else 22 px in 4 columns. The exchange icons draw the format name (STL, STEP) in
+  large block letters **below** the sheet, never inside it, with a margin to the edge of the icon (`exchange()` in `scripts/gen_assets.py`); the same
+  icons are used wherever STL/STEP appear, so the letters are equally large everywhere.
+* **A button never disappears and never moves.** One that cannot be used in the current state keeps its white (black in the light theme) text and
+  shows the state in its background, frame, dimmed icon and indicator; it does not react to clicks and its tooltip starts
   with the reason in amber (for example "Start a sketch first", "Select an edge first", "Combine needs at least two bodies"), followed by
   the help card. The reasons are decided in `toolbar_items()` and `left_column()`.
 * The keyboard shortcut of a top bar button is a small letter in its lower right corner (also in icon-only mode) and part of the tooltip.
