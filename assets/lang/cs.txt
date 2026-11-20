@@ -651,3 +651,8 @@ the selected edge could not be found after removing the neighbouring rounds => v
 
 # ---- Preview of a round or chamfer that does not fit ----
 too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered => příliš velké pro sousední plochy, nebo se hrany stýkají tak, že nejdou zaoblit ani zkosit
+
+# ---- Joining new volumes, edges at a joint of bodies ----
+There is nothing to add here: the new volume lies entirely inside the body => Není co přidat: nový objem leží celý uvnitř tělesa
+The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own => Nový objem se tělesa dotýká jen hranou nebo bodem, takže se k němu nedalo připojit a je to samostatné těleso
+These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first. => Tyto hrany leží tam, kde se stýkají dvě samostatná tělesa. Tělesa nejsou spojená, takže zaoblení ani zkosení nepřidá materiál přes styk. Nejdřív tělesa spoj nástrojem Kombinovat.

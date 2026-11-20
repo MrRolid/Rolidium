@@ -294,6 +294,8 @@ pub struct App {
     ctx_target: Option<CtxTarget>,
     rename: Option<(ItemId, String)>,
     chain_cache: std::cell::RefCell<ChainCache>,
+    /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
+    joint_cache: std::cell::RefCell<Option<((u64, BodyId, Vec<u32>), bool)>>,
     file_path: Option<PathBuf>,
     file_dialog: Option<crate::filedialog::FileDialog>,
     egui_ctx: egui::Context,
@@ -464,6 +466,7 @@ impl App {
             ctx_target: None,
             rename: None,
             chain_cache: Default::default(),
+            joint_cache: Default::default(),
             file_path: None,
             file_dialog: None,
             egui_ctx: cc.egui_ctx.clone(),

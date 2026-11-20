@@ -665,20 +665,74 @@ impl Job {
                 let tool =
                     Solid::extrude_profile(&profile, plane.origin, plane.normal, plane.x_dir, *distance)?;
                 let mut c;
+                let mut notice = None;
                 match target {
                     None => {
-                        let id = self.next_id;
-                        st.body_counter += 1;
-                        st.bodies.push(Body {
-                            id,
-                            name: format!("Body {}", st.body_counter),
-                            solid: tool,
-                            color: [0.72, 0.76, 0.82],
-                            visible: true,
-                            features: Vec::new(),
-                            material: None,
-                        });
-                        c = (id, None);
+                        // A new volume that touches or overlaps a body belongs to it; it is a body of its own only when it
+                        // touches nothing. (Cut mode never adds.)
+                        let touching: Vec<usize> = if *mode == PullMode::Cut {
+                            Vec::new()
+                        } else {
+                            (0..st.bodies.len())
+                                .filter(|i| st.bodies[*i].solid.distance_to(&tool).is_ok_and(|d| d < 1e-6))
+                                .collect()
+                        };
+                        let mut acc = tool.clone();
+                        let mut joined: Vec<usize> = Vec::new();
+                        let mut first_history = None;
+                        for &i in &touching {
+                            match st.bodies[i].solid.boolean(&acc, BooleanOp::Fuse) {
+                                Ok(r) => {
+                                    if joined.is_empty() {
+                                        first_history = Some(r.history.clone());
+                                    }
+                                    acc = r.solid;
+                                    joined.push(i);
+                                }
+                                // touching along an edge or at a point only: one solid cannot be made of that
+                                Err(KernelError::SplitResult) => {}
+                                Err(e) => return Err(e.into()),
+                            }
+                        }
+                        if let Some(&first) = joined.first() {
+                            let before = st.bodies[first].solid.volume()?;
+                            if joined.len() == 1 && (acc.volume()? - before).abs() < 1e-9 {
+                                return Err(KernelError::Invalid(
+                                    "There is nothing to add here: the new volume lies entirely inside the body".into(),
+                                )
+                                .into());
+                            }
+                            let bid = st.bodies[first].id;
+                            if let (Some(h), true) = (&first_history, joined.len() == 1) {
+                                remap_features(&mut st.bodies[first].features, h);
+                            } else {
+                                // joined several bodies: the rounds and chamfers of them cannot be followed any more
+                                st.bodies[first].features.clear();
+                            }
+                            st.bodies[first].solid = acc;
+                            for &i in joined[1..].iter().rev() {
+                                st.bodies.remove(i);
+                            }
+                            c = (bid, if joined.len() == 1 { first_history } else { None });
+                        } else {
+                            if !touching.is_empty() {
+                                notice = Some(
+                                    "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own".to_string(),
+                                );
+                            }
+                            let id = self.next_id;
+                            st.body_counter += 1;
+                            st.bodies.push(Body {
+                                id,
+                                name: format!("Body {}", st.body_counter),
+                                solid: tool,
+                                color: [0.72, 0.76, 0.82],
+                                visible: true,
+                                features: Vec::new(),
+                                material: None,
+                            });
+                            c = (id, None);
+                        }
                     }
                     Some(bid) => {
                         let bpos = st
@@ -743,6 +797,7 @@ impl Job {
                     st.sketches.remove(idx);
                 }
                 let mut out = self.done(st, "Pull from sketch");
+                out.notice = notice;
                 out.touched_body = Some(c.0);
                 out.history = c.1.take().map(|h| (c.0, h));
                 Ok(out)
@@ -837,17 +892,26 @@ impl Job {
                     c.touched_body = Some(*body);
                     return Ok(c);
                 }
-                let r = if *chamfer { b.solid.chamfer(&ids, *size) } else { b.solid.fillet(&ids, *size) }
-                    .map_err(|e| match e {
-                        KernelError::Native(_) => {
-                            let solid = &b.solid;
-                            let largest = rolidium_kernel::largest_working_size(*size, |v| {
-                                if *chamfer { solid.chamfer(&ids, v) } else { solid.fillet(&ids, v) }.is_ok()
-                            });
-                            blend_too_large(*size, largest, *chamfer)
-                        }
-                        e => e,
-                    })?;
+                let r = if *chamfer {
+                    b.solid.chamfer(&ids, *size)
+                } else {
+                    b.solid.fillet(&ids, *size)
+                }
+                .map_err(|e| match e {
+                    KernelError::Native(_) => {
+                        let solid = &b.solid;
+                        let largest = rolidium_kernel::largest_working_size(*size, |v| {
+                            if *chamfer {
+                                solid.chamfer(&ids, v)
+                            } else {
+                                solid.fillet(&ids, v)
+                            }
+                            .is_ok()
+                        });
+                        blend_too_large(*size, largest, *chamfer)
+                    }
+                    e => e,
+                })?;
                 remap_features(&mut b.features, &r.history);
                 let new_faces = r.history.new_faces(r.solid.face_count());
                 if !new_faces.is_empty() {
@@ -890,19 +954,22 @@ impl Job {
                     )
                     .into());
                 }
-                let r = b.solid.chamfer_angled(&ids, *distance, *angle_deg, *flip).map_err(|e| match e {
-                    KernelError::Native(_) => {
-                        let solid = &b.solid;
-                        let largest = |flip: bool| {
-                            rolidium_kernel::largest_working_size(*distance, |v| {
-                                solid.chamfer_angled(&ids, v, *angle_deg, flip).is_ok()
-                            })
-                        };
-                        let (l1, l2) = (largest(*flip), largest(!*flip));
-                        angled_too_large(*distance, *angle_deg, l1, l2)
-                    }
-                    e => e,
-                })?;
+                let r = b
+                    .solid
+                    .chamfer_angled(&ids, *distance, *angle_deg, *flip)
+                    .map_err(|e| match e {
+                        KernelError::Native(_) => {
+                            let solid = &b.solid;
+                            let largest = |flip: bool| {
+                                rolidium_kernel::largest_working_size(*distance, |v| {
+                                    solid.chamfer_angled(&ids, v, *angle_deg, flip).is_ok()
+                                })
+                            };
+                            let (l1, l2) = (largest(*flip), largest(!*flip));
+                            angled_too_large(*distance, *angle_deg, l1, l2)
+                        }
+                        e => e,
+                    })?;
                 remap_features(&mut b.features, &r.history);
                 let faces = r.history.new_faces(r.solid.face_count());
                 if !faces.is_empty() {
@@ -2017,7 +2084,12 @@ fn blend_too_large(size: f64, largest: Option<f64>, chamfer: bool) -> KernelErro
 }
 
 /// The same for the chamfer with a distance and an angle; `swapped` is the largest distance with the two sides exchanged (Flip).
-fn angled_too_large(distance: f64, angle_deg: f64, largest: Option<f64>, swapped: Option<f64>) -> KernelError {
+fn angled_too_large(
+    distance: f64,
+    angle_deg: f64,
+    largest: Option<f64>,
+    swapped: Option<f64>,
+) -> KernelError {
     let (d, a) = (mm(distance), mm(angle_deg));
     let second = |m: f64| mm(m * angle_deg.to_radians().tan());
     KernelError::Invalid(match (largest, swapped) {
@@ -3786,7 +3858,10 @@ mod loft_edge_tests {
 
     /// The number that follows `marker` in a message.
     fn number_after(msg: &str, marker: &str) -> f64 {
-        let rest = &msg[msg.find(marker).unwrap_or_else(|| panic!("'{marker}' not in '{msg}'")) + marker.len()..];
+        let rest = &msg[msg
+            .find(marker)
+            .unwrap_or_else(|| panic!("'{marker}' not in '{msg}'"))
+            + marker.len()..];
         let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap();
         rest[..end].parse().unwrap()
     }
@@ -3821,7 +3896,8 @@ mod loft_edge_tests {
             let best = number_after(&msg, "works is about ");
             assert!(best > 5.0 && best < 100.0, "{msg}");
             // the size in the message really works, and the document was not changed by the failure
-            d.apply(cmd(best)).unwrap_or_else(|e| panic!("{best} does not work: {e}"));
+            d.apply(cmd(best))
+                .unwrap_or_else(|e| panic!("{best} does not work: {e}"));
         }
     }
 
@@ -3837,10 +3913,14 @@ mod loft_edge_tests {
             flip,
         };
         let msg = d.apply(cmd(100.0, false)).unwrap_err().to_string();
-        assert!(msg.contains("at 30 degrees") && msg.contains("largest distance"), "{msg}");
+        assert!(
+            msg.contains("at 30 degrees") && msg.contains("largest distance"),
+            "{msg}"
+        );
         let best = number_after(&msg, "works is about ");
         assert!(msg.contains("second distance is then"), "{msg}");
-        d.apply(cmd(best, false)).unwrap_or_else(|e| panic!("{best} does not work: {e}"));
+        d.apply(cmd(best, false))
+            .unwrap_or_else(|e| panic!("{best} does not work: {e}"));
     }
 
     /// A pipe with a thin wall: a long distance on the narrow ring fails, and the message says what works and that Flip helps.
@@ -3852,7 +3932,10 @@ mod loft_edge_tests {
         let pipe = outer.boolean(&bore, BooleanOp::Cut).unwrap().solid;
         let run = |flip: bool| {
             let mut d = Document::new();
-            d.apply(Command::AddSolids { solids: vec![pipe.clone()] }).unwrap();
+            d.apply(Command::AddSolids {
+                solids: vec![pipe.clone()],
+            })
+            .unwrap();
             let id = d.bodies()[0].id;
             let solid = d.body(id).unwrap().solid.clone();
             let edge = solid
@@ -3888,5 +3971,89 @@ mod loft_edge_tests {
         assert_eq!(largest_working_size(10.0, |_| false), None);
         assert!(largest_working_size(10.0, |v| v < 0.01).is_none());
         assert!(largest_working_size(10.0, |v| v < 0.5).is_some());
+    }
+    /// Draws a square (side `side`, lower corner at x, y) on XY and pulls it up by `height` in Auto mode.
+    fn pull_square(d: &mut Document, x: f64, y: f64, side: f64, height: f64) -> Result<Computed, DocError> {
+        let sk = d
+            .apply(Command::AddEntity {
+                target: SketchTarget::New {
+                    plane: PlaneDef::base(),
+                    body: None,
+                },
+                entity: Entity::Rect {
+                    a: rolidium_sketch::DVec2::new(x, y),
+                    b: rolidium_sketch::DVec2::new(x + side, y + side),
+                },
+            })
+            .unwrap()
+            .created_sketch
+            .unwrap();
+        d.apply(Command::PullRegion {
+            sketch: sk,
+            region: 0,
+            distance: height,
+            mode: PullMode::Auto,
+        })
+    }
+
+    #[test]
+    fn a_new_volume_that_touches_or_overlaps_a_body_joins_it() {
+        // touching with a face (side by side), overlapping, and a volume that grows on the body's own face level
+        for (name, x, y) in [("face", 10.0, 0.0), ("overlap", 5.0, 5.0)] {
+            let mut d = Document::new();
+            pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
+            let c = pull_square(&mut d, x, y, 10.0, 10.0).unwrap();
+            assert_eq!(d.bodies().len(), 1, "{name}: one body");
+            assert!(c.notice.is_none(), "{name}");
+            let v = d.bodies()[0].solid.volume().unwrap();
+            let want = if name == "face" { 2000.0 } else { 2000.0 - 250.0 };
+            assert!((v - want).abs() < 1e-6, "{name}: {v}");
+            assert!(d.bodies()[0].solid.is_valid());
+            // one step back brings the two bodies' state back
+            assert!(d.undo());
+            assert_eq!(d.bodies().len(), 1);
+            assert!((d.bodies()[0].solid.volume().unwrap() - 1000.0).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn a_new_volume_that_touches_nothing_is_a_body_of_its_own() {
+        let mut d = Document::new();
+        pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
+        let c = pull_square(&mut d, 12.0, 0.0, 10.0, 10.0).unwrap();
+        assert_eq!(d.bodies().len(), 2);
+        assert!(c.notice.is_none());
+    }
+
+    #[test]
+    fn a_new_volume_touching_only_along_an_edge_or_a_point_stays_apart_and_says_so() {
+        for (name, x, y) in [("edge", 10.0, 10.0)] {
+            let mut d = Document::new();
+            pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
+            let c = pull_square(&mut d, x, y, 10.0, 10.0).unwrap();
+            assert_eq!(d.bodies().len(), 2, "{name}");
+            assert!(c.notice.is_some(), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_new_volume_bridging_two_bodies_joins_all_three_into_one() {
+        let mut d = Document::new();
+        pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
+        pull_square(&mut d, 20.0, 0.0, 10.0, 10.0).unwrap();
+        assert_eq!(d.bodies().len(), 2);
+        pull_square(&mut d, 10.0, 0.0, 10.0, 10.0).unwrap();
+        assert_eq!(d.bodies().len(), 1);
+        assert!((d.bodies()[0].solid.volume().unwrap() - 3000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_new_volume_inside_a_body_adds_nothing_and_says_so() {
+        let mut d = Document::new();
+        pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
+        let e = pull_square(&mut d, 2.0, 2.0, 4.0, 4.0).unwrap_err().to_string();
+        assert!(e.contains("nothing to add"), "{e}");
+        assert_eq!(d.bodies().len(), 1);
+        assert!((d.bodies()[0].solid.volume().unwrap() - 1000.0).abs() < 1e-6);
     }
 }

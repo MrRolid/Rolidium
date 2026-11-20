@@ -233,6 +233,39 @@ impl App {
 
     /// Edges (besides `edges`) that a round or chamfer of `edges` also treats: the kernel always follows
     /// edges that continue each other tangentially. Cached per document revision.
+    /// Do the edges lie where another, separate body touches this one (a joint of two bodies that are not combined)?
+    pub(super) fn edges_at_body_joint(&self, body: BodyId, edges: &[u32]) -> bool {
+        let key = (self.doc.revision(), body, edges.to_vec());
+        if let Some((k, v)) = &*self.joint_cache.borrow() {
+            if *k == key {
+                return *v;
+            }
+        }
+        let others: Vec<&rolidium_doc::Body> = self
+            .doc
+            .bodies()
+            .iter()
+            .filter(|b| b.id != body && b.visible)
+            .collect();
+        let found = !others.is_empty()
+            && edges.iter().any(|e| {
+                let Some(pl) = self.edge_polyline(body, *e) else {
+                    return false;
+                };
+                let mid = pl[pl.len() / 2].as_dvec3();
+                let Ok(probe) =
+                    rolidium_kernel::Solid::cuboid(mid - DVec3::splat(1e-3), mid + DVec3::splat(1e-3))
+                else {
+                    return false;
+                };
+                others
+                    .iter()
+                    .any(|o| o.solid.distance_to(&probe).is_ok_and(|d| d < 2e-3))
+            });
+        *self.joint_cache.borrow_mut() = Some((key, found));
+        found
+    }
+
     pub(super) fn chain_extra(&self, body: BodyId, edges: &[u32]) -> Vec<u32> {
         let key = (self.doc.revision(), body, edges.to_vec(), self.edge_chamfer);
         if let Some(v) = self.chain_cache.borrow().get(&key) {

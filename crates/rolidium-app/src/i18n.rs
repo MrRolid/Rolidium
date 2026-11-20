@@ -364,10 +364,9 @@ mod coverage {
             let after = &rest[i + 1..];
             match after.find('}') {
                 Some(j)
-                    if after[..j]
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '.' || c == '+')
-                        && !after[..j].is_empty() =>
+                    if after[..j].chars().all(|c| {
+                        c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '.' || c == '+'
+                    }) && !after[..j].is_empty() =>
                 {
                     out.push_str("{}");
                     rest = &after[j + 1..];
@@ -472,6 +471,7 @@ mod coverage {
         "The chamfer of {} mm at {} degrees does not fit these edges. With the two sides swapped (Flip) up to about {} mm works.",
         "The chamfer of {} mm at {} degrees does not fit these edges, and no distance works here: the edges meet in a way that cannot be chamfered with two distances",
         "too large for the neighbouring faces, or the edges meet in a way that cannot be rounded or chamfered",
+        "The new volume touches a body only along an edge or at a point, so it could not be joined to it and is a body of its own",
         "The round or chamfer cannot be changed here: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];
@@ -643,27 +643,47 @@ mod coverage {
             .edges()
             .find(|e| {
                 let i = s.edge_info(*e).unwrap();
-                (i.start.x - i.end.x).abs() < 1e-9 && (i.start.y - i.end.y).abs() < 1e-9 && i.start.x < 1.0 && i.start.y < 1.0
+                (i.start.x - i.end.x).abs() < 1e-9
+                    && (i.start.y - i.end.y).abs() < 1e-9
+                    && i.start.x < 1.0
+                    && i.start.y < 1.0
             })
             .unwrap()
             .0;
         let mut messages: Vec<String> = Vec::new();
         for chamfer in [false, true] {
             messages.push(
-                d.apply(Command::FilletEdges { body, edges: vec![edge], size: 500.0, chamfer })
-                    .unwrap_err()
-                    .to_string(),
+                d.apply(Command::FilletEdges {
+                    body,
+                    edges: vec![edge],
+                    size: 500.0,
+                    chamfer,
+                })
+                .unwrap_err()
+                .to_string(),
             );
         }
         messages.push(
-            d.apply(Command::ChamferAngled { body, edges: vec![edge], distance: 500.0, angle_deg: 30.0, flip: false })
-                .unwrap_err()
-                .to_string(),
+            d.apply(Command::ChamferAngled {
+                body,
+                edges: vec![edge],
+                distance: 500.0,
+                angle_deg: 30.0,
+                flip: false,
+            })
+            .unwrap_err()
+            .to_string(),
         );
         messages.push(
-            d.apply(Command::ChamferAngled { body, edges: vec![], distance: 5.0, angle_deg: 30.0, flip: false })
-                .unwrap_err()
-                .to_string(),
+            d.apply(Command::ChamferAngled {
+                body,
+                edges: vec![],
+                distance: 5.0,
+                angle_deg: 30.0,
+                flip: false,
+            })
+            .unwrap_err()
+            .to_string(),
         );
         for (code, text) in [
             ("cs", include_str!("../../../assets/lang/cs.txt")),
