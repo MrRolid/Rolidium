@@ -46,7 +46,7 @@ fn box_tessellation_has_face_ids_and_edges() {
     assert_eq!(seen, vec![0, 1, 2, 3, 4, 5]);
     close(m.signed_volume(), 24000.0, 1e-3);
     // normals are unit length and consistent with winding
-    for t in m.indices.chunks_exact(3) {
+    for t in m.indices.as_chunks::<3>().0 {
         let (a, b, c) = (
             m.positions[t[0] as usize],
             m.positions[t[1] as usize],

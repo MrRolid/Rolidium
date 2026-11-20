@@ -345,7 +345,11 @@ impl Runner {
                             edges.push(best.ok_or("the body has no edges")?.1);
                             k += 4;
                         }
-                        o => return Err(format!("usage: fill (edges <id>... | near <x> <y> <z>); unexpected '{o}'")),
+                        o => {
+                            return Err(format!(
+                                "usage: fill (edges <id>... | near <x> <y> <z>); unexpected '{o}'"
+                            ))
+                        }
                     }
                 }
                 if edges.is_empty() {
@@ -369,9 +373,15 @@ impl Runner {
                 let gap = num(1)?;
                 if w.get(2) == Some(&"curves") {
                     self.doc
-                        .apply(Command::JoinCurves { curves: vec![], max_gap: gap })
+                        .apply(Command::JoinCurves {
+                            curves: vec![],
+                            max_gap: gap,
+                        })
                         .map_err(|e| e.to_string())?;
-                    self.say(format!("join-ends: 3D lines joined, {} curve(s) now", self.doc.curves().len()));
+                    self.say(format!(
+                        "join-ends: 3D lines joined, {} curve(s) now",
+                        self.doc.curves().len()
+                    ));
                     return Ok(());
                 }
                 let id = self.sketch.ok_or("there is no current sketch")?;
@@ -384,7 +394,11 @@ impl Runner {
                 if w.get(2) == Some(&"lines") {
                     for t in &w[3..] {
                         let n: usize = t.parse().map_err(|_| format!("'{t}' is not a line number"))?;
-                        chosen.push(all.get(n.wrapping_sub(1)).ok_or(format!("the sketch has no line {n}"))?.0);
+                        chosen.push(
+                            all.get(n.wrapping_sub(1))
+                                .ok_or(format!("the sketch has no line {n}"))?
+                                .0,
+                        );
                     }
                 }
                 let used: Vec<_> = all
@@ -394,7 +408,11 @@ impl Runner {
                     .collect();
                 let plan = rolidium_doc::rolidium_sketch::join::plan_join(&used, gap);
                 self.doc
-                    .apply(Command::JoinEnds { sketch: id, entities: chosen, max_gap: gap })
+                    .apply(Command::JoinEnds {
+                        sketch: id,
+                        entities: chosen,
+                        max_gap: gap,
+                    })
                     .map_err(|e| e.to_string())?;
                 let regions = self.doc.sketch(id).map_or(0, |s| s.sketch.regions().len());
                 self.say(format!(
@@ -637,7 +655,7 @@ impl Runner {
                     i = 3;
                 }
                 let rest = &w[i.min(w.len())..];
-                if rest.len() < 6 || rest.len() % 3 != 0 {
+                if rest.len() < 6 || !rest.len().is_multiple_of(3) {
                     return Err("curve needs at least two points (x y z each)".into());
                 }
                 let mut points = Vec::new();

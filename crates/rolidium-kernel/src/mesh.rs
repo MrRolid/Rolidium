@@ -28,7 +28,11 @@ pub struct Mesh {
 }
 
 fn vec3s(f: &[f32]) -> Vec<Vec3> {
-    f.chunks_exact(3).map(|c| Vec3::new(c[0], c[1], c[2])).collect()
+    f.as_chunks::<3>()
+        .0
+        .iter()
+        .map(|c| Vec3::new(c[0], c[1], c[2]))
+        .collect()
 }
 
 impl Mesh {
@@ -65,7 +69,7 @@ impl Mesh {
         header[..tag.len()].copy_from_slice(tag);
         w.write_all(&header)?;
         w.write_all(&(self.triangle_count() as u32).to_le_bytes())?;
-        for t in self.indices.chunks_exact(3) {
+        for t in self.indices.as_chunks::<3>().0 {
             let a = self.positions[t[0] as usize];
             let b = self.positions[t[1] as usize];
             let c = self.positions[t[2] as usize];
@@ -83,7 +87,7 @@ impl Mesh {
     /// ASCII STL.
     pub fn write_stl_ascii<W: Write>(&self, w: &mut W) -> std::io::Result<()> {
         writeln!(w, "solid rolidium")?;
-        for t in self.indices.chunks_exact(3) {
+        for t in self.indices.as_chunks::<3>().0 {
             let a = self.positions[t[0] as usize];
             let b = self.positions[t[1] as usize];
             let c = self.positions[t[2] as usize];
@@ -102,7 +106,9 @@ impl Mesh {
     /// Signed volume of the triangle mesh (positive for a correctly oriented closed mesh).
     pub fn signed_volume(&self) -> f64 {
         self.indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|t| {
                 let a = self.positions[t[0] as usize].as_dvec3();
                 let b = self.positions[t[1] as usize].as_dvec3();

@@ -48,7 +48,9 @@ impl Region {
         }
         match earcutr::earcut(&coords, &holes, 2) {
             Ok(idx) => idx
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|t| [pts[t[0]], pts[t[1]], pts[t[2]]])
                 .collect(),
             Err(_) => Vec::new(),
@@ -451,21 +453,21 @@ pub(crate) fn find_regions(entities: &[(EntityId, Entity)]) -> Vec<Region> {
     }
     // half-edge h = 2*e + dir
     let seg_of = |h: usize| {
-        if h % 2 == 0 {
+        if h.is_multiple_of(2) {
             edges[h / 2].seg
         } else {
             edges[h / 2].seg.reversed()
         }
     };
     let origin = |h: usize| {
-        if h % 2 == 0 {
+        if h.is_multiple_of(2) {
             edges[h / 2].n0
         } else {
             edges[h / 2].n1
         }
     };
     let dest = |h: usize| {
-        if h % 2 == 0 {
+        if h.is_multiple_of(2) {
             edges[h / 2].n1
         } else {
             edges[h / 2].n0

@@ -110,7 +110,14 @@ impl App {
             .first()
             .map(|(s, _)| *s)
             .or(self.join.sketch)
-            .or_else(|| self.doc.sketches().iter().rev().find(|s| !s.sketch.is_empty()).map(|s| s.id))?;
+            .or_else(|| {
+                self.doc
+                    .sketches()
+                    .iter()
+                    .rev()
+                    .find(|s| !s.sketch.is_empty())
+                    .map(|s| s.id)
+            })?;
         let sk = self.doc.sketch(id)?;
         let lines = sk
             .sketch
@@ -139,14 +146,29 @@ impl App {
         self.settings.join_gap = gap;
         self.settings.save();
         let (cmd, joined, free) = if let (Some(c), true) = (self.curve_sel, self.join.sel.is_empty()) {
-            (Command::JoinCurves { curves: vec![c], max_gap: gap }, 0, 0)
+            (
+                Command::JoinCurves {
+                    curves: vec![c],
+                    max_gap: gap,
+                },
+                0,
+                0,
+            )
         } else {
             let Some((id, plan)) = self.join_plan() else {
                 self.set_status("There is nothing to join", true);
                 return;
             };
             let ents: Vec<_> = self.join.sel.iter().map(|(_, e)| *e).collect();
-            (Command::JoinEnds { sketch: id, entities: ents, max_gap: gap }, plan.joined(), plan.free.len())
+            (
+                Command::JoinEnds {
+                    sketch: id,
+                    entities: ents,
+                    max_gap: gap,
+                },
+                plan.joined(),
+                plan.free.len(),
+            )
         };
         // the doc applies it at once (a few lines: no worker needed), as one step of Undo
         match self.doc.apply(cmd) {
@@ -155,7 +177,10 @@ impl App {
                 self.regions_rev = u64::MAX;
                 self.join.sel.clear();
                 self.set_status(
-                    trf("Joined gaps: {}. Ends that stayed free: {}.", &[joined.to_string(), free.to_string()]),
+                    trf(
+                        "Joined gaps: {}. Ends that stayed free: {}.",
+                        &[joined.to_string(), free.to_string()],
+                    ),
                     false,
                 );
                 self.tool = Tool::Select;
@@ -238,7 +263,9 @@ impl App {
         if !self.join_active() {
             return;
         }
-        let Some((id, plan)) = self.join_plan() else { return };
+        let Some((id, plan)) = self.join_plan() else {
+            return;
+        };
         let Some(sk) = self.doc.sketch(id) else { return };
         let painter = ui.painter().with_clip_rect(rect);
         let to_screen = |p: DVec2| self.project(sk.plane.to_3d(p).as_vec3(), rect);

@@ -416,8 +416,10 @@ pub fn times() -> i32 {
     let spring = {
         let mut r = crate::Runner::new();
         r.quiet = true;
-        r.run_script(&script_without_files(include_str!("../../../examples/08-spring.txt")))
-            .unwrap();
+        r.run_script(&script_without_files(include_str!(
+            "../../../examples/08-spring.txt"
+        )))
+        .unwrap();
         r.doc.bodies().last().unwrap().solid.clone()
     };
     let cylinder = Solid::cylinder(20.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap();
@@ -435,7 +437,13 @@ pub fn times() -> i32 {
             let m = solid.view_mesh(pixel, MAX_VIEW_TRIANGLES, previous).unwrap();
             let ms = t.elapsed().as_secs_f64() * 1e3;
             previous = Some((m.deflection, m.triangle_count()));
-            println!("{:<34} {:>9}x {:>10.1} {:>12}", name, zoom, ms, m.triangle_count());
+            println!(
+                "{:<34} {:>9}x {:>10.1} {:>12}",
+                name,
+                zoom,
+                ms,
+                m.triangle_count()
+            );
         }
     }
     0

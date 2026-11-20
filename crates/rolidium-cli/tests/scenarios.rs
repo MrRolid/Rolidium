@@ -410,12 +410,18 @@ fn fill_closes_the_hole_of_a_pipe() {
     .unwrap();
     assert_eq!(r.doc.bodies().len(), 1);
     let vol = r.doc.bodies()[0].solid.volume().unwrap();
-    assert!((vol - std::f64::consts::PI * 400.0 * 30.0).abs() < 1e-6, "volume {vol}");
+    assert!(
+        (vol - std::f64::consts::PI * 400.0 * 30.0).abs() < 1e-6,
+        "volume {vol}"
+    );
     // an edge that is no loop is refused with the reason, and nothing changes
     let mut b = Runner::new();
     b.run_script("box 40 30 20").unwrap();
     let e = b.run_script("fill edges 0").unwrap_err().to_string();
-    assert!(e.contains("Several edges meet") || e.contains("closed loop"), "{e}");
+    assert!(
+        e.contains("Several edges meet") || e.contains("closed loop"),
+        "{e}"
+    );
 }
 
 /// Join ends: a rectangle with gaps in the corners is closed; a gap above the limit stays.

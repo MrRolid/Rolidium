@@ -98,7 +98,9 @@ mod tests {
         let data_len = u32::from_le_bytes(w[40..44].try_into().unwrap()) as usize;
         assert_eq!(w.len(), 44 + data_len);
         let samples: Vec<i16> = w[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| i16::from_le_bytes([c[0], c[1]]))
             .collect();
         let peak = samples.iter().map(|s| s.unsigned_abs()).max().unwrap();
@@ -115,7 +117,9 @@ mod tests {
         let quiet = error_tone_wav(0.2);
         let level = |w: &[u8]| {
             w[44..]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| i16::from_le_bytes([c[0], c[1]]).unsigned_abs() as u64)
                 .max()
                 .unwrap()

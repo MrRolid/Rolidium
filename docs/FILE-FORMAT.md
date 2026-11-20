@@ -49,6 +49,7 @@ geometry itself is never affected.
   "name": "Sketch 1",
   "plane": { "origin": [0,0,20], "normal": [0,0,1], "x_dir": [1,0,0] },
   "target_body": 1,                     // body the sketch was drawn on, or null (base plane)
+  "fill": true,                         // optional: made by Fill; pulling its region adds material in either direction
   "visible": true,                      // optional, default true
   "entities": [
     { "type": "line",   "a": [x,y], "b": [x,y] },

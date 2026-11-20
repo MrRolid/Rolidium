@@ -243,7 +243,9 @@ fn an_angle_bracket_with_a_hole_is_built_through_the_tools() {
     assert_eq!((info.width, info.height), (400, 300));
     let corner = [buf[0], buf[1], buf[2]];
     let differing = buf
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| (0..3).any(|i| (p[i] as i32 - corner[i] as i32).abs() > 40))
         .count();
     assert!(

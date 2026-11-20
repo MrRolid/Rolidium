@@ -683,8 +683,16 @@ impl App {
                     .sk
                     .as_ref()
                     .is_some_and(|s| s.tool == SkTool::Circle && s.plane.same_plane(&PlaneDef::base()));
-                check(&mut st, "a new document starts in a sketch on XY with the Circle tool", started);
-                check(&mut st, "the guide is running in a new document", self.guide.active);
+                check(
+                    &mut st,
+                    "a new document starts in a sketch on XY with the Circle tool",
+                    started,
+                );
+                check(
+                    &mut st,
+                    "the guide is running in a new document",
+                    self.guide.active,
+                );
                 if self.view_anim.is_some() {
                     // the animation (with its pause) is still running: look again next frame
                     self.selftest = Some(st);
@@ -703,7 +711,11 @@ impl App {
                 // an opened (here: replaced) document does not start a sketch or the guide
                 self.replace_document(Document::new(), None);
                 check(&mut st, "an opened document starts no sketch", self.sk.is_none());
-                check(&mut st, "an opened document does not start the guide", !self.guide.active);
+                check(
+                    &mut st,
+                    "an opened document does not start the guide",
+                    !self.guide.active,
+                );
                 st.wait_frames = 2;
             }
             39 => {
@@ -750,7 +762,12 @@ impl App {
                 st.wait_frames = 3;
             }
             42 => {
-                let v = self.doc.bodies().first().and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
+                let v = self
+                    .doc
+                    .bodies()
+                    .first()
+                    .and_then(|b| b.solid.volume().ok())
+                    .unwrap_or(0.0);
                 check(
                     &mut st,
                     "pulling the filled circle down gives a full cylinder",
@@ -771,7 +788,10 @@ impl App {
                         .doc
                         .apply(Command::AddEntity {
                             target: match sk {
-                                None => SketchTarget::New { plane: PlaneDef::base(), body: None },
+                                None => SketchTarget::New {
+                                    plane: PlaneDef::base(),
+                                    body: None,
+                                },
                                 Some(id) => SketchTarget::Existing(id),
                             },
                             entity: Entity::Line { a, b },
@@ -782,7 +802,11 @@ impl App {
                 self.tool = Tool::Select;
                 self.activate_join();
                 let joined = self.join_plan().map_or(0, |(_, p)| p.joined());
-                check(&mut st, "Join ends finds the four gaps of the square", joined == 4);
+                check(
+                    &mut st,
+                    "Join ends finds the four gaps of the square",
+                    joined == 4,
+                );
                 self.join_apply();
                 self.refresh_regions();
                 let regions: usize = self.regions.iter().map(|r| r.regions.len()).sum();
@@ -815,17 +839,27 @@ impl App {
                     .edges
                     .iter()
                     .filter(|e| e.points.len() > 8)
-                    .flat_map(|e| e.points.windows(2).map(|w| {
-                        let mid = (w[0] + w[1]) * 0.5;
-                        (20.0 - (mid.x * mid.x + mid.y * mid.y).sqrt()).abs()
-                    }))
+                    .flat_map(|e| {
+                        e.points.windows(2).map(|w| {
+                            let mid = (w[0] + w[1]) * 0.5;
+                            (20.0 - (mid.x * mid.x + mid.y * mid.y).sqrt()).abs()
+                        })
+                    })
                     .fold(0.0_f32, f32::max);
                 println!(
                     "selftest: zoomed circle: {px:.4} mm per pixel, worst deviation {worst:.4} mm, {before} -> {} triangles",
                     m.triangle_count()
                 );
-                check(&mut st, "a circle across the window deviates by less than half a pixel", f64::from(worst) <= 0.5 * px);
-                check(&mut st, "the zoomed mesh is finer than the first one", m.triangle_count() > before);
+                check(
+                    &mut st,
+                    "a circle across the window deviates by less than half a pixel",
+                    f64::from(worst) <= 0.5 * px,
+                );
+                check(
+                    &mut st,
+                    "the zoomed mesh is finer than the first one",
+                    m.triangle_count() > before,
+                );
                 self.layers_changed = true;
                 st.wait_frames = 3;
                 shot(&mut st, ctx, "zoomed-circle");

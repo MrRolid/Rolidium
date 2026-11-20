@@ -257,7 +257,7 @@ pub fn render(scene: &SoftScene, camera: &Camera, w: usize, h: usize) -> Vec<u8>
     let key = Vec3::new(0.4, -0.5, 0.8).normalize();
     for body in &scene.bodies {
         let m = body.mesh;
-        for (t, tri) in m.indices.chunks_exact(3).enumerate() {
+        for (t, tri) in m.indices.as_chunks::<3>().0.iter().enumerate() {
             let ids = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
             let ps = [m.positions[ids[0]], m.positions[ids[1]], m.positions[ids[2]]];
             let (Some(a), Some(b), Some(c)) = (to_screen(ps[0]), to_screen(ps[1]), to_screen(ps[2])) else {

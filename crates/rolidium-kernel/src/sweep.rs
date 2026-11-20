@@ -170,7 +170,7 @@ impl Path {
     /// Points along the path for drawing (the polyline stays within `deflection` mm of the curve).
     pub fn polyline(&self, deflection: f64) -> Result<Vec<DVec3>> {
         let v = native::path_points(&self.shape, deflection.max(1e-4))?;
-        Ok(v.chunks_exact(3).map(v3).collect())
+        Ok(v.as_chunks::<3>().0.iter().map(|c| v3(c)).collect())
     }
 }
 

@@ -399,7 +399,7 @@ Try a smaller or simpler operation (fewer turns, a coarser shape) or start the s
         }
         for s in doc.sketches().iter().filter(|s| s.visible) {
             let l = rolidium_render::sketch_lines(&s.plane, &s.sketch);
-            for pair in l.chunks_exact(2) {
+            for pair in l.as_chunks::<2>().0 {
                 lo = lo.min(pair[0]).min(pair[1]);
                 hi = hi.max(pair[0]).max(pair[1]);
                 scene.lines.push((vec![pair[0], pair[1]], [0.95, 0.75, 0.1]));

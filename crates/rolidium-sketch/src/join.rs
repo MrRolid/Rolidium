@@ -28,7 +28,8 @@ pub fn pair_ends(ends: &[(usize, DVec3)], max_gap: f64) -> (Vec<Pair>, Vec<usize
     // an end that touches another end is not free
     let free: Vec<usize> = (0..ends.len())
         .filter(|&i| {
-            !(0..ends.len()).any(|j| j != i && ends[j].0 != ends[i].0 && ends[i].1.distance(ends[j].1) <= TOUCH)
+            !(0..ends.len())
+                .any(|j| j != i && ends[j].0 != ends[i].0 && ends[i].1.distance(ends[j].1) <= TOUCH)
         })
         .collect();
     let mut cand: Vec<Pair> = Vec::new();
@@ -236,7 +237,10 @@ mod tests {
 
     #[test]
     fn ends_that_touch_are_not_free_and_the_same_entity_is_not_paired_with_itself() {
-        let ents = vec![(1, line((0.0, 0.0), (5.0, 0.0))), (2, line((5.0, 0.0), (5.0, 5.0)))];
+        let ents = vec![
+            (1, line((0.0, 0.0), (5.0, 0.0))),
+            (2, line((5.0, 0.0), (5.0, 5.0))),
+        ];
         // the shared corner touches (it is no free end); the other two ends are 7 apart
         let plan = plan_join(&ents, 2.0);
         assert_eq!(plan.joined(), 0);
@@ -246,7 +250,8 @@ mod tests {
 
     #[test]
     fn an_arc_end_is_welded_by_redrawing_the_arc() {
-        let arc = Entity::arc_through(DVec2::new(0.0, 0.0), DVec2::new(5.0, 3.0), DVec2::new(10.0, 0.0)).unwrap();
+        let arc =
+            Entity::arc_through(DVec2::new(0.0, 0.0), DVec2::new(5.0, 3.0), DVec2::new(10.0, 0.0)).unwrap();
         let l = line((10.004, 0.0), (10.0, -8.0));
         let plan = plan_join(&[(1, arc), (2, l)], 0.5);
         assert_eq!(plan.joined(), 1);

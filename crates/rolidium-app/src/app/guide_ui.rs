@@ -71,13 +71,16 @@ impl App {
             let t = ctx.input(|i| i.time) as f32;
             let k = 0.5 + 0.5 * (t * 4.0).sin();
             let col = Color32::from_rgba_unmultiplied(255, 190, 90, (40.0 + 150.0 * k) as u8);
-            ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("guide_pulse")))
-                .rect_stroke(
-                    self.pull_btn_rect.expand(2.0 + 2.0 * k),
-                    5.0,
-                    Stroke::new(2.0, col),
-                    egui::StrokeKind::Outside,
-                );
+            ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new("guide_pulse"),
+            ))
+            .rect_stroke(
+                self.pull_btn_rect.expand(2.0 + 2.0 * k),
+                5.0,
+                Stroke::new(2.0, col),
+                egui::StrokeKind::Outside,
+            );
             ctx.request_repaint();
         }
         let mut close = false;
@@ -87,7 +90,10 @@ impl App {
             .fixed_pos(pos)
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style())
-                    .stroke(Stroke::new(1.5, crate::icons::file_frame_color(ui.visuals().dark_mode)))
+                    .stroke(Stroke::new(
+                        1.5,
+                        crate::icons::file_frame_color(ui.visuals().dark_mode),
+                    ))
                     .show(ui, |ui| {
                         ui.set_max_width(320.0);
                         ui.label(text);

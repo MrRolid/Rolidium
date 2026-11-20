@@ -206,7 +206,7 @@ impl SceneCheck {
 /// Counts the characteristic colours of the test scene in an RGBA picture.
 pub fn check_picture(rgba: &[u8]) -> SceneCheck {
     let mut c = SceneCheck::default();
-    for p in rgba.chunks_exact(4) {
+    for p in rgba.as_chunks::<4>().0 {
         let (r, g, b) = (p[0] as i32, p[1] as i32, p[2] as i32);
         // red X axis, green Y axis, yellow sketch outline, grey-blue body, faint grid lines
         if r > 150 && g < 110 && b < 110 {

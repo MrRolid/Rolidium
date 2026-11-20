@@ -154,11 +154,21 @@ mod tests {
         let mut g = running();
         assert_eq!(g.due(), Some(Hint::Draw));
         assert!(!g.observe(Facts::default()));
-        assert!(g.observe(Facts { closed_shape: true, ..Facts::default() }));
+        assert!(g.observe(Facts {
+            closed_shape: true,
+            ..Facts::default()
+        }));
         assert_eq!(g.due(), Some(Hint::PressPull));
-        assert!(g.observe(Facts { closed_shape: true, pull_tool: true, ..Facts::default() }));
+        assert!(g.observe(Facts {
+            closed_shape: true,
+            pull_tool: true,
+            ..Facts::default()
+        }));
         assert_eq!(g.due(), Some(Hint::UsePull));
-        assert!(g.observe(Facts { body: true, ..Facts::default() }));
+        assert!(g.observe(Facts {
+            body: true,
+            ..Facts::default()
+        }));
         assert_eq!(g.due(), Some(Hint::Navigate));
         assert!(g.close());
         assert_eq!(g.due(), None);
@@ -170,8 +180,15 @@ mod tests {
         let mut g = running();
         g.close();
         assert_eq!(g.due(), None);
-        g.observe(Facts { closed_shape: true, ..Facts::default() });
-        assert_eq!(g.due(), Some(Hint::PressPull), "the next hint is shown even though the one before was closed");
+        g.observe(Facts {
+            closed_shape: true,
+            ..Facts::default()
+        });
+        assert_eq!(
+            g.due(),
+            Some(Hint::PressPull),
+            "the next hint is shown even though the one before was closed"
+        );
     }
 
     #[test]
@@ -179,7 +196,13 @@ mod tests {
         let mut g = running();
         g.switch_off();
         assert_eq!(g.due(), None);
-        assert!(!g.observe(Facts { closed_shape: true, ..Facts::default() }), "nothing is recorded while it is off");
+        assert!(
+            !g.observe(Facts {
+                closed_shape: true,
+                ..Facts::default()
+            }),
+            "nothing is recorded while it is off"
+        );
         g.restart();
         assert_eq!(g.mask, 0);
         assert_eq!(g.due(), Some(Hint::Draw));
@@ -209,7 +232,10 @@ mod tests {
     #[test]
     fn someone_who_makes_a_body_at_once_skips_the_early_hints() {
         let mut g = running();
-        g.observe(Facts { body: true, ..Facts::default() });
+        g.observe(Facts {
+            body: true,
+            ..Facts::default()
+        });
         assert_eq!(g.due(), Some(Hint::Navigate));
     }
 }

@@ -78,7 +78,7 @@ pub fn geometry(solid: &Solid) -> Result<BodyGeometry, String> {
     let nf = solid.face_count();
     let mut sum = vec![DVec3::ZERO; nf];
     let mut weight = vec![0.0f64; nf];
-    for (t, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
         let f = mesh.tri_face[t] as usize;
         if f >= nf {
             continue;

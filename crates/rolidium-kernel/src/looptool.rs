@@ -61,7 +61,10 @@ fn close(a: DVec3, b: DVec3, tol: f64) -> bool {
 fn plane_through(points: &[DVec3], tol: f64) -> Option<Option<(DVec3, DVec3)>> {
     let p0 = *points.first()?;
     // the farthest point from p0, then the one farthest from that line
-    let p1 = points.iter().copied().max_by(|a, b| (*a - p0).length().total_cmp(&(*b - p0).length()))?;
+    let p1 = points
+        .iter()
+        .copied()
+        .max_by(|a, b| (*a - p0).length().total_cmp(&(*b - p0).length()))?;
     if (p1 - p0).length() <= tol {
         return Some(None);
     }
@@ -174,7 +177,10 @@ impl Solid {
             }
         } else {
             // the selected edges together: every end must meet exactly one other end
-            let all: Vec<LoopEdge> = selected.iter().map(|e| get(*e)).collect::<std::result::Result<_, _>>()?;
+            let all: Vec<LoopEdge> = selected
+                .iter()
+                .map(|e| get(*e))
+                .collect::<std::result::Result<_, _>>()?;
             let mut rest = all.clone();
             let e = rest.remove(0);
             let mut at = e.end;
@@ -202,7 +208,10 @@ impl Solid {
             Some(Some(pl)) => pl,
             Some(None) => {
                 // a circle alone (or an arc): the axis tells
-                let c = chain.iter().find_map(|e| Some((e.center?, e.axis?))).ok_or(LoopError::NotPlanar)?;
+                let c = chain
+                    .iter()
+                    .find_map(|e| Some((e.center?, e.axis?)))
+                    .ok_or(LoopError::NotPlanar)?;
                 (c.0, c.1.normalize())
             }
         };
@@ -231,10 +240,16 @@ impl Solid {
         }
         if let Some(n) = outward {
             normal = n;
-        } else if normal.z < -1e-9 || (normal.z.abs() <= 1e-9 && (normal.y < -1e-9 || (normal.y.abs() <= 1e-9 && normal.x < 0.0))) {
+        } else if normal.z < -1e-9
+            || (normal.z.abs() <= 1e-9 && (normal.y < -1e-9 || (normal.y.abs() <= 1e-9 && normal.x < 0.0)))
+        {
             normal = -normal;
         }
-        Ok(PlanarLoop { origin, normal, edges: chain })
+        Ok(PlanarLoop {
+            origin,
+            normal,
+            edges: chain,
+        })
     }
 
     /// Middle point of an edge, and for a circle its centre and axis (zeros otherwise).

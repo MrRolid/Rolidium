@@ -141,17 +141,16 @@ fn mesh_entry_view(
     max_triangles: usize,
     previous: Option<(f64, usize)>,
 ) -> Result<MeshEntry, String> {
-    let mesh = b
-        .2
-        .view_mesh(pixel_mm, max_triangles, previous)
-        .map_err(|e| e.to_string())?;
+    let mesh =
+        b.2.view_mesh(pixel_mm, max_triangles, previous)
+            .map_err(|e| e.to_string())?;
     entry_of(b, mesh)
 }
 
 fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
     let (id, name, solid, color) = b;
     let mut sums = vec![(glam::Vec3::ZERO, 0u32); solid.face_count()];
-    for (t, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
         let f = mesh.tri_face[t] as usize;
         for &i in tri {
             sums[f].0 += mesh.positions[i as usize];

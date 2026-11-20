@@ -51,7 +51,12 @@ impl App {
         if self.selftest.is_some() || self.bench.is_some() || self.meshes.is_empty() {
             return;
         }
-        let v = (self.camera.target, self.camera.yaw, self.camera.pitch, self.camera.distance);
+        let v = (
+            self.camera.target,
+            self.camera.yaw,
+            self.camera.pitch,
+            self.camera.distance,
+        );
         if self.remesh.last_view != Some(v) {
             self.remesh.last_view = Some(v);
             self.remesh.moved_at = Some(Instant::now());
@@ -66,7 +71,12 @@ impl App {
             return;
         }
         let due = self.remesh.pixel > need * FINER_FACTOR || need > self.remesh.pixel * COARSER_FACTOR;
-        if !due || self.remesh.inflight.is_some() || !self.idle() || self.pull.is_some() || self.view_anim.is_some() {
+        if !due
+            || self.remesh.inflight.is_some()
+            || !self.idle()
+            || self.pull.is_some()
+            || self.view_anim.is_some()
+        {
             return;
         }
         let quiet = self
@@ -117,7 +127,9 @@ impl App {
 
     /// The new meshes arrived: they replace the old ones unless the model changed meanwhile.
     pub(super) fn remesh_done(&mut self, ticket: u64, r: Result<Vec<MeshEntry>, String>) {
-        let Some((t, rev, need)) = self.remesh.inflight else { return };
+        let Some((t, rev, need)) = self.remesh.inflight else {
+            return;
+        };
         if t != ticket {
             return;
         }
@@ -130,7 +142,9 @@ impl App {
         self.set_meshes(entries);
         self.remesh.key = Arc::as_ptr(&self.meshes) as usize;
         self.remesh.pixel = need;
-        log(&format!("display meshes made again for {need:.4} mm per pixel: {tris} triangles"));
+        log(&format!(
+            "display meshes made again for {need:.4} mm per pixel: {tris} triangles"
+        ));
     }
 
     /// For the self-test: the meshes made at once for the present zoom.

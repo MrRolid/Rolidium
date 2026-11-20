@@ -20,7 +20,7 @@ pub fn pull_preview(mesh: &Mesh, face: u32, normal: Vec3, distance: f32) -> Prev
     let mut lines = Vec::new();
     // Edge use count within the face; edges used once form the boundary.
     let mut edge_use: HashMap<(u32, u32), (u32, u32)> = HashMap::new();
-    for (t, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
         if mesh.tri_face[t] != face {
             continue;
         }
@@ -66,7 +66,7 @@ pub fn pull_preview(mesh: &Mesh, face: u32, normal: Vec3, distance: f32) -> Prev
 /// Boundary segments of one face of a display mesh and its sharp corners.
 pub fn face_boundary(mesh: &Mesh, face: u32) -> (Vec<(Vec3, Vec3)>, Vec<Vec3>) {
     let mut use_count: HashMap<(u32, u32), u32> = HashMap::new();
-    for (t, tri) in mesh.indices.chunks_exact(3).enumerate() {
+    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
         if mesh.tri_face[t] != face {
             continue;
         }

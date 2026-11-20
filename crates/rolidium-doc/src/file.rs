@@ -527,7 +527,10 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             visible: j.get("visible").and_then(Value::as_bool).unwrap_or(true),
             fill: j.get("fill").and_then(Value::as_bool).unwrap_or(false),
         };
-        take_keys(&mut j, &["name", "plane", "target_body", "entities", "visible", "fill"]);
+        take_keys(
+            &mut j,
+            &["name", "plane", "target_body", "entities", "visible", "fill"],
+        );
         if !unknown.is_empty() {
             j.insert("entities_unknown".into(), Value::Array(unknown));
         }

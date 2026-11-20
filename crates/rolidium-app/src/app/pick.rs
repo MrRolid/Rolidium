@@ -47,7 +47,7 @@ pub(super) fn ray_mesh_face_hit(
     d: Vec3,
 ) -> Option<(DVec3, DVec3)> {
     let mut best: Option<(f32, DVec3)> = None;
-    for (t, tri) in m.indices.chunks_exact(3).enumerate() {
+    for (t, tri) in m.indices.as_chunks::<3>().0.iter().enumerate() {
         if m.tri_face.get(t) != Some(&face) {
             continue;
         }
@@ -215,7 +215,7 @@ impl App {
         let dir = to / dist;
         let eps = dist * 1e-3 + 0.05;
         for m in self.meshes.iter() {
-            for t in m.mesh.indices.chunks_exact(3) {
+            for t in m.mesh.indices.as_chunks::<3>().0 {
                 let (a, b, c) = (
                     m.mesh.positions[t[0] as usize],
                     m.mesh.positions[t[1] as usize],
@@ -581,7 +581,7 @@ impl App {
     pub(super) fn ray_face_point(&self, body: BodyId, face: u32, o: Vec3, d: Vec3) -> Option<DVec3> {
         let m = self.entry(body)?;
         let mut best: Option<f32> = None;
-        for (t, tri) in m.mesh.indices.chunks_exact(3).enumerate() {
+        for (t, tri) in m.mesh.indices.as_chunks::<3>().0.iter().enumerate() {
             if m.mesh.tri_face.get(t) != Some(&face) {
                 continue;
             }

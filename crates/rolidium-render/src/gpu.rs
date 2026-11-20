@@ -544,7 +544,7 @@ impl Renderer {
             // Face IDs are per triangle but vertices are not shared between faces, so the
             // ID can live on the vertex.
             let mut verts = verts;
-            for (t, tri) in m.indices.chunks_exact(3).enumerate() {
+            for (t, tri) in m.indices.as_chunks::<3>().0.iter().enumerate() {
                 let id = encode_pick(slot as u32, m.tri_face[t]);
                 for &i in tri {
                     verts[i as usize].id = id;

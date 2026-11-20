@@ -31,9 +31,9 @@ mod curvetools;
 mod dock;
 mod edgepull;
 mod files;
-mod jointool;
 mod filltool;
 mod guide_ui;
+mod jointool;
 mod lofttool;
 mod measuretool;
 mod movetool;
@@ -177,6 +177,9 @@ enum Busy {
 }
 
 /// Cached regions of one sketch with their 3D geometry.
+/// What the cache of `edges_at_body_joint` was made for: the revision, the body and its edges.
+type JointKey = (u64, BodyId, Vec<u32>);
+
 struct SketchRegions {
     id: SketchId,
     plane: PlaneDef,
@@ -309,7 +312,7 @@ pub struct App {
     guide: crate::guide::Guide,
     /// Where the Pull button of the left column was drawn (the guide points at it).
     pull_btn_rect: Rect,
-    joint_cache: std::cell::RefCell<Option<((u64, BodyId, Vec<u32>), bool)>>,
+    joint_cache: std::cell::RefCell<Option<(JointKey, bool)>>,
     file_path: Option<PathBuf>,
     file_dialog: Option<crate::filedialog::FileDialog>,
     egui_ctx: egui::Context,
@@ -3286,7 +3289,10 @@ impl App {
                     changed = true;
                 }
                 if ui
-                    .checkbox(&mut self.settings.guide_enabled, tr("Show the guide to the first steps"))
+                    .checkbox(
+                        &mut self.settings.guide_enabled,
+                        tr("Show the guide to the first steps"),
+                    )
                     .changed()
                 {
                     self.guide.enabled = self.settings.guide_enabled;

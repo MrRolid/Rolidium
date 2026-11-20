@@ -101,7 +101,12 @@ impl App {
             return;
         }
         if let Some(&(body, _)) = self.edge_sel.first() {
-            let edges: Vec<u32> = self.edge_sel.iter().filter(|(b, _)| *b == body).map(|(_, e)| *e).collect();
+            let edges: Vec<u32> = self
+                .edge_sel
+                .iter()
+                .filter(|(b, _)| *b == body)
+                .map(|(_, e)| *e)
+                .collect();
             self.fill_pending = true;
             self.submit(Command::FillLoop { body, edges });
         } else if !self.fill_entities.is_empty() {

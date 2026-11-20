@@ -166,7 +166,13 @@ impl Settings {
                 "new_doc_sketch" => s.new_doc_sketch = v != "false",
                 "guide_enabled" => s.guide_enabled = v != "false",
                 "guide_mask" => s.guide_mask = v.parse().unwrap_or(0),
-                "join_gap" => s.join_gap = v.parse().ok().filter(|g: &f64| g.is_finite() && *g > 0.0).unwrap_or(1.0),
+                "join_gap" => {
+                    s.join_gap = v
+                        .parse()
+                        .ok()
+                        .filter(|g: &f64| g.is_finite() && *g > 0.0)
+                        .unwrap_or(1.0)
+                }
                 _ => {}
             }
         }

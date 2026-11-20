@@ -414,10 +414,18 @@ impl Solid {
     /// is a mesh of this solid made earlier (its deflection and triangle count): the number of triangles is kept under
     /// `max_triangles` by raising the deflection when the estimate from it says the cap would be passed (the number grows about
     /// with one over the deflection on curved faces).
-    pub fn view_mesh(&self, pixel_mm: f64, max_triangles: usize, previous: Option<(f64, usize)>) -> Result<Mesh> {
+    pub fn view_mesh(
+        &self,
+        pixel_mm: f64,
+        max_triangles: usize,
+        previous: Option<(f64, usize)>,
+    ) -> Result<Mesh> {
         let b = native::bounds_of(&self.shape)?;
-        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2])).length().max(1e-6);
-        let mut linear = (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
+        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2]))
+            .length()
+            .max(1e-6);
+        let mut linear =
+            (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
         if let Some((d0, n0)) = previous {
             if d0 > 0.0 && n0 > 0 {
                 let estimate = n0 as f64 * (d0 / linear).max(1.0);
@@ -489,7 +497,9 @@ impl Solid {
 pub(crate) fn history_from(h: &[u32]) -> History {
     History {
         links: h
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|c| (c[0] as u8, FaceId(c[1]), FaceId(c[2])))
             .collect(),
     }
