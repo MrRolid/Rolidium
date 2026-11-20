@@ -30,6 +30,7 @@ s.raw("revolve 0 z 360 add")
 s.comment("Transitions rounded R2: the inside corners where the collar meets the nipples and the outer corners of the collar.")
 for r, z in [(25, 41), (19, 49), (35, 41), (35, 49)]:
     s.round(2, r, 0, z)
-s.header(1, 65994.352)
+s.name(1, "Hose adapter")
+s.header(1, 65994.352, connected="yes")
 s.raw("info")
 s.write(os.path.join(os.path.dirname(os.path.abspath(__file__)), "build.txt"))

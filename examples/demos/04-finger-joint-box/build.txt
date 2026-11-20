@@ -1,9 +1,11 @@
 # Finger-joint box for a laser cutter: 120 x 80 x 60, material 3 mm, fingers about 10 mm. Five plates (bottom and four walls), once folded up and once laid flat.
 # The five plates laid flat (bodies 1 to 5): bottom, front, back, left, right. Each is a rectangle with the slots cut out of it;
 # the bottom is a core of 114 x 74 with the tabs added to it.
+# exempt: 1,2,3,4,5 the plates laid flat next to the box, as they would go under the laser
 # bodies: 10
 # volume: 190296.002
 # no-overlap: yes
+# connected: yes
 sketch xy
 rect 163 3 277 77
 pull-region 0 3 add
@@ -229,4 +231,14 @@ move -338.5 10 28.5 body 9
 rotate x 90 copy body 5
 rotate z 90 body 10
 move -221.5 -70 28.5 body 10
+rename "Bottom plate (flat)" body 1
+rename "Front wall (flat)" body 2
+rename "Back wall (flat)" body 3
+rename "Left wall (flat)" body 4
+rename "Right wall (flat)" body 5
+rename "Bottom plate" body 6
+rename "Front wall" body 7
+rename "Back wall" body 8
+rename "Left wall" body 9
+rename "Right wall" body 10
 info

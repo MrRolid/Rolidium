@@ -21,7 +21,17 @@ for w in parts.MOUNT_SCREWS:
         fpos = pos
     else:
         parts.copy_to(s, first, tuple(pos[k] - fpos[k] for k in range(3)))
-s.header(8, 1006190.014, no_overlap="yes")
+s.name(1, "Spindle housing")
+s.name(2, "Collet nut")
+s.name(3, "End mill 6 mm")
+s.name(4, "Spindle cap")
+s.name(5, "Cable gland")
+s.name(6, "Clamp mount")
+s.name(7, "Screw M6x70")
+s.name(8, "Screw M6x70")
+s.link(3, 1, "the cutter sits in the bore of the nose (0.1 mm clearance)")
+s.link(6, 1, "the housing sits in the clamping bore of the mount (0.05 mm clearance)")
+s.header(8, 1006190.014, no_overlap="yes", connected="yes")
 s.raw("export-step target/demos/09-spindle-mount/09-spindle-mount.step")
 s.raw("info")
 s.write(os.path.join(here, "build.txt"))

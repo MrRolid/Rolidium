@@ -36,7 +36,17 @@ for i, w in enumerate(parts.COUPLING_SCREWS):
         firstpos = pos
     else:
         parts.copy_to(s, first, tuple(pos[k] - firstpos[k] for k in range(3)))
-s.header(9, 225089.134, no_overlap="yes")
+s.name(1, "Stepper motor NEMA 23")
+s.name(2, "Motor bracket")
+s.name(3, "Shaft coupling")
+s.name(4, "Screw M5x9")
+s.name(5, "Screw M5x9")
+s.name(6, "Screw M5x9")
+s.name(7, "Screw M5x9")
+s.name(8, "Screw M3x17")
+s.name(9, "Screw M3x17")
+s.link(3, 1, "the shaft of the motor is clamped in the coupling (clearance fit)")
+s.header(9, 225089.134, no_overlap="yes", connected="yes")
 s.raw("export-step target/demos/06-stepper-motor/06-stepper-motor.step")
 s.raw("info")
 s.write(os.path.join(here, "build.txt"))

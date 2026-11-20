@@ -33,7 +33,7 @@ To build the program yourself, see [BUILDING.md](BUILDING.md).
 
 ## Example parts
 
-Ten bigger models, from an electronics box to a gantry CNC router with 188 bodies, are in [`examples/demos`](examples/demos/) (public domain, CC0 1.0, while the rest of the repository is AGPL-3.0-only).
+Ten bigger models, from an electronics box to a gantry CNC router with 340 bodies, are in [`examples/demos`](examples/demos/) (public domain, CC0 1.0, while the rest of the repository is AGPL-3.0-only).
 
 Every part below is built by a short script for the headless tool, see [`examples/`](examples). The scripts run in the test suite
 and check the volume of the result, so they stay correct.
@@ -133,6 +133,10 @@ About window has "Run the guide again". Opening a file, restoring after a crash,
 * **No CAM yet.** Toolpaths and G-code are planned (see the [roadmap](docs/ROADMAP.md)), but not part of this version.
 * No permanent dimensions, constraints, drawings or STL import yet.
 * Units: millimetres only for now.
+
+## Measuring the speed on your computer
+
+`rolidium --bench model.rolidium` opens the file in the window, times the first frame, turns the view for 5 seconds and prints the time of a frame (median and worst) with the name of the graphics adapter and the interface (Vulkan, Metal, DX12 or OpenGL); the result is also written to `rolidium.log`. The demo models in `examples/demos` are good files to try (the CNC router has 340 bodies).
 
 ## Headless use
 

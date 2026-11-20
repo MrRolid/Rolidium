@@ -1,10 +1,61 @@
-# Gantry CNC router with a work area of 600 x 400 mm and 80+ mm of Z travel: a frame of aluminium profiles, a slotted table, the portal on two linear guides, ball screws with motors on all three axes, a spindle. All the parts of demos 5 to 9 are used again. About 190 bodies.
-# FRAME: two long profiles 40 x 80 x 1000, two end members 40 x 80 x 520, two middle members 40 x 40 x 520 (one profile section drawn once, extruded to each length).
-# bodies: 188
-# volume: 20324348.795
+# Gantry CNC router, work area 600 x 400 mm: X = the portal on two ball screws along the frame, Y = the carrier on the cross beam, Z = the vertical axis with a belt drive. Parts of demos 5 to 9 are used again. Every part is screwed to something; the bodies are listed by group.
+# 1 FRAME: two long profiles 40 x 80 x 1000 (along X), two end members 40 x 80 x 520, two middle members 40 x 40 x 520 (one T-slot section, drawn once and extruded to every length),
+# eight corner connectors screwed into the profiles, four feet screwed under the long profiles.
+# exempt: 67,68,69,70,71,72,73,77,78,79,80,81,82,83,101,102,103,104,105,106,107,111,112,113,114,115,116,117,192,193,194,195,196,197,198,202,203,204,205,206,207,208,258,259,260,261,262,263,264,268,269,270,271,272,273,274 the balls of the bearings float in their raceways (0.065 mm clearance)
+# link: 44 45 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 44 49 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 53 54 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 53 58 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 65 66 the inner and the outer ring are held apart by the balls
+# link: 75 76 the inner and the outer ring are held apart by the balls
+# link: 63 65 the screw shoulder rests on the inner ring
+# link: 86 62 the nut sits in the bore of the holder with 0.1 mm clearance
+# link: 86 63 the thread of the nut is not modelled (smooth bore)
+# link: 87 88 the motor flange lies on the bracket plate
+# link: 89 87 the shaft of the motor is clamped in the coupling (clearance fit)
+# link: 89 63 the screw journal is clamped in the coupling (clearance fit)
+# link: 99 100 the inner and the outer ring are held apart by the balls
+# link: 109 110 the inner and the outer ring are held apart by the balls
+# link: 97 99 the screw shoulder rests on the inner ring
+# link: 120 96 the nut sits in the bore of the holder with 0.1 mm clearance
+# link: 120 97 the thread of the nut is not modelled (smooth bore)
+# link: 121 122 the motor flange lies on the bracket plate
+# link: 123 121 the shaft of the motor is clamped in the coupling (clearance fit)
+# link: 123 97 the screw journal is clamped in the coupling (clearance fit)
+# link: 169 170 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 169 174 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 178 179 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 178 183 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 190 191 the inner and the outer ring are held apart by the balls
+# link: 200 201 the inner and the outer ring are held apart by the balls
+# link: 211 187 the nut sits in the bore of the holder with 0.1 mm clearance
+# link: 211 188 the thread of the nut is not modelled (smooth bore)
+# link: 212 213 the motor flange lies on the bracket plate
+# link: 214 212 the shaft of the motor is clamped in the coupling (clearance fit)
+# link: 214 188 the screw journal is clamped in the coupling (clearance fit)
+# link: 234 235 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 234 239 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 243 244 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 243 248 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
+# link: 256 257 the inner and the outer ring are held apart by the balls
+# link: 266 267 the inner and the outer ring are held apart by the balls
+# link: 275 253 the nut sits in the bore of the holder with 0.1 mm clearance
+# link: 275 254 the thread of the nut is not modelled (smooth bore)
+# link: 276 277 the motor flange lies on the bracket plate
+# link: 282 276 the pulley sits on the shaft of the motor (clearance fit)
+# link: 283 254 the pulley sits on the journal of the screw (clearance fit)
+# link: 284 282 the belt runs on the teeth of the pulley (0.2 mm clearance)
+# link: 284 283 the belt runs on the teeth of the pulley (0.2 mm clearance)
+# link: 332 330 the cutter sits in the bore of the nose (0.1 mm clearance)
+# link: 332 331 the cutter passes the collet nut (0.1 mm clearance)
+# link: 329 330 the housing sits in the clamping bore of the mount (0.05 mm clearance)
+# link: 335 329 the clamp screws sit in the pockets of the mount
+# bodies: 340
+# volume: 22228681.143
 # no-overlap: yes
+# connected: yes
 # slow: yes
-sketch xz -6000
+sketch yz 5000
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -58,14 +109,15 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 1000 add
-sketch xz -6001
+sketch yz 4999
 circle 5020 5020 8.5
 pull-region 0 1002 cut
-sketch xz -6001
+sketch yz 4999
 circle 5020 5060 8.5
 pull-region 0 1002 cut
 move -4900 -4900 -4880 body 1
-sketch xz -6000
+rename "Frame profile long left" body 1
+sketch yz 5000
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -119,14 +171,15 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 1000 add
-sketch xz -6001
+sketch yz 4999
 circle 5020 5020 8.5
 pull-region 0 1002 cut
-sketch xz -6001
+sketch yz 4999
 circle 5020 5060 8.5
 pull-region 0 1002 cut
-move -4340 -4900 -4880 body 2
-sketch yz 5000
+move -4900 -4340 -4880 body 2
+rename "Frame profile long right" body 2
+sketch xz -5520
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -180,14 +233,15 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 520 add
-sketch yz 4999
+sketch xz -5521
 circle 5020 5020 8.5
 pull-region 0 522 cut
-sketch yz 4999
+sketch xz -5521
 circle 5020 5060 8.5
 pull-region 0 522 cut
-move -4860 -4900 -4880 body 3
-sketch yz 5000
+move -4900 -4860 -4880 body 3
+rename "Frame profile end front" body 3
+sketch xz -5520
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -241,14 +295,15 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 520 add
-sketch yz 4999
+sketch xz -5521
 circle 5020 5020 8.5
 pull-region 0 522 cut
-sketch yz 4999
+sketch xz -5521
 circle 5020 5060 8.5
 pull-region 0 522 cut
-move -4860 -3940 -4880 body 4
-sketch yz 5000
+move -3940 -4860 -4880 body 4
+rename "Frame profile end rear" body 4
+sketch xz -5520
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -286,11 +341,12 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 520 add
-sketch yz 4999
+sketch xz -5521
 circle 5020 5020 8.5
 pull-region 0 522 cut
-move -4860 -4610 -4840 body 5
-sketch yz 5000
+move -4610 -4860 -4840 body 5
+rename "Frame profile middle front" body 5
+sketch xz -5520
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -328,39 +384,207 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 520 add
-sketch yz 4999
+sketch xz -5521
 circle 5020 5020 8.5
 pull-region 0 522 cut
-move -4860 -4230 -4840 body 6
-# Eight corner connectors (30 mm blocks in the inner corners) and four feet.
+move -4230 -4860 -4840 body 6
+rename "Frame profile middle rear" body 6
 box 30 30 30
 move 140 140 120 body 7
+rename "Frame corner connector front left lower" body 7
 box 30 30 30
 move 140 140 170 body 8
+rename "Frame corner connector front left upper" body 8
 box 30 30 30
-move 630 140 120 body 9
+move 140 630 120 body 9
+rename "Frame corner connector front right lower" body 9
 box 30 30 30
-move 630 140 170 body 10
+move 140 630 170 body 10
+rename "Frame corner connector front right upper" body 10
 box 30 30 30
-move 140 1030 120 body 11
+move 1030 140 120 body 11
+rename "Frame corner connector rear left lower" body 11
 box 30 30 30
-move 140 1030 170 body 12
+move 1030 140 170 body 12
+rename "Frame corner connector rear left upper" body 12
 box 30 30 30
-move 630 1030 120 body 13
+move 1030 630 120 body 13
+rename "Frame corner connector rear right lower" body 13
 box 30 30 30
-move 630 1030 170 body 14
+move 1030 630 170 body 14
+rename "Frame corner connector rear right upper" body 14
 box 60 60 20
 move 90 90 100 body 15
+rename "Frame foot front left" body 15
 box 60 60 20
-move 650 90 100 body 16
+move 90 650 100 body 16
+rename "Frame foot front right" body 16
 box 60 60 20
-move 90 1050 100 body 17
+move 1050 90 100 body 17
+rename "Frame foot rear left" body 17
 box 60 60 20
-move 650 1050 100 body 18
-# TABLE: a plate 400 x 600 x 15 with five T-slots (the work area), lying on the middle members.
-box 400 600 15
-move 200 300 200 body 19
-sketch xz -901
+move 1050 650 100 body 18
+rename "Frame foot rear right" body 18
+sketch xz -170
+circle 148 140 5.5
+pull-region 0 35.3 cut
+sketch xz -170
+circle 162 140 5.5
+pull-region 0 35.3 cut
+sketch yz 134.7
+circle 148 180 5.5
+pull-region 0 35.3 cut
+sketch yz 134.7
+circle 162 180 5.5
+pull-region 0 35.3 cut
+sketch xz -665.3
+circle 148 140 5.5
+pull-region 0 35.3 cut
+sketch xz -665.3
+circle 162 140 5.5
+pull-region 0 35.3 cut
+sketch yz 134.7
+circle 638 180 5.5
+pull-region 0 35.3 cut
+sketch yz 134.7
+circle 652 180 5.5
+pull-region 0 35.3 cut
+sketch xz -170
+circle 1038 140 5.5
+pull-region 0 35.3 cut
+sketch xz -170
+circle 1052 140 5.5
+pull-region 0 35.3 cut
+sketch yz 1030
+circle 148 180 5.5
+pull-region 0 35.3 cut
+sketch yz 1030
+circle 162 180 5.5
+pull-region 0 35.3 cut
+sketch xz -665.3
+circle 1038 140 5.5
+pull-region 0 35.3 cut
+sketch xz -665.3
+circle 1052 140 5.5
+pull-region 0 35.3 cut
+sketch yz 1030
+circle 638 180 5.5
+pull-region 0 35.3 cut
+sketch yz 1030
+circle 652 180 5.5
+pull-region 0 35.3 cut
+sketch xy 100
+circle 120 120 6.6
+pull-region 0 26.3 cut
+sketch xy 100
+circle 120 680 6.6
+pull-region 0 26.3 cut
+sketch xy 100
+circle 1080 120 6.6
+pull-region 0 26.3 cut
+sketch xy 100
+circle 1080 680 6.6
+pull-region 0 26.3 cut
+sketch xz -5005
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch xz -5000
+circle 5000 5000 4.9
+pull-region 0 34.7 add
+sketch xz -5006
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4852 -4830 -4860 body 19
+rename "Screw M5x35" body 19
+move 14.0000 0.0000 0.0000 copy body 19
+sketch yz 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 4965.3
+circle 5000 5000 4.9
+pull-region 0 34.7 add
+sketch yz 5002.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4830 -4852 -4820 body 21
+rename "Screw M5x35" body 21
+move 0.0000 14.0000 0.0000 copy body 21
+sketch xz -5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch xz -5034.7
+circle 5000 5000 4.9
+pull-region 0 34.7 add
+sketch xz -4997.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4852 -4370 -4860 body 23
+rename "Screw M5x35" body 23
+move 14.0000 0.0000 0.0000 copy body 23
+move 0.0000 490.0000 0.0000 copy body 21
+move 0.0000 504.0000 0.0000 copy body 21
+move 890.0000 0.0000 0.0000 copy body 19
+move 904.0000 0.0000 0.0000 copy body 19
+sketch yz 4995
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 4.9
+pull-region 0 34.7 add
+sketch yz 4994
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -3970 -4852 -4820 body 29
+rename "Screw M5x35" body 29
+move 0.0000 14.0000 0.0000 copy body 29
+move 890.0000 0.0000 0.0000 copy body 23
+move 904.0000 0.0000 0.0000 copy body 23
+move 0.0000 490.0000 0.0000 copy body 29
+move 0.0000 504.0000 0.0000 copy body 29
+sketch xy 4994
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xy 5000
+circle 5000 5000 5.8
+pull-region 0 25.7 add
+sketch xy 4993
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4880 -4880 -4900 body 35
+rename "Screw M6x26" body 35
+move 0.0000 560.0000 0.0000 copy body 35
+move 960.0000 0.0000 0.0000 copy body 35
+move 960.0000 560.0000 0.0000 copy body 35
+# 2 TABLE: a plate 600 x 400 x 15 with five T-slots along X, screwed to the middle members.
+box 600 400 15
+move 300 200 200 body 39
+rename "Table plate" body 39
+sketch yz 299
 line 235 216 235 209
 line 235 209 230 209
 line 230 209 230 205
@@ -370,7 +594,7 @@ line 250 209 245 209
 line 245 209 245 216
 line 245 216 235 216
 pull-region 0 602 cut
-sketch xz -901
+sketch yz 299
 line 315 216 315 209
 line 315 209 310 209
 line 310 209 310 205
@@ -380,7 +604,7 @@ line 330 209 325 209
 line 325 209 325 216
 line 325 216 315 216
 pull-region 0 602 cut
-sketch xz -901
+sketch yz 299
 line 395 216 395 209
 line 395 209 390 209
 line 390 209 390 205
@@ -390,7 +614,7 @@ line 410 209 405 209
 line 405 209 405 216
 line 405 216 395 216
 pull-region 0 602 cut
-sketch xz -901
+sketch yz 299
 line 475 216 475 209
 line 475 209 470 209
 line 470 209 470 205
@@ -400,7 +624,7 @@ line 490 209 485 209
 line 485 209 485 216
 line 485 216 475 216
 pull-region 0 602 cut
-sketch xz -901
+sketch yz 299
 line 555 216 555 209
 line 555 209 550 209
 line 550 209 550 205
@@ -410,367 +634,1193 @@ line 570 209 565 209
 line 565 209 565 216
 line 565 216 555 216
 pull-region 0 602 cut
-# Y AXIS: two rails of size 15 (900 long), four carriages with end caps and nipples.
-sketch xz -5900
-line 5007.5 5000 5007.5 5004
-line 5007.5 5004 5006.3 5005.5
-line 5006.3 5005.5 5007.5 5007
-line 5007.5 5007 5007.5 5009
-line 5007.5 5009 5006.3 5010.5
-line 5006.3 5010.5 5007.5 5012
-line 5007.5 5012 5007.5 5015
-line 5007.5 5015 4992.5 5015
-line 4992.5 5015 4992.5 5012
-line 4992.5 5012 4993.7 5010.5
-line 4993.7 5010.5 4992.5 5009
-line 4992.5 5009 4992.5 5007
-line 4992.5 5007 4993.7 5005.5
-line 4993.7 5005.5 4992.5 5004
-line 4992.5 5004 4992.5 5000
-line 4992.5 5000 5007.5 5000
-pull-region 0 900 add
-sketch xy 4999
-circle 5000 5030 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5030 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5090 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5090 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5150 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5150 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5210 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5210 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5270 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5270 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5330 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5330 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5390 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5390 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5450 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5450 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5510 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5510 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5570 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5570 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5630 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5630 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5690 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5690 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5750 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5750 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5810 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5810 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5870 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5870 7.5
-pull-region 0 6.3 cut
-move -4880 -4850 -4800 body 20
-sketch xz -5060
-line 4976.5 5004 4992.4 5004
-line 4992.4 5004 4992.4 5004.6
-line 4992.4 5004.6 4993.5 5005.5
-line 4993.5 5005.5 4992.4 5006.4
-line 4992.4 5006.4 4992.4 5009.6
-line 4992.4 5009.6 4993.5 5010.5
-line 4993.5 5010.5 4992.4 5011.4
-line 4992.4 5011.4 4992.4 5015.1
-line 4992.4 5015.1 5007.6 5015.1
-line 5007.6 5015.1 5007.6 5011.4
-line 5007.6 5011.4 5006.5 5010.5
-line 5006.5 5010.5 5007.6 5009.6
-line 5007.6 5009.6 5007.6 5006.4
-line 5007.6 5006.4 5006.5 5005.5
-line 5006.5 5005.5 5007.6 5004.6
-line 5007.6 5004.6 5007.6 5004
-line 5007.6 5004 5023.5 5004
-line 5023.5 5004 5023.5 5024
-line 5023.5 5024 4976.5 5024
-line 4976.5 5024 4976.5 5004
-pull-region 0 60 add
-sketch xy 5014
-circle 4981 5015 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 4981 5045 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 5019 5015 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 5019 5045 4.2
-pull-region 0 11 cut
-move -4880 -4490 -4800 body 21
-sketch xz -5006
-line 4976.5 5004 4992.3 5004
-line 4992.3 5004 4992.3 5015.2
-line 4992.3 5015.2 5007.7 5015.2
-line 5007.7 5015.2 5007.7 5004
-line 5007.7 5004 5023.5 5004
-line 5023.5 5004 5023.5 5022
-line 5023.5 5022 4976.5 5022
-line 4976.5 5022 4976.5 5004
+sketch xy 194.7
+circle 410 280 6.6
+pull-region 0 20.3 cut
+sketch xy 194.7
+circle 410 520 6.6
+pull-region 0 20.3 cut
+sketch xy 194.7
+circle 790 280 6.6
+pull-region 0 20.3 cut
+sketch xy 194.7
+circle 790 520 6.6
+pull-region 0 20.3 cut
+sketch xy 5000
+circle 5000 5000 10
 pull-region 0 6 add
-move -4880 -4496 -4800 body 22
-sketch xz -5006
-line 4976.5 5004 4992.3 5004
-line 4992.3 5004 4992.3 5015.2
-line 4992.3 5015.2 5007.7 5015.2
-line 5007.7 5015.2 5007.7 5004
-line 5007.7 5004 5023.5 5004
-line 5023.5 5004 5023.5 5022
-line 5023.5 5022 4976.5 5022
-line 4976.5 5022 4976.5 5004
-pull-region 0 6 add
-move -4880 -4430 -4800 body 23
-sketch xz -5002
-circle 5000 5000 3
-pull-region 0 2 add
-sketch xz -5006
-circle 5000 5000 5
-pull-region 0 4 add
-move -4880 -4424 -4781 body 24
-move 0.0000 120.0000 0.0000 copy body 21
-move 0.0000 120.0000 0.0000 copy body 22
-move 0.0000 120.0000 0.0000 copy body 23
-move 0.0000 120.0000 0.0000 copy body 24
-sketch xz -5900
-line 5007.5 5000 5007.5 5004
-line 5007.5 5004 5006.3 5005.5
-line 5006.3 5005.5 5007.5 5007
-line 5007.5 5007 5007.5 5009
-line 5007.5 5009 5006.3 5010.5
-line 5006.3 5010.5 5007.5 5012
-line 5007.5 5012 5007.5 5015
-line 5007.5 5015 4992.5 5015
-line 4992.5 5015 4992.5 5012
-line 4992.5 5012 4993.7 5010.5
-line 4993.7 5010.5 4992.5 5009
-line 4992.5 5009 4992.5 5007
-line 4992.5 5007 4993.7 5005.5
-line 4993.7 5005.5 4992.5 5004
-line 4992.5 5004 4992.5 5000
-line 4992.5 5000 5007.5 5000
-pull-region 0 900 add
-sketch xy 4999
-circle 5000 5030 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5030 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5090 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5090 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5150 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5150 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5210 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5210 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5270 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5270 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5330 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5330 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5390 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5390 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5450 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5450 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5510 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5510 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5570 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5570 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5630 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5630 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5690 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5690 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5750 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5750 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5810 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5810 7.5
-pull-region 0 6.3 cut
-sketch xy 4999
-circle 5000 5870 4.5
-pull-region 0 17 cut
-sketch xy 5009.7
-circle 5000 5870 7.5
-pull-region 0 6.3 cut
-move -4320 -4850 -4800 body 29
-sketch xz -5060
-line 4976.5 5004 4992.4 5004
-line 4992.4 5004 4992.4 5004.6
-line 4992.4 5004.6 4993.5 5005.5
-line 4993.5 5005.5 4992.4 5006.4
-line 4992.4 5006.4 4992.4 5009.6
-line 4992.4 5009.6 4993.5 5010.5
-line 4993.5 5010.5 4992.4 5011.4
-line 4992.4 5011.4 4992.4 5015.1
-line 4992.4 5015.1 5007.6 5015.1
-line 5007.6 5015.1 5007.6 5011.4
-line 5007.6 5011.4 5006.5 5010.5
-line 5006.5 5010.5 5007.6 5009.6
-line 5007.6 5009.6 5007.6 5006.4
-line 5007.6 5006.4 5006.5 5005.5
-line 5006.5 5005.5 5007.6 5004.6
-line 5007.6 5004.6 5007.6 5004
-line 5007.6 5004 5023.5 5004
-line 5023.5 5004 5023.5 5024
-line 5023.5 5024 4976.5 5024
-line 4976.5 5024 4976.5 5004
-pull-region 0 60 add
-sketch xy 5014
-circle 4981 5015 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 4981 5045 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 5019 5015 4.2
-pull-region 0 11 cut
-sketch xy 5014
-circle 5019 5045 4.2
-pull-region 0 11 cut
-move -4320 -4490 -4800 body 30
-sketch xz -5006
-line 4976.5 5004 4992.3 5004
-line 4992.3 5004 4992.3 5015.2
-line 4992.3 5015.2 5007.7 5015.2
-line 5007.7 5015.2 5007.7 5004
-line 5007.7 5004 5023.5 5004
-line 5023.5 5004 5023.5 5022
-line 5023.5 5022 4976.5 5022
-line 4976.5 5022 4976.5 5004
-pull-region 0 6 add
-move -4320 -4496 -4800 body 31
-sketch xz -5006
-line 4976.5 5004 4992.3 5004
-line 4992.3 5004 4992.3 5015.2
-line 4992.3 5015.2 5007.7 5015.2
-line 5007.7 5015.2 5007.7 5004
-line 5007.7 5004 5023.5 5004
-line 5023.5 5004 5023.5 5022
-line 5023.5 5022 4976.5 5022
-line 4976.5 5022 4976.5 5004
-pull-region 0 6 add
-move -4320 -4430 -4800 body 32
-sketch xz -5002
-circle 5000 5000 3
-pull-region 0 2 add
-sketch xz -5006
-circle 5000 5000 5
-pull-region 0 4 add
-move -4320 -4424 -4781 body 33
-move 0.0000 120.0000 0.0000 copy body 30
-move 0.0000 120.0000 0.0000 copy body 31
-move 0.0000 120.0000 0.0000 copy body 32
-move 0.0000 120.0000 0.0000 copy body 33
-# PORTAL: two side plates 15 x 200 x 300 on the carriages and the cross beam (a profile 40 x 80 section, 545 long).
-box 15 200 300
-move 112.5 500 224 body 38
-box 15 200 300
-move 672.5 500 224 body 39
+sketch xy 4980.3
+circle 5000 5000 5.8
+pull-region 0 19.7 add
+sketch xy 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4590 -4720 -4785 body 40
+rename "Screw M6x20" body 40
+move 0.0000 240.0000 0.0000 copy body 40
+move 380.0000 0.0000 0.0000 copy body 40
+move 380.0000 240.0000 0.0000 copy body 40
+# 3 X AXIS (the portal along the frame): two rails of size 15 on the long profiles, four carriages, and on the OUTSIDE of each long profile a ball screw 16 x 851
+# in two bearing blocks screwed to the profile, a stepper motor with a bracket and a coupling at the front end, and a nut with its holder that hangs under the portal.
 sketch yz 5000
+line 5007.5 5000 5007.5 5004
+line 5007.5 5004 5006.3 5005.5
+line 5006.3 5005.5 5007.5 5007
+line 5007.5 5007 5007.5 5009
+line 5007.5 5009 5006.3 5010.5
+line 5006.3 5010.5 5007.5 5012
+line 5007.5 5012 5007.5 5015
+line 5007.5 5015 4992.5 5015
+line 4992.5 5015 4992.5 5012
+line 4992.5 5012 4993.7 5010.5
+line 4993.7 5010.5 4992.5 5009
+line 4992.5 5009 4992.5 5007
+line 4992.5 5007 4993.7 5005.5
+line 4993.7 5005.5 4992.5 5004
+line 4992.5 5004 4992.5 5000
+line 4992.5 5000 5007.5 5000
+pull-region 0 900 add
+sketch xy 4999
+circle 5030 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5030 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5090 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5090 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5150 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5150 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5210 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5210 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5270 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5270 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5330 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5330 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5390 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5390 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5450 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5450 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5510 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5510 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5570 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5570 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5630 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5630 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5690 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5690 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5750 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5750 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5810 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5810 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5870 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5870 5000 7.5
+pull-region 0 6.3 cut
+move -4850 -4880 -4800 body 44
+rename "X rail left" body 44
+sketch yz 5000
+line 4976.5 5004 4992.4 5004
+line 4992.4 5004 4992.4 5004.6
+line 4992.4 5004.6 4993.5 5005.5
+line 4993.5 5005.5 4992.4 5006.4
+line 4992.4 5006.4 4992.4 5009.6
+line 4992.4 5009.6 4993.5 5010.5
+line 4993.5 5010.5 4992.4 5011.4
+line 4992.4 5011.4 4992.4 5015.1
+line 4992.4 5015.1 5007.6 5015.1
+line 5007.6 5015.1 5007.6 5011.4
+line 5007.6 5011.4 5006.5 5010.5
+line 5006.5 5010.5 5007.6 5009.6
+line 5007.6 5009.6 5007.6 5006.4
+line 5007.6 5006.4 5006.5 5005.5
+line 5006.5 5005.5 5007.6 5004.6
+line 5007.6 5004.6 5007.6 5004
+line 5007.6 5004 5023.5 5004
+line 5023.5 5004 5023.5 5024
+line 5023.5 5024 4976.5 5024
+line 4976.5 5024 4976.5 5004
+pull-region 0 60 add
+sketch xy 5014
+circle 5015 4981 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 4981 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5015 5019 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 5019 5
+pull-region 0 11 cut
+move -4490 -4880 -4800 body 45
+rename "X carriage left 1" body 45
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4496 -4880 -4800 body 46
+rename "X carriage left 1 end cap front" body 46
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4430 -4880 -4800 body 47
+rename "X carriage left 1 end cap rear" body 47
+sketch yz 5000
+circle 5000 5000 3
+pull-region 0 2 add
+sketch yz 5002
+circle 5000 5000 5
+pull-region 0 4 add
+move -4424 -4880 -4781 body 48
+rename "X carriage left 1 grease nipple" body 48
+move 120.0000 0.0000 0.0000 copy body 45
+rename "X carriage left 2" body 49
+move 120.0000 0.0000 0.0000 copy body 46
+rename "X carriage left 2 end cap front" body 50
+move 120.0000 0.0000 0.0000 copy body 47
+rename "X carriage left 2 end cap rear" body 51
+move 120.0000 0.0000 0.0000 copy body 48
+rename "X carriage left 2 grease nipple" body 52
+sketch yz 5000
+line 5007.5 5000 5007.5 5004
+line 5007.5 5004 5006.3 5005.5
+line 5006.3 5005.5 5007.5 5007
+line 5007.5 5007 5007.5 5009
+line 5007.5 5009 5006.3 5010.5
+line 5006.3 5010.5 5007.5 5012
+line 5007.5 5012 5007.5 5015
+line 5007.5 5015 4992.5 5015
+line 4992.5 5015 4992.5 5012
+line 4992.5 5012 4993.7 5010.5
+line 4993.7 5010.5 4992.5 5009
+line 4992.5 5009 4992.5 5007
+line 4992.5 5007 4993.7 5005.5
+line 4993.7 5005.5 4992.5 5004
+line 4992.5 5004 4992.5 5000
+line 4992.5 5000 5007.5 5000
+pull-region 0 900 add
+sketch xy 4999
+circle 5030 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5030 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5090 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5090 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5150 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5150 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5210 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5210 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5270 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5270 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5330 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5330 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5390 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5390 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5450 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5450 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5510 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5510 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5570 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5570 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5630 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5630 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5690 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5690 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5750 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5750 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5810 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5810 5000 7.5
+pull-region 0 6.3 cut
+sketch xy 4999
+circle 5870 5000 4.5
+pull-region 0 17 cut
+sketch xy 5009.7
+circle 5870 5000 7.5
+pull-region 0 6.3 cut
+move -4850 -4320 -4800 body 53
+rename "X rail right" body 53
+sketch yz 5000
+line 4976.5 5004 4992.4 5004
+line 4992.4 5004 4992.4 5004.6
+line 4992.4 5004.6 4993.5 5005.5
+line 4993.5 5005.5 4992.4 5006.4
+line 4992.4 5006.4 4992.4 5009.6
+line 4992.4 5009.6 4993.5 5010.5
+line 4993.5 5010.5 4992.4 5011.4
+line 4992.4 5011.4 4992.4 5015.1
+line 4992.4 5015.1 5007.6 5015.1
+line 5007.6 5015.1 5007.6 5011.4
+line 5007.6 5011.4 5006.5 5010.5
+line 5006.5 5010.5 5007.6 5009.6
+line 5007.6 5009.6 5007.6 5006.4
+line 5007.6 5006.4 5006.5 5005.5
+line 5006.5 5005.5 5007.6 5004.6
+line 5007.6 5004.6 5007.6 5004
+line 5007.6 5004 5023.5 5004
+line 5023.5 5004 5023.5 5024
+line 5023.5 5024 4976.5 5024
+line 4976.5 5024 4976.5 5004
+pull-region 0 60 add
+sketch xy 5014
+circle 5015 4981 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 4981 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5015 5019 5
+pull-region 0 11 cut
+sketch xy 5014
+circle 5045 5019 5
+pull-region 0 11 cut
+move -4490 -4320 -4800 body 54
+rename "X carriage right 1" body 54
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4496 -4320 -4800 body 55
+rename "X carriage right 1 end cap front" body 55
+sketch yz 5000
+line 4976.5 5004 4992.3 5004
+line 4992.3 5004 4992.3 5015.2
+line 4992.3 5015.2 5007.7 5015.2
+line 5007.7 5015.2 5007.7 5004
+line 5007.7 5004 5023.5 5004
+line 5023.5 5004 5023.5 5022
+line 5023.5 5022 4976.5 5022
+line 4976.5 5022 4976.5 5004
+pull-region 0 6 add
+move -4430 -4320 -4800 body 56
+rename "X carriage right 1 end cap rear" body 56
+sketch yz 5000
+circle 5000 5000 3
+pull-region 0 2 add
+sketch yz 5002
+circle 5000 5000 5
+pull-region 0 4 add
+move -4424 -4320 -4781 body 57
+rename "X carriage right 1 grease nipple" body 57
+move 120.0000 0.0000 0.0000 copy body 54
+rename "X carriage right 2" body 58
+move 120.0000 0.0000 0.0000 copy body 55
+rename "X carriage right 2 end cap front" body 59
+move 120.0000 0.0000 0.0000 copy body 56
+rename "X carriage right 2 end cap rear" body 60
+move 120.0000 0.0000 0.0000 copy body 57
+rename "X carriage right 2 grease nipple" body 61
+box 30 51 84
+move 595 45 140 body 62
+rename "X nut holder left" body 62
+sketch yz 594
+circle 65 160 26.2
+pull-region 0 32 cut
+sketch yz 5069
+circle 5000 5000 16
+pull-region 0 824 add
+sketch yz 5022
+circle 5000 5000 7.98
+pull-region 0 47 add
+sketch yz 5893
+circle 5000 5000 7.98
+pull-region 0 27 add
+move -4900 -4935 -4840 body 63
+rename "X ball screw left" body 63
+sketch yz 5000
+rect 5012 4965 5020 5035
+pull-region 0 24 add
+sketch yz 5000
+rect 4984 4982 5012 5018
+pull-region 0 24 add
+round 3 near 5000 5016 4965 body 64
+round 3 near 5024 5016 4965 body 64
+round 3 near 5000 5016 5035 body 64
+round 3 near 5024 5016 5035 body 64
+round 3 near 5012 4984 4982 body 64
+round 3 near 5012 4984 5018 body 64
+sketch yz 4999
+circle 5000 5000 19
+pull-region 0 26 cut
+sketch yz 4999
+circle 5000 5000 22.05
+pull-region 0 8 cut
+sketch xz -5021
+line 5015.3 4972 5015.3 4976
+arc 5015.3 4976 5012 4979.3 5008.7 4976
+line 5008.7 4976 5008.7 4972
+arc 5008.7 4972 5012 4968.7 5015.3 4972
+pull-region 0 10 cut
+sketch xz -5021
+line 5015.3 5024 5015.3 5028
+arc 5015.3 5028 5012 5031.3 5008.7 5028
+line 5008.7 5028 5008.7 5024
+arc 5008.7 5024 5012 5020.7 5015.3 5024
+pull-region 0 10 cut
+sketch xz -4992
+circle 5012 5000 6
+pull-region 0 9 cut
+sketch xy
+line 0 4 0 6.25
+line 0 6.25 2.1027 6.25
+arc 2.1027 6.25 3.5 5.7 4.8973 6.25
+line 4.8973 6.25 7 6.25
+line 7 6.25 7 4
+line 7 4 0 4
+revolve 0 x 360 add
+sketch xy
+line 0 9.25 0 11
+line 0 11 7 11
+line 7 11 7 9.25
+line 7 9.25 4.8973 9.25
+arc 4.8973 9.25 3.5 9.8 2.1027 9.25
+line 2.1027 9.25 0 9.25
+revolve 0 x 360 add
+sketch xy
+arc -1.9845 0 0 1.9845 1.9845 0
+line 1.9845 0 -1.9845 0
+revolve 0 x 360 add
+move 5003.5000 5007.7500 5000.0000 copy body 67
+move 5003.5000 5004.8320 5006.0592 copy body 67
+move 5003.5000 4998.2755 5007.5557 copy body 67
+move 5003.5000 4993.0175 5003.3626 copy body 67
+move 5003.5000 4993.0175 4996.6374 copy body 67
+move 5003.5000 4998.2755 4992.4443 copy body 67
+move 5003.5 5004.832 4993.9408 body 67
+move 5000 5000 5000 body 65
+move 5000 5000 5000 body 66
+move -4838 -4935 -4840 body 64
+move -4838 -4935 -4840 body 65
+move -4838 -4935 -4840 body 66
+move -4838 -4935 -4840 body 67
+move -4838 -4935 -4840 body 68
+move -4838 -4935 -4840 body 69
+move -4838 -4935 -4840 body 70
+move -4838 -4935 -4840 body 71
+move -4838 -4935 -4840 body 72
+move -4838 -4935 -4840 body 73
+rename "X bearing block left front housing" body 64
+rename "X bearing block left front bearing inner ring" body 65
+rename "X bearing block left front bearing outer ring" body 66
+rename "X bearing block left front bearing ball 1" body 67
+rename "X bearing block left front bearing ball 2" body 68
+rename "X bearing block left front bearing ball 3" body 69
+rename "X bearing block left front bearing ball 4" body 70
+rename "X bearing block left front bearing ball 5" body 71
+rename "X bearing block left front bearing ball 6" body 72
+rename "X bearing block left front bearing ball 7" body 73
+sketch yz 4976
+rect 5012 4965 5020 5035
+pull-region 0 24 add
+sketch yz 4976
+rect 4984 4982 5012 5018
+pull-region 0 24 add
+round 3 near 5000 5016 4965 body 74
+round 3 near 4976 5016 4965 body 74
+round 3 near 5000 5016 5035 body 74
+round 3 near 4976 5016 5035 body 74
+round 3 near 4988 4984 4982 body 74
+round 3 near 4988 4984 5018 body 74
+sketch yz 4975
+circle 5000 5000 19
+pull-region 0 26 cut
+sketch yz 4993
+circle 5000 5000 22.05
+pull-region 0 8 cut
+sketch xz -5021
+line 4984.7 4972 4984.7 4976
+arc 4984.7 4976 4988 4979.3 4991.3 4976
+line 4991.3 4976 4991.3 4972
+arc 4991.3 4972 4988 4968.7 4984.7 4972
+pull-region 0 10 cut
+sketch xz -5021
+line 4984.7 5024 4984.7 5028
+arc 4984.7 5028 4988 5031.3 4991.3 5028
+line 4991.3 5028 4991.3 5024
+arc 4991.3 5024 4988 5020.7 4984.7 5024
+pull-region 0 10 cut
+sketch xz -4992
+circle 4988 5000 6
+pull-region 0 9 cut
+sketch xy
+line 0 4 0 6.25
+line 0 6.25 -2.1027 6.25
+arc -2.1027 6.25 -3.5 5.7 -4.8973 6.25
+line -4.8973 6.25 -7 6.25
+line -7 6.25 -7 4
+line -7 4 0 4
+revolve 0 x 360 add
+sketch xy
+line 0 9.25 0 11
+line 0 11 -7 11
+line -7 11 -7 9.25
+line -7 9.25 -4.8973 9.25
+arc -4.8973 9.25 -3.5 9.8 -2.1027 9.25
+line -2.1027 9.25 0 9.25
+revolve 0 x 360 add
+sketch xy
+arc -1.9845 0 0 1.9845 1.9845 0
+line 1.9845 0 -1.9845 0
+revolve 0 x 360 add
+move 4996.5000 5007.7500 5000.0000 copy body 77
+move 4996.5000 5004.8320 5006.0592 copy body 77
+move 4996.5000 4998.2755 5007.5557 copy body 77
+move 4996.5000 4993.0175 5003.3626 copy body 77
+move 4996.5000 4993.0175 4996.6374 copy body 77
+move 4996.5000 4998.2755 4992.4443 copy body 77
+move 4996.5 5004.832 4993.9408 body 77
+move 5000 5000 5000 body 75
+move 5000 5000 5000 body 76
+move -4000 -4935 -4840 body 74
+move -4000 -4935 -4840 body 75
+move -4000 -4935 -4840 body 76
+move -4000 -4935 -4840 body 77
+move -4000 -4935 -4840 body 78
+move -4000 -4935 -4840 body 79
+move -4000 -4935 -4840 body 80
+move -4000 -4935 -4840 body 81
+move -4000 -4935 -4840 body 82
+move -4000 -4935 -4840 body 83
+rename "X bearing block left rear housing" body 74
+rename "X bearing block left rear bearing inner ring" body 75
+rename "X bearing block left rear bearing outer ring" body 76
+rename "X bearing block left rear bearing ball 1" body 77
+rename "X bearing block left rear bearing ball 2" body 78
+rename "X bearing block left rear bearing ball 3" body 79
+rename "X bearing block left rear bearing ball 4" body 80
+rename "X bearing block left rear bearing ball 5" body 81
+rename "X bearing block left rear bearing ball 6" body 82
+rename "X bearing block left rear bearing ball 7" body 83
+box 28 15 70
+move 160 85 125 body 84
+rename "X bearing block spacer left front" body 84
+box 28 15 70
+move 974 85 125 body 85
+rename "X bearing block spacer left rear" body 85
+sketch yz 5000
+circle 5000 5000 26
+pull-region 0 20 add
+sketch yz 4999
+circle 5000 5000 16.1
+pull-region 0 22 cut
+move -4400 -4935 -4840 body 86
+rename "X nut left" body 86
+sketch yz 4995
+rect 4971.8 4971.8 5028.2 5028.2
+pull-region 0 5 add
+sketch yz 4944
+rect 4972.2 4972.2 5027.8 5027.8
+pull-region 0 51 add
+sketch yz 4939
+rect 4978 4978 5022 5022
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 38.1
+pull-region 0 1.6 add
+sketch yz 5000
+circle 5000 5000 7.98
+pull-region 0 21 add
+sketch xy 5003.5
+rect 5006 4995 5021 5005
+pull-region 0 1.5 cut
+sketch yz 4995.5
+circle 5023.57 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 4972.2 body 87
+sketch yz 4995.5
+circle 4976.43 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 4972.2 body 87
+sketch yz 4995.5
+circle 5023.57 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 5027.8 body 87
+sketch yz 4995.5
+circle 4976.43 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 5027.8 body 87
+sketch yz 4950
+rect 4966 4994 4972.2 5006
+pull-region 0 12 add
+move -4900 -4935 -4840 body 87
+rename "X left motor" body 87
+sketch xy 4970
+line 5000 5035 5060 5035
+line 5060 5035 5060 5030
+line 5060 5030 5005 5030
+line 5005 5030 5005 4970
+line 5005 4970 5000 4970
+line 5000 4970 5000 5035
+pull-region 0 60 add
+sketch yz 4999
+circle 5000 5000 38.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 5023.57 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 5023.57 5.5
+pull-region 0 7 cut
+sketch xz -5036
+line 5026 4983.3 5034 4983.3
+arc 5034 4983.3 5037.3 4980 5034 4976.7
+line 5034 4976.7 5026 4976.7
+arc 5026 4976.7 5022.7 4980 5026 4983.3
+pull-region 0 7 cut
+sketch xz -5036
+line 5026 5023.3 5034 5023.3
+arc 5034 5023.3 5037.3 5020 5034 5016.7
+line 5034 5016.7 5026 5016.7
+arc 5026 5016.7 5022.7 5020 5026 5023.3
+pull-region 0 7 cut
+move -4900 -4935 -4840 body 88
+rename "X left motor bracket" body 88
+sketch yz 5000
+circle 5000 5000 25
+pull-region 0 30 add
+sketch yz 4999
+circle 5000 5000 8
+pull-region 0 32 cut
+sketch xz -5000.5
+rect 4999 5000 5031 5013.5
+pull-region 0 1 cut
+sketch xz -5014
+circle 5007.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xz -4992
+circle 5007.5 5008.5 6.2
+pull-region 0 6 cut
+sketch xz -5014
+circle 5022.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xz -4992
+circle 5022.5 5008.5 6.2
+pull-region 0 6 cut
+move -4894 -4935 -4840 body 89
+rename "X left shaft coupling" body 89
+sketch yz 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 4990.5
+circle 5000 5000 4.9
+pull-region 0 9.5 add
+sketch yz 5002.5
+line 5000 5002.3094 4998 5001.1547
+line 4998 5001.1547 4998 4998.8453
+line 4998 4998.8453 5000 4997.6906
+line 5000 4997.6906 5002 4998.8453
+line 5002 4998.8453 5002 5001.1547
+line 5002 5001.1547 5000 5002.3094
+pull-region 0 3.5 cut
+move -4895 -4911.43 -4863.57 body 90
+rename "Screw M5x9" body 90
+move 0.0000 0.0000 47.1400 copy body 90
+move 0.0000 -47.1400 0.0000 copy body 90
+move 0.0000 -47.1400 47.1400 copy body 90
+sketch xz -5000
+circle 5000 5000 5.5
+pull-region 0 3 add
+sketch xz -5017
+circle 5000 5000 2.9
+pull-region 0 17 add
+sketch xz -4998.5
+line 5001.4434 5000 5000.7217 5001.25
+line 5000.7217 5001.25 4999.2783 5001.25
+line 4999.2783 5001.25 4998.5566 5000
+line 4998.5566 5000 4999.2783 4998.75
+line 4999.2783 4998.75 5000.7217 4998.75
+line 5000.7217 4998.75 5001.4434 5000
+pull-region 0 2.5 cut
+move -4886.5 -4943 -4831.5 body 94
+rename "Screw M3x17" body 94
+move 15.0000 0.0000 0.0000 copy body 94
+box 30 51 84
+move 595 704 140 body 96
+rename "X nut holder right" body 96
+sketch yz 594
+circle 735 160 26.2
+pull-region 0 32 cut
+sketch yz 5069
+circle 5000 5000 16
+pull-region 0 824 add
+sketch yz 5022
+circle 5000 5000 7.98
+pull-region 0 47 add
+sketch yz 5893
+circle 5000 5000 7.98
+pull-region 0 27 add
+move -4900 -4265 -4840 body 97
+rename "X ball screw right" body 97
+sketch yz 5000
+rect 4980 4965 4988 5035
+pull-region 0 24 add
+sketch yz 5000
+rect 4988 4982 5016 5018
+pull-region 0 24 add
+round 3 near 5000 4984 4965 body 98
+round 3 near 5024 4984 4965 body 98
+round 3 near 5000 4984 5035 body 98
+round 3 near 5024 4984 5035 body 98
+round 3 near 5012 5016 4982 body 98
+round 3 near 5012 5016 5018 body 98
+sketch yz 4999
+circle 5000 5000 19
+pull-region 0 26 cut
+sketch yz 4999
+circle 5000 5000 22.05
+pull-region 0 8 cut
+sketch xz -4989
+line 5015.3 4972 5015.3 4976
+arc 5015.3 4976 5012 4979.3 5008.7 4976
+line 5008.7 4976 5008.7 4972
+arc 5008.7 4972 5012 4968.7 5015.3 4972
+pull-region 0 10 cut
+sketch xz -4989
+line 5015.3 5024 5015.3 5028
+arc 5015.3 5028 5012 5031.3 5008.7 5028
+line 5008.7 5028 5008.7 5024
+arc 5008.7 5024 5012 5020.7 5015.3 5024
+pull-region 0 10 cut
+sketch xz -5017
+circle 5012 5000 6
+pull-region 0 9 cut
+sketch xy
+line 0 4 0 6.25
+line 0 6.25 2.1027 6.25
+arc 2.1027 6.25 3.5 5.7 4.8973 6.25
+line 4.8973 6.25 7 6.25
+line 7 6.25 7 4
+line 7 4 0 4
+revolve 0 x 360 add
+sketch xy
+line 0 9.25 0 11
+line 0 11 7 11
+line 7 11 7 9.25
+line 7 9.25 4.8973 9.25
+arc 4.8973 9.25 3.5 9.8 2.1027 9.25
+line 2.1027 9.25 0 9.25
+revolve 0 x 360 add
+sketch xy
+arc -1.9845 0 0 1.9845 1.9845 0
+line 1.9845 0 -1.9845 0
+revolve 0 x 360 add
+move 5003.5000 5007.7500 5000.0000 copy body 101
+move 5003.5000 5004.8320 5006.0592 copy body 101
+move 5003.5000 4998.2755 5007.5557 copy body 101
+move 5003.5000 4993.0175 5003.3626 copy body 101
+move 5003.5000 4993.0175 4996.6374 copy body 101
+move 5003.5000 4998.2755 4992.4443 copy body 101
+move 5003.5 5004.832 4993.9408 body 101
+move 5000 5000 5000 body 99
+move 5000 5000 5000 body 100
+move -4838 -4265 -4840 body 98
+move -4838 -4265 -4840 body 99
+move -4838 -4265 -4840 body 100
+move -4838 -4265 -4840 body 101
+move -4838 -4265 -4840 body 102
+move -4838 -4265 -4840 body 103
+move -4838 -4265 -4840 body 104
+move -4838 -4265 -4840 body 105
+move -4838 -4265 -4840 body 106
+move -4838 -4265 -4840 body 107
+rename "X bearing block right front housing" body 98
+rename "X bearing block right front bearing inner ring" body 99
+rename "X bearing block right front bearing outer ring" body 100
+rename "X bearing block right front bearing ball 1" body 101
+rename "X bearing block right front bearing ball 2" body 102
+rename "X bearing block right front bearing ball 3" body 103
+rename "X bearing block right front bearing ball 4" body 104
+rename "X bearing block right front bearing ball 5" body 105
+rename "X bearing block right front bearing ball 6" body 106
+rename "X bearing block right front bearing ball 7" body 107
+sketch yz 4976
+rect 4980 4965 4988 5035
+pull-region 0 24 add
+sketch yz 4976
+rect 4988 4982 5016 5018
+pull-region 0 24 add
+round 3 near 5000 4984 4965 body 108
+round 3 near 4976 4984 4965 body 108
+round 3 near 5000 4984 5035 body 108
+round 3 near 4976 4984 5035 body 108
+round 3 near 4988 5016 4982 body 108
+round 3 near 4988 5016 5018 body 108
+sketch yz 4975
+circle 5000 5000 19
+pull-region 0 26 cut
+sketch yz 4993
+circle 5000 5000 22.05
+pull-region 0 8 cut
+sketch xz -4989
+line 4984.7 4972 4984.7 4976
+arc 4984.7 4976 4988 4979.3 4991.3 4976
+line 4991.3 4976 4991.3 4972
+arc 4991.3 4972 4988 4968.7 4984.7 4972
+pull-region 0 10 cut
+sketch xz -4989
+line 4984.7 5024 4984.7 5028
+arc 4984.7 5028 4988 5031.3 4991.3 5028
+line 4991.3 5028 4991.3 5024
+arc 4991.3 5024 4988 5020.7 4984.7 5024
+pull-region 0 10 cut
+sketch xz -5017
+circle 4988 5000 6
+pull-region 0 9 cut
+sketch xy
+line 0 4 0 6.25
+line 0 6.25 -2.1027 6.25
+arc -2.1027 6.25 -3.5 5.7 -4.8973 6.25
+line -4.8973 6.25 -7 6.25
+line -7 6.25 -7 4
+line -7 4 0 4
+revolve 0 x 360 add
+sketch xy
+line 0 9.25 0 11
+line 0 11 -7 11
+line -7 11 -7 9.25
+line -7 9.25 -4.8973 9.25
+arc -4.8973 9.25 -3.5 9.8 -2.1027 9.25
+line -2.1027 9.25 0 9.25
+revolve 0 x 360 add
+sketch xy
+arc -1.9845 0 0 1.9845 1.9845 0
+line 1.9845 0 -1.9845 0
+revolve 0 x 360 add
+move 4996.5000 5007.7500 5000.0000 copy body 111
+move 4996.5000 5004.8320 5006.0592 copy body 111
+move 4996.5000 4998.2755 5007.5557 copy body 111
+move 4996.5000 4993.0175 5003.3626 copy body 111
+move 4996.5000 4993.0175 4996.6374 copy body 111
+move 4996.5000 4998.2755 4992.4443 copy body 111
+move 4996.5 5004.832 4993.9408 body 111
+move 5000 5000 5000 body 109
+move 5000 5000 5000 body 110
+move -4000 -4265 -4840 body 108
+move -4000 -4265 -4840 body 109
+move -4000 -4265 -4840 body 110
+move -4000 -4265 -4840 body 111
+move -4000 -4265 -4840 body 112
+move -4000 -4265 -4840 body 113
+move -4000 -4265 -4840 body 114
+move -4000 -4265 -4840 body 115
+move -4000 -4265 -4840 body 116
+move -4000 -4265 -4840 body 117
+rename "X bearing block right rear housing" body 108
+rename "X bearing block right rear bearing inner ring" body 109
+rename "X bearing block right rear bearing outer ring" body 110
+rename "X bearing block right rear bearing ball 1" body 111
+rename "X bearing block right rear bearing ball 2" body 112
+rename "X bearing block right rear bearing ball 3" body 113
+rename "X bearing block right rear bearing ball 4" body 114
+rename "X bearing block right rear bearing ball 5" body 115
+rename "X bearing block right rear bearing ball 6" body 116
+rename "X bearing block right rear bearing ball 7" body 117
+box 28 15 70
+move 160 700 125 body 118
+rename "X bearing block spacer right front" body 118
+box 28 15 70
+move 974 700 125 body 119
+rename "X bearing block spacer right rear" body 119
+sketch yz 5000
+circle 5000 5000 26
+pull-region 0 20 add
+sketch yz 4999
+circle 5000 5000 16.1
+pull-region 0 22 cut
+move -4400 -4265 -4840 body 120
+rename "X nut right" body 120
+sketch yz 4995
+rect 4971.8 4971.8 5028.2 5028.2
+pull-region 0 5 add
+sketch yz 4944
+rect 4972.2 4972.2 5027.8 5027.8
+pull-region 0 51 add
+sketch yz 4939
+rect 4978 4978 5022 5022
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 38.1
+pull-region 0 1.6 add
+sketch yz 5000
+circle 5000 5000 7.98
+pull-region 0 21 add
+sketch xy 5003.5
+rect 5006 4995 5021 5005
+pull-region 0 1.5 cut
+sketch yz 4995.5
+circle 4976.43 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 4972.2 body 121
+sketch yz 4995.5
+circle 5023.57 4976.43 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 4972.2 body 121
+sketch yz 4995.5
+circle 4976.43 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 4972.2 5027.8 body 121
+sketch yz 4995.5
+circle 5023.57 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4970 5027.8 5027.8 body 121
+sketch yz 4950
+rect 5027.8 4994 5034 5006
+pull-region 0 12 add
+move -4900 -4265 -4840 body 121
+rename "X right motor" body 121
+sketch xy 4970
+line 5000 4965 5060 4965
+line 5060 4965 5060 4970
+line 5060 4970 5005 4970
+line 5005 4970 5005 5030
+line 5005 5030 5000 5030
+line 5000 5030 5000 4965
+pull-region 0 60 add
+sketch yz 4999
+circle 5000 5000 38.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 4976.43 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 4976.43 5023.57 5.5
+pull-region 0 7 cut
+sketch yz 4999
+circle 5023.57 5023.57 5.5
+pull-region 0 7 cut
+sketch xz -4971
+line 5026 4983.3 5034 4983.3
+arc 5034 4983.3 5037.3 4980 5034 4976.7
+line 5034 4976.7 5026 4976.7
+arc 5026 4976.7 5022.7 4980 5026 4983.3
+pull-region 0 7 cut
+sketch xz -4971
+line 5026 5023.3 5034 5023.3
+arc 5034 5023.3 5037.3 5020 5034 5016.7
+line 5034 5016.7 5026 5016.7
+arc 5026 5016.7 5022.7 5020 5026 5023.3
+pull-region 0 7 cut
+move -4900 -4265 -4840 body 122
+rename "X right motor bracket" body 122
+sketch yz 5000
+circle 5000 5000 25
+pull-region 0 30 add
+sketch yz 4999
+circle 5000 5000 8
+pull-region 0 32 cut
+sketch xz -5000.5
+rect 4999 5000 5031 5013.5
+pull-region 0 1 cut
+sketch xz -5014
+circle 5007.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xz -5014
+circle 5007.5 5008.5 6.2
+pull-region 0 6 cut
+sketch xz -5014
+circle 5022.5 5008.5 3.2
+pull-region 0 28 cut
+sketch xz -5014
+circle 5022.5 5008.5 6.2
+pull-region 0 6 cut
+move -4894 -4265 -4840 body 123
+rename "X right shaft coupling" body 123
+sketch yz 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 4990.5
+circle 5000 5000 4.9
+pull-region 0 9.5 add
+sketch yz 5002.5
+line 5000 5002.3094 5002 5001.1547
+line 5002 5001.1547 5002 4998.8453
+line 5002 4998.8453 5000 4997.6906
+line 5000 4997.6906 4998 4998.8453
+line 4998 4998.8453 4998 5001.1547
+line 4998 5001.1547 5000 5002.3094
+pull-region 0 3.5 cut
+move -4895 -4288.57 -4863.57 body 124
+rename "Screw M5x9" body 124
+move 0.0000 0.0000 47.1400 copy body 124
+move 0.0000 47.1400 0.0000 copy body 124
+move 0.0000 47.1400 47.1400 copy body 124
+sketch xz -5003
+circle 5000 5000 5.5
+pull-region 0 3 add
+sketch xz -5000
+circle 5000 5000 2.9
+pull-region 0 17 add
+sketch xz -5004
+line 5001.4434 5000 5000.7217 5001.25
+line 5000.7217 5001.25 4999.2783 5001.25
+line 4999.2783 5001.25 4998.5566 5000
+line 4998.5566 5000 4999.2783 4998.75
+line 4999.2783 4998.75 5000.7217 4998.75
+line 5000.7217 4998.75 5001.4434 5000
+pull-region 0 2.5 cut
+move -4886.5 -4257 -4831.5 body 128
+rename "Screw M3x17" body 128
+move 15.0000 0.0000 0.0000 copy body 128
+sketch xz -106.3
+circle 174 134 6.6
+pull-region 0 29.3 cut
+sketch xz -106.3
+circle 174 186 6.6
+pull-region 0 29.3 cut
+sketch xz -106.3
+circle 988 134 6.6
+pull-region 0 29.3 cut
+sketch xz -106.3
+circle 988 186 6.6
+pull-region 0 29.3 cut
+sketch xz -723
+circle 174 134 6.6
+pull-region 0 29.3 cut
+sketch xz -723
+circle 174 186 6.6
+pull-region 0 29.3 cut
+sketch xz -723
+circle 988 134 6.6
+pull-region 0 29.3 cut
+sketch xz -723
+circle 988 186 6.6
+pull-region 0 29.3 cut
+sketch xz -5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xz -5028.7
+circle 5000 5000 5.8
+pull-region 0 28.7 add
+sketch xz -4997
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4826 -4923 -4866 body 130
+rename "Screw M6x29" body 130
+move 0.0000 0.0000 52.0000 copy body 130
+move 814.0000 0.0000 0.0000 copy body 130
+move 814.0000 0.0000 52.0000 copy body 130
+sketch xz -5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xz -5009.7
+circle 5000 5000 5.8
+pull-region 0 9.7 add
+sketch xz -4997
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4870 -4905 -4860 body 134
+rename "Screw M6x10" body 134
+move 0.0000 0.0000 40.0000 copy body 134
+sketch xz -5006
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xz -5000
+circle 5000 5000 5.8
+pull-region 0 28.7 add
+sketch xz -5007
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4826 -4277 -4866 body 136
+rename "Screw M6x29" body 136
+move 0.0000 0.0000 52.0000 copy body 136
+move 814.0000 0.0000 0.0000 copy body 136
+move 814.0000 0.0000 52.0000 copy body 136
+sketch xz -5006
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xz -5000
+circle 5000 5000 5.8
+pull-region 0 9.7 add
+sketch xz -5007
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4870 -4295 -4860 body 140
+rename "Screw M6x10" body 140
+move 0.0000 0.0000 40.0000 copy body 140
+# 4 PORTAL: two side plates (an L: a plate 15 mm and a foot that is screwed to the X carriages), the cross beam 40 x 80 screwed to both plates.
+sketch yz 5400
+line 4986 5124 5050 5124
+line 5050 5124 5050 5139
+line 5050 5139 5027.5 5139
+line 5027.5 5139 5027.5 5424
+line 5027.5 5424 5012.5 5424
+line 5012.5 5424 5012.5 5139
+line 5012.5 5139 4986 5139
+line 4986 5139 4986 5124
+pull-region 0 200 add
+move -4900 -4900 -4900 body 142
+rename "Portal side plate left" body 142
+sketch yz 5400
+line 5550 5124 5614 5124
+line 5614 5124 5614 5139
+line 5614 5139 5587.5 5139
+line 5587.5 5139 5587.5 5424
+line 5587.5 5424 5572.5 5424
+line 5572.5 5424 5572.5 5139
+line 5572.5 5139 5550 5139
+line 5550 5139 5550 5124
+pull-region 0 200 add
+move -4900 -4900 -4900 body 143
+rename "Portal side plate right" body 143
+sketch xz -5545
 line 5000 5000 5016 5000
 line 5016 5000 5016 5003
 line 5016 5003 5012 5003
@@ -824,15 +1874,173 @@ line 5003 5012 5003 5016
 line 5003 5016 5000 5016
 line 5000 5016 5000 5000
 pull-region 0 545 add
-sketch yz 4999
+sketch xz -5546
 circle 5020 5020 8.5
 pull-region 0 547 cut
-sketch yz 4999
+sketch xz -5546
 circle 5020 5060 8.5
 pull-region 0 547 cut
-move -4872.5 -4420 -4650 body 40
-# X AXIS: two rails on the front of the cross beam (500 long), four carriages.
-sketch yz 5000
+move -4420 -4872.5 -4650 body 144
+rename "Portal cross beam" body 144
+sketch xy 214.7
+circle 525 101 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 525 139 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 555 101 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 555 139 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 645 101 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 645 139 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 675 101 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 675 139 5.5
+pull-region 0 24.3 cut
+sketch xy 215.7
+circle 600 92 5.5
+pull-region 0 23.3 cut
+sketch xy 215.7
+circle 620 92 5.5
+pull-region 0 23.3 cut
+sketch xy 214.7
+circle 525 661 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 525 699 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 555 661 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 555 699 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 645 661 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 645 699 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 675 661 5.5
+pull-region 0 24.3 cut
+sketch xy 214.7
+circle 675 699 5.5
+pull-region 0 24.3 cut
+sketch xy 215.7
+circle 600 708 5.5
+pull-region 0 23.3 cut
+sketch xy 215.7
+circle 620 708 5.5
+pull-region 0 23.3 cut
+sketch xz -147.8
+circle 600 370 8.5
+pull-region 0 35.3 cut
+sketch xz -147.8
+circle 600 410 8.5
+pull-region 0 35.3 cut
+sketch xz -687.5
+circle 600 370 8.5
+pull-region 0 35.3 cut
+sketch xz -687.5
+circle 600 410 8.5
+pull-region 0 35.3 cut
+sketch xy 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch xy 4976.3
+circle 5000 5000 4.9
+pull-region 0 23.7 add
+sketch xy 5002.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4475 -4899 -4761 body 145
+rename "Screw M5x24" body 145
+move 0.0000 38.0000 0.0000 copy body 145
+move 30.0000 0.0000 0.0000 copy body 145
+move 30.0000 38.0000 0.0000 copy body 145
+move 120.0000 0.0000 0.0000 copy body 145
+move 120.0000 38.0000 0.0000 copy body 145
+move 150.0000 0.0000 0.0000 copy body 145
+move 150.0000 38.0000 0.0000 copy body 145
+sketch xy 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch xy 4977.3
+circle 5000 5000 4.9
+pull-region 0 22.7 add
+sketch xy 5002.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4400 -4908 -4761 body 153
+rename "Screw M5x23" body 153
+move 20.0000 0.0000 0.0000 copy body 153
+move 0.0000 560.0000 0.0000 copy body 145
+move 0.0000 598.0000 0.0000 copy body 145
+move 30.0000 560.0000 0.0000 copy body 145
+move 30.0000 598.0000 0.0000 copy body 145
+move 120.0000 560.0000 0.0000 copy body 145
+move 120.0000 598.0000 0.0000 copy body 145
+move 150.0000 560.0000 0.0000 copy body 145
+move 150.0000 598.0000 0.0000 copy body 145
+move 0.0000 616.0000 0.0000 copy body 153
+move 20.0000 616.0000 0.0000 copy body 153
+sketch xz -5000
+circle 5000 5000 13
+pull-region 0 8 add
+sketch xz -5034.7
+circle 5000 5000 7.8
+pull-region 0 34.7 add
+sketch xz -4996
+line 5003.4641 5000 5001.7321 5003
+line 5001.7321 5003 4998.2679 5003
+line 4998.2679 5003 4996.5359 5000
+line 4996.5359 5000 4998.2679 4997
+line 4998.2679 4997 5001.7321 4997
+line 5001.7321 4997 5003.4641 5000
+pull-region 0 5 cut
+move -4400 -4887.5 -4630 body 165
+rename "Screw M8x35" body 165
+move 0.0000 0.0000 40.0000 copy body 165
+sketch xz -5008
+circle 5000 5000 13
+pull-region 0 8 add
+sketch xz -5000
+circle 5000 5000 7.8
+pull-region 0 34.7 add
+sketch xz -5009
+line 5003.4641 5000 5001.7321 5003
+line 5001.7321 5003 4998.2679 5003
+line 4998.2679 5003 4996.5359 5000
+line 4996.5359 5000 4998.2679 4997
+line 4998.2679 4997 5001.7321 4997
+line 5001.7321 4997 5003.4641 5000
+pull-region 0 5 cut
+move -4400 -4312.5 -4630 body 167
+rename "Screw M8x35" body 167
+move 0.0000 0.0000 40.0000 copy body 167
+# 5 Y AXIS (the carrier along the cross beam): two rails on the -X face of the cross beam, four carriages, a ball screw on top of the cross beam in two blocks on risers,
+# a motor with a bracket and a coupling, a nut with a holder screwed to the Z fixed plate.
+sketch xz -5450
 line 5000 5007.5 4996 5007.5
 line 4996 5007.5 4994.5 5006.3
 line 4994.5 5006.3 4993 5007.5
@@ -849,57 +2057,52 @@ line 4993 4992.5 4994.5 4993.7
 line 4994.5 4993.7 4996 4992.5
 line 4996 4992.5 5000 4992.5
 line 5000 4992.5 5000 5007.5
-pull-region 0 500 add
-sketch xz -5001
+pull-region 0 450 add
+sketch yz 4984
 circle 5030 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5030 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5090 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5090 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5150 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5150 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5210 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5210 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5270 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5270 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5330 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5330 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5390 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5390 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
-circle 5450 5000 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5450 5000 7.5
-pull-region 0 6.3 cut
-move -4850 -4420 -4635 body 41
-sketch yz 5000
+move -4420 -4830 -4645 body 169
+rename "Y rail lower" body 169
+sketch xz -5060
 line 4996 4976.5 4996 4992.4
 line 4996 4992.4 4995.4 4992.4
 line 4995.4 4992.4 4994.5 4993.5
@@ -921,20 +2124,21 @@ line 4996 5023.5 4976 5023.5
 line 4976 5023.5 4976 4976.5
 line 4976 4976.5 4996 4976.5
 pull-region 0 60 add
-sketch xz -4986
-circle 5015 4981 4.2
+sketch yz 4975
+circle 5015 4981 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5045 4981 4.2
+sketch yz 4975
+circle 5045 4981 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5015 5019 4.2
+sketch yz 4975
+circle 5015 5019 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5045 5019 4.2
+sketch yz 4975
+circle 5045 5019 5
 pull-region 0 11 cut
-move -4690 -4420 -4635 body 42
-sketch yz 5000
+move -4420 -4730 -4645 body 170
+rename "Y carriage lower 1" body 170
+sketch xz -5006
 line 4996 4976.5 4996 4992.3
 line 4996 4992.3 4984.8 4992.3
 line 4984.8 4992.3 4984.8 5007.7
@@ -944,8 +2148,9 @@ line 4996 5023.5 4978 5023.5
 line 4978 5023.5 4978 4976.5
 line 4978 4976.5 4996 4976.5
 pull-region 0 6 add
-move -4696 -4420 -4635 body 43
-sketch yz 5000
+move -4420 -4736 -4645 body 171
+rename "Y carriage lower 1 end cap front" body 171
+sketch xz -5006
 line 4996 4976.5 4996 4992.3
 line 4996 4992.3 4984.8 4992.3
 line 4984.8 4992.3 4984.8 5007.7
@@ -955,19 +2160,25 @@ line 4996 5023.5 4978 5023.5
 line 4978 5023.5 4978 4976.5
 line 4978 4976.5 4996 4976.5
 pull-region 0 6 add
-move -4630 -4420 -4635 body 44
-sketch yz 5000
+move -4420 -4670 -4645 body 172
+rename "Y carriage lower 1 end cap rear" body 172
+sketch xz -5002
 circle 5000 5000 3
 pull-region 0 2 add
-sketch yz 5002
+sketch xz -5006
 circle 5000 5000 5
 pull-region 0 4 add
-move -4624 -4439 -4635 body 45
-move 120.0000 0.0000 0.0000 copy body 42
-move 120.0000 0.0000 0.0000 copy body 43
-move 120.0000 0.0000 0.0000 copy body 44
-move 120.0000 0.0000 0.0000 copy body 45
-sketch yz 5000
+move -4439 -4664 -4645 body 173
+rename "Y carriage lower 1 grease nipple" body 173
+move 0.0000 200.0000 0.0000 copy body 170
+rename "Y carriage lower 2" body 174
+move 0.0000 200.0000 0.0000 copy body 171
+rename "Y carriage lower 2 end cap front" body 175
+move 0.0000 200.0000 0.0000 copy body 172
+rename "Y carriage lower 2 end cap rear" body 176
+move 0.0000 200.0000 0.0000 copy body 173
+rename "Y carriage lower 2 grease nipple" body 177
+sketch xz -5450
 line 5000 5007.5 4996 5007.5
 line 4996 5007.5 4994.5 5006.3
 line 4994.5 5006.3 4993 5007.5
@@ -984,57 +2195,52 @@ line 4993 4992.5 4994.5 4993.7
 line 4994.5 4993.7 4996 4992.5
 line 4996 4992.5 5000 4992.5
 line 5000 4992.5 5000 5007.5
-pull-region 0 500 add
-sketch xz -5001
+pull-region 0 450 add
+sketch yz 4984
 circle 5030 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5030 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5090 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5090 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5150 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5150 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5210 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5210 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5270 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5270 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5330 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5330 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
+sketch yz 4984
 circle 5390 5000 4.5
 pull-region 0 17 cut
-sketch xz -4990.3
+sketch yz 4984
 circle 5390 5000 7.5
 pull-region 0 6.3 cut
-sketch xz -5001
-circle 5450 5000 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5450 5000 7.5
-pull-region 0 6.3 cut
-move -4850 -4420 -4585 body 50
-sketch yz 5000
+move -4420 -4830 -4595 body 178
+rename "Y rail upper" body 178
+sketch xz -5060
 line 4996 4976.5 4996 4992.4
 line 4996 4992.4 4995.4 4992.4
 line 4995.4 4992.4 4994.5 4993.5
@@ -1056,20 +2262,21 @@ line 4996 5023.5 4976 5023.5
 line 4976 5023.5 4976 4976.5
 line 4976 4976.5 4996 4976.5
 pull-region 0 60 add
-sketch xz -4986
-circle 5015 4981 4.2
+sketch yz 4975
+circle 5015 4981 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5045 4981 4.2
+sketch yz 4975
+circle 5045 4981 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5015 5019 4.2
+sketch yz 4975
+circle 5015 5019 5
 pull-region 0 11 cut
-sketch xz -4986
-circle 5045 5019 4.2
+sketch yz 4975
+circle 5045 5019 5
 pull-region 0 11 cut
-move -4690 -4420 -4585 body 51
-sketch yz 5000
+move -4420 -4730 -4595 body 179
+rename "Y carriage upper 1" body 179
+sketch xz -5006
 line 4996 4976.5 4996 4992.3
 line 4996 4992.3 4984.8 4992.3
 line 4984.8 4992.3 4984.8 5007.7
@@ -1079,8 +2286,9 @@ line 4996 5023.5 4978 5023.5
 line 4978 5023.5 4978 4976.5
 line 4978 4976.5 4996 4976.5
 pull-region 0 6 add
-move -4696 -4420 -4585 body 52
-sketch yz 5000
+move -4420 -4736 -4595 body 180
+rename "Y carriage upper 1 end cap front" body 180
+sketch xz -5006
 line 4996 4976.5 4996 4992.3
 line 4996 4992.3 4984.8 4992.3
 line 4984.8 4992.3 4984.8 5007.7
@@ -1090,353 +2298,53 @@ line 4996 5023.5 4978 5023.5
 line 4978 5023.5 4978 4976.5
 line 4978 4976.5 4996 4976.5
 pull-region 0 6 add
-move -4630 -4420 -4585 body 53
-sketch yz 5000
+move -4420 -4670 -4595 body 181
+rename "Y carriage upper 1 end cap rear" body 181
+sketch xz -5002
 circle 5000 5000 3
 pull-region 0 2 add
-sketch yz 5002
+sketch xz -5006
 circle 5000 5000 5
 pull-region 0 4 add
-move -4624 -4439 -4585 body 54
-move 120.0000 0.0000 0.0000 copy body 51
-move 120.0000 0.0000 0.0000 copy body 52
-move 120.0000 0.0000 0.0000 copy body 53
-move 120.0000 0.0000 0.0000 copy body 54
-# Z AXIS: the carrier plate on the X carriages, two vertical rails (230 long), four carriages, the spindle plate.
-box 255 15 250
-move 300 541 330 body 59
-sketch xy 5000
-line 5007.5 5000 5007.5 4996
-line 5007.5 4996 5006.3 4994.5
-line 5006.3 4994.5 5007.5 4993
-line 5007.5 4993 5007.5 4991
-line 5007.5 4991 5006.3 4989.5
-line 5006.3 4989.5 5007.5 4988
-line 5007.5 4988 5007.5 4985
-line 5007.5 4985 4992.5 4985
-line 4992.5 4985 4992.5 4988
-line 4992.5 4988 4993.7 4989.5
-line 4993.7 4989.5 4992.5 4991
-line 4992.5 4991 4992.5 4993
-line 4992.5 4993 4993.7 4994.5
-line 4993.7 4994.5 4992.5 4996
-line 4992.5 4996 4992.5 5000
-line 4992.5 5000 5007.5 5000
-pull-region 0 230 add
-sketch xz -5001
-circle 5000 5030 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5030 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5090 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5090 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5150 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5150 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5210 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5210 7.5
-pull-region 0 6.3 cut
-move -4650 -4459 -4660 body 60
-sketch xy 5000
-line 4976.5 4996 4992.4 4996
-line 4992.4 4996 4992.4 4995.4
-line 4992.4 4995.4 4993.5 4994.5
-line 4993.5 4994.5 4992.4 4993.6
-line 4992.4 4993.6 4992.4 4990.4
-line 4992.4 4990.4 4993.5 4989.5
-line 4993.5 4989.5 4992.4 4988.6
-line 4992.4 4988.6 4992.4 4984.9
-line 4992.4 4984.9 5007.6 4984.9
-line 5007.6 4984.9 5007.6 4988.6
-line 5007.6 4988.6 5006.5 4989.5
-line 5006.5 4989.5 5007.6 4990.4
-line 5007.6 4990.4 5007.6 4993.6
-line 5007.6 4993.6 5006.5 4994.5
-line 5006.5 4994.5 5007.6 4995.4
-line 5007.6 4995.4 5007.6 4996
-line 5007.6 4996 5023.5 4996
-line 5023.5 4996 5023.5 4976
-line 5023.5 4976 4976.5 4976
-line 4976.5 4976 4976.5 4996
-pull-region 0 60 add
-sketch xz -4986
-circle 4981 5015 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 4981 5045 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 5019 5015 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 5019 5045 4.2
-pull-region 0 11 cut
-move -4650 -4459 -4630 body 61
-sketch xy 5000
-line 4976.5 4996 4992.3 4996
-line 4992.3 4996 4992.3 4984.8
-line 4992.3 4984.8 5007.7 4984.8
-line 5007.7 4984.8 5007.7 4996
-line 5007.7 4996 5023.5 4996
-line 5023.5 4996 5023.5 4978
-line 5023.5 4978 4976.5 4978
-line 4976.5 4978 4976.5 4996
-pull-region 0 6 add
-move -4650 -4459 -4636 body 62
-sketch xy 5000
-line 4976.5 4996 4992.3 4996
-line 4992.3 4996 4992.3 4984.8
-line 4992.3 4984.8 5007.7 4984.8
-line 5007.7 4984.8 5007.7 4996
-line 5007.7 4996 5023.5 4996
-line 5023.5 4996 5023.5 4978
-line 5023.5 4978 4976.5 4978
-line 4976.5 4978 4976.5 4996
-pull-region 0 6 add
-move -4650 -4459 -4570 body 63
-sketch xy 5000
-circle 5000 5000 3
-pull-region 0 2 add
-sketch xy 5002
-circle 5000 5000 5
-pull-region 0 4 add
-move -4650 -4478 -4564 body 64
-move 0.0000 0.0000 100.0000 copy body 61
-move 0.0000 0.0000 100.0000 copy body 62
-move 0.0000 0.0000 100.0000 copy body 63
-move 0.0000 0.0000 100.0000 copy body 64
-sketch xy 5000
-line 5007.5 5000 5007.5 4996
-line 5007.5 4996 5006.3 4994.5
-line 5006.3 4994.5 5007.5 4993
-line 5007.5 4993 5007.5 4991
-line 5007.5 4991 5006.3 4989.5
-line 5006.3 4989.5 5007.5 4988
-line 5007.5 4988 5007.5 4985
-line 5007.5 4985 4992.5 4985
-line 4992.5 4985 4992.5 4988
-line 4992.5 4988 4993.7 4989.5
-line 4993.7 4989.5 4992.5 4991
-line 4992.5 4991 4992.5 4993
-line 4992.5 4993 4993.7 4994.5
-line 4993.7 4994.5 4992.5 4996
-line 4992.5 4996 4992.5 5000
-line 4992.5 5000 5007.5 5000
-pull-region 0 230 add
-sketch xz -5001
-circle 5000 5030 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5030 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5090 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5090 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5150 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5150 7.5
-pull-region 0 6.3 cut
-sketch xz -5001
-circle 5000 5210 4.5
-pull-region 0 17 cut
-sketch xz -4990.3
-circle 5000 5210 7.5
-pull-region 0 6.3 cut
-move -4550 -4459 -4660 body 69
-sketch xy 5000
-line 4976.5 4996 4992.4 4996
-line 4992.4 4996 4992.4 4995.4
-line 4992.4 4995.4 4993.5 4994.5
-line 4993.5 4994.5 4992.4 4993.6
-line 4992.4 4993.6 4992.4 4990.4
-line 4992.4 4990.4 4993.5 4989.5
-line 4993.5 4989.5 4992.4 4988.6
-line 4992.4 4988.6 4992.4 4984.9
-line 4992.4 4984.9 5007.6 4984.9
-line 5007.6 4984.9 5007.6 4988.6
-line 5007.6 4988.6 5006.5 4989.5
-line 5006.5 4989.5 5007.6 4990.4
-line 5007.6 4990.4 5007.6 4993.6
-line 5007.6 4993.6 5006.5 4994.5
-line 5006.5 4994.5 5007.6 4995.4
-line 5007.6 4995.4 5007.6 4996
-line 5007.6 4996 5023.5 4996
-line 5023.5 4996 5023.5 4976
-line 5023.5 4976 4976.5 4976
-line 4976.5 4976 4976.5 4996
-pull-region 0 60 add
-sketch xz -4986
-circle 4981 5015 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 4981 5045 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 5019 5015 4.2
-pull-region 0 11 cut
-sketch xz -4986
-circle 5019 5045 4.2
-pull-region 0 11 cut
-move -4550 -4459 -4630 body 70
-sketch xy 5000
-line 4976.5 4996 4992.3 4996
-line 4992.3 4996 4992.3 4984.8
-line 4992.3 4984.8 5007.7 4984.8
-line 5007.7 4984.8 5007.7 4996
-line 5007.7 4996 5023.5 4996
-line 5023.5 4996 5023.5 4978
-line 5023.5 4978 4976.5 4978
-line 4976.5 4978 4976.5 4996
-pull-region 0 6 add
-move -4550 -4459 -4636 body 71
-sketch xy 5000
-line 4976.5 4996 4992.3 4996
-line 4992.3 4996 4992.3 4984.8
-line 4992.3 4984.8 5007.7 4984.8
-line 5007.7 4984.8 5007.7 4996
-line 5007.7 4996 5023.5 4996
-line 5023.5 4996 5023.5 4978
-line 5023.5 4978 4976.5 4978
-line 4976.5 4978 4976.5 4996
-pull-region 0 6 add
-move -4550 -4459 -4570 body 72
-sketch xy 5000
-circle 5000 5000 3
-pull-region 0 2 add
-sketch xy 5002
-circle 5000 5000 5
-pull-region 0 4 add
-move -4550 -4478 -4564 body 73
-move 0.0000 0.0000 100.0000 copy body 70
-move 0.0000 0.0000 100.0000 copy body 71
-move 0.0000 0.0000 100.0000 copy body 72
-move 0.0000 0.0000 100.0000 copy body 73
-box 180 15 170
-move 320 502 365 body 78
-# SPINDLE: the parts of demo 9 (housing, nut, cutter, cap, gland, clamp mount, two clamp screws) on the spindle plate; the tool points down.
-sketch xy 4800
-circle 5000 5000 65
-pull-region 0 200 add
-sketch xy 4785
-circle 5000 5000 40
-pull-region 0 15 add
-sketch xy 4784
-circle 5000 5000 6.2
-pull-region 0 11 cut
-move -4600 -4543 -4470 body 79
-sketch xy 4763
-circle 5000 5000 30
-pull-region 0 22 add
-sketch xy 4762
-circle 5000 5000 6.2
-pull-region 0 24 cut
-move -4600 -4543 -4470 body 80
-sketch xy 4740
-circle 5000 5000 6
-pull-region 0 55 add
-move -4600 -4543 -4470 body 81
-sketch xy 5000
-circle 5000 5000 60
-pull-region 0 12 add
-move -4600 -4543 -4470 body 82
-sketch xy 5012
-circle 5018 5000 16
-pull-region 0 14 add
-sketch xy 5022
-circle 5018 5000 8
-pull-region 0 4 cut
-move -4600 -4543 -4470 body 83
-sketch xy 4870
-rect 4955 4955 5045 5045
-pull-region 0 60 add
-sketch xy 4869
-circle 5000 5000 65.1
-pull-region 0 62 cut
-sketch xy 4869
-rect 4999.25 4954 5000.75 5000
-pull-region 0 62 cut
-sketch yz 4954
-circle 4962 4915 6.4
-pull-region 0 92 cut
-sketch yz 5038
-circle 4962 4915 11
-pull-region 0 8 cut
-sketch yz 4954
-circle 4962 4885 6.4
-pull-region 0 92 cut
-sketch yz 5038
-circle 4962 4885 11
-pull-region 0 8 cut
-sketch xz -5046
-circle 4962 4920 6.6
-pull-region 0 92 cut
-sketch xz -5046
-circle 4962 4880 6.6
-pull-region 0 92 cut
-sketch xz -5046
-circle 5038 4920 6.6
-pull-region 0 92 cut
-sketch xz -5046
-circle 5038 4880 6.6
-pull-region 0 92 cut
-move -4600 -4543 -4470 body 84
-sketch yz 5000
-circle 5000 5000 10
-pull-region 0 6 add
-sketch yz 4930
-circle 5000 5000 5.8
-pull-region 0 70 add
-sketch yz 5003
-line 5002.8868 5000 5001.4434 5002.5
-line 5001.4434 5002.5 4998.5566 5002.5
-line 4998.5566 5002.5 4997.1132 5000
-line 4997.1132 5000 4998.5566 4997.5
-line 4998.5566 4997.5 5001.4434 4997.5
-line 5001.4434 4997.5 5002.8868 5000
-pull-region 0 4 cut
-move -4562 -4581 -4555 body 85
-move 0.0000 0.0000 -30.0000 copy body 85
-# Y AXIS DRIVE: ball screw 16 x 920 along Y, two bearing blocks of demo 5 on risers, a motor with a bracket and a coupling (demo 6), a nut with its holder on the portal.
-box 64.5 30 34
-move 127.5 585 218 body 87
-sketch xz -616
-circle 160 235 26.2
+move -4439 -4664 -4595 body 182
+rename "Y carriage upper 1 grease nipple" body 182
+move 0.0000 200.0000 0.0000 copy body 179
+rename "Y carriage upper 2" body 183
+move 0.0000 200.0000 0.0000 copy body 180
+rename "Y carriage upper 2 end cap front" body 184
+move 0.0000 200.0000 0.0000 copy body 181
+rename "Y carriage upper 2 end cap rear" body 185
+move 0.0000 200.0000 0.0000 copy body 182
+rename "Y carriage upper 2 grease nipple" body 186
+box 72 30 36
+move 556 385 447 body 187
+rename "Y nut holder" body 187
+sketch xz -416
+circle 600 465 26.2
 pull-region 0 32 cut
-sketch xz -5020
-circle 5000 5000 26
-pull-region 0 20 add
-sketch xz -5021
-circle 5000 5000 16.1
-pull-region 0 22 cut
-move -4840 -4410 -4765 body 88
+sketch xz -5533
+circle 5000 5000 16
+pull-region 0 364 add
+sketch xz -5169
+circle 5000 5000 7.98
+pull-region 0 57 add
+sketch xz -5560
+circle 5000 5000 7.98
+pull-region 0 27 add
+move -4400 -4900 -4535 body 188
+rename "Y ball screw" body 188
 sketch xz -5024
 rect 4965 4980 5035 4988
 pull-region 0 24 add
 sketch xz -5024
 rect 4982 4988 5018 5016
 pull-region 0 24 add
-round 3 near 4965 5000 4984 body 89
-round 3 near 4965 5024 4984 body 89
-round 3 near 5035 5000 4984 body 89
-round 3 near 5035 5024 4984 body 89
-round 3 near 4982 5012 5016 body 89
-round 3 near 5018 5012 5016 body 89
+round 3 near 4965 5000 4984 body 189
+round 3 near 4965 5024 4984 body 189
+round 3 near 5035 5000 4984 body 189
+round 3 near 5035 5024 4984 body 189
+round 3 near 4982 5012 5016 body 189
+round 3 near 5018 5012 5016 body 189
 sketch xz -5025
 circle 5000 5000 19
 pull-region 0 26 cut
@@ -1478,39 +2386,47 @@ sketch xy
 arc 0 -1.9845 1.9845 0 0 1.9845
 line 0 1.9845 0 -1.9845
 revolve 0 y 360 add
-move 5007.7500 5003.5000 5000.0000 copy body 92
-move 5004.8320 5003.5000 5006.0592 copy body 92
-move 4998.2755 5003.5000 5007.5557 copy body 92
-move 4993.0175 5003.5000 5003.3626 copy body 92
-move 4993.0175 5003.5000 4996.6374 copy body 92
-move 4998.2755 5003.5000 4992.4443 copy body 92
-move 5004.832 5003.5 4993.9408 body 92
-move 5000 5000 5000 body 90
-move 5000 5000 5000 body 91
-move -4840 -4884 -4765 body 89
-move -4840 -4884 -4765 body 90
-move -4840 -4884 -4765 body 91
-move -4840 -4884 -4765 body 92
-move -4840 -4884 -4765 body 93
-move -4840 -4884 -4765 body 94
-move -4840 -4884 -4765 body 95
-move -4840 -4884 -4765 body 96
-move -4840 -4884 -4765 body 97
-move -4840 -4884 -4765 body 98
-box 70 26 15
-move 125 114 200 body 99
+move 5007.7500 5003.5000 5000.0000 copy body 192
+move 5004.8320 5003.5000 5006.0592 copy body 192
+move 4998.2755 5003.5000 5007.5557 copy body 192
+move 4993.0175 5003.5000 5003.3626 copy body 192
+move 4993.0175 5003.5000 4996.6374 copy body 192
+move 4998.2755 5003.5000 4992.4443 copy body 192
+move 5004.832 5003.5 4993.9408 body 192
+move 5000 5000 5000 body 190
+move 5000 5000 5000 body 191
+move -4400 -4738 -4535 body 189
+move -4400 -4738 -4535 body 190
+move -4400 -4738 -4535 body 191
+move -4400 -4738 -4535 body 192
+move -4400 -4738 -4535 body 193
+move -4400 -4738 -4535 body 194
+move -4400 -4738 -4535 body 195
+move -4400 -4738 -4535 body 196
+move -4400 -4738 -4535 body 197
+move -4400 -4738 -4535 body 198
+rename "Y bearing block front housing" body 189
+rename "Y bearing block front bearing inner ring" body 190
+rename "Y bearing block front bearing outer ring" body 191
+rename "Y bearing block front bearing ball 1" body 192
+rename "Y bearing block front bearing ball 2" body 193
+rename "Y bearing block front bearing ball 3" body 194
+rename "Y bearing block front bearing ball 4" body 195
+rename "Y bearing block front bearing ball 5" body 196
+rename "Y bearing block front bearing ball 6" body 197
+rename "Y bearing block front bearing ball 7" body 198
 sketch xz -5000
 rect 4965 4980 5035 4988
 pull-region 0 24 add
 sketch xz -5000
 rect 4982 4988 5018 5016
 pull-region 0 24 add
-round 3 near 4965 5000 4984 body 100
-round 3 near 4965 4976 4984 body 100
-round 3 near 5035 5000 4984 body 100
-round 3 near 5035 4976 4984 body 100
-round 3 near 4982 4988 5016 body 100
-round 3 near 5018 4988 5016 body 100
+round 3 near 4965 5000 4984 body 199
+round 3 near 4965 4976 4984 body 199
+round 3 near 5035 5000 4984 body 199
+round 3 near 5035 4976 4984 body 199
+round 3 near 4982 4988 5016 body 199
+round 3 near 5018 4988 5016 body 199
 sketch xz -5001
 circle 5000 5000 19
 pull-region 0 26 cut
@@ -1552,37 +2468,49 @@ sketch xy
 arc 0 -1.9845 1.9845 0 0 1.9845
 line 0 1.9845 0 -1.9845
 revolve 0 y 360 add
-move 5007.7500 4996.5000 5000.0000 copy body 103
-move 5004.8320 4996.5000 5006.0592 copy body 103
-move 4998.2755 4996.5000 5007.5557 copy body 103
-move 4993.0175 4996.5000 5003.3626 copy body 103
-move 4993.0175 4996.5000 4996.6374 copy body 103
-move 4998.2755 4996.5000 4992.4443 copy body 103
-move 5004.832 4996.5 4993.9408 body 103
-move 5000 5000 5000 body 101
-move 5000 5000 5000 body 102
-move -4840 -3916 -4765 body 100
-move -4840 -3916 -4765 body 101
-move -4840 -3916 -4765 body 102
-move -4840 -3916 -4765 body 103
-move -4840 -3916 -4765 body 104
-move -4840 -3916 -4765 body 105
-move -4840 -3916 -4765 body 106
-move -4840 -3916 -4765 body 107
-move -4840 -3916 -4765 body 108
-move -4840 -3916 -4765 body 109
-box 70 26 15
-move 125 1060 200 body 110
-sketch xz -5960
-circle 5000 5000 16
-pull-region 0 920 add
-sketch xz -5040
-circle 5000 5000 7.98
-pull-region 0 64 add
-sketch xz -5990
-circle 5000 5000 7.98
-pull-region 0 30 add
-move -4840 -4900 -4765 body 111
+move 5007.7500 4996.5000 5000.0000 copy body 202
+move 5004.8320 4996.5000 5006.0592 copy body 202
+move 4998.2755 4996.5000 5007.5557 copy body 202
+move 4993.0175 4996.5000 5003.3626 copy body 202
+move 4993.0175 4996.5000 4996.6374 copy body 202
+move 4998.2755 4996.5000 4992.4443 copy body 202
+move 5004.832 4996.5 4993.9408 body 202
+move 5000 5000 5000 body 200
+move 5000 5000 5000 body 201
+move -4400 -4360 -4535 body 199
+move -4400 -4360 -4535 body 200
+move -4400 -4360 -4535 body 201
+move -4400 -4360 -4535 body 202
+move -4400 -4360 -4535 body 203
+move -4400 -4360 -4535 body 204
+move -4400 -4360 -4535 body 205
+move -4400 -4360 -4535 body 206
+move -4400 -4360 -4535 body 207
+move -4400 -4360 -4535 body 208
+rename "Y bearing block rear housing" body 199
+rename "Y bearing block rear bearing inner ring" body 200
+rename "Y bearing block rear bearing outer ring" body 201
+rename "Y bearing block rear bearing ball 1" body 202
+rename "Y bearing block rear bearing ball 2" body 203
+rename "Y bearing block rear bearing ball 3" body 204
+rename "Y bearing block rear bearing ball 4" body 205
+rename "Y bearing block rear bearing ball 5" body 206
+rename "Y bearing block rear bearing ball 6" body 207
+rename "Y bearing block rear bearing ball 7" body 208
+box 70 56 15
+move 565 250 430 body 209
+rename "Y bearing block riser front" body 209
+box 70 56 15
+move 565 596 430 body 210
+rename "Y bearing block riser rear" body 210
+sketch xz -5020
+circle 5000 5000 26
+pull-region 0 20 add
+sketch xz -5021
+circle 5000 5000 16.1
+pull-region 0 22 cut
+move -4400 -4610 -4535 body 211
+rename "Y nut" body 211
 sketch xz -5000
 rect 4971.8 4971.8 5028.2 5028.2
 pull-region 0 5 add
@@ -1604,23 +2532,24 @@ pull-region 0 1.5 cut
 sketch xz -5001
 circle 4976.43 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 4972.2 4970 4972.2 body 112
+chamfer 7 near 4972.2 4970 4972.2 body 212
 sketch xz -5001
 circle 4976.43 5023.57 5
 pull-region 0 5.5 cut
-chamfer 7 near 4972.2 4970 5027.8 body 112
+chamfer 7 near 4972.2 4970 5027.8 body 212
 sketch xz -5001
 circle 5023.57 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 5027.8 4970 4972.2 body 112
+chamfer 7 near 5027.8 4970 4972.2 body 212
 sketch xz -5001
 circle 5023.57 5023.57 5
 pull-region 0 5.5 cut
-chamfer 7 near 5027.8 4970 5027.8 body 112
+chamfer 7 near 5027.8 4970 5027.8 body 212
 sketch xz -4962
 rect 4994 5027.8 5006 5034
 pull-region 0 12 add
-move -4840 -4946 -4765 body 112
+move -4400 -4810 -4535 body 212
+rename "Y motor" body 212
 sketch yz 4970
 line 5000 4965 5060 4965
 line 5060 4965 5060 4970
@@ -1645,18 +2574,19 @@ sketch xz -5006
 circle 5023.57 5023.57 5.5
 pull-region 0 7 cut
 sketch xy 4964
-line 4983.3 5026 4983.3 5034
-arc 4983.3 5034 4980 5037.3 4976.7 5034
-line 4976.7 5034 4976.7 5026
-arc 4976.7 5026 4980 5022.7 4983.3 5026
+line 4991.3 5026 4991.3 5034
+arc 4991.3 5034 4988 5037.3 4984.7 5034
+line 4984.7 5034 4984.7 5026
+arc 4984.7 5026 4988 5022.7 4991.3 5026
 pull-region 0 7 cut
 sketch xy 4964
-line 5023.3 5026 5023.3 5034
-arc 5023.3 5034 5020 5037.3 5016.7 5034
-line 5016.7 5034 5016.7 5026
-arc 5016.7 5026 5020 5022.7 5023.3 5026
+line 5015.3 5026 5015.3 5034
+arc 5015.3 5034 5012 5037.3 5008.7 5034
+line 5008.7 5034 5008.7 5026
+arc 5008.7 5026 5012 5022.7 5015.3 5026
 pull-region 0 7 cut
-move -4840 -4946 -4765 body 113
+move -4400 -4810 -4535 body 213
+rename "Y motor bracket" body 213
 sketch xz -5030
 circle 5000 5000 25
 pull-region 0 30 add
@@ -1678,7 +2608,8 @@ pull-region 0 28 cut
 sketch xy 5008
 circle 5008.5 5022.5 6.2
 pull-region 0 6 cut
-move -4840 -4940 -4765 body 114
+move -4400 -4804 -4535 body 214
+rename "Y shaft coupling" body 214
 sketch xz -5005
 circle 5000 5000 8.5
 pull-region 0 5 add
@@ -1693,10 +2624,11 @@ line 4997.6906 5000 4998.8453 4998
 line 4998.8453 4998 5001.1547 4998
 line 5001.1547 4998 5002.3094 5000
 pull-region 0 3.5 cut
-move -4863.57 -4941 -4788.57 body 115
-move 47.1400 0.0000 0.0000 copy body 115
-move 0.0000 0.0000 47.1400 copy body 115
-move 47.1400 0.0000 47.1400 copy body 115
+move -4423.57 -4805 -4558.57 body 215
+rename "Screw M5x9" body 215
+move 47.1400 0.0000 0.0000 copy body 215
+move 0.0000 0.0000 47.1400 copy body 215
+move 47.1400 0.0000 47.1400 copy body 215
 sketch xy 5000
 circle 5000 5000 5.5
 pull-region 0 3 add
@@ -1711,353 +2643,466 @@ line 4998.5566 5000 4999.2783 4998.75
 line 4999.2783 4998.75 5000.7217 4998.75
 line 5000.7217 4998.75 5001.4434 5000
 pull-region 0 2.5 cut
-move -4831.5 -4932.5 -4757 body 119
-move 0.0000 15.0000 0.0000 copy body 119
-# X AXIS DRIVE: the same parts along X on the cross beam; the nut holder hangs on the carrier plate of the Z axis.
-box 30 72 36
-move 385 556 447 body 121
-sketch yz 384
-circle 600 465 26.2
-pull-region 0 32 cut
-sketch yz 5000
-circle 5000 5000 26
-pull-region 0 20 add
-sketch yz 4999
-circle 5000 5000 16.1
-pull-region 0 22 cut
-move -4610 -4400 -4535 body 122
-sketch yz 5000
-rect 4965 4980 5035 4988
-pull-region 0 24 add
-sketch yz 5000
-rect 4982 4988 5018 5016
-pull-region 0 24 add
-round 3 near 5000 4965 4984 body 123
-round 3 near 5024 4965 4984 body 123
-round 3 near 5000 5035 4984 body 123
-round 3 near 5024 5035 4984 body 123
-round 3 near 5012 4982 5016 body 123
-round 3 near 5012 5018 5016 body 123
-sketch yz 4999
-circle 5000 5000 19
-pull-region 0 26 cut
-sketch yz 4999
-circle 5000 5000 22.05
-pull-region 0 8 cut
-sketch xy 4979
-line 5015.3 4972 5015.3 4976
-arc 5015.3 4976 5012 4979.3 5008.7 4976
-line 5008.7 4976 5008.7 4972
-arc 5008.7 4972 5012 4968.7 5015.3 4972
-pull-region 0 10 cut
-sketch xy 4979
-line 5015.3 5024 5015.3 5028
-arc 5015.3 5028 5012 5031.3 5008.7 5028
-line 5008.7 5028 5008.7 5024
-arc 5008.7 5024 5012 5020.7 5015.3 5024
-pull-region 0 10 cut
-sketch xy 5008
-circle 5012 5000 6
-pull-region 0 9 cut
-sketch xy
-line 0 4 0 6.25
-line 0 6.25 2.1027 6.25
-arc 2.1027 6.25 3.5 5.7 4.8973 6.25
-line 4.8973 6.25 7 6.25
-line 7 6.25 7 4
-line 7 4 0 4
-revolve 0 x 360 add
-sketch xy
-line 0 9.25 0 11
-line 0 11 7 11
-line 7 11 7 9.25
-line 7 9.25 4.8973 9.25
-arc 4.8973 9.25 3.5 9.8 2.1027 9.25
-line 2.1027 9.25 0 9.25
-revolve 0 x 360 add
-sketch xy
-arc -1.9845 0 0 1.9845 1.9845 0
-line 1.9845 0 -1.9845 0
-revolve 0 x 360 add
-move 5003.5000 5007.7500 5000.0000 copy body 126
-move 5003.5000 5004.8320 5006.0592 copy body 126
-move 5003.5000 4998.2755 5007.5557 copy body 126
-move 5003.5000 4993.0175 5003.3626 copy body 126
-move 5003.5000 4993.0175 4996.6374 copy body 126
-move 5003.5000 4998.2755 4992.4443 copy body 126
-move 5003.5 5004.832 4993.9408 body 126
-move 5000 5000 5000 body 124
-move 5000 5000 5000 body 125
-move -4738 -4400 -4535 body 123
-move -4738 -4400 -4535 body 124
-move -4738 -4400 -4535 body 125
-move -4738 -4400 -4535 body 126
-move -4738 -4400 -4535 body 127
-move -4738 -4400 -4535 body 128
-move -4738 -4400 -4535 body 129
-move -4738 -4400 -4535 body 130
-move -4738 -4400 -4535 body 131
-move -4738 -4400 -4535 body 132
-box 28 70 15
-move 260 565 430 body 133
-sketch yz 4976
-rect 4965 4980 5035 4988
-pull-region 0 24 add
-sketch yz 4976
-rect 4982 4988 5018 5016
-pull-region 0 24 add
-round 3 near 5000 4965 4984 body 134
-round 3 near 4976 4965 4984 body 134
-round 3 near 5000 5035 4984 body 134
-round 3 near 4976 5035 4984 body 134
-round 3 near 4988 4982 5016 body 134
-round 3 near 4988 5018 5016 body 134
-sketch yz 4975
-circle 5000 5000 19
-pull-region 0 26 cut
-sketch yz 4993
-circle 5000 5000 22.05
-pull-region 0 8 cut
-sketch xy 4979
-line 4984.7 4972 4984.7 4976
-arc 4984.7 4976 4988 4979.3 4991.3 4976
-line 4991.3 4976 4991.3 4972
-arc 4991.3 4972 4988 4968.7 4984.7 4972
-pull-region 0 10 cut
-sketch xy 4979
-line 4984.7 5024 4984.7 5028
-arc 4984.7 5028 4988 5031.3 4991.3 5028
-line 4991.3 5028 4991.3 5024
-arc 4991.3 5024 4988 5020.7 4984.7 5024
-pull-region 0 10 cut
-sketch xy 5008
-circle 4988 5000 6
-pull-region 0 9 cut
-sketch xy
-line 0 4 0 6.25
-line 0 6.25 -2.1027 6.25
-arc -2.1027 6.25 -3.5 5.7 -4.8973 6.25
-line -4.8973 6.25 -7 6.25
-line -7 6.25 -7 4
-line -7 4 0 4
-revolve 0 x 360 add
-sketch xy
-line 0 9.25 0 11
-line 0 11 -7 11
-line -7 11 -7 9.25
-line -7 9.25 -4.8973 9.25
-arc -4.8973 9.25 -3.5 9.8 -2.1027 9.25
-line -2.1027 9.25 0 9.25
-revolve 0 x 360 add
-sketch xy
-arc -1.9845 0 0 1.9845 1.9845 0
-line 1.9845 0 -1.9845 0
-revolve 0 x 360 add
-move 4996.5000 5007.7500 5000.0000 copy body 137
-move 4996.5000 5004.8320 5006.0592 copy body 137
-move 4996.5000 4998.2755 5007.5557 copy body 137
-move 4996.5000 4993.0175 5003.3626 copy body 137
-move 4996.5000 4993.0175 4996.6374 copy body 137
-move 4996.5000 4998.2755 4992.4443 copy body 137
-move 4996.5 5004.832 4993.9408 body 137
-move 5000 5000 5000 body 135
-move 5000 5000 5000 body 136
-move -4360 -4400 -4535 body 134
-move -4360 -4400 -4535 body 135
-move -4360 -4400 -4535 body 136
-move -4360 -4400 -4535 body 137
-move -4360 -4400 -4535 body 138
-move -4360 -4400 -4535 body 139
-move -4360 -4400 -4535 body 140
-move -4360 -4400 -4535 body 141
-move -4360 -4400 -4535 body 142
-move -4360 -4400 -4535 body 143
-box 28 70 15
-move 614 565 430 body 144
-sketch yz 5186
-circle 5000 5000 16
-pull-region 0 330 add
-sketch yz 5122
-circle 5000 5000 7.98
-pull-region 0 64 add
-sketch yz 5516
-circle 5000 5000 7.98
-pull-region 0 44 add
-move -4900 -4400 -4535 body 145
-sketch yz 4995
-rect 4971.8 4971.8 5028.2 5028.2
-pull-region 0 5 add
-sketch yz 4944
-rect 4972.2 4972.2 5027.8 5027.8
-pull-region 0 51 add
-sketch yz 4939
-rect 4978 4978 5022 5022
-pull-region 0 5 add
-sketch yz 5000
-circle 5000 5000 38.1
-pull-region 0 1.6 add
-sketch yz 5000
-circle 5000 5000 7.98
-pull-region 0 21 add
-sketch xz -5005
-rect 5006 4995 5021 5005
-pull-region 0 1.5 cut
-sketch yz 4995.5
-circle 4976.43 4976.43 5
-pull-region 0 5.5 cut
-chamfer 7 near 4970 4972.2 4972.2 body 146
-sketch yz 4995.5
-circle 4976.43 5023.57 5
-pull-region 0 5.5 cut
-chamfer 7 near 4970 4972.2 5027.8 body 146
-sketch yz 4995.5
-circle 5023.57 4976.43 5
-pull-region 0 5.5 cut
-chamfer 7 near 4970 5027.8 4972.2 body 146
-sketch yz 4995.5
-circle 5023.57 5023.57 5
-pull-region 0 5.5 cut
-chamfer 7 near 4970 5027.8 5027.8 body 146
-sketch yz 4950
-rect 4994 5027.8 5006 5034
-pull-region 0 12 add
-move -4800 -4400 -4535 body 146
-sketch xz -5030
-line 5000 4965 5060 4965
-line 5060 4965 5060 4970
-line 5060 4970 5005 4970
-line 5005 4970 5005 5030
-line 5005 5030 5000 5030
-line 5000 5030 5000 4965
+move -4391.5 -4796.5 -4527 body 219
+rename "Screw M3x17" body 219
+move 0.0000 15.0000 0.0000 copy body 219
+sketch xy 434.7
+circle 574 274 6.6
+pull-region 0 18.3 cut
+sketch xy 434.7
+circle 626 274 6.6
+pull-region 0 18.3 cut
+sketch xy 434.7
+circle 574 628 6.6
+pull-region 0 18.3 cut
+sketch xy 434.7
+circle 626 628 6.6
+pull-region 0 18.3 cut
+sketch xy 425.7
+circle 600 256 6.6
+pull-region 0 19.3 cut
+sketch xy 425.7
+circle 600 296 6.6
+pull-region 0 19.3 cut
+sketch xy 425.7
+circle 600 602 6.6
+pull-region 0 19.3 cut
+sketch xy 425.7
+circle 600 646 6.6
+pull-region 0 19.3 cut
+sketch xy 417.7
+circle 588 220 6.6
+pull-region 0 17.3 cut
+sketch xy 417.7
+circle 612 220 6.6
+pull-region 0 17.3 cut
+sketch xy 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xy 4982.3
+circle 5000 5000 5.8
+pull-region 0 17.7 add
+sketch xy 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4426 -4726 -4547 body 221
+rename "Screw M6x18" body 221
+move 52.0000 0.0000 0.0000 copy body 221
+move 0.0000 354.0000 0.0000 copy body 221
+move 52.0000 354.0000 0.0000 copy body 221
+sketch xy 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xy 4981.3
+circle 5000 5000 5.8
+pull-region 0 18.7 add
+sketch xy 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4400 -4744 -4555 body 225
+rename "Screw M6x19" body 225
+move 0.0000 40.0000 0.0000 copy body 225
+move 0.0000 346.0000 0.0000 copy body 225
+move 0.0000 390.0000 0.0000 copy body 225
+sketch xy 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch xy 4983.3
+circle 5000 5000 5.8
+pull-region 0 16.7 add
+sketch xy 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4412 -4780 -4565 body 229
+rename "Screw M6x17" body 229
+move 24.0000 0.0000 0.0000 copy body 229
+# 6 Z AXIS, from the back to the front: the fixed plate on the four Y carriages; on its front two spacer strips with the vertical rails; the ball screw exactly between them,
+# in two blocks screwed to the fixed plate; the moving plate on four carriages (the screw is hidden behind it, the nut holder is screwed to its back; the heads of its screws are sunk in
+# counterbores); the motor on the back of the fixed plate with the shaft up, a toothed belt to a pulley on the top of the screw (the belt passes a window in the plate and one in the bracket).
+box 15 300 370
+move 541 250 330 body 231
+rename "Z fixed plate" body 231
+sketch yz 540
+rect 378 623 422 639
+pull-region 0 17 cut
+box 12 20 300
+move 529 340 340 body 232
+rename "Z rail spacer left" body 232
+box 12 20 300
+move 529 440 340 body 233
+rename "Z rail spacer right" body 233
+sketch xy 5000
+line 5000 5007.5 4996 5007.5
+line 4996 5007.5 4994.5 5006.3
+line 4994.5 5006.3 4993 5007.5
+line 4993 5007.5 4991 5007.5
+line 4991 5007.5 4989.5 5006.3
+line 4989.5 5006.3 4988 5007.5
+line 4988 5007.5 4985 5007.5
+line 4985 5007.5 4985 4992.5
+line 4985 4992.5 4988 4992.5
+line 4988 4992.5 4989.5 4993.7
+line 4989.5 4993.7 4991 4992.5
+line 4991 4992.5 4993 4992.5
+line 4993 4992.5 4994.5 4993.7
+line 4994.5 4993.7 4996 4992.5
+line 4996 4992.5 5000 4992.5
+line 5000 4992.5 5000 5007.5
+pull-region 0 300 add
+sketch yz 4984
+circle 5000 5030 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5030 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5090 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5090 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5150 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5150 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5210 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5210 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5270 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5270 7.5
+pull-region 0 6.3 cut
+move -4471 -4650 -4660 body 234
+rename "Z rail left" body 234
+sketch xy 5000
+line 4996 4976.5 4996 4992.4
+line 4996 4992.4 4995.4 4992.4
+line 4995.4 4992.4 4994.5 4993.5
+line 4994.5 4993.5 4993.6 4992.4
+line 4993.6 4992.4 4990.4 4992.4
+line 4990.4 4992.4 4989.5 4993.5
+line 4989.5 4993.5 4988.6 4992.4
+line 4988.6 4992.4 4984.9 4992.4
+line 4984.9 4992.4 4984.9 5007.6
+line 4984.9 5007.6 4988.6 5007.6
+line 4988.6 5007.6 4989.5 5006.5
+line 4989.5 5006.5 4990.4 5007.6
+line 4990.4 5007.6 4993.6 5007.6
+line 4993.6 5007.6 4994.5 5006.5
+line 4994.5 5006.5 4995.4 5007.6
+line 4995.4 5007.6 4996 5007.6
+line 4996 5007.6 4996 5023.5
+line 4996 5023.5 4976 5023.5
+line 4976 5023.5 4976 4976.5
+line 4976 4976.5 4996 4976.5
 pull-region 0 60 add
-sketch yz 4999
-circle 5000 5000 38.5
-pull-region 0 7 cut
-sketch yz 4999
-circle 4976.43 4976.43 5.5
-pull-region 0 7 cut
-sketch yz 4999
-circle 4976.43 5023.57 5.5
-pull-region 0 7 cut
-sketch yz 4999
-circle 5023.57 4976.43 5.5
-pull-region 0 7 cut
-sketch yz 4999
-circle 5023.57 5023.57 5.5
-pull-region 0 7 cut
-sketch xy 4964
-line 5026 4983.3 5034 4983.3
-arc 5034 4983.3 5037.3 4980 5034 4976.7
-line 5034 4976.7 5026 4976.7
-arc 5026 4976.7 5022.7 4980 5026 4983.3
-pull-region 0 7 cut
-sketch xy 4964
-line 5026 5023.3 5034 5023.3
-arc 5034 5023.3 5037.3 5020 5034 5016.7
-line 5034 5016.7 5026 5016.7
-arc 5026 5016.7 5022.7 5020 5026 5023.3
-pull-region 0 7 cut
-move -4800 -4400 -4535 body 147
-sketch yz 5000
-circle 5000 5000 25
-pull-region 0 30 add
-sketch yz 4999
-circle 5000 5000 8
-pull-region 0 32 cut
-sketch xy 4999.5
-rect 4999 5000 5031 5013.5
-pull-region 0 1 cut
-sketch xy 4986
-circle 5007.5 5008.5 3.2
-pull-region 0 28 cut
-sketch xy 5008
-circle 5007.5 5008.5 6.2
-pull-region 0 6 cut
-sketch xy 4986
-circle 5022.5 5008.5 3.2
-pull-region 0 28 cut
-sketch xy 5008
-circle 5022.5 5008.5 6.2
-pull-region 0 6 cut
-move -4794 -4400 -4535 body 148
-sketch yz 5000
-circle 5000 5000 8.5
-pull-region 0 5 add
-sketch yz 4990.5
-circle 5000 5000 4.9
-pull-region 0 9.5 add
-sketch yz 5002.5
-line 5002.3094 5000 5001.1547 5002
-line 5001.1547 5002 4998.8453 5002
-line 4998.8453 5002 4997.6906 5000
-line 4997.6906 5000 4998.8453 4998
-line 4998.8453 4998 5001.1547 4998
-line 5001.1547 4998 5002.3094 5000
-pull-region 0 3.5 cut
-move -4795 -4423.57 -4558.57 body 149
-move 0.0000 47.1400 0.0000 copy body 149
-move 0.0000 0.0000 47.1400 copy body 149
-move 0.0000 47.1400 47.1400 copy body 149
+sketch yz 4975
+circle 4981 5015 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 4981 5045 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 5019 5015 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 5019 5045 5
+pull-region 0 11 cut
+move -4471 -4650 -4590 body 235
+rename "Z carriage left 1" body 235
 sketch xy 5000
-circle 5000 5000 5.5
-pull-region 0 3 add
-sketch xy 4983
-circle 5000 5000 2.9
-pull-region 0 17 add
-sketch xy 5001.5
-line 5001.4434 5000 5000.7217 5001.25
-line 5000.7217 5001.25 4999.2783 5001.25
-line 4999.2783 5001.25 4998.5566 5000
-line 4998.5566 5000 4999.2783 4998.75
-line 4999.2783 4998.75 5000.7217 4998.75
-line 5000.7217 4998.75 5001.4434 5000
-pull-region 0 2.5 cut
-move -4786.5 -4391.5 -4527 body 153
-move 15.0000 0.0000 0.0000 copy body 153
-# Z AXIS DRIVE: the same parts along Z; the bearing blocks sit on risers on the carrier plate, the motor on top, the nut holder on the spindle plate.
-box 40 36 40
-move 500 488 435 body 155
-sketch xy 434
-circle 520 506 26.2
+line 4996 4976.5 4996 4992.3
+line 4996 4992.3 4984.8 4992.3
+line 4984.8 4992.3 4984.8 5007.7
+line 4984.8 5007.7 4996 5007.7
+line 4996 5007.7 4996 5023.5
+line 4996 5023.5 4978 5023.5
+line 4978 5023.5 4978 4976.5
+line 4978 4976.5 4996 4976.5
+pull-region 0 6 add
+move -4471 -4650 -4596 body 236
+rename "Z carriage left 1 end cap front" body 236
+sketch xy 5000
+line 4996 4976.5 4996 4992.3
+line 4996 4992.3 4984.8 4992.3
+line 4984.8 4992.3 4984.8 5007.7
+line 4984.8 5007.7 4996 5007.7
+line 4996 5007.7 4996 5023.5
+line 4996 5023.5 4978 5023.5
+line 4978 5023.5 4978 4976.5
+line 4978 4976.5 4996 4976.5
+pull-region 0 6 add
+move -4471 -4650 -4530 body 237
+rename "Z carriage left 1 end cap rear" body 237
+sketch xy 5000
+circle 5000 5000 3
+pull-region 0 2 add
+sketch xy 5002
+circle 5000 5000 5
+pull-region 0 4 add
+move -4490 -4650 -4524 body 238
+rename "Z carriage left 1 grease nipple" body 238
+move 0.0000 0.0000 80.0000 copy body 235
+rename "Z carriage left 2" body 239
+move 0.0000 0.0000 80.0000 copy body 236
+rename "Z carriage left 2 end cap front" body 240
+move 0.0000 0.0000 80.0000 copy body 237
+rename "Z carriage left 2 end cap rear" body 241
+move 0.0000 0.0000 80.0000 copy body 238
+rename "Z carriage left 2 grease nipple" body 242
+sketch xy 5000
+line 5000 5007.5 4996 5007.5
+line 4996 5007.5 4994.5 5006.3
+line 4994.5 5006.3 4993 5007.5
+line 4993 5007.5 4991 5007.5
+line 4991 5007.5 4989.5 5006.3
+line 4989.5 5006.3 4988 5007.5
+line 4988 5007.5 4985 5007.5
+line 4985 5007.5 4985 4992.5
+line 4985 4992.5 4988 4992.5
+line 4988 4992.5 4989.5 4993.7
+line 4989.5 4993.7 4991 4992.5
+line 4991 4992.5 4993 4992.5
+line 4993 4992.5 4994.5 4993.7
+line 4994.5 4993.7 4996 4992.5
+line 4996 4992.5 5000 4992.5
+line 5000 4992.5 5000 5007.5
+pull-region 0 300 add
+sketch yz 4984
+circle 5000 5030 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5030 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5090 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5090 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5150 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5150 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5210 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5210 7.5
+pull-region 0 6.3 cut
+sketch yz 4984
+circle 5000 5270 4.5
+pull-region 0 17 cut
+sketch yz 4984
+circle 5000 5270 7.5
+pull-region 0 6.3 cut
+move -4471 -4550 -4660 body 243
+rename "Z rail right" body 243
+sketch xy 5000
+line 4996 4976.5 4996 4992.4
+line 4996 4992.4 4995.4 4992.4
+line 4995.4 4992.4 4994.5 4993.5
+line 4994.5 4993.5 4993.6 4992.4
+line 4993.6 4992.4 4990.4 4992.4
+line 4990.4 4992.4 4989.5 4993.5
+line 4989.5 4993.5 4988.6 4992.4
+line 4988.6 4992.4 4984.9 4992.4
+line 4984.9 4992.4 4984.9 5007.6
+line 4984.9 5007.6 4988.6 5007.6
+line 4988.6 5007.6 4989.5 5006.5
+line 4989.5 5006.5 4990.4 5007.6
+line 4990.4 5007.6 4993.6 5007.6
+line 4993.6 5007.6 4994.5 5006.5
+line 4994.5 5006.5 4995.4 5007.6
+line 4995.4 5007.6 4996 5007.6
+line 4996 5007.6 4996 5023.5
+line 4996 5023.5 4976 5023.5
+line 4976 5023.5 4976 4976.5
+line 4976 4976.5 4996 4976.5
+pull-region 0 60 add
+sketch yz 4975
+circle 4981 5015 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 4981 5045 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 5019 5015 5
+pull-region 0 11 cut
+sketch yz 4975
+circle 5019 5045 5
+pull-region 0 11 cut
+move -4471 -4550 -4590 body 244
+rename "Z carriage right 1" body 244
+sketch xy 5000
+line 4996 4976.5 4996 4992.3
+line 4996 4992.3 4984.8 4992.3
+line 4984.8 4992.3 4984.8 5007.7
+line 4984.8 5007.7 4996 5007.7
+line 4996 5007.7 4996 5023.5
+line 4996 5023.5 4978 5023.5
+line 4978 5023.5 4978 4976.5
+line 4978 4976.5 4996 4976.5
+pull-region 0 6 add
+move -4471 -4550 -4596 body 245
+rename "Z carriage right 1 end cap front" body 245
+sketch xy 5000
+line 4996 4976.5 4996 4992.3
+line 4996 4992.3 4984.8 4992.3
+line 4984.8 4992.3 4984.8 5007.7
+line 4984.8 5007.7 4996 5007.7
+line 4996 5007.7 4996 5023.5
+line 4996 5023.5 4978 5023.5
+line 4978 5023.5 4978 4976.5
+line 4978 4976.5 4996 4976.5
+pull-region 0 6 add
+move -4471 -4550 -4530 body 246
+rename "Z carriage right 1 end cap rear" body 246
+sketch xy 5000
+circle 5000 5000 3
+pull-region 0 2 add
+sketch xy 5002
+circle 5000 5000 5
+pull-region 0 4 add
+move -4490 -4550 -4524 body 247
+rename "Z carriage right 1 grease nipple" body 247
+move 0.0000 0.0000 80.0000 copy body 244
+rename "Z carriage right 2" body 248
+move 0.0000 0.0000 80.0000 copy body 245
+rename "Z carriage right 2 end cap front" body 249
+move 0.0000 0.0000 80.0000 copy body 246
+rename "Z carriage right 2 end cap rear" body 250
+move 0.0000 0.0000 80.0000 copy body 247
+rename "Z carriage right 2 grease nipple" body 251
+box 15 190 160
+move 490 305 400 body 252
+rename "Z moving plate" body 252
+sketch yz 490
+circle 331 425 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 331 455 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 369 425 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 369 455 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 331 505 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 331 535 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 369 505 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 369 535 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 431 425 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 431 455 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 469 425 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 469 455 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 431 505 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 431 535 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 469 505 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 469 535 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 381 485 9.5
+pull-region 0 5.2 cut
+sketch yz 490
+circle 419 485 9.5
+pull-region 0 5.2 cut
+box 33 48 40
+move 505 376 465 body 253
+rename "Z nut holder" body 253
+sketch xy 464
+circle 521 400 26.2
 pull-region 0 42 cut
+sketch xy 5243
+circle 5000 5000 16
+pull-region 0 274 add
+sketch xy 5228
+circle 5000 5000 7.98
+pull-region 0 15 add
+sketch xy 5517
+circle 5000 5000 7.98
+pull-region 0 28 add
+move -4479 -4600 -4900 body 254
+rename "Z ball screw" body 254
 sketch xy 5000
-circle 5000 5000 26
-pull-region 0 20 add
-sketch xy 4999
-circle 5000 5000 16.1
-pull-region 0 22 cut
-move -4480 -4494 -4555 body 156
-sketch xy 5000
-rect 4965 5012 5035 5020
+rect 5012 4965 5020 5035
 pull-region 0 24 add
 sketch xy 5000
-rect 4982 4984 5018 5012
+rect 4984 4982 5012 5018
 pull-region 0 24 add
-round 3 near 4965 5016 5000 body 157
-round 3 near 4965 5016 5024 body 157
-round 3 near 5035 5016 5000 body 157
-round 3 near 5035 5016 5024 body 157
-round 3 near 4982 4984 5012 body 157
-round 3 near 5018 4984 5012 body 157
+round 3 near 5016 4965 5000 body 255
+round 3 near 5016 4965 5024 body 255
+round 3 near 5016 5035 5000 body 255
+round 3 near 5016 5035 5024 body 255
+round 3 near 4984 4982 5012 body 255
+round 3 near 4984 5018 5012 body 255
 sketch xy 4999
 circle 5000 5000 19
 pull-region 0 26 cut
 sketch xy 4999
 circle 5000 5000 22.05
 pull-region 0 8 cut
-sketch xz -5021
+sketch yz 5011
 line 4972 5015.3 4976 5015.3
 arc 4976 5015.3 4979.3 5012 4976 5008.7
 line 4976 5008.7 4972 5008.7
 arc 4972 5008.7 4968.7 5012 4972 5015.3
 pull-region 0 10 cut
-sketch xz -5021
+sketch yz 5011
 line 5024 5015.3 5028 5015.3
 arc 5028 5015.3 5031.3 5012 5028 5008.7
 line 5028 5008.7 5024 5008.7
 arc 5024 5008.7 5020.7 5012 5024 5015.3
 pull-region 0 10 cut
-sketch xz -4992
+sketch yz 4983
 circle 5000 5012 6
 pull-region 0 9 cut
 sketch xz
@@ -2080,58 +3125,66 @@ sketch xz
 arc 0 -1.9845 1.9845 0 0 1.9845
 line 0 1.9845 0 -1.9845
 revolve 0 z 360 add
-move 5007.7500 5000.0000 5003.5000 copy body 160
-move 5004.8320 5006.0592 5003.5000 copy body 160
-move 4998.2755 5007.5557 5003.5000 copy body 160
-move 4993.0175 5003.3626 5003.5000 copy body 160
-move 4993.0175 4996.6374 5003.5000 copy body 160
-move 4998.2755 4992.4443 5003.5000 copy body 160
-move 5004.832 4993.9408 5003.5 body 160
-move 5000 5000 5000 body 158
-move 5000 5000 5000 body 159
-move -4480 -4494 -4664 body 157
-move -4480 -4494 -4664 body 158
-move -4480 -4494 -4664 body 159
-move -4480 -4494 -4664 body 160
-move -4480 -4494 -4664 body 161
-move -4480 -4494 -4664 body 162
-move -4480 -4494 -4664 body 163
-move -4480 -4494 -4664 body 164
-move -4480 -4494 -4664 body 165
-move -4480 -4494 -4664 body 166
-box 70 15 24
-move 485 526 336 body 167
+move 5007.7500 5000.0000 5003.5000 copy body 258
+move 5004.8320 5006.0592 5003.5000 copy body 258
+move 4998.2755 5007.5557 5003.5000 copy body 258
+move 4993.0175 5003.3626 5003.5000 copy body 258
+move 4993.0175 4996.6374 5003.5000 copy body 258
+move 4998.2755 4992.4443 5003.5000 copy body 258
+move 5004.832 4993.9408 5003.5 body 258
+move 5000 5000 5000 body 256
+move 5000 5000 5000 body 257
+move -4479 -4600 -4664 body 255
+move -4479 -4600 -4664 body 256
+move -4479 -4600 -4664 body 257
+move -4479 -4600 -4664 body 258
+move -4479 -4600 -4664 body 259
+move -4479 -4600 -4664 body 260
+move -4479 -4600 -4664 body 261
+move -4479 -4600 -4664 body 262
+move -4479 -4600 -4664 body 263
+move -4479 -4600 -4664 body 264
+rename "Z bearing block lower housing" body 255
+rename "Z bearing block lower bearing inner ring" body 256
+rename "Z bearing block lower bearing outer ring" body 257
+rename "Z bearing block lower bearing ball 1" body 258
+rename "Z bearing block lower bearing ball 2" body 259
+rename "Z bearing block lower bearing ball 3" body 260
+rename "Z bearing block lower bearing ball 4" body 261
+rename "Z bearing block lower bearing ball 5" body 262
+rename "Z bearing block lower bearing ball 6" body 263
+rename "Z bearing block lower bearing ball 7" body 264
 sketch xy 4976
-rect 4965 5012 5035 5020
+rect 5012 4965 5020 5035
 pull-region 0 24 add
 sketch xy 4976
-rect 4982 4984 5018 5012
+rect 4984 4982 5012 5018
 pull-region 0 24 add
-round 3 near 4965 5016 5000 body 168
-round 3 near 4965 5016 4976 body 168
-round 3 near 5035 5016 5000 body 168
-round 3 near 5035 5016 4976 body 168
-round 3 near 4982 4984 4988 body 168
-round 3 near 5018 4984 4988 body 168
+round 3 near 5016 4965 5000 body 265
+round 3 near 5016 4965 4976 body 265
+round 3 near 5016 5035 5000 body 265
+round 3 near 5016 5035 4976 body 265
+round 3 near 4984 4982 4988 body 265
+round 3 near 4984 5018 4988 body 265
 sketch xy 4975
 circle 5000 5000 19
 pull-region 0 26 cut
 sketch xy 4993
 circle 5000 5000 22.05
 pull-region 0 8 cut
-sketch xz -5021
+sketch yz 5011
 line 4972 4984.7 4976 4984.7
 arc 4976 4984.7 4979.3 4988 4976 4991.3
 line 4976 4991.3 4972 4991.3
 arc 4972 4991.3 4968.7 4988 4972 4984.7
 pull-region 0 10 cut
-sketch xz -5021
+sketch yz 5011
 line 5024 4984.7 5028 4984.7
 arc 5028 4984.7 5031.3 4988 5028 4991.3
 line 5028 4991.3 5024 4991.3
 arc 5024 4991.3 5020.7 4988 5024 4984.7
 pull-region 0 10 cut
-sketch xz -4992
+sketch yz 4983
 circle 5000 4988 6
 pull-region 0 9 cut
 sketch xz
@@ -2154,165 +3207,756 @@ sketch xz
 arc 0 -1.9845 1.9845 0 0 1.9845
 line 0 1.9845 0 -1.9845
 revolve 0 z 360 add
-move 5007.7500 5000.0000 4996.5000 copy body 171
-move 5004.8320 5006.0592 4996.5000 copy body 171
-move 4998.2755 5007.5557 4996.5000 copy body 171
-move 4993.0175 5003.3626 4996.5000 copy body 171
-move 4993.0175 4996.6374 4996.5000 copy body 171
-move 4998.2755 4992.4443 4996.5000 copy body 171
-move 5004.832 4993.9408 4996.5 body 171
-move 5000 5000 5000 body 169
-move 5000 5000 5000 body 170
-move -4480 -4494 -4436 body 168
-move -4480 -4494 -4436 body 169
-move -4480 -4494 -4436 body 170
-move -4480 -4494 -4436 body 171
-move -4480 -4494 -4436 body 172
-move -4480 -4494 -4436 body 173
-move -4480 -4494 -4436 body 174
-move -4480 -4494 -4436 body 175
-move -4480 -4494 -4436 body 176
-move -4480 -4494 -4436 body 177
-box 70 15 24
-move 485 526 540 body 178
-sketch xy 5260
-circle 5000 5000 16
-pull-region 0 180 add
-sketch xy 5228
-circle 5000 5000 7.98
-pull-region 0 32 add
-sketch xy 5440
-circle 5000 5000 7.98
-pull-region 0 78 add
-move -4480 -4494 -4900 body 179
+move 5007.7500 5000.0000 4996.5000 copy body 268
+move 5004.8320 5006.0592 4996.5000 copy body 268
+move 4998.2755 5007.5557 4996.5000 copy body 268
+move 4993.0175 5003.3626 4996.5000 copy body 268
+move 4993.0175 4996.6374 4996.5000 copy body 268
+move 4998.2755 4992.4443 4996.5000 copy body 268
+move 5004.832 4993.9408 4996.5 body 268
+move 5000 5000 5000 body 266
+move 5000 5000 5000 body 267
+move -4479 -4600 -4376 body 265
+move -4479 -4600 -4376 body 266
+move -4479 -4600 -4376 body 267
+move -4479 -4600 -4376 body 268
+move -4479 -4600 -4376 body 269
+move -4479 -4600 -4376 body 270
+move -4479 -4600 -4376 body 271
+move -4479 -4600 -4376 body 272
+move -4479 -4600 -4376 body 273
+move -4479 -4600 -4376 body 274
+rename "Z bearing block upper housing" body 265
+rename "Z bearing block upper bearing inner ring" body 266
+rename "Z bearing block upper bearing outer ring" body 267
+rename "Z bearing block upper bearing ball 1" body 268
+rename "Z bearing block upper bearing ball 2" body 269
+rename "Z bearing block upper bearing ball 3" body 270
+rename "Z bearing block upper bearing ball 4" body 271
+rename "Z bearing block upper bearing ball 5" body 272
+rename "Z bearing block upper bearing ball 6" body 273
+rename "Z bearing block upper bearing ball 7" body 274
 sketch xy 5000
+circle 5000 5000 26
+pull-region 0 20 add
+sketch xy 4999
+circle 5000 5000 16.1
+pull-region 0 22 cut
+move -4479 -4600 -4525 body 275
+rename "Z nut" body 275
+sketch xy 4995
 rect 4971.8 4971.8 5028.2 5028.2
 pull-region 0 5 add
-sketch xy 5005
+sketch xy 4944
 rect 4972.2 4972.2 5027.8 5027.8
 pull-region 0 51 add
-sketch xy 5056
+sketch xy 4939
 rect 4978 4978 5022 5022
 pull-region 0 5 add
-sketch xy 4998.4
+sketch xy 5000
 circle 5000 5000 38.1
 pull-region 0 1.6 add
-sketch xy 4979
+sketch xy 5000
 circle 5000 5000 7.98
 pull-region 0 21 add
-sketch yz 5003.5
-rect 4995 4979 5005 4994
+sketch xz -5005
+rect 4995 5006 5005 5021
 pull-region 0 1.5 cut
-sketch xy 4999
-circle 4976.43 5023.57 5
-pull-region 0 5.5 cut
-chamfer 7 near 4972.2 5027.8 5030 body 180
-sketch xy 4999
+sketch xy 4995.5
 circle 4976.43 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 4972.2 4972.2 5030 body 180
-sketch xy 4999
-circle 5023.57 5023.57 5
-pull-region 0 5.5 cut
-chamfer 7 near 5027.8 5027.8 5030 body 180
-sketch xy 4999
+chamfer 7 near 4972.2 4972.2 4970 body 276
+sketch xy 4995.5
 circle 5023.57 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 5027.8 4972.2 5030 body 180
-sketch xy 5038
-rect 4994 4966 5006 4972.2
+chamfer 7 near 5027.8 4972.2 4970 body 276
+sketch xy 4995.5
+circle 4976.43 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 4972.2 5027.8 4970 body 276
+sketch xy 4995.5
+circle 5023.57 5023.57 5
+pull-region 0 5.5 cut
+chamfer 7 near 5027.8 5027.8 4970 body 276
+sketch xy 4950
+rect 5027.8 4994 5034 5006
 pull-region 0 12 add
-move -4480 -4494 -4360 body 180
-sketch yz 4970
-line 5035 5000 5035 4940
-line 5035 4940 5030 4940
-line 5030 4940 5030 4995
-line 5030 4995 4970 4995
-line 4970 4995 4970 5000
-line 4970 5000 5035 5000
+move -4409 -4600 -4380 body 276
+rename "Z motor" body 276
+sketch xz -5030
+line 4965 5000 4965 5060
+line 4965 5060 4970 5060
+line 4970 5060 4970 5005
+line 4970 5005 5030 5005
+line 5030 5005 5030 5000
+line 5030 5000 4965 5000
 pull-region 0 60 add
-sketch xy 4994
+sketch xy 4999
 circle 5000 5000 38.5
 pull-region 0 7 cut
-sketch xy 4994
-circle 4976.43 5023.57 5.5
+sketch xy 4999
+line 4972.43 4979.18 4980.43 4979.18
+arc 4980.43 4979.18 4983.18 4976.43 4980.43 4973.68
+line 4980.43 4973.68 4972.43 4973.68
+arc 4972.43 4973.68 4969.68 4976.43 4972.43 4979.18
 pull-region 0 7 cut
-sketch xy 4994
-circle 4976.43 4976.43 5.5
+sketch xy 4999
+line 5019.57 4979.18 5027.57 4979.18
+arc 5027.57 4979.18 5030.32 4976.43 5027.57 4973.68
+line 5027.57 4973.68 5019.57 4973.68
+arc 5019.57 4973.68 5016.82 4976.43 5019.57 4979.18
 pull-region 0 7 cut
-sketch xy 4994
-circle 5023.57 5023.57 5.5
+sketch xy 4999
+line 4972.43 5026.32 4980.43 5026.32
+arc 4980.43 5026.32 4983.18 5023.57 4980.43 5020.82
+line 4980.43 5020.82 4972.43 5020.82
+arc 4972.43 5020.82 4969.68 5023.57 4972.43 5026.32
 pull-region 0 7 cut
-sketch xy 4994
-circle 5023.57 4976.43 5.5
+sketch xy 4999
+line 5019.57 5026.32 5027.57 5026.32
+arc 5027.57 5026.32 5030.32 5023.57 5027.57 5020.82
+line 5027.57 5020.82 5019.57 5020.82
+arc 5019.57 5020.82 5016.82 5023.57 5019.57 5026.32
 pull-region 0 7 cut
-sketch xz -5036
-line 4983.3 4974 4983.3 4966
-arc 4983.3 4966 4980 4962.7 4976.7 4966
-line 4976.7 4966 4976.7 4974
-arc 4976.7 4974 4980 4977.3 4983.3 4974
+sketch yz 4964
+line 4976.3 5026 4976.3 5034
+arc 4976.3 5034 4973 5037.3 4969.7 5034
+line 4969.7 5034 4969.7 5026
+arc 4969.7 5026 4973 5022.7 4976.3 5026
 pull-region 0 7 cut
-sketch xz -5036
-line 5023.3 4974 5023.3 4966
-arc 5023.3 4966 5020 4962.7 5016.7 4966
-line 5016.7 4966 5016.7 4974
-arc 5016.7 4974 5020 4977.3 5023.3 4974
+sketch yz 4964
+line 5030.3 5026 5030.3 5034
+arc 5030.3 5034 5027 5037.3 5023.7 5034
+line 5023.7 5034 5023.7 5026
+arc 5023.7 5026 5027 5022.7 5030.3 5026
 pull-region 0 7 cut
-move -4480 -4494 -4360 body 181
-sketch xy 4970
-circle 5000 5000 25
-pull-region 0 30 add
-sketch xy 4969
-circle 5000 5000 8
-pull-region 0 32 cut
-sketch xz -5000.5
-rect 5000 4969 5013.5 5001
-pull-region 0 1 cut
-sketch xz -5014
-circle 5008.5 4992.5 3.2
-pull-region 0 28 cut
-sketch xz -4992
-circle 5008.5 4992.5 6.2
-pull-region 0 6 cut
-sketch xz -5014
-circle 5008.5 4977.5 3.2
-pull-region 0 28 cut
-sketch xz -4992
-circle 5008.5 4977.5 6.2
-pull-region 0 6 cut
-move -4480 -4494 -4366 body 182
-sketch xy 4995
+sketch yz 4964
+rect 4979 5005 5021 5022
+pull-region 0 7 cut
+move -4409 -4600 -4380 body 277
+rename "Z motor bracket" body 277
+sketch xy 5000
 circle 5000 5000 8.5
 pull-region 0 5 add
-sketch xy 5000
+sketch xy 4990.5
 circle 5000 5000 4.9
 pull-region 0 9.5 add
-sketch xy 4994
-line 5002.3094 5000 5001.1547 4998
-line 5001.1547 4998 4998.8453 4998
-line 4998.8453 4998 4997.6906 5000
-line 4997.6906 5000 4998.8453 5002
-line 4998.8453 5002 5001.1547 5002
-line 5001.1547 5002 5002.3094 5000
+sketch xy 5002.5
+line 5000 5002.3094 5002 5001.1547
+line 5002 5001.1547 5002 4998.8453
+line 5002 4998.8453 5000 4997.6906
+line 5000 4997.6906 4998 4998.8453
+line 4998 4998.8453 4998 5001.1547
+line 4998 5001.1547 5000 5002.3094
 pull-region 0 3.5 cut
-move -4503.57 -4470.43 -4365 body 183
-move 47.1400 0.0000 0.0000 copy body 183
-move 0.0000 -47.1400 0.0000 copy body 183
-move 47.1400 -47.1400 0.0000 copy body 183
+move -4432.57 -4623.57 -4375 body 278
+rename "Screw M5x9" body 278
+move 0.0000 47.1400 0.0000 copy body 278
+move 47.1400 0.0000 0.0000 copy body 278
+move 47.1400 47.1400 0.0000 copy body 278
+sketch xy 5000
+line 5015.9986 5000.2094 5017.9615 5001.1773
+line 5017.9615 5001.1773 5017.6541 5003.5116
+line 5017.6541 5003.5116 5015.5077 5003.9385
+line 5015.5077 5003.9385 5015.3993 5004.343
+line 5015.3993 5004.343 5017.0447 5005.7859
+line 5017.0447 5005.7859 5016.1437 5007.9612
+line 5016.1437 5007.9612 5013.9599 5007.8179
+line 5013.9599 5007.8179 5013.7505 5008.1807
+line 5013.7505 5008.1807 5014.9665 5010.0003
+line 5014.9665 5010.0003 5013.5331 5011.8682
+line 5013.5331 5011.8682 5011.4608 5011.1646
+line 5011.4608 5011.1646 5011.1646 5011.4608
+line 5011.1646 5011.4608 5011.8682 5013.5331
+line 5011.8682 5013.5331 5010.0003 5014.9665
+line 5010.0003 5014.9665 5008.1807 5013.7505
+line 5008.1807 5013.7505 5007.8179 5013.9599
+line 5007.8179 5013.9599 5007.9612 5016.1437
+line 5007.9612 5016.1437 5005.7859 5017.0447
+line 5005.7859 5017.0447 5004.343 5015.3993
+line 5004.343 5015.3993 5003.9385 5015.5077
+line 5003.9385 5015.5077 5003.5116 5017.6541
+line 5003.5116 5017.6541 5001.1773 5017.9615
+line 5001.1773 5017.9615 5000.2094 5015.9986
+line 5000.2094 5015.9986 4999.7906 5015.9986
+line 4999.7906 5015.9986 4998.8227 5017.9615
+line 4998.8227 5017.9615 4996.4884 5017.6541
+line 4996.4884 5017.6541 4996.0615 5015.5077
+line 4996.0615 5015.5077 4995.657 5015.3993
+line 4995.657 5015.3993 4994.2141 5017.0447
+line 4994.2141 5017.0447 4992.0388 5016.1437
+line 4992.0388 5016.1437 4992.1821 5013.9599
+line 4992.1821 5013.9599 4991.8193 5013.7505
+line 4991.8193 5013.7505 4989.9997 5014.9665
+line 4989.9997 5014.9665 4988.1318 5013.5331
+line 4988.1318 5013.5331 4988.8354 5011.4608
+line 4988.8354 5011.4608 4988.5392 5011.1646
+line 4988.5392 5011.1646 4986.4669 5011.8682
+line 4986.4669 5011.8682 4985.0335 5010.0003
+line 4985.0335 5010.0003 4986.2495 5008.1807
+line 4986.2495 5008.1807 4986.0401 5007.8179
+line 4986.0401 5007.8179 4983.8563 5007.9612
+line 4983.8563 5007.9612 4982.9553 5005.7859
+line 4982.9553 5005.7859 4984.6007 5004.343
+line 4984.6007 5004.343 4984.4923 5003.9385
+line 4984.4923 5003.9385 4982.3459 5003.5116
+line 4982.3459 5003.5116 4982.0385 5001.1773
+line 4982.0385 5001.1773 4984.0014 5000.2094
+line 4984.0014 5000.2094 4984.0014 4999.7906
+line 4984.0014 4999.7906 4982.0385 4998.8227
+line 4982.0385 4998.8227 4982.3459 4996.4884
+line 4982.3459 4996.4884 4984.4923 4996.0615
+line 4984.4923 4996.0615 4984.6007 4995.657
+line 4984.6007 4995.657 4982.9553 4994.2141
+line 4982.9553 4994.2141 4983.8563 4992.0388
+line 4983.8563 4992.0388 4986.0401 4992.1821
+line 4986.0401 4992.1821 4986.2495 4991.8193
+line 4986.2495 4991.8193 4985.0335 4989.9997
+line 4985.0335 4989.9997 4986.4669 4988.1318
+line 4986.4669 4988.1318 4988.5392 4988.8354
+line 4988.5392 4988.8354 4988.8354 4988.5392
+line 4988.8354 4988.5392 4988.1318 4986.4669
+line 4988.1318 4986.4669 4989.9997 4985.0335
+line 4989.9997 4985.0335 4991.8193 4986.2495
+line 4991.8193 4986.2495 4992.1821 4986.0401
+line 4992.1821 4986.0401 4992.0388 4983.8563
+line 4992.0388 4983.8563 4994.2141 4982.9553
+line 4994.2141 4982.9553 4995.657 4984.6007
+line 4995.657 4984.6007 4996.0615 4984.4923
+line 4996.0615 4984.4923 4996.4884 4982.3459
+line 4996.4884 4982.3459 4998.8227 4982.0385
+line 4998.8227 4982.0385 4999.7906 4984.0014
+line 4999.7906 4984.0014 5000.2094 4984.0014
+line 5000.2094 4984.0014 5001.1773 4982.0385
+line 5001.1773 4982.0385 5003.5116 4982.3459
+line 5003.5116 4982.3459 5003.9385 4984.4923
+line 5003.9385 4984.4923 5004.343 4984.6007
+line 5004.343 4984.6007 5005.7859 4982.9553
+line 5005.7859 4982.9553 5007.9612 4983.8563
+line 5007.9612 4983.8563 5007.8179 4986.0401
+line 5007.8179 4986.0401 5008.1807 4986.2495
+line 5008.1807 4986.2495 5010.0003 4985.0335
+line 5010.0003 4985.0335 5011.8682 4986.4669
+line 5011.8682 4986.4669 5011.1646 4988.5392
+line 5011.1646 4988.5392 5011.4608 4988.8354
+line 5011.4608 4988.8354 5013.5331 4988.1318
+line 5013.5331 4988.1318 5014.9665 4989.9997
+line 5014.9665 4989.9997 5013.7505 4991.8193
+line 5013.7505 4991.8193 5013.9599 4992.1821
+line 5013.9599 4992.1821 5016.1437 4992.0388
+line 5016.1437 4992.0388 5017.0447 4994.2141
+line 5017.0447 4994.2141 5015.3993 4995.657
+line 5015.3993 4995.657 5015.5077 4996.0615
+line 5015.5077 4996.0615 5017.6541 4996.4884
+line 5017.6541 4996.4884 5017.9615 4998.8227
+line 5017.9615 4998.8227 5015.9986 4999.7906
+line 5015.9986 4999.7906 5015.9986 5000.2094
+pull-region 0 10 add
+sketch xy 4999
+circle 5000 5000 8
+pull-region 0 12 cut
+move -4409 -4600 -4374 body 282
+rename "Z motor pulley" body 282
+sketch xy 5000
+line 5015.9986 5000.2094 5017.9615 5001.1773
+line 5017.9615 5001.1773 5017.6541 5003.5116
+line 5017.6541 5003.5116 5015.5077 5003.9385
+line 5015.5077 5003.9385 5015.3993 5004.343
+line 5015.3993 5004.343 5017.0447 5005.7859
+line 5017.0447 5005.7859 5016.1437 5007.9612
+line 5016.1437 5007.9612 5013.9599 5007.8179
+line 5013.9599 5007.8179 5013.7505 5008.1807
+line 5013.7505 5008.1807 5014.9665 5010.0003
+line 5014.9665 5010.0003 5013.5331 5011.8682
+line 5013.5331 5011.8682 5011.4608 5011.1646
+line 5011.4608 5011.1646 5011.1646 5011.4608
+line 5011.1646 5011.4608 5011.8682 5013.5331
+line 5011.8682 5013.5331 5010.0003 5014.9665
+line 5010.0003 5014.9665 5008.1807 5013.7505
+line 5008.1807 5013.7505 5007.8179 5013.9599
+line 5007.8179 5013.9599 5007.9612 5016.1437
+line 5007.9612 5016.1437 5005.7859 5017.0447
+line 5005.7859 5017.0447 5004.343 5015.3993
+line 5004.343 5015.3993 5003.9385 5015.5077
+line 5003.9385 5015.5077 5003.5116 5017.6541
+line 5003.5116 5017.6541 5001.1773 5017.9615
+line 5001.1773 5017.9615 5000.2094 5015.9986
+line 5000.2094 5015.9986 4999.7906 5015.9986
+line 4999.7906 5015.9986 4998.8227 5017.9615
+line 4998.8227 5017.9615 4996.4884 5017.6541
+line 4996.4884 5017.6541 4996.0615 5015.5077
+line 4996.0615 5015.5077 4995.657 5015.3993
+line 4995.657 5015.3993 4994.2141 5017.0447
+line 4994.2141 5017.0447 4992.0388 5016.1437
+line 4992.0388 5016.1437 4992.1821 5013.9599
+line 4992.1821 5013.9599 4991.8193 5013.7505
+line 4991.8193 5013.7505 4989.9997 5014.9665
+line 4989.9997 5014.9665 4988.1318 5013.5331
+line 4988.1318 5013.5331 4988.8354 5011.4608
+line 4988.8354 5011.4608 4988.5392 5011.1646
+line 4988.5392 5011.1646 4986.4669 5011.8682
+line 4986.4669 5011.8682 4985.0335 5010.0003
+line 4985.0335 5010.0003 4986.2495 5008.1807
+line 4986.2495 5008.1807 4986.0401 5007.8179
+line 4986.0401 5007.8179 4983.8563 5007.9612
+line 4983.8563 5007.9612 4982.9553 5005.7859
+line 4982.9553 5005.7859 4984.6007 5004.343
+line 4984.6007 5004.343 4984.4923 5003.9385
+line 4984.4923 5003.9385 4982.3459 5003.5116
+line 4982.3459 5003.5116 4982.0385 5001.1773
+line 4982.0385 5001.1773 4984.0014 5000.2094
+line 4984.0014 5000.2094 4984.0014 4999.7906
+line 4984.0014 4999.7906 4982.0385 4998.8227
+line 4982.0385 4998.8227 4982.3459 4996.4884
+line 4982.3459 4996.4884 4984.4923 4996.0615
+line 4984.4923 4996.0615 4984.6007 4995.657
+line 4984.6007 4995.657 4982.9553 4994.2141
+line 4982.9553 4994.2141 4983.8563 4992.0388
+line 4983.8563 4992.0388 4986.0401 4992.1821
+line 4986.0401 4992.1821 4986.2495 4991.8193
+line 4986.2495 4991.8193 4985.0335 4989.9997
+line 4985.0335 4989.9997 4986.4669 4988.1318
+line 4986.4669 4988.1318 4988.5392 4988.8354
+line 4988.5392 4988.8354 4988.8354 4988.5392
+line 4988.8354 4988.5392 4988.1318 4986.4669
+line 4988.1318 4986.4669 4989.9997 4985.0335
+line 4989.9997 4985.0335 4991.8193 4986.2495
+line 4991.8193 4986.2495 4992.1821 4986.0401
+line 4992.1821 4986.0401 4992.0388 4983.8563
+line 4992.0388 4983.8563 4994.2141 4982.9553
+line 4994.2141 4982.9553 4995.657 4984.6007
+line 4995.657 4984.6007 4996.0615 4984.4923
+line 4996.0615 4984.4923 4996.4884 4982.3459
+line 4996.4884 4982.3459 4998.8227 4982.0385
+line 4998.8227 4982.0385 4999.7906 4984.0014
+line 4999.7906 4984.0014 5000.2094 4984.0014
+line 5000.2094 4984.0014 5001.1773 4982.0385
+line 5001.1773 4982.0385 5003.5116 4982.3459
+line 5003.5116 4982.3459 5003.9385 4984.4923
+line 5003.9385 4984.4923 5004.343 4984.6007
+line 5004.343 4984.6007 5005.7859 4982.9553
+line 5005.7859 4982.9553 5007.9612 4983.8563
+line 5007.9612 4983.8563 5007.8179 4986.0401
+line 5007.8179 4986.0401 5008.1807 4986.2495
+line 5008.1807 4986.2495 5010.0003 4985.0335
+line 5010.0003 4985.0335 5011.8682 4986.4669
+line 5011.8682 4986.4669 5011.1646 4988.5392
+line 5011.1646 4988.5392 5011.4608 4988.8354
+line 5011.4608 4988.8354 5013.5331 4988.1318
+line 5013.5331 4988.1318 5014.9665 4989.9997
+line 5014.9665 4989.9997 5013.7505 4991.8193
+line 5013.7505 4991.8193 5013.9599 4992.1821
+line 5013.9599 4992.1821 5016.1437 4992.0388
+line 5016.1437 4992.0388 5017.0447 4994.2141
+line 5017.0447 4994.2141 5015.3993 4995.657
+line 5015.3993 4995.657 5015.5077 4996.0615
+line 5015.5077 4996.0615 5017.6541 4996.4884
+line 5017.6541 4996.4884 5017.9615 4998.8227
+line 5017.9615 4998.8227 5015.9986 4999.7906
+line 5015.9986 4999.7906 5015.9986 5000.2094
+pull-region 0 10 add
+sketch xy 4999
+circle 5000 5000 8
+pull-region 0 12 cut
+move -4479 -4600 -4374 body 283
+rename "Z ball screw pulley" body 283
+sketch xy 627
+line 521 380.8 591 380.8
+arc 591 380.8 610.2 400 591 419.2
+line 591 419.2 521 419.2
+arc 521 419.2 501.8 400 521 380.8
+line 521 381.8 591 381.8
+arc 591 381.8 609.2 400 591 418.2
+line 591 418.2 521 418.2
+arc 521 418.2 502.8 400 521 381.8
+pull-region 0 8 new
+rename "Z timing belt" body 284
+sketch yz 541
+circle 285 336 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 315 336 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 285 374 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 315 374 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 485 336 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 515 336 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 485 374 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 515 374 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 285 386 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 315 386 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 285 424 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 315 424 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 485 386 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 515 386 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 485 424 5.5
+pull-region 0 24.3 cut
+sketch yz 541
+circle 515 424 5.5
+pull-region 0 24.3 cut
+sketch yz 530.7
+circle 350 360 5.5
+pull-region 0 25.3 cut
+sketch yz 530.7
+circle 350 620 5.5
+pull-region 0 25.3 cut
+sketch yz 530.7
+circle 450 360 5.5
+pull-region 0 25.3 cut
+sketch yz 530.7
+circle 450 620 5.5
+pull-region 0 25.3 cut
+sketch yz 495.2
+circle 331 425 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 331 455 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 369 425 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 369 455 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 331 505 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 331 535 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 369 505 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 369 535 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 431 425 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 431 455 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 469 425 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 469 455 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 431 505 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 431 535 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 469 505 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 469 535 5.5
+pull-region 0 19.1 cut
+sketch yz 495.2
+circle 381 485 5.5
+pull-region 0 20.1 cut
+sketch yz 495.2
+circle 419 485 5.5
+pull-region 0 20.1 cut
+sketch yz 533
+circle 374 348 6.6
+pull-region 0 16.3 cut
+sketch yz 533
+circle 426 348 6.6
+pull-region 0 16.3 cut
+sketch yz 533
+circle 374 612 6.6
+pull-region 0 16.3 cut
+sketch yz 533
+circle 426 612 6.6
+pull-region 0 16.3 cut
+sketch yz 545.7
+circle 373 650 6.6
+pull-region 0 15.3 cut
+sketch yz 545.7
+circle 427 650 6.6
+pull-region 0 15.3 cut
+sketch yz 4995
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 4.9
+pull-region 0 23.7 add
+sketch yz 4994
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4459 -4715 -4664 body 285
+rename "Screw M5x24" body 285
+move 0.0000 30.0000 0.0000 copy body 285
+move 0.0000 0.0000 38.0000 copy body 285
+move 0.0000 30.0000 38.0000 copy body 285
+move 0.0000 200.0000 0.0000 copy body 285
+move 0.0000 230.0000 0.0000 copy body 285
+move 0.0000 200.0000 38.0000 copy body 285
+move 0.0000 230.0000 38.0000 copy body 285
+move 0.0000 0.0000 50.0000 copy body 285
+move 0.0000 30.0000 50.0000 copy body 285
+move 0.0000 0.0000 88.0000 copy body 285
+move 0.0000 30.0000 88.0000 copy body 285
+move 0.0000 200.0000 50.0000 copy body 285
+move 0.0000 230.0000 50.0000 copy body 285
+move 0.0000 200.0000 88.0000 copy body 285
+move 0.0000 230.0000 88.0000 copy body 285
+sketch yz 5000
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 4975.3
+circle 5000 5000 4.9
+pull-region 0 24.7 add
+sketch yz 5002.5
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4444 -4650 -4640 body 301
+rename "Screw M5x25" body 301
+move 0.0000 0.0000 260.0000 copy body 301
+move 0.0000 100.0000 0.0000 copy body 301
+move 0.0000 100.0000 260.0000 copy body 301
+sketch yz 4995
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 4.9
+pull-region 0 18.5 add
+sketch yz 4994
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4504.8 -4669 -4575 body 305
+rename "Screw M5x18" body 305
+move 0.0000 0.0000 30.0000 copy body 305
+move 0.0000 38.0000 0.0000 copy body 305
+move 0.0000 38.0000 30.0000 copy body 305
+move 0.0000 0.0000 80.0000 copy body 305
+move 0.0000 0.0000 110.0000 copy body 305
+move 0.0000 38.0000 80.0000 copy body 305
+move 0.0000 38.0000 110.0000 copy body 305
+move 0.0000 100.0000 0.0000 copy body 305
+move 0.0000 100.0000 30.0000 copy body 305
+move 0.0000 138.0000 0.0000 copy body 305
+move 0.0000 138.0000 30.0000 copy body 305
+move 0.0000 100.0000 80.0000 copy body 305
+move 0.0000 100.0000 110.0000 copy body 305
+move 0.0000 138.0000 80.0000 copy body 305
+move 0.0000 138.0000 110.0000 copy body 305
+sketch yz 4995
+circle 5000 5000 8.5
+pull-region 0 5 add
+sketch yz 5000
+circle 5000 5000 4.9
+pull-region 0 19.5 add
+sketch yz 4994
+line 5002.3094 5000 5001.1547 5002
+line 5001.1547 5002 4998.8453 5002
+line 4998.8453 5002 4997.6906 5000
+line 4997.6906 5000 4998.8453 4998
+line 4998.8453 4998 5001.1547 4998
+line 5001.1547 4998 5002.3094 5000
+pull-region 0 3.5 cut
+move -4504.8 -4619 -4515 body 321
+rename "Screw M5x20" body 321
+move 0.0000 38.0000 0.0000 copy body 321
+sketch yz 4994
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 5000
+circle 5000 5000 5.8
+pull-region 0 15.7 add
+sketch yz 4993
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4467 -4626 -4652 body 323
+rename "Screw M6x16" body 323
+move 0.0000 52.0000 0.0000 copy body 323
+move 0.0000 0.0000 264.0000 copy body 323
+move 0.0000 52.0000 264.0000 copy body 323
+sketch yz 5000
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 4985.3
+circle 5000 5000 5.8
+pull-region 0 14.7 add
+sketch yz 5003
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4439 -4627 -4350 body 327
+rename "Screw M6x15" body 327
+move 0.0000 54.0000 0.0000 copy body 327
+# 7 SPINDLE: the clamp mount (demo 9) on the front of the moving plate, the spindle in it, the tool points down.
+sketch xy 4870
+rect 4955 4955 5045 5045
+pull-region 0 60 add
+sketch xy 4869
+circle 5000 5000 65.1
+pull-region 0 62 cut
+sketch xy 4869
+rect 4954 4999.25 5000 5000.75
+pull-region 0 62 cut
+sketch xz -5046
+circle 4962 4915 6.4
+pull-region 0 92 cut
+sketch xz -5046
+circle 4962 4915 11
+pull-region 0 8 cut
+sketch xz -5046
+circle 4962 4885 6.4
+pull-region 0 92 cut
+sketch xz -5046
+circle 4962 4885 11
+pull-region 0 8 cut
+sketch yz 4954
+circle 4962 4920 6.6
+pull-region 0 92 cut
+sketch yz 4954
+circle 4962 4880 6.6
+pull-region 0 92 cut
+sketch yz 4954
+circle 5038 4920 6.6
+pull-region 0 92 cut
+sketch yz 4954
+circle 5038 4880 6.6
+pull-region 0 92 cut
+move -4555 -4600 -4430 body 329
+rename "Spindle clamp mount" body 329
+sketch xy 4800
+circle 5000 5000 65
+pull-region 0 200 add
+sketch xy 4785
+circle 5000 5000 40
+pull-region 0 15 add
+sketch xy 4784
+circle 5000 5000 6.2
+pull-region 0 11 cut
+move -4555 -4600 -4430 body 330
+rename "Spindle housing" body 330
+sketch xy 4763
+circle 5000 5000 30
+pull-region 0 22 add
+sketch xy 4762
+circle 5000 5000 6.2
+pull-region 0 24 cut
+move -4555 -4600 -4430 body 331
+rename "Spindle collet nut" body 331
+sketch xy 4740
+circle 5000 5000 6
+pull-region 0 55 add
+move -4555 -4600 -4430 body 332
+rename "End mill 6 mm" body 332
+sketch xy 5000
+circle 5000 5000 60
+pull-region 0 12 add
+move -4555 -4600 -4430 body 333
+rename "Spindle cap" body 333
+sketch xy 5012
+circle 5000 5018 16
+pull-region 0 14 add
+sketch xy 5022
+circle 5000 5018 8
+pull-region 0 4 cut
+move -4555 -4600 -4430 body 334
+rename "Spindle cable gland" body 334
+sketch xz -5006
+circle 5000 5000 10
+pull-region 0 6 add
 sketch xz -5000
-circle 5000 5000 5.5
-pull-region 0 3 add
-sketch xz -5017
-circle 5000 5000 2.9
-pull-region 0 17 add
-sketch xz -4998.5
-line 5001.4434 5000 5000.7217 5001.25
-line 5000.7217 5001.25 4999.2783 5001.25
-line 4999.2783 5001.25 4998.5566 5000
-line 4998.5566 5000 4999.2783 4998.75
-line 4999.2783 4998.75 5000.7217 4998.75
-line 5000.7217 4998.75 5001.4434 5000
-pull-region 0 2.5 cut
-move -4471.5 -4502 -4373.5 body 187
-move 0.0000 0.0000 -15.0000 copy body 187
+circle 5000 5000 5.8
+pull-region 0 70 add
+sketch xz -5007
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4593 -4562 -4515 body 335
+rename "Screw M6x70" body 335
+move 0.0000 0.0000 -30.0000 copy body 335
+sketch yz 400
+circle 362 490 6.6
+pull-region 0 100.3 cut
+sketch yz 400
+circle 362 450 6.6
+pull-region 0 100.3 cut
+sketch yz 400
+circle 438 490 6.6
+pull-region 0 100.3 cut
+sketch yz 400
+circle 438 450 6.6
+pull-region 0 100.3 cut
+sketch yz 4994
+circle 5000 5000 10
+pull-region 0 6 add
+sketch yz 5000
+circle 5000 5000 5.8
+pull-region 0 99.7 add
+sketch yz 4993
+line 5002.8868 5000 5001.4434 5002.5
+line 5001.4434 5002.5 4998.5566 5002.5
+line 4998.5566 5002.5 4997.1132 5000
+line 4997.1132 5000 4998.5566 4997.5
+line 4998.5566 4997.5 5001.4434 4997.5
+line 5001.4434 4997.5 5002.8868 5000
+pull-region 0 4 cut
+move -4600 -4638 -4510 body 337
+rename "Screw M6x100" body 337
+move 0.0000 0.0000 -40.0000 copy body 337
+move 0.0000 76.0000 0.0000 copy body 337
+move 0.0000 76.0000 -40.0000 copy body 337
+export-step target/demos/10-cnc-router/10-cnc-router.step
 info

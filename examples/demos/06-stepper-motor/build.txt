@@ -1,8 +1,10 @@
 # NEMA 23 stepper motor with a mounting bracket, a clamp coupling and screws; the shaft points along +X. Nine bodies.
 # Every part is built far away (the staging area) and moved into place, because parts that touch would be joined into one body.
+# link: 3 1 the shaft of the motor is clamped in the coupling (clearance fit)
 # bodies: 9
 # volume: 225089.134
 # no-overlap: yes
+# connected: yes
 sketch yz 4995
 rect 4971.8 4971.8 5028.2 5028.2
 pull-region 0 5 add
@@ -24,19 +26,19 @@ pull-region 0 1.5 cut
 sketch yz 4995.5
 circle 4976.43 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 4970 4972.2 4972.2
+chamfer 7 near 4970 4972.2 4972.2 body 1
 sketch yz 4995.5
 circle 4976.43 5023.57 5
 pull-region 0 5.5 cut
-chamfer 7 near 4970 4972.2 5027.8
+chamfer 7 near 4970 4972.2 5027.8 body 1
 sketch yz 4995.5
 circle 5023.57 4976.43 5
 pull-region 0 5.5 cut
-chamfer 7 near 4970 5027.8 4972.2
+chamfer 7 near 4970 5027.8 4972.2 body 1
 sketch yz 4995.5
 circle 5023.57 5023.57 5
 pull-region 0 5.5 cut
-chamfer 7 near 4970 5027.8 5027.8
+chamfer 7 near 4970 5027.8 5027.8 body 1
 sketch yz 4950
 rect 4994 5027.8 5006 5034
 pull-region 0 12 add
@@ -133,5 +135,14 @@ line 5000.7217 4998.75 5001.4434 5000
 pull-region 0 2.5 cut
 move -4986.5 -4991.5 -4992 body 8
 move 15.0000 0.0000 0.0000 copy body 8
+rename "Stepper motor NEMA 23" body 1
+rename "Motor bracket" body 2
+rename "Shaft coupling" body 3
+rename "Screw M5x9" body 4
+rename "Screw M5x9" body 5
+rename "Screw M5x9" body 6
+rename "Screw M5x9" body 7
+rename "Screw M3x17" body 8
+rename "Screw M3x17" body 9
 export-step target/demos/06-stepper-motor/06-stepper-motor.step
 info

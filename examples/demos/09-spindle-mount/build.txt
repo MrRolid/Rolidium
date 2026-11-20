@@ -1,8 +1,11 @@
 # Router spindle with a clamp mount: housing 65 x 200, nose with a collet nut and a cutter of 6 mm, a cap with a cable gland, and the clamp mount (bore 65, slit 1.5, two M6 clamp screws, four holes to bolt it down). The tool points down (-Z). Eight bodies.
 # Every part is built far away (the staging area) and moved into place (parts that touch would be joined into one body by Pull).
+# link: 3 1 the cutter sits in the bore of the nose (0.1 mm clearance)
+# link: 6 1 the housing sits in the clamping bore of the mount (0.05 mm clearance)
 # bodies: 8
 # volume: 1006190.014
 # no-overlap: yes
+# connected: yes
 sketch xy 4800
 circle 5000 5000 65
 pull-region 0 200 add
@@ -85,5 +88,13 @@ line 5001.4434 4997.5 5002.8868 5000
 pull-region 0 4 cut
 move -4962 -4962 -5085 body 7
 move 0.0000 0.0000 -30.0000 copy body 7
+rename "Spindle housing" body 1
+rename "Collet nut" body 2
+rename "End mill 6 mm" body 3
+rename "Spindle cap" body 4
+rename "Cable gland" body 5
+rename "Clamp mount" body 6
+rename "Screw M6x70" body 7
+rename "Screw M6x70" body 8
 export-step target/demos/09-spindle-mount/09-spindle-mount.step
 info

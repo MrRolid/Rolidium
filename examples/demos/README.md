@@ -15,11 +15,11 @@ around it (see the list at the end), and the pictures are what the program draws
 | 07 | [Linear guide with a carriage](07-linear-guide/) | 5 | a drawn profile, 0.1 mm clearances |
 | 08 | [Machine vise](08-machine-vise/) | 14 | a real thread by sweep along a helix |
 | 09 | [Spindle with a clamp mount](09-spindle-mount/) | 8 | a clamp with a slit and screws |
-| 10 | [Gantry CNC router](10-cnc-router/) | 188 | everything above, 188 bodies, no overlaps |
+| 10 | [Gantry CNC router](10-cnc-router/) | 340 | everything above, 340 named bodies, no overlaps, one connected piece |
 
 ![overview](../../docs/images/demos-overview.png)
 
-`rdm.py` and `parts.py` are the helpers that the `build.py` scripts use to write their scenarios (the parts of the middle row are used again in the machine); `montage.py` puts the previews side by side. Every folder has `build.py` (writes `build.txt`), `build.txt` (the scenario that the program runs), `README.md` (what it shows, sizes, volume)
+`rdm.py` and `parts.py` are the helpers that the `build.py` scripts use to write their scenarios (the parts of the middle row are used again in the machine); `montage.py` puts the previews side by side. Every body has a name (they are in the file, in the STEP file and in the list of the window). Every folder has `build.py` (writes `build.txt`), `build.txt` (the scenario that the program runs), `README.md` (what it shows, sizes, volume)
 and `preview.png`.
 
 ## Building them
@@ -29,7 +29,7 @@ and `preview.png`.
 
 The files go to `target/demos/NN-name/`: the model (`.rolidium`), STEP, pictures, and what `outputs.txt` of the demo asks for (STL for
 printing, a detail picture). The test `cargo test -p rolidium-cli --test demos` builds the quick demos and checks the number of bodies and
-the volume written in the header of every script, that every body is a valid closed solid, that bodies of an assembly share no volume, and
+the volume written in the header of every script, that every body is a valid closed solid, that bodies of an assembly share no volume, that every body of an assembly touches another one with a face and the whole is one piece (contacts that are not there on purpose are declared in the script with the reason: `# link:` and `# exempt:`), and
 that the model survives a STEP round trip and a save and open. The slow demos are in a test marked `ignored`:
 `cargo test -p rolidium-cli --test demos -- --ignored`.
 

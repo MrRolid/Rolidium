@@ -118,11 +118,14 @@ pub struct StlParams {
     pub ascii: bool,
 }
 
+/// The solids of a STEP file with their names, and the reasons why some were skipped.
+pub type StepSolids = (Vec<(Solid, String)>, Vec<String>);
+
 pub enum Done {
     /// Saved: the path, the state that was written and whether it was an autosave.
     Saved(Result<(PathBuf, Arc<State>, bool), String>),
     Opened(Result<(PathBuf, Box<Loaded>), String>),
-    StepRead(Result<(Vec<(Solid, String)>, Vec<String>), String>),
+    StepRead(Result<StepSolids, String>),
     StepExported(Result<PathBuf, String>),
     /// A background job died with an internal error.
     Failed(String),

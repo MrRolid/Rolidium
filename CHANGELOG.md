@@ -9,7 +9,10 @@ features is visible. 0.2.0 is the first public release.
 ## [0.2.0] - unreleased
 
 ### Added
-- Demo models (`examples/demos`, CC0): ten models from an electronics box to a CNC router with 188 bodies, built by scripts for `rolidium cli`, with a test that checks their bodies, volumes and that no two bodies overlap.
+- Demo models (`examples/demos`, CC0): ten models from an electronics box to a CNC router with 340 bodies, built by scripts for `rolidium cli`, with a test that checks their bodies, volumes, that no two bodies overlap and that an assembly is one connected piece.
+- Names of bodies: free text that is saved in the file, kept by operations (a copy has the same name, a merged body keeps the name of its target), renamed with F2 or a double click in the list (one step of Undo), given with `name "..."` when a body is made in `rolidium cli` and MCP, changed with the `rename` command and written to and read from STEP files.
+- `rolidium --bench file.rolidium`: opens the file, times the first frame, turns the view for 5 seconds, prints the time of a frame (median and worst) with the graphics adapter and interface, writes it to the log and exits.
+- Pull from a sketch and Revolve have the mode `new` (a body of its own, even where it touches another body) in `rolidium cli` and MCP; `export-step` and `export-stl` write all bodies unless `body N` is given.
 - First steps: a new empty document starts in a sketch on the XY plane with the Circle tool; the isometric view is shown for half a second
   at the start, then it turns square to the plane. A guide of short hints leads to the first body (draw, press P, pull, how to turn and
   move the view, drawing on a face); hints can be closed, the guide switched off and run again from the About window; the progress is remembered.

@@ -49,6 +49,9 @@ s.comment("Four holes 3.2 over the posts, countersunk (the chamfer of the upper 
 s.hole("xy", H + 14, corners, 3.2, 4)
 for x, y in corners:
     s.chamfer(1.2, x + 1.6, y, H + 17, body=2)
-s.header(2, 43749.262, no_overlap="yes")
+s.name(1, "Electronics box")
+s.name(2, "Electronics box lid")
+s.exempt([2], "the lid is lifted 15 mm above the box so that the inside can be seen")
+s.header(2, 43749.262, no_overlap="yes", connected="yes")
 s.raw("info")
 s.write(os.path.join(os.path.dirname(os.path.abspath(__file__)), "build.txt"))

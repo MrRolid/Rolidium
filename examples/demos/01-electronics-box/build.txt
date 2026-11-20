@@ -1,8 +1,10 @@
 # Electronics box with a lid: 100 x 60 x 30, wall 2, four screw posts, six vent slots, a cable hole, and a lid with a lip.
 # The box: a block with the four vertical edges rounded R4, then the cavity cut out and its edges rounded R2 (wall 2 everywhere).
+# exempt: 2 the lid is lifted 15 mm above the box so that the inside can be seen
 # bodies: 2
 # volume: 43749.262
 # no-overlap: yes
+# connected: yes
 box 100 60 30
 round 4 near 0 0 15
 round 4 near 100 0 15
@@ -78,4 +80,6 @@ chamfer 1.2 near 8.6 7 47 body 2
 chamfer 1.2 near 94.6 7 47 body 2
 chamfer 1.2 near 8.6 53 47 body 2
 chamfer 1.2 near 94.6 53 47 body 2
+rename "Electronics box" body 1
+rename "Electronics box lid" body 2
 info

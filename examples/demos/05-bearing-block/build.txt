@@ -1,9 +1,12 @@
 # Pillow block with a 608 ball bearing (8 x 22 x 7 mm): housing, inner and outer ring with raceways, seven balls of 3.969 mm. The shaft axis is along Y at a height of 20 mm.
 # The part is made by parts.bearing_block (the machine, demo 10, uses it too). The rings and balls are revolved about an axis through the origin
 # (that place has to be empty), the housing is built far away and everything is moved to the place: axis along Y, 20 mm above the floor.
+# exempt: 4,5,6,7,8,9,10 the balls float in the raceways (0.065 mm clearance)
+# link: 2 3 the inner and the outer ring are held apart by the balls
 # bodies: 10
 # volume: 30240.269
 # no-overlap: yes
+# connected: yes
 sketch xz -5024
 rect 4965 4980 5035 4988
 pull-region 0 24 add
@@ -76,5 +79,15 @@ move -5000 -5000 -4980 body 7
 move -5000 -5000 -4980 body 8
 move -5000 -5000 -4980 body 9
 move -5000 -5000 -4980 body 10
+rename "Bearing block housing" body 1
+rename "Bearing inner ring" body 2
+rename "Bearing outer ring" body 3
+rename "Bearing ball 1" body 4
+rename "Bearing ball 2" body 5
+rename "Bearing ball 3" body 6
+rename "Bearing ball 4" body 7
+rename "Bearing ball 5" body 8
+rename "Bearing ball 6" body 9
+rename "Bearing ball 7" body 10
 export-step target/demos/05-bearing-block/05-bearing-block.step
 info

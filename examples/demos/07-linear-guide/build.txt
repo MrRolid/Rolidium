@@ -1,8 +1,10 @@
 # Linear guide of size 15: a rail 300 mm long with counterbored holes every 60 mm and a carriage with two end caps and a grease nipple; the rail runs along X.
 # Parts are built far away and moved in (parts that touch would be joined into one body by Pull).
+# link: 1 2 the carriage rides on the rail with 0.1 mm clearance (the balls are not modelled)
 # bodies: 5
-# volume: 117533.047
+# volume: 117301.826
 # no-overlap: yes
+# connected: yes
 sketch yz 5000
 line 5007.5 5000 5007.5 5004
 line 5007.5 5004 5006.3 5005.5
@@ -75,16 +77,16 @@ line 5023.5 5024 4976.5 5024
 line 4976.5 5024 4976.5 5004
 pull-region 0 60 add
 sketch xy 5014
-circle 5015 4981 4.2
+circle 5015 4981 5
 pull-region 0 11 cut
 sketch xy 5014
-circle 5045 4981 4.2
+circle 5045 4981 5
 pull-region 0 11 cut
 sketch xy 5014
-circle 5015 5019 4.2
+circle 5015 5019 5
 pull-region 0 11 cut
 sketch xy 5014
-circle 5045 5019 4.2
+circle 5045 5019 5
 pull-region 0 11 cut
 move -4880 -5000 -5000 body 2
 sketch yz 5000
@@ -116,5 +118,10 @@ sketch yz 5002
 circle 5000 5000 5
 pull-region 0 4 add
 move -4814 -5000 -4981 body 5
+rename "Linear rail 15" body 1
+rename "Carriage 15" body 2
+rename "Carriage end cap front" body 3
+rename "Carriage end cap rear" body 4
+rename "Grease nipple" body 5
 export-step target/demos/07-linear-guide/07-linear-guide.step
 info

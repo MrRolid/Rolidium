@@ -23,6 +23,14 @@ class Script:
         for l in lines:
             self.out.insert(self._head_end(), l)
 
+    def link(self, a, b, reason):
+        """Declares a connection that is not a face contact (the test of the demos counts bodies a and b as connected)."""
+        self.out.insert(self._head_end(), f"# link: {a} {b} {reason}")
+
+    def exempt(self, bodies, reason):
+        """Bodies that are not required to touch anything (a list of numbers), with the reason."""
+        self.out.insert(self._head_end(), "# exempt: " + ",".join(str(b) for b in bodies) + " " + reason)
+
     def _head_end(self):
         i = 0
         while i < len(self.out) and self.out[i].startswith("# "):
@@ -88,6 +96,10 @@ class Script:
     def chamfer(self, c, x, y, z, body=None, angle=None):
         a = f" angle {fmt(angle)}" if angle else ""
         self.out.append(f"chamfer {fmt(c)} near {fmt(x)} {fmt(y)} {fmt(z)}{a}" + (f" body {body}" if body else ""))
+
+    def name(self, body, text):
+        """Names a body (the number counts from 1)."""
+        self.out.append(f'rename "{text}" body {body}')
 
     def text(self):
         return "\n".join(self.out) + "\n"

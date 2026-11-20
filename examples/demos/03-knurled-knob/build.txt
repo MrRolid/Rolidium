@@ -2,6 +2,7 @@
 # Disc and hub (the hub is pulled from the top face and joins the disc).
 # bodies: 1
 # volume: 38413.327
+# connected: yes
 sketch xy
 circle 0 0 60
 pull-region 0 15 add
@@ -72,4 +73,5 @@ pull-region 0 1.5 cut
 # Edges chamfered 1 mm: the top edge of the hub and the mouth of the recess.
 chamfer 1 near 10 0 25
 chamfer 1 near 22 0 0
+rename "Knurled knob" body 1
 info

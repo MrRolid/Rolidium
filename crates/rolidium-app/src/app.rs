@@ -4006,7 +4006,11 @@ impl eframe::App for App {
             let bench = BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed);
             let started = self.measure_started.get_or_insert_with(Instant::now);
             // `--bench` turns the view for 5 seconds; the old measuring (ROLIDIUM_MEASURE_VIEW) for 60 frames
-            let done = if bench { started.elapsed().as_secs_f64() >= 5.0 } else { *n >= 60 };
+            let done = if bench {
+                started.elapsed().as_secs_f64() >= 5.0
+            } else {
+                *n >= 60
+            };
             if done {
                 let seconds = started.elapsed().as_secs_f64();
                 let mut t = times.split_off(2.min(times.len().saturating_sub(1)));

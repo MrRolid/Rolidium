@@ -1,9 +1,12 @@
 # Machine vise: a base 200 x 80 x 25 with a guide and two clamping slots, a fixed and a moving jaw with replaceable inserts (80 x 25 x 8 on two screws each), a lead screw of 16 x 180 with a real thread (pitch 4), a nut in the moving jaw and a crank. Jaws open 60 mm. 14 bodies.
 # Base (the body made by the box command): a guide groove 20 x 8 along X for the tongue of the moving jaw, two clamping slots 12 x 40 through it.
+# link: 11 6 the thread of the nut is not modelled (smooth bore of the nut)
+# link: 12 11 the crank bar sits in the cross hole of the screw (0.2 mm clearance)
 # bodies: 14
 # volume: 648097.941
 # no-overlap: yes
 # slow: yes
+# connected: yes
 box 200 80 25
 sketch yz -1
 rect 30 17 50 26
@@ -154,5 +157,19 @@ sketch xz -5012
 circle 5000 5000 14
 pull-region 0 12 add
 move -5000 -4910 -4950 body 14
+rename "Vise base" body 1
+rename "Fixed jaw" body 2
+rename "Moving jaw" body 3
+rename "Fixed jaw insert" body 4
+rename "Moving jaw insert" body 5
+rename "Lead screw nut" body 6
+rename "Screw M6x10" body 7
+rename "Screw M6x10" body 8
+rename "Screw M6x10" body 9
+rename "Screw M6x10" body 10
+rename "Lead screw" body 11
+rename "Crank bar" body 12
+rename "Crank end left" body 13
+rename "Crank end right" body 14
 export-step target/demos/08-machine-vise/08-machine-vise.step
 info

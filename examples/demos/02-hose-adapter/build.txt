@@ -2,6 +2,7 @@
 # Half section (x = radius, y = height), 3 barbs per nipple, bore 42 -> 30 with a smooth cone.
 # bodies: 1
 # volume: 65994.352
+# connected: yes
 sketch xz
 line 24 0 25 1
 line 25 1 25 6
@@ -41,4 +42,5 @@ round 2 near 25 0 41
 round 2 near 19 0 49
 round 2 near 35 0 41
 round 2 near 35 0 49
+rename "Hose adapter" body 1
 info

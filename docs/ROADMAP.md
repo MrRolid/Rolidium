@@ -5,6 +5,13 @@ reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
+The first things after the release (found while building the demo models, see `examples/demos/README.md`):
+
+**Repeat along a line and around a circle, and groups of bodies.** A pattern of a body or a feature (holes, screws, carriages) along a line or
+around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
+about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
+centre of a body.
+
 **Pulling cylindrical and conical faces, and a draft of a face by an angle.** Pull works on flat faces today; on a curved face it says
 that it works only on flat ones. The next step is to pull a cylindrical or conical face, which changes the diameter of a hole or a shaft
 (the radius grows or shrinks, a cone keeps its angle), and to tilt a face by a given angle (draft), so that walls can be made sloping

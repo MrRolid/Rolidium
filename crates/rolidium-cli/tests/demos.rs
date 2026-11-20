@@ -5,6 +5,10 @@
 //!
 //! * `# bodies: <count>` and `# volume: <mm3>` (the sum over all bodies),
 //! * `# no-overlap: yes` for an assembly: no two bodies share volume (touching with a face is fine),
+//! * `# connected: yes` (assemblies): every body touches another one with a face (an edge or a point does not count) and the whole assembly is
+//!   one connected piece. Contacts that are not there on purpose are written in the script: `# link: <a> <b> <reason>` (bodies a and b count as
+//!   connected, for example a nut that sits in its holder with 0.1 mm clearance) and `# exempt: <a,b,c...> <reason>` (bodies that float, for example
+//!   the balls of a bearing),
 //! * every body is a valid closed solid,
 //! * the model survives a STEP export and import with the same volume, and a save to a `.rolidium` file and an open.
 //!
@@ -58,7 +62,7 @@ fn build_needs(text: &str) {
     }
 }
 
-fn overlapping_pairs(solids: &[Solid]) -> Vec<(usize, usize, f64)> {
+fn overlapping_pairs(solids: &[Solid], names: &[String]) -> Vec<(String, String, f64)> {
     let boxes: Vec<_> = solids.iter().map(|s| s.props().unwrap()).collect();
     let mut out = Vec::new();
     for i in 0..solids.len() {
@@ -73,16 +77,83 @@ fn overlapping_pairs(solids: &[Solid]) -> Vec<(usize, usize, f64)> {
                 Ok(r) => {
                     let v = r.solid.volume().unwrap_or(0.0);
                     if v > 1e-6 {
-                        out.push((i, j, v));
+                        out.push((
+                            format!("{} {}", i + 1, names[i]),
+                            format!("{} {}", j + 1, names[j]),
+                            v,
+                        ));
                     }
                 }
                 // nothing in common (they only touch, or the boxes overlap but the shapes do not)
                 Err(KernelError::InvalidResult) => {}
+                // the common part is in several pieces: the bodies overlap in more than one place
+                Err(KernelError::SplitResult) => out.push((
+                    format!("{} {}", i + 1, names[i]),
+                    format!("{} {}", j + 1, names[j]),
+                    -1.0,
+                )),
                 Err(e) => panic!("common of bodies {i} and {j}: {e}"),
             }
         }
     }
     out
+}
+
+/// Two bodies touch with a face when their fusion is one solid (an edge or a point gives two pieces, overlapping bodies do not occur here).
+fn touch_by_face(a: &Solid, b: &Solid) -> bool {
+    if !a.may_be_within(b, 1e-6) {
+        return false;
+    }
+    match a.boolean(b, BooleanOp::Fuse) {
+        Ok(_) => true,
+        Err(KernelError::SplitResult) => false,
+        Err(e) => panic!("fusing two bodies to see whether they touch: {e}"),
+    }
+}
+
+/// The parts of the assembly that are not connected to each other (empty when it is one piece), as lists of body names.
+fn loose_groups(
+    solids: &[Solid],
+    names: &[String],
+    links: &[(usize, usize)],
+    exempt: &[usize],
+) -> Vec<Vec<String>> {
+    let n = solids.len();
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(p: &mut Vec<usize>, i: usize) -> usize {
+        if p[i] != i {
+            let r = find(p, p[i]);
+            p[i] = r;
+        }
+        p[i]
+    }
+    for &(a, b) in links {
+        let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+        parent[ra] = rb;
+    }
+    for i in 0..n {
+        for j in i + 1..n {
+            if exempt.contains(&i) || exempt.contains(&j) {
+                continue;
+            }
+            if touch_by_face(&solids[i], &solids[j]) {
+                let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+                parent[ri] = rj;
+            }
+        }
+    }
+    let mut groups: std::collections::BTreeMap<usize, Vec<String>> = Default::default();
+    for (i, nm) in names.iter().enumerate().take(n) {
+        if exempt.contains(&i) {
+            continue;
+        }
+        let r = find(&mut parent, i);
+        groups.entry(r).or_default().push(format!("{} {}", i + 1, nm));
+    }
+    if groups.len() <= 1 {
+        return Vec::new();
+    }
+    groups.into_values().collect()
 }
 
 fn check_demo(dir: &Path) {
@@ -122,8 +193,64 @@ fn check_demo(dir: &Path) {
         "{name}: volume {total} but the header says {volume}"
     );
     if header(&text, "no-overlap").as_deref() == Some("yes") {
-        let pairs = overlapping_pairs(&solids);
-        assert!(pairs.is_empty(), "{name}: bodies share volume: {pairs:?}");
+        let names: Vec<String> = r.doc.bodies().iter().map(|b| b.name.clone()).collect();
+        let pairs = overlapping_pairs(&solids, &names);
+        assert!(
+            pairs.is_empty(),
+            "{name}: bodies share volume ({} pairs): {:?}",
+            pairs.len(),
+            &pairs[..pairs.len().min(12)]
+        );
+    }
+    if header(&text, "connected").as_deref() == Some("yes") {
+        let names: Vec<String> = r.doc.bodies().iter().map(|b| b.name.clone()).collect();
+        let num = |t: &str| {
+            t.parse::<usize>()
+                .unwrap_or_else(|_| panic!("{name}: bad body number '{t}' in a link or exempt line"))
+                - 1
+        };
+        let links: Vec<(usize, usize)> = text
+            .lines()
+            .filter_map(|l| l.strip_prefix("# link:"))
+            .map(|l| {
+                let mut w = l.split_whitespace();
+                (num(w.next().unwrap()), num(w.next().unwrap()))
+            })
+            .collect();
+        let exempt: Vec<usize> = text
+            .lines()
+            .filter_map(|l| l.strip_prefix("# exempt:"))
+            .flat_map(|l| {
+                l.split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .split(',')
+                    .filter(|t| !t.is_empty())
+                    .map(num)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let loose = loose_groups(&solids, &names, &links, &exempt);
+        let report: Vec<String> = loose
+            .iter()
+            .map(|g| {
+                format!(
+                    "[{} bodies: {}]",
+                    g.len(),
+                    g.iter().take(4).cloned().collect::<Vec<_>>().join("; ")
+                )
+            })
+            .collect();
+        assert!(
+            loose.is_empty(),
+            "{name}: the assembly is not one piece: {}",
+            report.join(" ")
+        );
+        println!(
+            "demo {name}: connected (links {}, exempt {})",
+            links.len(),
+            exempt.len()
+        );
     }
     // STEP round trip: the same bodies come back with the same volume
     let step = Solid::write_step_many(&solids).unwrap();

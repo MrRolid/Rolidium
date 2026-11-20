@@ -13,10 +13,12 @@ def place(s, bodies, d):
         s.move(d[0], d[1], d[2], b)
 
 
-def copy_to(s, body, d):
-    """A copy of a body moved by d; returns the number of the copy."""
+def copy_to(s, body, d, name=None):
+    """A copy of a body moved by d (it keeps the name of the body); returns the number of the copy. `name` gives it another name."""
     s.raw(f"move {d[0]:.4f} {d[1]:.4f} {d[2]:.4f} copy body {body}")
     s.n += 1
+    if name:
+        s.name(s.n, name)
     return s.n
 
 
@@ -50,7 +52,7 @@ def nema23_motor(s, f):
     return [start]
 
 
-def motor_bracket(s, f):
+def motor_bracket(s, f, slot_u=20, tension=False, relief=None):
     """Angle bracket 60 x 5 (plate 65 high, foot 60 long, 60 wide) for the motor: the plate stands on w = 0..5 (the motor's face meets its back), the foot goes
     forward along w at the bottom (v = -35..-30), low enough to clear the heads of the screws. Hole of 38.5 for the pilot, four holes of 5.5 for the screws, two slots in the foot. One body."""
     start = s.n + 1
@@ -60,9 +62,15 @@ def motor_bracket(s, f):
     f.ext("w", -1, 6, ("circle", 0, 0, 38.5), "cut")
     for sx in (-1, 1):
         for sy in (-1, 1):
-            f.ext("w", -1, 6, ("circle", sx * 23.57, sy * 23.57, 5.5), "cut")
+            if tension:   # slots long along v: the motor can slide to tighten a belt
+                f.ext("w", -1, 6, ("slot", sx * 23.57, sy * 23.57, "b", 8, 5.5), "cut")
+            else:
+                f.ext("w", -1, 6, ("circle", sx * 23.57, sy * 23.57, 5.5), "cut")
     for sx in (-1, 1):
-        f.ext("v", -36, -29, ("slot", sx * 20, 30, "b", 8, 6.6), "cut")             # two slots (long along w) in the foot
+        f.ext("v", -36, -29, ("slot", sx * slot_u, 30, "b", 8, 6.6), "cut")         # two slots (long along w) in the foot
+    if relief:       # a window in the foot, for a belt to pass: (half width, w from, w to)
+        hw, w0, w1 = relief
+        f.ext("v", -36, -29, ("rect", -hw, w0, hw, w1), "cut")
     return [start]
 
 
@@ -82,11 +90,14 @@ def shaft_coupling(s, f):
 COUPLING_SCREWS = (7.5, 22.5)    # positions of the clamp screws along the coupling
 
 
-def staged(s, axis, sign, final, builder, *args, uv=None):
+def staged(s, axis, sign, final, builder, *args, uv=None, names=None):
     """Builds a part at the staging area (frame axis/sign/uv, see rdm.Frame), then moves it so that its local origin is at `final` (a world point)."""
     f = Frame(s, axis, sign, STAGE, uv)
     bodies = builder(s, f, *args)
     place(s, bodies, tuple(final[i] - STAGE[i] for i in range(3)))
+    if names:
+        for b, nm in zip(bodies, names):
+            s.name(b, nm)
     return bodies
 
 
@@ -115,7 +126,7 @@ def linear_rail(s, f, length=300, pitch=60, first=30):
 
 def carriage(s, f, length=60):
     """Carriage of size 15: 47 wide, `length` long, 24 above the foot of the rail, with a channel that clears the rail by 0.1 mm, four holes for M5
-    (4.2 on 38 x 30). One body. Local w = 0 .. length."""
+    (5.0 on 38 x 30, so that a screw of 4.9 fits). One body. Local w = 0 .. length."""
     start = s.n + 1
     # the outline: the left corner, the channel (left side up, right side down) and the right corner, then up and over the top
     chan = [(-u, v) for (u, v) in CAR_HALF] + [(u, v) for (u, v) in reversed(CAR_HALF)]
@@ -123,7 +134,7 @@ def carriage(s, f, length=60):
     f.ext("w", 0, length, ("poly", outline), "add", joins=False)
     for sx in (-19, 19):
         for dw in (-15, 15):
-            f.ext("v", 14, 25, ("circle", sx, length / 2 + dw, 4.2), "cut")
+            f.ext("v", 14, 25, ("circle", sx, length / 2 + dw, 5.0), "cut")
     return [start]
 
 
@@ -211,7 +222,7 @@ R_PITCH = 7.75          # the balls run on a circle of this radius
 GROOVE = 2.05           # radius of the raceway grooves
 
 
-def bearing_block(s, f):
+def bearing_block(s, f, slot_u=26):
     """Pillow block with a 608 ball bearing (demo 5): the shaft axis is the local w axis through u = v = 0, the bearing sits in the seat at w = 0 .. 7
     (so its open side is on w = 0), the housing runs from w = 0 to 24, its base is below (v = -20 .. -12, 70 wide). Returns the bodies: housing, inner ring,
     outer ring, seven balls. The rings and balls are revolved about the world axis through the origin, so that place must be empty."""
@@ -243,7 +254,7 @@ def bearing_block(s, f):
         f.round(3, sx, 16, 12, body=housing)
     f.ext("w", -1, 25, ("circle", 0, 0, 19), "cut")
     f.ext("w", -1, 7, ("circle", 0, 0, 22.05), "cut")
-    for sx in (-26, 26):
+    for sx in (-slot_u, slot_u):
         f.ext("v", -21, -11, ("slot", sx, 12, "a", 4, 6.6), "cut")
     f.ext("v", 8, 17, ("circle", 0, 12, 6), "cut")
     first = s.n + 1
@@ -327,4 +338,18 @@ def screw_nut(s, f, length=20):
     start = s.n + 1
     f.ext("w", 0, length, ("circle", 0, 0, 26), "add", joins=False)
     f.ext("w", -1, length + 1, ("circle", 0, 0, 16.1), "cut")
+    return [start]
+
+
+def pulley(s, f, teeth=24, r_tip=18.0, r_root=16.0, width=10.0, bore=8.0):
+    """A toothed belt pulley (a general tooth profile: trapezoid teeth), diameter 36 over the teeth, with a bore of 8. One body."""
+    start = s.n + 1
+    pts = []
+    p = 2 * math.pi / teeth
+    for k in range(teeth):
+        a = k * p
+        for (r, t) in ((r_root, 0.05), (r_tip, 0.25), (r_tip, 0.75), (r_root, 0.95)):
+            pts.append((r * math.cos(a + t * p), r * math.sin(a + t * p)))
+    f.ext("w", 0, width, ("poly", pts), "add", joins=False)
+    f.ext("w", -1, width + 1, ("circle", 0, 0, bore), "cut")
     return [start]
