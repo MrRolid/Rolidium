@@ -12,5 +12,4 @@ A pillow block housing and a bearing of the size 608 (8 x 22 x 7 mm) in its seat
 * **Section:** the program has no section view, so the file `05-bearing-block-section.rolidium` has half of every body (x > 0) cut away; the detail picture is made from it.
   (A half and not a quarter: seen from the side, a quarter would still hide the cut face.)
 * **Tools:** Sketch (Line, Arc, Circle), Revolve, Pull (add and cut), Round, Move with copy, Combine (cut with keep).
-* **How it is built:** the bearing is revolved first, at the origin, because Revolve turns about an axis through the origin and nothing else may be
-  there; the housing is built 200 mm away along X and moved back at the end.
+* **How it is built:** by `parts.bearing_block` (the machine, demo 10, uses it too). The housing is built far away; the rings and balls are revolved about an axis through the origin (Revolve turns about an axis through the origin, so that place has to be empty), then everything is moved to its place (a move never joins bodies).

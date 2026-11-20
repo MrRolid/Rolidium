@@ -114,22 +114,30 @@ _IDX = {"x": 0, "y": 1, "z": 2}
 
 
 class Frame:
-    def __init__(self, s, axis="z", sign=1, origin=(0.0, 0.0, 0.0)):
+    def __init__(self, s, axis="z", sign=1, origin=(0.0, 0.0, 0.0), uv=None):
+        """`uv` chooses where the local u and v point: ((name, sign), (name, sign)) with world axis names, e.g. (("z", 1), ("y", -1)) for u -> +Z
+        and v -> -Y (then `axis` must be the third axis, x). Without it u and v follow the cyclic order x, y, z."""
         self.s, self.axis, self.sign, self.origin = s, axis, sign, origin
-        self.names = _AXES[axis]            # world axis names of local u, v, w
+        if uv is None:
+            self.names = _AXES[axis]            # world axis names of local u, v, w
+            self.signs = (1, 1, sign)
+        else:
+            (nu, su), (nv, sv) = uv
+            assert {nu, nv, axis} == {"x", "y", "z"}, "u, v and the axis must be the three axes"
+            self.names = (nu, nv, axis)
+            self.signs = (su, sv, sign)
 
     def world(self, u, v, w):
         """The world point of the local point (u, v, w)."""
         p = [0.0, 0.0, 0.0]
-        p[_IDX[self.names[0]]] = u
-        p[_IDX[self.names[1]]] = v
-        p[_IDX[self.names[2]]] = w * self.sign
+        for i, val in enumerate((u, v, w)):
+            p[_IDX[self.names[i]]] = val * self.signs[i]
         return tuple(p[i] + self.origin[i] for i in range(3))
 
     def _lw(self, local):
         """(u, v, w) local axis letter -> (world axis letter, factor)."""
         i = "uvw".index(local)
-        return self.names[i], (self.sign if local == "w" else 1)
+        return self.names[i], self.signs[i]
 
     def ext(self, local, lo, hi, shape, mode="add", joins=True, times=1):
         """Extrudes `shape` along the local axis from lo to hi. shape: ('rect', a0, b0, a1, b1), ('circle', a, b, d) or ('poly', [(a, b), ...])

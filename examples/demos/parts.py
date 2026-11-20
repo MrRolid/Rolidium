@@ -82,9 +82,9 @@ def shaft_coupling(s, f):
 COUPLING_SCREWS = (7.5, 22.5)    # positions of the clamp screws along the coupling
 
 
-def staged(s, axis, sign, final, builder, *args):
-    """Builds a part at the staging area (frame axis/sign), then moves it so that its local origin is at `final` (a world point)."""
-    f = Frame(s, axis, sign, STAGE)
+def staged(s, axis, sign, final, builder, *args, uv=None):
+    """Builds a part at the staging area (frame axis/sign/uv, see rdm.Frame), then moves it so that its local origin is at `final` (a world point)."""
+    f = Frame(s, axis, sign, STAGE, uv)
     bodies = builder(s, f, *args)
     place(s, bodies, tuple(final[i] - STAGE[i] for i in range(3)))
     return bodies
@@ -203,3 +203,81 @@ def spindle_mount(s, f):
 
 
 MOUNT_SCREWS = (85, 115)    # where the two clamp screws are along the spindle
+
+
+# ---- ball bearing 608 in a pillow block ------------------------------------------------------------------------------------------------
+R_BALL = 3.969 / 2
+R_PITCH = 7.75          # the balls run on a circle of this radius
+GROOVE = 2.05           # radius of the raceway grooves
+
+
+def bearing_block(s, f):
+    """Pillow block with a 608 ball bearing (demo 5): the shaft axis is the local w axis through u = v = 0, the bearing sits in the seat at w = 0 .. 7
+    (so its open side is on w = 0), the housing runs from w = 0 to 24, its base is below (v = -20 .. -12, 70 wide). Returns the bodies: housing, inner ring,
+    outer ring, seven balls. The rings and balls are revolved about the world axis through the origin, so that place must be empty."""
+    A, sg = f.names[2], f.signs[2]
+    dz = math.sqrt(GROOVE ** 2 - (R_PITCH - 6.25) ** 2)
+
+    def pc(r, a):       # (radial, axial) -> sketch coordinates in the sketch plane that contains the axis
+        return (a, r) if A == "x" else (r, a)
+    plane = "xz" if A == "z" else "xy"
+
+    def ring(segs):
+        s.sketch(plane)
+        for seg in segs:
+            if seg[0] == "line":
+                (r1, a1), (r2, a2) = seg[1], seg[2]
+                s.line(*pc(r1, sg * a1), *pc(r2, sg * a2))
+            else:
+                (r1, a1), (rm, am), (r2, a2) = seg[1], seg[2], seg[3]
+                s.arc(*pc(r1, sg * a1), *pc(rm, sg * am), *pc(r2, sg * a2))
+        s.raw(f"revolve 0 {A} 360 add")
+        s.n += 1
+    housing = s.n + 1
+    f.ext("w", 0, 24, ("rect", -35, -20, 35, -12), "add", joins=False)
+    f.ext("w", 0, 24, ("rect", -18, -12, 18, 16), "add")
+    for sx in (-35, 35):
+        for w in (0, 24):
+            f.round(3, sx, -16, w, body=housing)
+    for sx in (-18, 18):
+        f.round(3, sx, 16, 12, body=housing)
+    f.ext("w", -1, 25, ("circle", 0, 0, 19), "cut")
+    f.ext("w", -1, 7, ("circle", 0, 0, 22.05), "cut")
+    for sx in (-26, 26):
+        f.ext("v", -21, -11, ("slot", sx, 12, "a", 4, 6.6), "cut")
+    f.ext("v", 8, 17, ("circle", 0, 12, 6), "cut")
+    first = s.n + 1
+    ring([("line", (4, 0), (6.25, 0)), ("line", (6.25, 0), (6.25, 3.5 - dz)),
+          ("arc", (6.25, 3.5 - dz), (R_PITCH - GROOVE, 3.5), (6.25, 3.5 + dz)),
+          ("line", (6.25, 3.5 + dz), (6.25, 7)), ("line", (6.25, 7), (4, 7)), ("line", (4, 7), (4, 0))])
+    ring([("line", (9.25, 0), (11, 0)), ("line", (11, 0), (11, 7)), ("line", (11, 7), (9.25, 7)),
+          ("line", (9.25, 7), (9.25, 3.5 + dz)),
+          ("arc", (9.25, 3.5 + dz), (R_PITCH + GROOVE, 3.5), (9.25, 3.5 - dz)),
+          ("line", (9.25, 3.5 - dz), (9.25, 0))])
+    # the ball: a half disc whose diameter lies on the axis, revolved about it
+    s.sketch(plane)
+    s.arc(*pc(0, -R_BALL), *pc(R_BALL, 0), *pc(0, R_BALL))
+    s.line(*pc(0, R_BALL), *pc(0, -R_BALL))
+    s.raw(f"revolve 0 {A} 360 add")
+    s.n += 1
+    ball0 = s.n
+    others = [n for n in ("x", "y", "z") if n != A]
+    for k in range(7):
+        a = 2 * math.pi * k / 7
+        pos = [0.0, 0.0, 0.0]
+        pos[_IDX_[others[0]]] = R_PITCH * math.cos(a)
+        pos[_IDX_[others[1]]] = R_PITCH * math.sin(a)
+        pos[_IDX_[A]] = sg * 3.5
+        d = tuple(pos[i] + f.origin[i] for i in range(3))
+        if k < 6:
+            copy_to(s, ball0, d)
+        else:
+            s.move(d[0], d[1], d[2], ball0)
+    # the rings go to the frame's origin too (they were made at the world origin)
+    s.move(*f.origin, first)
+    s.move(*f.origin, first + 1)
+    balls = [ball0] + list(range(s.n - 5, s.n + 1))
+    return [housing, first, first + 1] + sorted(set(balls))
+
+
+_IDX_ = {"x": 0, "y": 1, "z": 2}
