@@ -281,6 +281,8 @@ pub struct App {
     about_scroll: bool,
     /// Height of the left column above the File block, and the height available to the column (for the size of the File icons).
     left_rest_h: f32,
+    /// Where the File block was drawn this frame.
+    left_file_rect: Rect,
     left_avail_h: f32,
     /// For the layout test: the column needed its scroll bar, where the Settings/About row was drawn, where the status bar starts.
     left_scrolls: bool,
@@ -464,7 +466,8 @@ impl App {
             about_open: false,
             donate_idx,
             about_scroll: false,
-            left_rest_h: 0.0,
+            left_rest_h: 560.0,
+            left_file_rect: Rect::NOTHING,
             left_avail_h: 0.0,
             left_scrolls: false,
             left_bottom_rect: Rect::NOTHING,
@@ -3543,13 +3546,24 @@ impl eframe::App for App {
             .resizable(false)
             .exact_size(196.0)
             .show(ui, |ui| {
-                let avail = ui.available_height() - 42.0;
-                self.left_avail_h = avail.max(100.0);
+                // the middle part (tools, edges, views) scrolls when the window is low; the File block and the Settings / About
+                // buttons below it are always visible
+                let column_h = ui.available_height();
+                self.left_avail_h = column_h;
+                let (size, per_row) = toolbar::file_block_layout(column_h, self.left_rest_h);
+                let bottom_h = toolbar::file_block_height(size, per_row) + toolbar::LEFT_BOTTOM_H;
+                let top = ui.cursor().min.y;
                 let out = egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .max_height(avail.max(100.0))
+                    .max_height((column_h - bottom_h).max(60.0))
                     .show(ui, |ui| self.left_column(ui));
+                self.left_rest_h = out.content_size.y;
                 self.left_scrolls = out.content_size.y > out.inner_rect.height() + 0.5;
+                self.left_file_rect = Rect::NOTHING;
+                ui.add_space(4.0);
+                let fb = ui.scope(|ui| self.left_file_block(ui, size, per_row));
+                self.left_file_rect = fb.response.rect;
+                let _ = top;
                 self.left_bottom(ui);
             });
 
@@ -3876,6 +3890,7 @@ impl eframe::App for App {
             });
 
         let vr = self.viewport_rect;
+        self.docks.area = Some(vr);
         self.show_dim_panel(&ctx, vr);
         self.move_panel(&ctx, vr);
         self.combine_panel(&ctx, vr);

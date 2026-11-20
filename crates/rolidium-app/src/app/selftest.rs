@@ -13,6 +13,8 @@ pub struct SelfTest {
     shot_pending: Option<String>,
     slot: Arc<std::sync::Mutex<Option<Arc<egui::ColorImage>>>>,
     failures: Vec<String>,
+    /// Which window size / scale of the left column layout check is running.
+    layout_i: usize,
 }
 
 impl SelfTest {
@@ -25,9 +27,19 @@ impl SelfTest {
             shot_pending: None,
             slot: Default::default(),
             failures: Vec::new(),
+            layout_i: 0,
         }
     }
 }
+
+/// Window sizes (in physical pixels) and scales of the left column layout check.
+const LAYOUTS: [(f32, f32, f32); 5] = [
+    (1280.0, 720.0, 1.0),
+    (1920.0, 1080.0, 1.0),
+    (1280.0, 600.0, 1.0),
+    (1920.0, 1080.0, 1.25),
+    (1920.0, 1080.0, 1.5),
+];
 
 impl App {
     fn body_volume(&self) -> f64 {
@@ -644,33 +656,52 @@ impl App {
                 );
                 st.wait_frames = 2;
             }
-            32 | 34 => {
-                // the layout of the left column in a small and in a large window
-                let (w, h) = if st.step == 32 {
-                    (1280.0, 720.0)
-                } else {
-                    (1920.0, 1080.0)
-                };
+            32 => {
+                // the layout of the left column in windows of several sizes and scales
+                let (w, h, scale) = LAYOUTS[st.layout_i];
+                ctx.set_pixels_per_point(scale);
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(w, h)));
                 st.wait_frames = 12;
             }
-            33 | 35 => {
+            33 => {
+                let (_, _, scale) = LAYOUTS[st.layout_i];
                 let screen = ctx.content_rect();
-                let name = format!("left-column-{}x{}", screen.width() as i32, screen.height() as i32);
+                let name = if scale == 1.0 {
+                    format!("left-column-{}x{}", screen.width() as i32, screen.height() as i32)
+                } else {
+                    format!(
+                        "left-column-{}x{}-scale-{}",
+                        screen.width() as i32,
+                        screen.height() as i32,
+                        scale
+                    )
+                };
                 // the window manager may not give exactly the size: the check is about what is shown
-                let fits = !self.left_scrolls
-                    && self.left_bottom_rect.max.y <= self.status_top + 0.5
-                    && self.status_top <= screen.max.y;
+                let bottom_visible = self.left_bottom_rect.max.y <= self.status_top + 0.5
+                    && self.status_top <= screen.max.y
+                    && self.left_file_rect.min.y >= 0.0
+                    && self.left_file_rect.max.y <= self.left_bottom_rect.min.y + 1.0;
+                // from 720 points high nothing has to scroll
+                let fits = bottom_visible && (screen.height() < 700.0 || !self.left_scrolls);
                 println!(
-                    "selftest: left column in {}x{}: scrolls {}, Settings row bottom {:.0}, status bar top {:.0}",
+                    "selftest: left column in {}x{} (scale {}): scrolls {}, File block {:.0}..{:.0}, Settings row bottom {:.0}, status bar top {:.0}",
                     screen.width(),
                     screen.height(),
+                    scale,
                     self.left_scrolls,
+                    self.left_file_rect.min.y,
+                    self.left_file_rect.max.y,
                     self.left_bottom_rect.max.y,
                     self.status_top
                 );
-                check(&mut st, &format!("the whole left column fits ({name})"), fits);
+                check(&mut st, &format!("the left column fits or scrolls with the File block and Settings visible ({name})"), fits);
                 shot(&mut st, ctx, &name);
+                if st.layout_i + 1 < LAYOUTS.len() {
+                    st.layout_i += 1;
+                    st.step = 31; // the increment after this step leads back to the size change
+                } else {
+                    ctx.set_pixels_per_point(1.0);
+                }
             }
             36 => {
                 // a new document starts in a sketch on XY with the Circle tool, and the view turns square to the plane
@@ -865,6 +896,48 @@ impl App {
                 shot(&mut st, ctx, "zoomed-circle");
             }
             45 => {
+                // the floating panels of the tools start inside the model area, clear of both side columns
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(1280.0, 720.0)));
+                st.layout_i = 0;
+                st.wait_frames = 10;
+            }
+            46 => {
+                const PANELS: [(Tool, &str); 5] = [
+                    (Tool::Sweep, "sweep"),
+                    (Tool::Helix, "helix"),
+                    (Tool::Measure, "measure"),
+                    (Tool::Loft, "loft"),
+                    (Tool::Join, "join"),
+                ];
+                let (tool, kind) = PANELS[st.layout_i];
+                if self.tool != tool {
+                    self.tool = tool;
+                    st.wait_frames = 6;
+                    self.selftest = Some(st);
+                    return;
+                }
+                let vr = self.viewport_rect;
+                let inside = self
+                    .docks
+                    .rect(kind)
+                    .is_some_and(|r| r.min.x >= vr.min.x && r.max.x <= vr.max.x && r.min.y >= vr.min.y && r.max.y <= vr.max.y);
+                println!(
+                    "selftest: the {kind} panel {:?} model area {:?}",
+                    self.docks.rect(kind),
+                    vr
+                );
+                check(&mut st, &format!("the {kind} panel starts inside the model area"), inside);
+                if kind == "sweep" {
+                    shot(&mut st, ctx, "tool-panel-1280x720");
+                }
+                if st.layout_i + 1 < PANELS.len() {
+                    st.layout_i += 1;
+                    st.step = 45;
+                } else {
+                    self.tool = Tool::Select;
+                }
+            }
+            47 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

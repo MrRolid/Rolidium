@@ -15,6 +15,10 @@ pub struct Docks {
     moved: HashMap<&'static str, Pos2>,
     size: HashMap<&'static str, Vec2>,
     last_click: HashMap<&'static str, f64>,
+    /// Where the panels were drawn the last time.
+    last_rect: HashMap<&'static str, Rect>,
+    /// The area of the model (the window without the side columns): panels stay inside it.
+    pub area: Option<Rect>,
 }
 
 pub struct DockOut {
@@ -41,6 +45,11 @@ impl Docks {
         self.moved.get(kind).copied().unwrap_or(default_pos)
     }
 
+    /// Where the panel of this kind was drawn the last time.
+    pub fn rect(&self, kind: &'static str) -> Option<Rect> {
+        self.last_rect.get(kind).copied()
+    }
+
     pub fn is_moved(&self, kind: &'static str) -> bool {
         self.moved.contains_key(kind)
     }
@@ -59,12 +68,12 @@ impl Docks {
         closable: bool,
         body: impl FnOnce(&mut egui::Ui),
     ) -> DockOut {
-        let screen = ctx.content_rect();
+        let screen = self.area.unwrap_or_else(|| ctx.content_rect());
         let size = self
             .size
             .get(kind)
             .copied()
-            .unwrap_or(Vec2::new(width + 16.0, 140.0));
+            .unwrap_or(Vec2::new(width + 26.0, 140.0));
         let pos = clamp_inside(self.moved.get(kind).copied().unwrap_or(default_pos), size, screen);
         // the line to the place the panel belongs to, under the panel
         if let (Some(a), true) = (anchor, self.is_moved(kind)) {
@@ -129,6 +138,7 @@ impl Docks {
             });
         let rect = out.response.rect;
         self.size.insert(kind, rect.size());
+        self.last_rect.insert(kind, rect);
         if reset {
             self.moved.remove(kind);
         } else if drag != Vec2::ZERO {

@@ -389,9 +389,9 @@ pub fn file_button(
 /// The colour of the frame around the File block.
 pub fn file_frame_color(dark: bool) -> Color32 {
     if dark {
-        Color32::from_rgb(214, 186, 96)
+        Color32::from_rgb(150, 128, 70)
     } else {
-        Color32::from_rgb(176, 138, 30)
+        Color32::from_rgb(160, 130, 50)
     }
 }
 

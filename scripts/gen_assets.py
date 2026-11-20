@@ -13,6 +13,10 @@ HEAD = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" 
         'stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75">')
 
 
+# The icons of the File block are drawn with thin lines (about half of the usual width).
+FILE_BLOCK_ICONS = {"file_new", "file_open", "file_save", "file_save_as", "import_step", "export_step", "export_stl"}
+
+
 def neutral(*els):
     return f'<g stroke="{N}">' + "".join(els) + "</g>"
 
@@ -70,7 +74,7 @@ def word(text, x0, y, w, h, pitch):
 SHEET = "M7 1.5 H14 L18.5 6 V14.5 H7 Z M14 1.5 V6 H18.5"
 ARROW_UP = "M12.75 12.5 V8 M10.9 9.9 L12.75 8 L14.6 9.9"
 ARROW_DOWN = "M12.75 8 V12.5 M10.9 10.6 L12.75 12.5 L14.6 10.6"
-THICK = ' stroke-width="1.5"'
+THICK = ' stroke-width="1.0"'
 
 
 def exchange(text, arrow, w, pitch, x0):
@@ -312,7 +316,8 @@ def write(path, text):
 os.makedirs("assets/icons", exist_ok=True)
 os.makedirs("assets/help", exist_ok=True)
 for name, body in icons.items():
-    write(f"assets/icons/{name}.svg", HEAD + body + "</svg>\n")
+    head = HEAD.replace('stroke-width="1.75"', 'stroke-width="0.9"') if name in FILE_BLOCK_ICONS else HEAD
+    write(f"assets/icons/{name}.svg", head + body + "</svg>\n")
 for name, svg in help_art.items():
     write(f"assets/help/{name}.svg", svg + "\n")
 write("assets/help/tools.json", json.dumps([

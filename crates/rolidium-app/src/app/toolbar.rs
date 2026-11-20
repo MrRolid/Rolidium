@@ -587,12 +587,17 @@ impl App {
         if icons::tool_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None).clicked() {
             self.fit_all();
         }
-        ui.separator();
-        // the File block: framed, with large icons while the column is high enough, smaller ones in a low window
-        let rest_h = ui.min_rect().height();
-        self.left_rest_h = rest_h;
-        let room = self.left_avail_h - rest_h;
-        let big = room > FILE_BLOCK_BIG_H;
+    }
+
+    /// The File block under the scrolling part of the left column: framed, with icons of `size` px and `per_row` buttons in a row.
+    pub(super) fn left_file_block(&mut self, ui: &mut egui::Ui, size: f32, per_row: usize) {
+        let idle = self.idle();
+        let busy: Option<&'static str> = if idle {
+            None
+        } else {
+            Some("Wait until the running operation finishes")
+        };
+        let bodies = self.doc.bodies().len();
         let nothing = if bodies == 0 {
             Some("There is nothing to export")
         } else {
@@ -605,13 +610,6 @@ impl App {
             .inner_margin(5.0)
             .show(ui, |ui| {
                 ui.label(egui::RichText::new(tr("File")).strong());
-                let (size, per_row) = if room > FILE_BLOCK_HUGE_H {
-                    (38.0, 3)
-                } else if big {
-                    (32.0, 3)
-                } else {
-                    (22.0, 4)
-                };
                 let items: [(&str, &str, Option<&'static str>, u8); 7] = [
                     ("file_new", "New", busy, 0),
                     ("file_open", "Open", busy, 1),
@@ -698,11 +696,25 @@ impl App {
     }
 }
 
-/// The height the File block needs with large icons (3 rows of 44 px, the title, the recent files, the frame); with less room above
-/// it the smaller icons are used.
-const FILE_BLOCK_BIG_H: f32 = 200.0;
-/// With this much room the icons are the largest.
-const FILE_BLOCK_HUGE_H: f32 = 330.0;
+/// The File block's icon size and buttons per row for the given height of the whole column and the height of its scrolling part:
+/// the largest icons that leave room for the whole part above them, else the small ones (the part above then scrolls).
+pub(super) fn file_block_layout(column_h: f32, middle_h: f32) -> (f32, usize) {
+    for (size, per_row) in [(38.0, 3), (32.0, 3)] {
+        if middle_h + file_block_height(size, per_row) + LEFT_BOTTOM_H <= column_h {
+            return (size, per_row);
+        }
+    }
+    (22.0, 4)
+}
+
+/// The height of the File block (rows of buttons, title, recent files, frame).
+pub(super) fn file_block_height(size: f32, per_row: usize) -> f32 {
+    let rows = 7usize.div_ceil(per_row) as f32;
+    rows * (size + 8.0 + 3.0) + 58.0
+}
+
+/// The height of the Settings / About row with its spacing.
+pub(super) const LEFT_BOTTOM_H: f32 = 46.0;
 
 #[cfg(test)]
 mod tests {

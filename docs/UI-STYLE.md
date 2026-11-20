@@ -33,10 +33,14 @@ Rules for everything visible in the window. New tools and buttons follow them.
 * **Left column**: Tools (Select, Pull, Move, Combine, Loft, Sweep, Measure, then Fill and Join ends as icons), Edges (Round, Chamfer) and Edit side by side, View, File, then Settings and About.
   It must fit a 1280 x 720 window without scrolling (the self test measures it at 1280 x 720 and 1920 x 1080 and saves screenshots); the
   status bar is declared before the side panels, so that they end above it. Rows are tight (2 px) and Edges/Edit and the four views are single rows.
-* **File block**: a frame with a yellowish edge (`icons::file_frame_color`), large icon buttons (`icons::file_button`): 38 px icons in 3 columns
-  when there are 330 px or more to spare, 32 px when there are 200 px, else 22 px in 4 columns. The exchange icons draw the format name (STL, STEP) in
-  large block letters **below** the sheet, never inside it, with a margin to the edge of the icon (`exchange()` in `scripts/gen_assets.py`); the same
-  icons are used wherever STL/STEP appear, so the letters are equally large everywhere.
+* **File block**: a frame with a muted dark-yellow edge (`icons::file_frame_color`), large icon buttons (`icons::file_button`): 38 px icons in 3 columns
+  when the middle part of the column leaves room for them, 32 px when there is less room, else 22 px in 4 columns (`file_block_layout`). The icons
+  of the block are drawn with thin lines, about half of the usual width (`FILE_BLOCK_ICONS` in `scripts/gen_assets.py`: 0.9 instead of 1.75, the
+  letters 1.0). The exchange icons draw the format name (STL, STEP) in block letters **below** the sheet, never inside it, with a margin to the
+  edge of the icon (`exchange()`); the same icons are used wherever STL/STEP appear, so the letters are equally large everywhere.
+* **The left column is split in two**: the middle part (Tools, Edges, Edit, View) scrolls with the mouse wheel when the window is lower than the
+  column needs; the File block and the Settings / About buttons below it are fixed and always visible. The self test checks windows of
+  1280 x 720, 1920 x 1080, 1280 x 600 and 1920 x 1080 at the scales 1.25 and 1.5 (from 720 points high nothing scrolls).
 * **A button never disappears and never moves.** One that cannot be used in the current state keeps its white (black in the light theme) text and
   shows the state in its background, frame, dimmed icon and indicator; it does not react to clicks and its tooltip starts
   with the reason in amber (for example "Start a sketch first", "Select an edge first", "Combine needs at least two bodies"), followed by
