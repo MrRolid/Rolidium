@@ -132,6 +132,7 @@ pub fn note_adapter(adapter: &str, driver: &str) {
 
 /// Removes the marker of this process: the start got through, or the program is being closed on purpose.
 pub fn finish() {
+    crate::session::end();
     let own = OWN.lock().unwrap_or_else(|e| e.into_inner()).take();
     if let Some(own) = own {
         let path = own.path.clone();

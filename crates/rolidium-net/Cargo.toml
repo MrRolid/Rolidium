@@ -1,0 +1,21 @@
+[package]
+name = "rolidium-net"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "The only network code of Rolidium: the question about a new version and the sending of diagnostics (see docs/PRIVACY.md)"
+
+[features]
+# Lets tests point the program at a server on localhost (http allowed for 127.0.0.1 only). Never enabled in a program build.
+testing = []
+
+[dependencies]
+serde_json.workspace = true
+# a small blocking client: no async runtime; rustls with the bundled root certificates, no other features
+ureq = { version = "3.5", default-features = false, features = ["rustls"] }
+
+[dev-dependencies]
+rolidium-net = { path = ".", features = ["testing"] }

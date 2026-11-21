@@ -377,7 +377,9 @@ Measured with `rolidium-cli times machine` and `rolidium --bench file` (see the 
 
 ## D40: Threads
 
-One setting for everything: `rolidium_kernel::par`. The number is one per core less one (at least one); Settings has Auto, 1, 2, 4, 8, and `ROLIDIUM_THREADS`
+One setting for everything: `rolidium_kernel::par`. **The number is decided once per process, by the first use** (the program reads the setting at the start, `cli` and `mcp` at their entry), and a later call changes nothing:
+the thread pool of Open CASCADE cannot be resized while it works (it throws), and a program must not depend on catching that. A new number chosen in Settings therefore takes effect at the next start, and Settings says so. Only
+the number of threads one job may take from the pool (`SetNbDefaultThreadsToLaunch`) and the switch of the parallel modes are set, never the size of the pool. The tests that need several numbers run a process for each (`ROLIDIUM_THREADS`). The number is one per core less one (at least one); Settings has Auto, 1, 2, 4, 8, and `ROLIDIUM_THREADS`
 (a number or `auto`) overrides it, also for `rolidium cli` and `rolidium mcp`. The same number goes to Open CASCADE (`OSD_ThreadPool`, and the parallel mode
 of the booleans, of the meshing and of the checks is switched off with one thread).
 
@@ -404,5 +406,16 @@ Tests: `crates/rolidium-kernel/tests/parallel.rs` compares triangles, face count
   stays as it is. The 600 000 triangles are shared by the bodies in view by their size on the screen (at least 6 000 each, at most 150 000), the biggest first, 48
   bodies in one go; the rest follows. A small hole in a big plate is round after the refinement (the self test: a hole of 6 mm in a document of 301 bodies deviates
   0.010 mm at 0.027 mm per pixel).
+* The estimate of the triangles of the faces in view scales a plane and a cylinder with the square root of 1 / deflection (their edges are cut into segments) and the other faces with 1 / deflection. With 1 / deflection for all, a
+  plate with a hundred holes looked 100 times too expensive and its holes stayed polygons although the budget was there (found by the self test below, which fails on the program before the fix: 16 segments, 0.23 mm).
 * Leaving a sketch turns the view back to the direction it had before the sketch, but the centre and the distance stay where the sketch was.
 * The Pull panel offers New body for the region of a sketch (and in Revolve); for the face of a body it offers Auto, Add and Cut.
+
+## D42: The network (opt-in, two functions)
+
+`crates/rolidium-net` is the only network code. The client is `ureq` 3 with rustls (ring) and the bundled root certificates (webpki-roots, CDLA-Permissive-2.0; added to `deny.toml` and the third-party list): blocking, no async runtime.
+A redirect is never followed (`max_redirects(0)`), only `https` is accepted, every call has a time limit (5 s for the version question, 30 s for the sending) and the reply of the version question is cut at 16 kB and parsed strictly (`latest`
+must be a version of digits and dots). The address of the download page is a constant of the program, never taken from a reply. The tests run against a server on 127.0.0.1; the address can be replaced only in a test build (the `testing`
+feature of the crate, enabled only by its own tests; a program build has no such thing). `cli`, `mcp`, the crates of the model and the kernel do not depend on the crate (a test checks it), and the window calls it from two places only,
+the question (guarded by the consent, `ROLIDIUM_OFFLINE` and the mode of the program) and the sending (the person's button). A run that did not end properly is found by a locked marker file (`session.running`); it only offers the sending.
+Privacy text: `docs/PRIVACY.md`.

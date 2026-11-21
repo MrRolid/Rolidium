@@ -283,6 +283,7 @@ Autosave every (minutes, 0 = off) => 自動保存の間隔 (分、0 = オフ)
 Calculation threads (Auto = one per core less one) => 計算スレッド数 (自動 = コア数 − 1)
 The environment variable ROLIDIUM_THREADS overrides this choice. => 環境変数 ROLIDIUM_THREADS が指定されている場合は、この設定より優先されます。
 Threads in use: {} => 使用中のスレッド数: {}
+The new number takes effect the next time Rolidium is started. => 新しい設定は、次回 Rolidium を起動したときに反映されます。
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Rolidium の有効なファイルではないか、破損しています: {}。何も変更されていません。
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => このファイルはより新しい Rolidium で保存されました (ファイル形式 {}。このプログラムは {} まで対応)。開かず、変更もしていません。Rolidium を更新してください。
 
@@ -702,3 +703,34 @@ Joins open lines and curves that almost meet. Select the lines you want (nothing
 Ends are paired starting with the closest ones; every end is used at most once. => 端点は近いものから順に組にし、同じ端点は一度しか使いません。
 Ends that stay free are highlighted in the preview. => 自由なまま残る端点はプレビューで強調表示されます。
 F2 or a double click on the name renames it => F2 または名前をダブルクリックで名前を変更します
+
+# ---- network: new version, diagnostics ----
+Check for a new version? => 新しいバージョンを確認しますか？
+Once a day Rolidium can ask rolidium.com in the background whether a newer version exists. It sends only the version of the program, the name and main number of your system and the type of processor: no identifier, no cookies, no data about your hardware, no file names. Until you answer, Rolidium does not connect to the network. => Rolidium は 1 日に 1 回、バックグラウンドで rolidium.com に新しいバージョンがあるかどうかを問い合わせることができます。送信するのは、プログラムのバージョン、お使いのシステムの名前とメジャー番号、プロセッサの種類だけです。識別子、Cookie、ハードウェア情報、ファイル名は送信しません。お答えいただくまで、Rolidium はネットワークに接続しません。
+Yes => はい
+No => いいえ
+Privacy notice => プライバシーについて
+Version {} is available => バージョン {} が利用できます
+Download => ダウンロード
+Skip this version => このバージョンをスキップ
+Check for a new version once a day => 1 日に 1 回新しいバージョンを確認する
+The network is switched off (ROLIDIUM_OFFLINE). => ネットワークは無効です (ROLIDIUM_OFFLINE)。
+The question that is sent (nothing else): => 送信される問い合わせ (これ以外は何も送りません):
+Send diagnostics to the publisher => 診断情報を発行元に送信
+You see what is sent first, and nothing is sent without your confirmation. => 送信内容が先に表示され、確認するまで何も送信されません。
+Rolidium did not close properly the last time. Do you want to send diagnostics to the publisher? You will see what is sent first, and nothing is sent without your confirmation. => 前回 Rolidium は正常に終了しませんでした。診断情報を発行元に送信しますか？送信内容が先に表示され、確認するまで何も送信されません。
+Review and send => 確認して送信
+Not now => 今はしない
+Send diagnostics => 診断情報を送信
+Preparing the diagnostics… => 診断情報を準備しています…
+Report number {}. Mention it in the forum if you write there. => レポート番号 {}。フォーラムに書き込むときはこの番号を記載してください。
+Open the forum => フォーラムを開く
+This is exactly what will be sent. Nothing is sent before you press Send. The zip has the log, the settings (without file names), data about the graphics, the system and the version of the program. It has no models and no names of models, and the home folder is replaced by ~. => 送信される内容はこのとおりです。「送信」を押すまで何も送信されません。zip には、ログ、設定 (ファイル名なし)、グラフィックス・システム・プログラムのバージョンの情報が含まれます。モデルとモデル名は含まれず、ホームフォルダは ~ に置き換えられます。
+Note (up to {} characters) => メモ (最大 {} 文字)
+Your e-mail for a reply (optional) => 返信用のメールアドレス (任意)
+The diagnostics could not be sent: the server does not answer or refused them. Save the zip to a file and send it by e-mail to {}. => 診断情報を送信できませんでした。サーバーが応答しないか、拒否しました。zip をファイルに保存し、{} にメールで送ってください。
+Sending… => 送信しています…
+Send => 送信
+Save zip to a file => zip をファイルに保存
+Web => ウェブサイト
+Support forum => サポートフォーラム

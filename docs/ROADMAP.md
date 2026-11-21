@@ -17,6 +17,10 @@ that it works only on flat ones. The next step is to pull a cylindrical or conic
 (the radius grows or shrinks, a cone keeps its angle), and to tilt a face by a given angle (draft), so that walls can be made sloping
 for casting and printing. Both reuse the dimension panel that already changes the diameter of a hole.
 
+**More of the kernel on several cores.** Meshing and reading a file use several threads, but the facts about the faces (one native call per face) and the validity check of each body still
+wait for one lock of the kernel, which is about 60 % of opening the router (D40, `docs/PERFORMANCE.md`). The next step is to find out which of those calls are safe to run for different
+bodies at the same time and to take the lock off them, and to run the checks of touching and overlapping bodies on several threads.
+
 ## Then
 
 * **Exact helix geometry and a Thread tool.** Bodies swept along a helix (springs, threads) are built today by a general sweep, and
@@ -31,9 +35,6 @@ for casting and printing. Both reuse the dimension panel that already changes th
 * **Text on a body.** Letters engraved into or embossed on a flat face.
 * **Sketch: corner fillet and trim.** Round the corner between two sketch lines with an arc of a given radius, and trim a line at another
   line or shape. General sketch tools, not only for sweep paths.
-* **Notice of a new version.** The program asks the publisher's address at most once a day whether a newer version exists. The request
-  carries only the program version, the operating system and its version, with no identifier of any kind. The person decides at the first
-  start whether it is on, and it can be switched off in Settings. The command-line modes (`cli`, `mcp`) never do it.
 
 ## Later
 
@@ -140,3 +141,12 @@ Nothing here is done, and it is not decided which parts will be in the open core
   measured, released.
 * Editing the G-code by hand resets the status to unverified.
 * The header of every program carries the Rolidium version and a fingerprint of the settings it was generated with.
+
+## Done
+
+What is finished is listed in the [changelog](../CHANGELOG.md). Items that were on this page before:
+
+* **Notice of a new version** (0.2.0). With the consent of the person (a small card at the first start, a switch in Settings), the program asks rolidium.com at most once a day, in the background, whether a newer
+  version exists. The question carries the version of the program, the name and main number of the system and the architecture, and nothing else. The notice offers *Download* (the fixed download page, opened in the
+  browser: the program downloads and starts nothing) and *Skip this version*. `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench`, `--diagnose` and `ROLIDIUM_OFFLINE=1` never do it. See [PRIVACY.md](PRIVACY.md).
+* **Sending diagnostics** (0.2.0), only when the person asks: they see what is sent, can add a note and an e-mail, and nothing leaves before they confirm.

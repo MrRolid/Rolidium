@@ -40,5 +40,31 @@ the buffers of the changed body on the card 2 ms. With a real card a frame is a 
 | 8 | 0.89 s | 3.44 s | 4.32 s | 153 s |
 | Auto (19) | 0.82 s | 3.50 s | 4.32 s | - |
 
+(The first table is the script's base of the router, measured before the author's file was added; the numbers of the author's file are below.)
+
 The meshes and the reading of the file use the threads; the slow test does not get faster, because what it does (the scenario of 3 800 lines, the checks of touching and overlapping) is made of booleans and distance
 calculations that run one at a time (D40). Beyond 4 threads the machine of the table is saturated by the other program.
+
+## What limits the speed-up from 4 to 8 threads (measured)
+
+`rolidium-cli times open` (with `ROLIDIUM_TIMES_PURE=1`) on the author's router (338 bodies), summed over the threads, in milliseconds. *No lock*: native work that runs at the same time for different bodies. *Behind the lock*:
+every native call of the kernel except those marked free takes one global lock, so these calls run one at a time (D40). The times of the calls behind the lock include the waiting for the lock.
+
+| threads | open together | file: check the shapes (lock) | meshing (no lock) | facts about the faces (lock) | plain arithmetic, 64 equal tasks: speed-up |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 7.82 s | 1 208 | 3 768 | 2 597 | x1.00 |
+| 2 | 5.26 s | 2 026 | 3 761 | 4 333 | x1.97 |
+| 4 | 4.63 s | 3 762 | 4 116 | 9 934 | x3.86 |
+| 8 | 4.56 s | 6 706 | 4 797 | 23 618 | x5.33 |
+
+* With one thread there is no waiting, so the first row is the real work: **the checks (1.2 s) and the facts about the faces (2.6 s) are 3.8 s of the 7.8 s, and they run one at a time whatever the number of threads.** The meshing (3.8 s) and the reading of the BREP (0.2 s)
+  are what the threads share. The unzipping of the file (43 ms) is one thread.
+* With more threads the time behind the lock grows (waiting): 8 threads wait for the lock for 23.6 s in total, while the work is 2.6 s. The time of opening settles at about 4.5 s, which is the locked work (3.8 s) plus the meshing divided by the
+  threads. **The limit is the lock of the kernel, not the number of cores:** the same computer speeds plain arithmetic up 3.9 times with 4 threads and 5.3 times with 8 at that moment (the table is measured in the same run, so it tells what the computer
+  gave to 8 threads of independent work), but opening hardly changes from 4 to 8 threads.
+* What would help is taking the lock off the calls that only read their own shape (the facts about the faces, the validity check), as was done for the meshing; that needs a check of each call for the use of shared state (not done, see the roadmap).
+
+## The author's file (338 bodies), this version
+
+Opening: the file 1.1 s, the display meshes 3.4 s, together 4.6 s (Auto, 19 threads). Small operations in the document (after / the same body alone): move a screw 21.6 ms / 21.6, pull a face of a small body 56.9 ms / 63.3,
+round one edge 160 ms / 153, rename 2.6 ms / 0, Undo 0.5 ms, Redo 0.6 ms.

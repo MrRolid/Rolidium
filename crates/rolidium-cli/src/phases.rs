@@ -346,21 +346,87 @@ after = kernel+Undo+meshes new+panel. Threads: {}.",
     print_phases("the same body alone in a document", &on_its_own);
 }
 
-/// The open of the machine, nothing else: the file, then all display meshes (for the table by the number of threads).
+/// How well this computer gives several threads the same work: `work` small independent tasks of pure arithmetic, wall time for 1, 2, 4 and 8
+/// threads (no kernel, no lock). It tells how much of a speed-up is possible at all on the computer as it is at that moment.
+fn pure_scaling() -> Vec<(usize, f64)> {
+    fn task(seed: u64) -> u64 {
+        let mut x = seed | 1;
+        for _ in 0..4_000_000u64 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+        }
+        x
+    }
+    let jobs = 64u64;
+    [1usize, 2, 4, 8]
+        .into_iter()
+        .map(|n| {
+            let next = std::sync::atomic::AtomicU64::new(0);
+            let t = Instant::now();
+            std::thread::scope(|s| {
+                for _ in 0..n {
+                    s.spawn(|| {
+                        let mut acc = 0u64;
+                        loop {
+                            let j = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            if j >= jobs {
+                                break;
+                            }
+                            acc ^= task(j);
+                        }
+                        std::hint::black_box(acc);
+                    });
+                }
+            });
+            (n, ms(t))
+        })
+        .collect()
+}
+
+/// The open of the machine, nothing else: the file, then all display meshes (for the table by the number of threads), with the parts that
+/// run one at a time and the scaling of plain arithmetic on this computer (`pure`: also printed).
 pub fn open_times() {
+    use rolidium_kernel::{CHECK_NS, READ_NS};
+    use std::sync::atomic::Ordering::Relaxed;
+    let _ = rolidium_kernel::timing::take();
     let Some((path, doc, read_ms)) = open_machine() else {
         println!("no machine file found (ROLIDIUM_TIMES_MACHINE=file)");
         return;
     };
+    let stages = rolidium_kernel::timing::take();
     let inputs = visible_inputs(&doc);
+    rolidium_doc::display::MESH_NS.store(0, Relaxed);
+    rolidium_doc::display::FACTS_NS.store(0, Relaxed);
     let t = Instant::now();
     let mut cache = MeshCache::default();
     cache.entries(&inputs).unwrap();
     let mesh_ms = ms(t);
+    let thread_ms = |a: &std::sync::atomic::AtomicU64| a.load(Relaxed) as f64 / 1e6;
     println!(
         "threads {}: open {path}: {} bodies; the file {read_ms:.0} ms, all display meshes {mesh_ms:.0} ms, together {:.0} ms",
         rolidium_kernel::par::threads(),
         doc.bodies().len(),
         read_ms + mesh_ms
     );
+    println!("  file: {}", rolidium_kernel::timing::describe(&stages));
+    println!(
+        "  summed over the threads: BREP reading {:.0} ms (no lock), checking the shapes {:.0} ms (behind the lock), meshing {:.0} ms (no lock), \
+facts about the faces {:.0} ms (behind the lock)",
+        thread_ms(&READ_NS),
+        thread_ms(&CHECK_NS),
+        thread_ms(&rolidium_doc::display::MESH_NS),
+        thread_ms(&rolidium_doc::display::FACTS_NS)
+    );
+    if std::env::var_os("ROLIDIUM_TIMES_PURE").is_some() {
+        let base = pure_scaling();
+        let t1 = base[0].1;
+        println!(
+            "  plain arithmetic, 64 equal tasks, wall time by threads: {}",
+            base.iter()
+                .map(|(n, t)| format!("{n}: {t:.0} ms (x{:.2})", t1 / t))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    }
 }

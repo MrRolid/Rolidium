@@ -1424,11 +1424,18 @@ void step_writer_add_named(StepWriter& w, const Shape& sh, rust::Str name) {
     step_writer_add(w, sh);
     try {
         Handle(Transfer_FinderProcess) fp = w.w.WS()->TransferWriter()->FinderProcess();
-        Handle(TransferBRep_ShapeMapper) m = TransferBRep::ShapeMapper(fp, sh.s);
-        Handle(Standard_Transient) ent;
-        if (!m.IsNull() && fp->FindTypedTransient(m, STANDARD_TYPE(StepRepr_RepresentationItem), ent)) {
-            Handle(StepRepr_RepresentationItem) item = Handle(StepRepr_RepresentationItem)::DownCast(ent);
-            if (!item.IsNull()) item->SetName(new TCollection_HAsciiString(std::string(name).c_str()));
+        // the shape itself and the solids inside it (a body that is wrapped in a compound is read back as its solid)
+        auto set_name = [&](const TopoDS_Shape& t) {
+            Handle(TransferBRep_ShapeMapper) m = TransferBRep::ShapeMapper(fp, t);
+            Handle(Standard_Transient) ent;
+            if (!m.IsNull() && fp->FindTypedTransient(m, STANDARD_TYPE(StepRepr_RepresentationItem), ent)) {
+                Handle(StepRepr_RepresentationItem) item = Handle(StepRepr_RepresentationItem)::DownCast(ent);
+                if (!item.IsNull()) item->SetName(new TCollection_HAsciiString(std::string(name).c_str()));
+            }
+        };
+        set_name(sh.s);
+        if (sh.s.ShapeType() != TopAbs_SOLID) {
+            for (TopExp_Explorer ex(sh.s, TopAbs_SOLID); ex.More(); ex.Next()) set_name(ex.Current());
         }
     } catch (...) {}
 }
@@ -1493,18 +1500,11 @@ std::shared_ptr<Shape> read_brep(rust::Slice<const uint8_t> data) {
 
 namespace rol {
 
+// How many threads one parallel job of Open CASCADE may take from its pool. The pool itself is never resized (that is refused while it works),
+// only the number a single job locks is set, which is a plain number and safe at any time.
 void set_threads(int32_t n) {
-    static std::mutex m;
-    std::lock_guard<std::mutex> lock(m);
-    if (n == g_threads.load()) return;
     g_threads.store(n);
-    if (n > 0) {
-        try {
-            OSD_ThreadPool::DefaultPool()->Init(n);
-        } catch (...) {
-            // the pool is working for another thread right now and cannot change its size: the number takes effect at the next start
-        }
-    }
+    if (n > 0) OSD_ThreadPool::DefaultPool()->SetNbDefaultThreadsToLaunch(n);
 }
 
 // The identities of the parts (faces, edges, vertices) of the shape: two shapes that have one in common share data.

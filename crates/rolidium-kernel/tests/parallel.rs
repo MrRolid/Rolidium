@@ -1,11 +1,13 @@
 // Copyright (c) 2026 Rolid spol. s r.o.
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Several threads give the same result as one: the same number of triangles, volumes and validity for many independent
-//! bodies, and the same again in a stress run. (One test function: the number of threads is a setting of the whole process.)
+//! Several threads give the same result as one: the same number of triangles, volumes and validity for many independent bodies, and the
+//! same again in a stress run. The number of threads is decided once per process, so every number is run in a process of its own (this test
+//! starts the helper test below with `ROLIDIUM_THREADS` set and compares what it prints).
 
 use rolidium_kernel::{par, BooleanOp, DVec3, Solid};
+use std::process::Command;
 
-/// A mixed set of bodies: boxes, cylinders, plates with holes, rounded blocks, a helical pipe.
+/// A mixed set of bodies: boxes, cylinders, plates with holes, rounded blocks.
 fn bodies(n: usize) -> Vec<Solid> {
     (0..n)
         .map(|i| {
@@ -38,50 +40,79 @@ fn bodies(n: usize) -> Vec<Solid> {
         .collect()
 }
 
-#[derive(Debug, PartialEq)]
-struct Facts {
-    triangles: usize,
-    faces: usize,
-    volume_um3: i64,
-    valid: bool,
+fn facts(s: &Solid) -> String {
+    let m = s.display_mesh().unwrap();
+    format!(
+        "{}/{}/{}/{}",
+        m.triangle_count(),
+        s.face_count(),
+        (s.volume().unwrap() * 1000.0).round() as i64,
+        s.is_valid()
+    )
 }
 
-fn facts(s: &Solid) -> Facts {
-    let m = s.display_mesh().unwrap();
-    Facts {
-        triangles: m.triangle_count(),
-        faces: s.face_count(),
-        volume_um3: (s.volume().unwrap() * 1000.0).round() as i64,
-        valid: s.is_valid(),
+/// Run by the test below in a process with `ROLIDIUM_THREADS` set: prints the facts of every body, then repeats the parallel run 50 times.
+#[test]
+#[ignore = "helper of threads_give_the_same_results_as_one"]
+fn helper_print_facts() {
+    let solids = bodies(60);
+    let first = par::map_groups(&solids, |s| s, facts);
+    for round in 0..50 {
+        assert_eq!(
+            first,
+            par::map_groups(&solids, |s| s, facts),
+            "stress run {round}"
+        );
     }
+    println!("THREADS {}", par::threads());
+    println!("FACTS {}", first.join(" "));
+}
+
+fn run_with(threads: usize) -> (usize, String) {
+    let exe = std::env::current_exe().unwrap();
+    let out = Command::new(exe)
+        .args([
+            "--ignored",
+            "--exact",
+            "helper_print_facts",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("ROLIDIUM_THREADS", threads.to_string())
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "{threads} threads: {text}{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let pick = |key: &str| {
+        text.lines()
+            .find_map(|l| l.split_once(key).map(|(_, v)| v))
+            .unwrap()
+            .trim()
+            .to_string()
+    };
+    (pick("THREADS ").parse().unwrap(), pick("FACTS "))
 }
 
 #[test]
 fn threads_give_the_same_results_as_one() {
-    let solids = bodies(60);
-    // one thread
-    par::configure(1);
-    assert_eq!(par::threads(), 1);
-    let one: Vec<Facts> = solids.iter().map(facts).collect();
-    assert!(one.iter().all(|f| f.valid && f.triangles > 0));
-
-    // several threads: the same facts for every body, also in a stress run of fifty repetitions
+    let (n1, one) = run_with(1);
+    assert_eq!(n1, 1);
+    assert!(one.contains("true") && !one.contains("false"));
     for threads in [2usize, 4, 8] {
-        par::configure(threads);
-        assert_eq!(par::threads(), threads);
-        let many = par::map_groups(&solids, |s| s, facts);
+        let (n, many) = run_with(threads);
+        assert_eq!(n, threads);
         assert_eq!(one, many, "{threads} threads");
     }
-    par::configure(4);
-    for round in 0..50 {
-        let many = par::map_groups(&solids, |s| s, facts);
-        assert_eq!(one, many, "stress run {round}");
-    }
+}
 
-    // bodies that share data (clones of one solid, a moved copy shares nothing) are put in one group and never meshed together
-    let a = solids[0].clone();
-    let b = solids[0].clone();
-    let items = vec![a, solids[1].clone(), b];
+#[test]
+fn bodies_that_share_data_are_grouped_and_the_number_is_fixed() {
+    let solids = bodies(5);
+    let items = vec![solids[0].clone(), solids[1].clone(), solids[0].clone()];
     let groups = par::share_groups(&items, |s| s);
     assert_eq!(groups.len(), 2, "{groups:?}");
     assert!(groups.iter().any(|g| g == &vec![0, 2]));
@@ -89,15 +120,14 @@ fn threads_give_the_same_results_as_one() {
         .moved(DVec3::new(500.0, 0.0, 0.0), DVec3::ZERO, DVec3::Z, 0.0)
         .unwrap()
         .solid;
-    let items = vec![solids[0].clone(), moved];
     assert_eq!(
-        par::share_groups(&items, |s| s).len(),
+        par::share_groups(&[solids[0].clone(), moved], |s| s).len(),
         2,
         "a moved copy shares no data"
     );
-
-    // the variable ROLIDIUM_THREADS and the automatic number
-    assert!(par::resolve(0) >= 1);
+    // the number is decided once: a later call changes nothing
+    let n = par::threads();
+    assert_eq!(par::configure(n + 5), n);
     assert_eq!(par::resolve(3), 3);
-    par::configure(0);
+    assert!(par::resolve(0) >= 1);
 }

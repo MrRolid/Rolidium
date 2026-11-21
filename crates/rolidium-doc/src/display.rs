@@ -46,10 +46,21 @@ pub fn next_stamp() -> u64 {
 
 pub type BodyInput = (BodyId, String, Solid, [f32; 3]);
 
+/// Time spent (summed over all threads, nanoseconds) making meshes, and making the facts about the faces: the first is native work that
+/// runs without the lock of the kernel, the second asks the kernel face by face, one call at a time (for `rolidium-cli times open`).
+pub static MESH_NS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static FACTS_NS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// The first (rough) display entry of a body.
 pub fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
+    use std::sync::atomic::Ordering::Relaxed;
+    let t = std::time::Instant::now();
     let mesh = b.2.display_mesh().map_err(|e| e.to_string())?;
-    entry_of(b, mesh)
+    MESH_NS.fetch_add(t.elapsed().as_nanos() as u64, Relaxed);
+    let t = std::time::Instant::now();
+    let r = entry_of(b, mesh);
+    FACTS_NS.fetch_add(t.elapsed().as_nanos() as u64, Relaxed);
+    r
 }
 
 /// The entry of a body for a given mesh of it.

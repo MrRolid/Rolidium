@@ -11,10 +11,9 @@ use crate::Solid;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// 0: not decided yet / automatic.
-static CHOICE: AtomicUsize = AtomicUsize::new(0);
-static LAST_NATIVE: AtomicUsize = AtomicUsize::new(0);
-static CONFIGURED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// The number of threads of this process. It is decided once (by the first use) and does not change while the program runs: the
+/// thread pool of Open CASCADE cannot be resized while it works, and nothing here may depend on catching that error.
+static FIXED: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
 
 /// The number of threads for a choice (0 = automatic).
 pub fn resolve(choice: usize) -> usize {
@@ -36,24 +35,20 @@ pub fn env_choice() -> Option<usize> {
     v.parse::<usize>().ok().filter(|n| (1..=256).contains(n))
 }
 
-/// Sets the number of threads: `choice` is the setting of the person (0 = automatic); the environment variable overrides it.
-pub fn configure(choice: usize) {
-    let c = env_choice().unwrap_or(choice);
-    // the number can be set again and again (every `cli` or `mcp` call does): the kernel hears of it only when it changed
-    let n = resolve(c);
-    if LAST_NATIVE.swap(n, Ordering::AcqRel) != n {
+/// Decides the number of threads: `choice` is the setting of the person (0 = automatic); the environment variable overrides it.
+/// Only the first call of the process (or the first use of [`threads`]) decides; a later call returns the number in use and changes nothing,
+/// so a changed setting takes effect at the next start of the program.
+pub fn configure(choice: usize) -> usize {
+    *FIXED.get_or_init(|| {
+        let n = resolve(env_choice().unwrap_or(choice));
         crate::set_native_threads(n);
-    }
-    CHOICE.store(c, Ordering::Relaxed);
-    CONFIGURED.store(true, Ordering::Release);
+        n
+    })
 }
 
-/// The number of threads in use. Until [`configure`] was called, the automatic number (or `ROLIDIUM_THREADS`) is in use.
+/// The number of threads in use (the automatic number, or `ROLIDIUM_THREADS`, when nobody has configured it yet).
 pub fn threads() -> usize {
-    if !CONFIGURED.load(Ordering::Acquire) {
-        configure(0);
-    }
-    resolve(CHOICE.load(Ordering::Relaxed))
+    configure(0)
 }
 
 /// `f` over `items` on up to [`threads`] threads, the results in the order of the items. `f` must not touch shared data.

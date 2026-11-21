@@ -66,6 +66,11 @@ pub struct Settings {
     pub autosave_minutes: u32,
     /// Threads for the calculations: 0 = automatic (one per core less one).
     pub threads: u32,
+    /// The person's answer to the question whether Rolidium may ask once a day for a new version: `None` = not asked yet (no network until answered).
+    pub check_updates: Option<bool>,
+    /// The version the person chose to skip, and the day (days since 1970) of the last question.
+    pub skip_version: String,
+    pub last_check_day: u64,
     /// Last folder used in the file dialogs.
     pub file_dir: String,
     /// Recently used documents, newest first.
@@ -110,6 +115,9 @@ impl Default for Settings {
             volume: 0.5,
             autosave_minutes: 2,
             threads: 0,
+            check_updates: None,
+            skip_version: String::new(),
+            last_check_day: 0,
             file_dir: String::new(),
             recent: Vec::new(),
             recent_dirs: Vec::new(),
@@ -155,6 +163,21 @@ impl Settings {
                 "language" => s.language = v.to_string(),
                 "sound" => s.sound = v != "false",
                 "volume" => s.volume = v.parse().unwrap_or(s.volume),
+                "check_updates" => {
+                    s.check_updates = match v {
+                        "yes" => Some(true),
+                        "no" => Some(false),
+                        _ => None,
+                    }
+                }
+                "skip_version" => {
+                    s.skip_version = v
+                        .chars()
+                        .filter(|c| c.is_ascii_digit() || *c == '.')
+                        .take(24)
+                        .collect()
+                }
+                "last_check_day" => s.last_check_day = v.parse().unwrap_or(0),
                 "threads" => s.threads = v.parse().unwrap_or(0).min(256),
                 "autosave_minutes" => s.autosave_minutes = v.parse().unwrap_or(s.autosave_minutes).min(240),
                 "file_dir" => s.file_dir = v.to_string(),
@@ -210,11 +233,18 @@ impl Settings {
             let _ = std::fs::create_dir_all(d);
         }
         let text = format!(
-            "theme={}\nbackend={}\nautosave_minutes={}\nthreads={}\nfile_dir={}\nexport_dir={}\npreset={}\ndeviation={}\nangle_deg={}\nascii={}\ngrid_step={}\nsnap={}\nlanguage={}\nsound={}\nvolume={}\n",
+            "theme={}\nbackend={}\nautosave_minutes={}\nthreads={}\ncheck_updates={}\nskip_version={}\nlast_check_day={}\nfile_dir={}\nexport_dir={}\npreset={}\ndeviation={}\nangle_deg={}\nascii={}\ngrid_step={}\nsnap={}\nlanguage={}\nsound={}\nvolume={}\n",
             self.theme,
             self.backend,
             self.autosave_minutes,
             self.threads,
+            match self.check_updates {
+                Some(true) => "yes",
+                Some(false) => "no",
+                None => "ask",
+            },
+            self.skip_version,
+            self.last_check_day,
             self.file_dir,
             self.export_dir,
             self.preset,
@@ -276,6 +306,9 @@ mod tests {
             volume: 0.25,
             autosave_minutes: 5,
             threads: 4,
+            check_updates: Some(true),
+            skip_version: "0.3.0".into(),
+            last_check_day: 20_000,
             file_dir: "/x".into(),
             recent: vec!["/a/b.rolidium".into(), "/c.rolidium".into()],
             recent_dirs: vec!["/d".into(), "/e".into()],
@@ -298,5 +331,55 @@ mod tests {
         };
         s.save();
         assert_eq!(Settings::load(), s);
+    }
+}
+
+impl Settings {
+    /// The settings for the diagnostics that are sent: what the program is set to, without any file or folder names.
+    pub fn diagnostic_text(&self) -> String {
+        format!(
+            "theme={}\nbackend={}\nautosave_minutes={}\nthreads={}\ncheck_updates={:?}\nlanguage={}\ndeviation={}\nangle_deg={}\nascii={}\ngrid_step={}\nsnap={}\nsound={}\nvolume={}\n",
+            self.theme,
+            self.backend,
+            self.autosave_minutes,
+            self.threads,
+            self.check_updates,
+            self.language,
+            self.deviation,
+            self.angle_deg,
+            self.ascii,
+            self.grid_step,
+            self.snap,
+            self.sound,
+            self.volume
+        )
+    }
+}
+
+/// Whether the number of threads chosen in Settings differs from the one this run uses (it is decided at the start and does not change while
+/// the program runs, so the choice is for the next start). With `ROLIDIUM_THREADS` set the choice has no effect at all.
+pub fn threads_pending(choice: u32, in_use: usize, env_set: bool) -> bool {
+    !env_set && rolidium_kernel::par::resolve(choice as usize) != in_use
+}
+
+#[cfg(test)]
+mod threads_tests {
+    use super::*;
+
+    #[test]
+    fn a_changed_number_of_threads_waits_for_the_next_start() {
+        assert!(!threads_pending(4, 4, false));
+        assert!(threads_pending(2, 4, false));
+        let auto = rolidium_kernel::par::resolve(0);
+        assert!(!threads_pending(0, auto, false));
+        // with the environment variable set the choice never applies, so there is nothing to wait for
+        assert!(!threads_pending(8, 4, true));
+    }
+
+    #[test]
+    fn the_running_number_does_not_change_when_it_is_configured_again() {
+        let first = rolidium_kernel::par::configure(3);
+        assert_eq!(rolidium_kernel::par::configure(7), first);
+        assert_eq!(rolidium_kernel::par::threads(), first);
     }
 }

@@ -357,6 +357,9 @@ fn the_machine_file_of_the_person_opens_and_round_trips() {
         "the machine of the person: {} bodies ({default_named} with a default name), volume {total:.3}, opened in {open_s:.1} s, STEP names kept {names_kept}",
         bodies.len()
     );
+    for ((_, n), b) in back.iter().zip(bodies).filter(|((_, n), b)| *n != b.name) {
+        println!("STEP name differs: file {:?} -> STEP {:?}", b.name, n);
+    }
     assert_eq!(names_kept, bodies.len(), "names in the STEP file");
 }
 

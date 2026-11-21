@@ -20,6 +20,11 @@ pub fn stage<T>(name: &str, f: impl FnOnce() -> T) -> T {
     r
 }
 
+/// Adds a stage measured by the caller.
+pub fn record(name: &str, ms: f64) {
+    RUST_STAGES.with(|s| s.borrow_mut().push((name.to_string(), ms)));
+}
+
 /// The stages of this thread since the last call, the same name added up, in the order of first use. Clears them.
 pub fn take() -> Vec<(String, f64)> {
     let mut all: Vec<(String, f64)> = Vec::new();

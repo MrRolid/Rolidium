@@ -283,6 +283,7 @@ Autosave every (minutes, 0 = off) => Enregistrement automatique toutes les (minu
 Calculation threads (Auto = one per core less one) => Threads de calcul (Auto = nombre de cœurs moins un)
 The environment variable ROLIDIUM_THREADS overrides this choice. => La variable d'environnement ROLIDIUM_THREADS l'emporte sur ce choix.
 Threads in use: {} => Threads utilisés : {}
+The new number takes effect the next time Rolidium is started. => Le nouveau nombre s'appliquera au prochain démarrage de Rolidium.
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Ce fichier n'est pas un fichier Rolidium valide ou il est endommagé : {}. Rien n'a été modifié.
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => Ce fichier a été enregistré par une version plus récente de Rolidium (format de fichier {} ; ce programme prend en charge jusqu'à {}). Il n'a pas été ouvert ni modifié. Veuillez mettre à jour Rolidium.
 
@@ -702,3 +703,34 @@ Joins open lines and curves that almost meet. Select the lines you want (nothing
 Ends are paired starting with the closest ones; every end is used at most once. => Les extrémités sont appariées en commençant par les plus proches ; chacune n'est utilisée qu'une fois au plus.
 Ends that stay free are highlighted in the preview. => Les extrémités qui restent libres sont mises en évidence dans l'aperçu.
 F2 or a double click on the name renames it => F2 ou double-clic sur le nom le renomme
+
+# ---- network: new version, diagnostics ----
+Check for a new version? => Rechercher une nouvelle version ?
+Once a day Rolidium can ask rolidium.com in the background whether a newer version exists. It sends only the version of the program, the name and main number of your system and the type of processor: no identifier, no cookies, no data about your hardware, no file names. Until you answer, Rolidium does not connect to the network. => Une fois par jour, Rolidium peut demander en arrière-plan à rolidium.com s'il existe une version plus récente. Il envoie seulement la version du programme, le nom et le numéro principal de votre système et le type de processeur : aucun identifiant, aucun cookie, aucune donnée sur votre matériel, aucun nom de fichier. Tant que vous n'avez pas répondu, Rolidium ne se connecte pas au réseau.
+Yes => Oui
+No => Non
+Privacy notice => Avis de confidentialité
+Version {} is available => La version {} est disponible
+Download => Télécharger
+Skip this version => Ignorer cette version
+Check for a new version once a day => Rechercher une nouvelle version une fois par jour
+The network is switched off (ROLIDIUM_OFFLINE). => Le réseau est désactivé (ROLIDIUM_OFFLINE).
+The question that is sent (nothing else): => La requête envoyée (rien d'autre) :
+Send diagnostics to the publisher => Envoyer le diagnostic à l'éditeur
+You see what is sent first, and nothing is sent without your confirmation. => Vous voyez d'abord ce qui sera envoyé, et rien n'est envoyé sans votre confirmation.
+Rolidium did not close properly the last time. Do you want to send diagnostics to the publisher? You will see what is sent first, and nothing is sent without your confirmation. => Rolidium ne s'est pas fermé correctement la dernière fois. Voulez-vous envoyer le diagnostic à l'éditeur ? Vous verrez d'abord ce qui sera envoyé, et rien n'est envoyé sans votre confirmation.
+Review and send => Vérifier et envoyer
+Not now => Pas maintenant
+Send diagnostics => Envoyer le diagnostic
+Preparing the diagnostics… => Préparation du diagnostic…
+Report number {}. Mention it in the forum if you write there. => Numéro du rapport {}. Indiquez-le sur le forum si vous y écrivez.
+Open the forum => Ouvrir le forum
+This is exactly what will be sent. Nothing is sent before you press Send. The zip has the log, the settings (without file names), data about the graphics, the system and the version of the program. It has no models and no names of models, and the home folder is replaced by ~. => Voici exactement ce qui sera envoyé. Rien n'est envoyé avant que vous appuyiez sur Envoyer. Le zip contient le journal, les réglages (sans noms de fichiers), des données sur les graphismes, le système et la version du programme. Il ne contient aucun modèle ni nom de modèle, et le dossier personnel est remplacé par ~.
+Note (up to {} characters) => Note (jusqu'à {} caractères)
+Your e-mail for a reply (optional) => Votre e-mail pour la réponse (facultatif)
+The diagnostics could not be sent: the server does not answer or refused them. Save the zip to a file and send it by e-mail to {}. => Le diagnostic n'a pas pu être envoyé : le serveur ne répond pas ou l'a refusé. Enregistrez le zip dans un fichier et envoyez-le par e-mail à {}.
+Sending… => Envoi…
+Send => Envoyer
+Save zip to a file => Enregistrer le zip dans un fichier
+Web => Site web
+Support forum => Forum d'assistance

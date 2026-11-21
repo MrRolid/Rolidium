@@ -11,7 +11,28 @@ use std::path::{Path, PathBuf};
 
 /// Replaces the home folder, the user name and the computer name with placeholders.
 pub fn sanitize(text: &str) -> String {
-    sanitize_with(text, &personal_strings())
+    mask_model_files(&sanitize_with(text, &personal_strings()))
+}
+
+/// Replaces every word that is the name of a model file (`.rolidium`, `.step`, `.stp`, `.stl`) with `<model file>`: names of the files of the
+/// person do not leave the computer (the folders are already gone: the home folder is `~`).
+pub fn mask_model_files(text: &str) -> String {
+    let is_model = |w: &str| {
+        let lower = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+        [".rolidium", ".step", ".stp", ".stl"]
+            .iter()
+            .any(|e| lower.ends_with(e))
+    };
+    text.split_inclusive(char::is_whitespace)
+        .map(|chunk| {
+            let word = chunk.trim_end();
+            if is_model(word) {
+                format!("<model file>{}", &chunk[word.len()..])
+            } else {
+                chunk.to_string()
+            }
+        })
+        .collect()
 }
 
 fn personal_strings() -> Vec<(String, &'static str)> {
@@ -20,8 +41,8 @@ fn personal_strings() -> Vec<(String, &'static str)> {
         if let Some(p) = std::env::var_os(var) {
             let p = p.to_string_lossy().into_owned();
             if p.len() > 3 {
-                v.push((p.replace('\\', "/"), "<home>"));
-                v.push((p, "<home>"));
+                v.push((p.replace('\\', "/"), "~"));
+                v.push((p, "~"));
             }
         }
     }
@@ -322,14 +343,20 @@ pub fn report(selected: Option<&str>, backend_setting: &str, outcomes: &[Backend
 }
 
 /// Writes the diagnostics zip to `path`. Every backend is examined by a child process (see above).
-pub fn write_zip(path: &Path, selected: Option<&str>, backend_setting: &str) -> Result<(), String> {
-    write_zip_with(path, selected, backend_setting, &run_isolated())
+pub fn write_zip(
+    path: &Path,
+    selected: Option<&str>,
+    backend_setting: &str,
+    settings_text: &str,
+) -> Result<(), String> {
+    write_zip_with(path, selected, backend_setting, settings_text, &run_isolated())
 }
 
 pub fn write_zip_with(
     path: &Path,
     selected: Option<&str>,
     backend_setting: &str,
+    settings_text: &str,
     outcomes: &[BackendOutcome],
 ) -> Result<(), String> {
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
@@ -344,6 +371,7 @@ pub fn write_zip_with(
         report(selected, backend_setting, outcomes).as_bytes(),
     )?;
     add("log.txt", sanitize(&crate::logging::read_log()).as_bytes())?;
+    add("settings.txt", sanitize(settings_text).as_bytes())?;
     let mut scenes =
         String::from("Test scene (grid, axes, sketch region, body) drawn off screen by each adapter. Each backend ran in a process of its own with a time limit:\n\n");
     for o in outcomes {
@@ -372,6 +400,25 @@ pub fn write_zip_with(
     add("scenes.txt", scenes.as_bytes())?;
     zip.finish().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// The same zip without the test pictures (`scene-*.png`): when it is too large to be sent.
+pub fn without_pictures(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    for i in 0..src.len() {
+        let mut f = src.by_index(i).map_err(|e| e.to_string())?;
+        let name = f.name().map(|n| n.to_string()).map_err(|e| e.to_string())?;
+        if name.ends_with(".png") {
+            continue;
+        }
+        let mut data = Vec::new();
+        std::io::Read::read_to_end(&mut f, &mut data).map_err(|e| e.to_string())?;
+        out.start_file(name, opts).map_err(|e| e.to_string())?;
+        out.write_all(&data).map_err(|e| e.to_string())?;
+    }
+    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
 }
 
 /// Where the diagnostics go: the user's Documents folder when it exists, else the home folder, else the current folder.
@@ -409,17 +456,22 @@ mod tests {
     #[test]
     fn personal_data_is_replaced() {
         let personal = vec![
-            ("C:/Users/alice".to_string(), "<home>"),
+            ("C:/Users/alice".to_string(), "~"),
             ("alice".to_string(), "<user>"),
             ("DESKTOP-ABC".to_string(), "<computer>"),
         ];
         let text = "opened C:/Users/alice/Documents/a.rolidium by alice on DESKTOP-ABC";
         let clean = sanitize_with(text, &personal);
-        assert_eq!(
-            clean,
-            "opened <home>/Documents/a.rolidium by <user> on <computer>"
-        );
+        assert_eq!(clean, "opened ~/Documents/a.rolidium by <user> on <computer>");
         assert!(!clean.contains("alice") && !clean.contains("DESKTOP"));
+    }
+
+    #[test]
+    fn names_of_model_files_are_masked() {
+        let t = "opened ~/models/Secret Machine.rolidium ok\nexport \"x/y/part.STEP\" done\nsaved a.stl.\nnothing here";
+        let m = mask_model_files(t);
+        assert!(!m.contains("part") && !m.contains("a.stl") && !m.contains("Machine.rolidium"));
+        assert!(m.contains("nothing here") && m.contains("ok\n") && m.contains("<model file>"));
     }
 
     fn fake_outcomes() -> Vec<BackendOutcome> {
@@ -459,7 +511,14 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rolidium-diag-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("d.zip");
-        write_zip_with(&path, Some("test adapter"), "auto", &fake_outcomes()).unwrap();
+        write_zip_with(
+            &path,
+            Some("test adapter"),
+            "auto",
+            "theme=dark\n",
+            &fake_outcomes(),
+        )
+        .unwrap();
         let mut z = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
         let names: Vec<String> = (0..z.len())
             .map(|i| {

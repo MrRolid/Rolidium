@@ -22,6 +22,12 @@ DesignSpark Mechanical and SpaceClaim. It is written in Rust on the Open CASCADE
 * **Files**: native `.rolidium` documents with autosave and crash recovery, STEP import and export, STL export with a live size estimate.
 * **Headless tool and MCP server**: `rolidium cli` runs scripts without a window; `rolidium mcp` lets an AI assistant build, inspect and
   export models (see [MCP.md](MCP.md)); `rolidium mcp-config` prints ready-made commands that connect it to a client.
+* **First steps**: a new document starts in a sketch with the Circle tool, and a short guide leads to the first body. **Fill** closes a hole or makes a plug from a loop of edges, **Join ends** connects open lines.
+* **Names of bodies**: free text, saved in the file, kept by operations, renamed with F2, written to and read from STEP; in `rolidium cli` and MCP too.
+* **Smooth display**: circles and holes stay round when you zoom in (within half a pixel), also in a big document.
+* **Big documents and several cores**: an operation costs what the changed bodies cost, not what the document costs; meshes, the reading of files and booleans use more threads (Settings, `ROLIDIUM_THREADS`).
+* **Ten demo models** (public domain, CC0) in `examples/demos`, from an electronics box to a CNC router with 338 bodies.
+* **Optional network functions** (a question about a new version, after you agreed; sending diagnostics, only when you ask): see [PRIVACY.md](PRIVACY.md). `ROLIDIUM_OFFLINE=1` switches the network off.
 * Interface in English, Czech, German, Spanish, French and Japanese, dark and light appearance.
 
 ## Requirements
@@ -31,7 +37,7 @@ DesignSpark Mechanical and SpaceClaim. It is written in Rust on the Open CASCADE
 
 ## Download
 
-Packages for Linux and Windows and their SHA-256 checksums are on the [releases page](https://github.com/MrRolid/Rolidium/releases).
+Packages for Linux and Windows and their SHA-256 checksums are on the [releases page](https://github.com/MrRolid/Rolidium/releases) and at [rolidium.com/download](https://rolidium.com/download).
 
 ## Known limitations
 
@@ -42,12 +48,15 @@ Packages for Linux and Windows and their SHA-256 checksums are on the [releases 
 * Rolidium refuses operations whose result fails its checks (for example the volume check); some combinations of swept bodies with
   other bodies can therefore be refused. The model stays unchanged.
 * The command-line modes of `rolidium.exe` in an interactive Windows console are not verified yet (the MCP mode over pipes was checked under Wine only).
+* In a big document some work is still done one call at a time (the facts about the faces and the validity check wait for one lock of the kernel; the checks of touching and overlapping bodies and STEP export are not parallel). The speed figures were measured with software graphics and under load; I have not measured them on a real graphics card.
+* The server behind the new-version notice and the sending of diagnostics may not answer yet. Nothing is shown when the question fails; sending diagnostics offers to save the zip and to send it by e-mail instead.
+* The router demo was edited by hand: some of its bodies overlap or touch nothing by face (see its README).
 * No CAM (toolpaths, G-code) yet, no permanent dimensions, constraints, drawings or STL import; millimetres only.
 
 ## Reporting bugs and ideas
 
-Please use [GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For crashes and drawing problems, attach the zip from
-*About > Save diagnostics* (it contains no personal paths). Security problems: see [SECURITY.md](../SECURITY.md).
+Questions and help: the support forum at [rolidium.com/forum](https://rolidium.com/forum). Bugs and ideas: the forum or [GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For crashes and drawing
+problems, attach the zip from *About > Save diagnostics* (it contains no personal paths and no models), or send it from *Settings > Send diagnostics to the publisher* after you have seen what is sent; you get a report number to mention. Security problems: see [SECURITY.md](../SECURITY.md).
 
 ## Licence
 

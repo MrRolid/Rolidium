@@ -7,6 +7,8 @@ Push and pull faces instead of editing a feature tree, in the spirit of DesignSp
 and exports STL and STEP (3D printing, input for manufacturing); toolpaths for milling and output for laser cutting are planned.
 Written in Rust on the Open CASCADE geometry kernel, with an egui/wgpu interface. Free and open source under the AGPL-3.0.
 
+Web: [rolidium.com](https://rolidium.com) · Support forum: [rolidium.com/forum](https://rolidium.com/forum) · Download: [rolidium.com/download](https://rolidium.com/download)
+
 > **Status: alpha.** Rolidium is under active development and not ready for production work. Expect missing features, rough
 > edges and changes to the file format. Keep copies of important models (STEP export is a good archive format).
 
@@ -14,7 +16,7 @@ Written in Rust on the Open CASCADE geometry kernel, with an egui/wgpu interface
 
 ## Download
 
-Packages for Linux and Windows are on the [releases page](https://github.com/MrRolid/Rolidium/releases).
+Packages for Linux and Windows are on the [releases page](https://github.com/MrRolid/Rolidium/releases) and on [rolidium.com/download](https://rolidium.com/download).
 
 * Linux: x86-64, glibc 2.35 or newer, a graphics driver with Vulkan.
 * Windows: 64-bit, a graphics driver with Vulkan or DirectX 12.
@@ -89,7 +91,10 @@ Everything listed here works today.
 
 **Interface**
 * The Selection panel shows volume, surface area, mass and size of a body, area and diameter of faces, length and radius of edges (sums for several); a click copies a value.
-* Undo and redo of everything, a document tree, hide and show, rename, delete.
+* Undo and redo of everything, a document tree, hide and show, rename, delete. **Every body has a name** (free text, shown in the list and in the Selection panel; rename it with `F2` or a double click, one step of Undo). The name is saved in the file, kept by operations (a copy has the same name, a merged body keeps the name of its target), given with `name "..."` in `rolidium cli` and MCP, and written to and read from STEP files. The list of bodies scrolls, and follows what you pick in the model.
+* **Smooth display.** A circle or a hole stays round when you zoom in: the faces in view are meshed again in the background for the pixel at their own distance, with a budget of triangles shared by the bodies in view (a hole of 6 mm in a plate of a document of 300 bodies is within half a pixel of the exact circle).
+* **Fast in big documents.** An operation, Undo or Redo costs what the changed bodies cost, not what the document costs: the router demo (340 bodies) moves a screw in about 25 ms and pulls a face of a small body in about 60 ms (measured under load, see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)). The meshes of the bodies, the reading of a file and the booleans use several cores (below).
+* **Demo models:** ten models from an electronics box to a CNC router with 338 bodies in [`examples/demos`](examples/demos/) (public domain, CC0 1.0).
 * Buttons show with a traffic light whether they can be used now and why not; Sketch is the main button (it becomes "Finish sketch").
 * Dark (default) or light appearance, or follow the system; a toolbar above the view and floating panels you can drag away from the model.
 * Interface in English, Czech, German, Spanish, French and Japanese; more languages by adding a text file. Icons and a help card for every tool.
@@ -130,6 +135,13 @@ About window has "Run the guide again". Opening a file, restoring after a crash,
   therefore be refused in some cases, typically when the spring sticks out through the end faces of the cylinder. Try a different
   order, a cut instead of a merge, or a slightly different size. An exact construction of helical bodies is the next step on the roadmap.
 * **Not verified yet:** the command-line modes of `rolidium.exe` (`cli`, `mcp-config`) in an interactive Windows console (cmd.exe, PowerShell). The MCP mode over pipes, which is what AI clients use, was checked only under Wine. Reports are welcome.
+* **Speed limits.** In a big document the kernel still does some work one call at a time: the facts about the faces and the validity check of a body wait for one lock of the kernel, so opening the router does not
+  get faster beyond about 4 threads, and the checks of touching and overlapping bodies (and the slow test of the demos) do not use more than one core. A big document uses a lot of memory (the router: about 400 MB). Measured only
+  with software graphics and under load; the numbers on a real graphics card are not measured by me.
+* **The new-version notice and the sending of diagnostics need a server.** The server at rolidium.com may not answer yet; then nothing is shown for the notice, and sending diagnostics offers to save the zip and to
+  send it by e-mail.
+* **The hand-made demo.** The router in `examples/demos/10-cnc-router` was built by a script and then edited by hand; its shapes are the author's. Some bodies of it overlap or touch nothing (the balls of the bearings,
+  the nuts, the belt and the pulleys by design; five overlaps of screws with plates), see its README.
 * **No CAM yet.** Toolpaths and G-code are planned (see the [roadmap](docs/ROADMAP.md)), but not part of this version.
 * No permanent dimensions, constraints, drawings or STL import yet.
 * Units: millimetres only for now.
@@ -140,7 +152,7 @@ About window has "Run the guide again". Opening a file, restoring after a crash,
 
 `rolidium cli times` prints a table of the times of the main operations with their stages, and `rolidium cli times machine` the stages of a small operation in a big document (the router if its file is found, else a synthetic document of 340 bodies) next to the same operation on the body alone.
 
-**Threads.** The calculations use one thread per core less one (at least one). Settings has the choice Auto, 1, 2, 4 and 8, and the environment variable `ROLIDIUM_THREADS` (a number, or `auto`) overrides it; it also applies to `rolidium cli` and `rolidium mcp`.
+**Threads.** The calculations use one thread per core less one (at least one). Settings has the choice Auto, 1, 2, 4 and 8, and the environment variable `ROLIDIUM_THREADS` (a number, or `auto`) overrides it; it also applies to `rolidium cli` and `rolidium mcp`. The number is decided when the program starts: **a change in Settings takes effect the next time you start Rolidium** (Settings says so). More threads speed up opening files and making the display meshes (the router opens in 7.5 s with one thread and in 4.3 s with four or more); they do not speed up the checks of touching bodies or the STEP export, which still run one at a time.
 
 ## Headless use
 
@@ -163,6 +175,12 @@ for the full list of commands.
 
 Useful options of the application: `rolidium file.rolidium` opens a document, `rolidium --version` prints the version,
 `rolidium --backend vulkan|gl|dx12` picks the graphics backend, `rolidium --diagnose` writes the diagnostics zip, `rolidium --help` lists the rest.
+
+## The network
+
+Rolidium works without the network. Two optional functions connect to `rolidium.com`: a question once a day whether a newer version exists (only after you said yes; it sends the version, the system name and main
+number and the architecture, nothing else) and the sending of diagnostics (only when you ask, after you have seen what is sent). `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench` and `--diagnose` never use
+the network, and `ROLIDIUM_OFFLINE=1` switches all of it off. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Keyboard shortcuts
 
@@ -214,8 +232,9 @@ A rough order, with no dates. Details and design notes are in [`docs/ROADMAP.md`
 
 ## Feedback
 
-Bug reports and ideas are welcome in [GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For graphics problems please attach
-the zip from *About > Save diagnostics*. Security problems: see [SECURITY.md](SECURITY.md).
+Questions and help: the support forum at [rolidium.com/forum](https://rolidium.com/forum) (the web is [rolidium.com](https://rolidium.com)). Bug reports and ideas are welcome there and in
+[GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For graphics problems and crashes please attach the zip from *About > Save diagnostics*, or use *Settings > Send diagnostics to the publisher*
+(you see what is sent first; see [docs/PRIVACY.md](docs/PRIVACY.md)) and mention the report number you get. Security problems: see [SECURITY.md](SECURITY.md).
 
 Code contributions from outside are not accepted for now; [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
 

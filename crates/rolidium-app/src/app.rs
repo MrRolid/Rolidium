@@ -31,6 +31,7 @@ mod curvetools;
 mod dock;
 mod edgepull;
 mod editbench;
+mod feedback;
 mod files;
 mod filltool;
 mod guide_ui;
@@ -48,6 +49,7 @@ mod revolve;
 mod selftest;
 mod snap;
 mod toolbar;
+mod updates;
 mod viewanim;
 pub use bench::Bench;
 use edgepull::EdgePrev;
@@ -246,6 +248,13 @@ pub struct App {
     body_sel: Option<BodyId>,
     /// The body whose row the list on the right was last scrolled to.
     tree_seen: Option<BodyId>,
+    update: updates::UpdateState,
+    feedback: feedback::Feedback,
+    /// The last run did not end properly: the offer to send diagnostics is shown.
+    crash_offer: bool,
+    /// For the self test: the row of the body picked last: (body, marked in the list, drawn inside the visible part of the list) and how far the list is scrolled.
+    tree_probe: (Option<BodyId>, bool, bool),
+    tree_scroll_y: f32,
     settings: Settings,
     export: ExportDialog,
     help: Help,
@@ -441,6 +450,11 @@ impl App {
             edge_sel: Vec::new(),
             body_sel: None,
             tree_seen: None,
+            update: Default::default(),
+            feedback: Default::default(),
+            crash_offer: false,
+            tree_probe: (None, false, false),
+            tree_scroll_y: 0.0,
             export: ExportDialog::new(&settings),
             settings,
             help: Help::load(),
@@ -524,6 +538,14 @@ impl App {
             startup_notice: crate::startup::take_notice(),
         };
         app.grid_text = fmt_num(app.settings.grid_step);
+        // a normal window (not a self test or a benchmark): the session marker tells whether the last run ended properly
+        if app.selftest.is_none()
+            && !BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed)
+            && !exit_after_first_frame
+            && !bench_viewport
+        {
+            app.crash_offer = crate::session::begin();
+        }
         if bench_viewport {
             app.bench = Some(Bench::default());
             app.set_meshes(vec![crate::bench::million_triangle_entry()]);
@@ -2036,6 +2058,28 @@ impl App {
 
     /// About, with the "Support development" section (also what the Donate button opens).
     #[allow(deprecated)]
+    /// Starts writing the diagnostics zip to the Documents folder (in the background).
+    fn start_save_diagnostics(&mut self, ctx: &egui::Context) {
+        let job = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let slot = job.clone();
+        let (desc, backend, stext) = (
+            self.adapter_description.clone(),
+            self.settings.backend.clone(),
+            self.settings.diagnostic_text(),
+        );
+        let c = ctx.clone();
+        std::thread::spawn(move || {
+            let path = crate::diagnose::default_path();
+            let r = crate::diagnose::write_zip(&path, Some(&desc), &backend, &stext).map(|()| path);
+            if let Ok(mut s) = slot.lock() {
+                *s = Some(r);
+            }
+            c.request_repaint();
+        });
+        self.diagnostics_job = Some(job);
+        self.diagnostics_error = None;
+    }
+
     fn about_window(&mut self, ctx: &egui::Context) {
         if !self.about_open {
             return;
@@ -2061,6 +2105,18 @@ impl App {
                     restart_guide = true;
                 }
                 ui.horizontal(|ui| {
+                    if ui.button(tr("Web")).on_hover_text(rolidium_net::urls::WEB).clicked() {
+                        crate::diagnose::open_path(std::path::Path::new(rolidium_net::urls::WEB));
+                    }
+                    if ui
+                        .button(tr("Support forum"))
+                        .on_hover_text(rolidium_net::urls::FORUM)
+                        .clicked()
+                    {
+                        crate::diagnose::open_path(std::path::Path::new(rolidium_net::urls::FORUM));
+                    }
+                });
+                ui.horizontal(|ui| {
                     if ui.button(tr("Feedback and bug reports")).clicked() {
                         crate::diagnose::open_path(std::path::Path::new(crate::ISSUES_URL));
                     }
@@ -2078,20 +2134,7 @@ impl App {
                         .on_hover_text(tr("Saves a zip with the graphics adapters, the log and test pictures, to send with a bug report. It contains no personal paths."))
                         .clicked()
                     {
-                        let job = std::sync::Arc::new(std::sync::Mutex::new(None));
-                        let slot = job.clone();
-                        let (desc, backend) = (self.adapter_description.clone(), self.settings.backend.clone());
-                        let c = ctx.clone();
-                        std::thread::spawn(move || {
-                            let path = crate::diagnose::default_path();
-                            let r = crate::diagnose::write_zip(&path, Some(&desc), &backend).map(|()| path);
-                            if let Ok(mut s) = slot.lock() {
-                                *s = Some(r);
-                            }
-                            c.request_repaint();
-                        });
-                        self.diagnostics_job = Some(job);
-                        self.diagnostics_error = None;
+                        self.start_save_diagnostics(ctx);
                     }
                     if busy {
                         ui.spinner();
@@ -3390,6 +3433,19 @@ impl App {
                     .weak()
                     .small(),
                 );
+                if crate::settings::threads_pending(
+                    self.settings.threads,
+                    rolidium_kernel::par::threads(),
+                    rolidium_kernel::par::env_choice().is_some(),
+                ) {
+                    ui.label(
+                        egui::RichText::new(tr(
+                            "The new number takes effect the next time Rolidium is started.",
+                        ))
+                        .color(ui.visuals().warn_fg_color)
+                        .small(),
+                    );
+                }
                 ui.label(
                     egui::RichText::new(tr(
                         "The environment variable ROLIDIUM_THREADS overrides this choice.",
@@ -3397,6 +3453,67 @@ impl App {
                     .weak()
                     .small(),
                 );
+                ui.separator();
+                {
+                    let mut yes = self.settings.check_updates == Some(true);
+                    let offline = rolidium_net::offline();
+                    if ui
+                        .add_enabled(
+                            !offline,
+                            egui::Checkbox::new(&mut yes, tr("Check for a new version once a day")),
+                        )
+                        .changed()
+                    {
+                        self.settings.check_updates = Some(yes);
+                        changed = true;
+                    }
+                    if offline {
+                        ui.label(
+                            egui::RichText::new(tr("The network is switched off (ROLIDIUM_OFFLINE)."))
+                                .color(ui.visuals().warn_fg_color)
+                                .small(),
+                        );
+                    }
+                    ui.label(
+                        egui::RichText::new(tr("The question that is sent (nothing else):"))
+                            .weak()
+                            .small(),
+                    );
+                    ui.label(
+                        egui::RichText::new(rolidium_net::describe_version_request(
+                            env!("CARGO_PKG_VERSION"),
+                            &rolidium_net::system_info(),
+                        ))
+                        .monospace()
+                        .small(),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(
+                                self.diagnostics_job.is_none(),
+                                egui::Button::new(tr("Save diagnostics")),
+                            )
+                            .clicked()
+                        {
+                            self.start_save_diagnostics(ctx);
+                        }
+                        if ui
+                            .add_enabled(
+                                matches!(self.feedback, feedback::Feedback::Closed),
+                                egui::Button::new(tr("Send diagnostics to the publisher")),
+                            )
+                            .on_hover_text(tr(
+                                "You see what is sent first, and nothing is sent without your confirmation.",
+                            ))
+                            .clicked()
+                        {
+                            self.start_feedback(ctx);
+                        }
+                    });
+                    if ui.link(tr("Privacy notice")).clicked() {
+                        crate::diagnose::open_path(std::path::Path::new(rolidium_net::urls::PRIVACY));
+                    }
+                }
                 ui.separator();
                 if ui
                     .checkbox(&mut self.settings.sound, tr("Sound on error"))
@@ -3422,7 +3539,6 @@ impl App {
                 });
             });
         if changed {
-            rolidium_kernel::par::configure(self.settings.threads as usize);
             i18n::set_language(&self.settings.language);
             self.settings.save();
             self.layers_changed = true;
@@ -3650,62 +3766,81 @@ impl eframe::App for App {
                             None
                         };
                         self.tree_seen = last_picked;
-                        for b in &bodies {
-                            ui.horizontal(|ui| {
-                                if icons::eye_button(ui, b.visible).clicked() {
-                                    tree_cmd = Some((
-                                        Command::SetVisible {
-                                            target: ItemId::Body(b.id),
-                                            visible: !b.visible,
-                                        },
-                                        if b.visible { "Hidden" } else { "Shown" },
-                                    ));
+                        // the list scrolls by itself (hundreds of bodies), and follows the selection
+                        let list_h = (ui.ctx().content_rect().height() * 0.45).max(160.0);
+                        let scroll_out = egui::ScrollArea::vertical()
+                            .id_salt("body-list")
+                            .max_height(list_h)
+                            .auto_shrink([true, true])
+                            .show(ui, |ui| {
+                                for b in &bodies {
+                                    ui.horizontal(|ui| {
+                                        if icons::eye_button(ui, b.visible).clicked() {
+                                            tree_cmd = Some((
+                                                Command::SetVisible {
+                                                    target: ItemId::Body(b.id),
+                                                    visible: !b.visible,
+                                                },
+                                                if b.visible { "Hidden" } else { "Shown" },
+                                            ));
+                                        }
+                                        let faces = self.entry(b.id).map_or(0, |m| m.faces.len());
+                                        let mut t = if b.visible {
+                                            trf("{}  ({} faces)", &[b.name.clone(), faces.to_string()])
+                                        } else {
+                                            format!("{}  ({})", b.name, tr("hidden"))
+                                        };
+                                        if !b.visible {
+                                            t = t.to_string();
+                                        }
+                                        let r = ui.selectable_label(marked.contains(&b.id), t);
+                                        if scroll_to == Some(b.id) {
+                                            r.scroll_to_me(Some(egui::Align::Center));
+                                        }
+                                        if Some(b.id) == last_picked {
+                                            self.tree_probe = (
+                                                Some(b.id),
+                                                marked.contains(&b.id),
+                                                ui.is_rect_visible(r.rect),
+                                            );
+                                        }
+                                        if r.clicked() {
+                                            clicked = Some(b.id);
+                                        }
+                                        if r.double_clicked() {
+                                            // a double click renames (Enter confirms, Esc cancels)
+                                            self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+                                        }
+                                        r.context_menu(|ui| {
+                                            if ui.button(tr("Delete")).clicked() {
+                                                tree_cmd = Some((
+                                                    Command::DeleteBody { body: b.id },
+                                                    "Deleted (Ctrl+Z brings it back)",
+                                                ));
+                                                ui.close();
+                                            }
+                                            if ui
+                                                .button(tr(if b.visible { "Hide" } else { "Show" }))
+                                                .clicked()
+                                            {
+                                                tree_cmd = Some((
+                                                    Command::SetVisible {
+                                                        target: ItemId::Body(b.id),
+                                                        visible: !b.visible,
+                                                    },
+                                                    if b.visible { "Hidden" } else { "Shown" },
+                                                ));
+                                                ui.close();
+                                            }
+                                            if ui.button(tr("Rename")).clicked() {
+                                                self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+                                                ui.close();
+                                            }
+                                        });
+                                    });
                                 }
-                                let faces = self.entry(b.id).map_or(0, |m| m.faces.len());
-                                let mut t = if b.visible {
-                                    trf("{}  ({} faces)", &[b.name.clone(), faces.to_string()])
-                                } else {
-                                    format!("{}  ({})", b.name, tr("hidden"))
-                                };
-                                if !b.visible {
-                                    t = t.to_string();
-                                }
-                                let r = ui.selectable_label(marked.contains(&b.id), t);
-                                if scroll_to == Some(b.id) {
-                                    r.scroll_to_me(Some(egui::Align::Center));
-                                }
-                                if r.clicked() {
-                                    clicked = Some(b.id);
-                                }
-                                if r.double_clicked() {
-                                    // a double click renames (Enter confirms, Esc cancels)
-                                    self.rename = Some((ItemId::Body(b.id), b.name.clone()));
-                                }
-                                r.context_menu(|ui| {
-                                    if ui.button(tr("Delete")).clicked() {
-                                        tree_cmd = Some((
-                                            Command::DeleteBody { body: b.id },
-                                            "Deleted (Ctrl+Z brings it back)",
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr(if b.visible { "Hide" } else { "Show" })).clicked() {
-                                        tree_cmd = Some((
-                                            Command::SetVisible {
-                                                target: ItemId::Body(b.id),
-                                                visible: !b.visible,
-                                            },
-                                            if b.visible { "Hidden" } else { "Shown" },
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr("Rename")).clicked() {
-                                        self.rename = Some((ItemId::Body(b.id), b.name.clone()));
-                                        ui.close();
-                                    }
-                                });
                             });
-                        }
+                        self.tree_scroll_y = scroll_out.state.clamped_offset().y;
                         if let Some(id) = clicked {
                             let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
                             if self.tool == Tool::Move && add {
@@ -3985,6 +4120,10 @@ impl eframe::App for App {
         self.handle_export_dialog(&ctx);
         self.settings_window(&ctx);
         self.about_window(&ctx);
+        self.updates_tick(&ctx);
+        self.updates_ui(&ctx);
+        self.crash_offer_ui(&ctx);
+        self.feedback_window(&ctx);
         self.guide_window(&ctx);
         self.rename_window(&ctx);
         self.dialogs(&ctx);

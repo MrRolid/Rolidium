@@ -18,6 +18,7 @@ rolidium-kernel = { path = "../rolidium-kernel" }
 rolidium-doc = { path = "../rolidium-doc" }
 rolidium-render = { path = "../rolidium-render" }
 rolidium-cli = { path = "../rolidium-cli" }
+rolidium-net = { path = "../rolidium-net" }
 glam.workspace = true
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "wayland", "default_fonts"] }
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }

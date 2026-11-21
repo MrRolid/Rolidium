@@ -32,7 +32,20 @@ features is visible. 0.2.0 is the first public release.
 - The list of bodies on the right marks the bodies picked in the model and scrolls to the last one.
 - The Pull panel has the mode New body for a region of a sketch.
 
+- Web and support forum: the About window links to rolidium.com and rolidium.com/forum (also in the README); the links open in the browser of the system.
+- Notice of a new version, **opt-in**: a small card at the first start asks (Yes / No; until the answer the program does not use the network); then once a day, in the background, with a limit of 5 seconds, one GET to
+  rolidium.com with the version, the system name and main number and the architecture, nothing else. A newer version is offered with *Download* (the fixed download page in the browser; nothing is downloaded or started) and *Skip this version*. Settings has the switch and the exact text of the question. `cli`, `mcp`, `--selftest`, `--bench`, `--diagnose` and `ROLIDIUM_OFFLINE=1` never do it.
+- Sending diagnostics, only on request: *Settings > Send diagnostics to the publisher*, and an offer after a run that did not end properly. The window shows the files in the zip (each can be opened), a note and an optional e-mail; nothing is sent before Send. No models and no model names, the home folder is `~`; the report number is shown. When the server does not answer, the zip can be saved and sent by e-mail. See `docs/PRIVACY.md`.
+- The network code is one small crate (`rolidium-net`, `ureq` with rustls, no async runtime). New licence in the list of third-party components: webpki-roots (CDLA-Permissive-2.0). Compared with the build before this change the Linux package is 4.5 MB larger (34.9 MB) and the Windows package 4.5 MB larger (31.7 MB): the Linux program grew by 2.5 MB (it includes everything of this change, the TLS library and the list of root certificates among it) and the router file of its author (3.4 MB) is in the examples.
+- `rolidium-cli times machine` and `times open` show where the time of a small operation and of opening a big document goes, and which part runs one thread at a time.
+- The self test covers: the list of bodies marking and scrolling to a body picked at the end of a long list, the view staying at a sketch drawn far from the origin when Pull is chosen, and a hole of 6 mm in a plate with a hundred holes in a document of 300 bodies (it fails on the program before the fix).
+- The demo 10 (the router) is the model of its author, worked on by hand from the script's base (`10-cnc-router-base`); `scripts/refresh-machine.sh` makes its outputs again.
+
 ### Fixed
+- The list of bodies on the right could not be scrolled: with hundreds of bodies the rest of the list was cut off.
+- A hole in a plate that has many holes stayed a polygon when zoomed in, because the estimate of the triangles made the whole plate look too expensive (it counted every face as growing with 1 / deflection; planes and cylinders grow with its square root).
+- The names of bodies were lost in a STEP file for bodies that were wrapped in a compound (found with the author's router: 3 of 338).
+- The number of threads can no longer be changed while the program runs (changing it could stop the program with an error of the thread pool of Open CASCADE); Settings says that a new number takes effect at the next start.
 - Small holes and screw heads in a big document were drawn as polygons when zoomed in: a body is now refined for the pixel at its own distance and the triangle budget is shared by the size of the bodies on the screen.
 - After leaving a sketch the view jumped back to where it was before the sketch (often the origin); it now keeps looking at the sketch.
 - `rolidium --bench` no longer prints the time of a pick (it measured something else and showed 0.0 ms).

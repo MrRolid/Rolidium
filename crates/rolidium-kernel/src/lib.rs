@@ -79,6 +79,11 @@ impl From<cxx::Exception> for KernelError {
 
 pub mod par;
 
+/// Time (nanoseconds, summed over the threads) spent reading BREP data (native, no lock) and checking the shapes read (behind the lock of the
+/// kernel): for `rolidium-cli times open`, which tells what part of opening runs one thread at a time.
+pub static READ_NS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static CHECK_NS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// How many threads Open CASCADE may use inside one operation (0: its default, one per core; 1: no parallel mode).
 pub(crate) fn set_native_threads(n: usize) {
     native::set_threads(n.min(256) as i32);
@@ -542,16 +547,43 @@ impl Solid {
         };
         let is_fine = |i: usize| fine.get(i).copied().unwrap_or(false);
         let fixed: f64 = (0..n).filter(|i| !is_fine(*i)).map(|i| per_face[i] as f64).sum();
-        let grows: f64 = (0..n)
-            .filter(|i| is_fine(*i))
-            .map(|i| per_face[i] as f64 * defl(i))
-            .sum();
+        // How the triangles of a face in view grow when the deflection gets smaller. The edges of a face are cut into segments, which grow
+        // with the square root of 1 / deflection; a plane (with the circles of its holes) and a cylinder (a strip of triangles along the
+        // circle) have only that. A sphere, a torus or a free surface also need more rows: they grow with 1 / deflection.
+        let faces: Vec<FaceId> = self.faces().collect();
+        let exponent: Vec<f64> = (0..n)
+            .map(
+                |i| match faces.get(i).and_then(|f| self.face_info(*f).ok()).map(|f| f.kind) {
+                    Some(FaceKind::Plane) | Some(FaceKind::Cylinder) | Some(FaceKind::Cone) => 0.5,
+                    _ => 1.0,
+                },
+            )
+            .collect();
+        let estimate = |linear: f64| -> f64 {
+            (0..n)
+                .filter(|i| is_fine(*i))
+                .map(|i| per_face[i] as f64 * (defl(i) / linear).max(1.0).powf(exponent[i]))
+                .sum()
+        };
         // the faces in view get at most the budget, and the whole mesh stays under the cap (aim a little lower: the estimate is rough)
         let room = ((max_triangles as f64 - fixed).max(max_triangles as f64 * 0.2))
             .min(FINE_TRIANGLE_BUDGET as f64)
             * 0.9;
-        if grows > 0.0 && grows / linear > room {
-            linear = (grows / room).max(linear);
+        if estimate(linear) > room {
+            // the smallest deflection (not finer than asked) for which the estimate fits: the estimate falls as the deflection grows
+            let (mut lo, mut hi) = (linear, linear);
+            while estimate(hi) > room && hi < 1.0e6 {
+                hi *= 2.0;
+            }
+            for _ in 0..40 {
+                let mid = (lo * hi).sqrt();
+                if estimate(mid) > room {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            linear = hi;
         }
         let mask: Vec<u8> = (0..n).map(|i| is_fine(i) as u8).collect();
         if !mask.contains(&1) {
@@ -664,7 +696,14 @@ impl Solid {
         Ok(b)
     }
     pub fn read_brep(data: &[u8]) -> Result<Solid> {
-        Solid::from_shape(native::read_brep(data)?).validated()
+        use std::sync::atomic::Ordering::Relaxed;
+        let t = std::time::Instant::now();
+        let shape = native::read_brep(data)?;
+        READ_NS.fetch_add(t.elapsed().as_nanos() as u64, Relaxed);
+        let t = std::time::Instant::now();
+        let r = Solid::from_shape(shape).validated();
+        CHECK_NS.fetch_add(t.elapsed().as_nanos() as u64, Relaxed);
+        r
     }
 }
 

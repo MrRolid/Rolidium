@@ -16,6 +16,7 @@ mod guide;
 mod i18n;
 mod icons;
 mod logging;
+mod session;
 mod settings;
 mod sketchguides;
 mod sketchmode;
@@ -168,7 +169,12 @@ fn main() -> eframe::Result {
             .get(i + 1)
             .filter(|a| !a.starts_with('-'))
             .map_or_else(diagnose::default_path, std::path::PathBuf::from);
-        return match diagnose::write_zip(&path, None, backend.name()) {
+        return match diagnose::write_zip(
+            &path,
+            None,
+            backend.name(),
+            &settings::Settings::load().diagnostic_text(),
+        ) {
             Ok(()) => {
                 println!("diagnostics written to {}", path.display());
                 Ok(())

@@ -283,6 +283,7 @@ Autosave every (minutes, 0 = off) => Automatické ukládání po (minutách, 0 =
 Calculation threads (Auto = one per core less one) => Vlákna pro výpočty (Auto = počet jader mínus jedna)
 The environment variable ROLIDIUM_THREADS overrides this choice. => Proměnná prostředí ROLIDIUM_THREADS má před touto volbou přednost.
 Threads in use: {} => Používaná vlákna: {}
+The new number takes effect the next time Rolidium is started. => Nový počet se projeví při příštím spuštění Rolidia.
 This is not a valid Rolidium file or it is damaged: {}. Nothing was changed. => Toto není platný soubor Rolidium, nebo je poškozený: {}. Nic se nezměnilo.
 This file was saved by a newer Rolidium (file format {}; this program understands up to {}). It was not opened and not changed. Please update Rolidium. => Tento soubor uložila novější verze Rolidium (formát souboru {}; tento program umí nejvýš {}). Soubor se neotevřel a nezměnil. Aktualizujte prosím Rolidium.
 
@@ -702,3 +703,34 @@ Joins open lines and curves that almost meet. Select the lines you want (nothing
 Ends are paired starting with the closest ones; every end is used at most once. => Konce se páruje od nejbližších dvojic; každý konec se použije nejvýš jednou.
 Ends that stay free are highlighted in the preview. => Konce, které zůstanou volné, jsou v náhledu zvýrazněné.
 F2 or a double click on the name renames it => F2 nebo dvojklik na název ho přejmenuje
+
+# ---- network: new version, diagnostics ----
+Check for a new version? => Zjistit novou verzi?
+Once a day Rolidium can ask rolidium.com in the background whether a newer version exists. It sends only the version of the program, the name and main number of your system and the type of processor: no identifier, no cookies, no data about your hardware, no file names. Until you answer, Rolidium does not connect to the network. => Rolidium se může jednou denně na pozadí zeptat serveru rolidium.com, zda existuje novější verze. Pošle jen verzi programu, název a hlavní číslo vašeho systému a typ procesoru: žádný identifikátor, žádné cookies, žádné údaje o hardwaru, žádné názvy souborů. Dokud neodpovíte, Rolidium se k síti nepřipojí.
+Yes => Ano
+No => Ne
+Privacy notice => Zásady soukromí
+Version {} is available => Je dostupná verze {}
+Download => Stáhnout
+Skip this version => Přeskočit tuto verzi
+Check for a new version once a day => Jednou denně zjistit novou verzi
+The network is switched off (ROLIDIUM_OFFLINE). => Síť je vypnutá (ROLIDIUM_OFFLINE).
+The question that is sent (nothing else): => Dotaz, který se posílá (nic jiného):
+Send diagnostics to the publisher => Odeslat diagnostiku vydavateli
+You see what is sent first, and nothing is sent without your confirmation. => Nejdřív uvidíte, co se pošle, a bez vašeho potvrzení se nic neodešle.
+Rolidium did not close properly the last time. Do you want to send diagnostics to the publisher? You will see what is sent first, and nothing is sent without your confirmation. => Rolidium se minule neukončilo řádně. Chcete odeslat diagnostiku vydavateli? Nejdřív uvidíte, co se pošle, a bez vašeho potvrzení se nic neodešle.
+Review and send => Zkontrolovat a odeslat
+Not now => Teď ne
+Send diagnostics => Odeslat diagnostiku
+Preparing the diagnostics… => Připravuje se diagnostika…
+Report number {}. Mention it in the forum if you write there. => Číslo hlášení {}. Uveďte ho na fóru, pokud tam napíšete.
+Open the forum => Otevřít fórum
+This is exactly what will be sent. Nothing is sent before you press Send. The zip has the log, the settings (without file names), data about the graphics, the system and the version of the program. It has no models and no names of models, and the home folder is replaced by ~. => Přesně tohle se odešle. Před stisknutím Odeslat se nic neodešle. Zip obsahuje log, nastavení (bez názvů souborů), údaje o grafice, systému a verzi programu. Neobsahuje žádné modely ani jejich názvy a domovský adresář je nahrazen znakem ~.
+Note (up to {} characters) => Poznámka (nejvýše {} znaků)
+Your e-mail for a reply (optional) => Váš e-mail pro odpověď (nepovinné)
+The diagnostics could not be sent: the server does not answer or refused them. Save the zip to a file and send it by e-mail to {}. => Diagnostiku se nepodařilo odeslat: server neodpovídá nebo ji odmítl. Uložte zip do souboru a pošlete ho e-mailem na {}.
+Sending… => Odesílá se…
+Send => Odeslat
+Save zip to a file => Uložit zip do souboru
+Web => Web
+Support forum => Fórum podpory

@@ -378,13 +378,23 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         .cloned()
         .unwrap_or_default();
     // The bodies are independent of each other: their shapes are read on several threads (the zip is read in one go first).
+    let t_zip = std::time::Instant::now();
     let brep_data: Vec<Option<Vec<u8>>> = body_list
         .iter()
         .map(|b| b["brep"].as_str().and_then(|n| read_entry(&mut zip, n).ok()))
         .collect();
+    rolidium_kernel::timing::record(
+        "open: unzip the BREP entries (one thread)",
+        t_zip.elapsed().as_secs_f64() * 1e3,
+    );
+    let t_read = std::time::Instant::now();
     let mut solids_read: Vec<Option<Result<Solid, String>>> = rolidium_kernel::par::map(&brep_data, |d| {
         d.as_ref().map(|d| Solid::read_brep(d).map_err(|e| e.to_string()))
     });
+    rolidium_kernel::timing::record(
+        "open: read the shapes and check them (threads)",
+        t_read.elapsed().as_secs_f64() * 1e3,
+    );
     for (bi, b) in body_list.iter().enumerate() {
         let id = b["id"].as_u64().ok_or_else(|| corrupt("a body without an id"))?;
         let (brep_name, meta_name) = (

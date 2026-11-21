@@ -952,8 +952,13 @@ impl App {
                 self.replace_document(Document::new(), None);
                 let plate =
                     Solid::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(1200.0, 800.0, 20.0)).unwrap();
-                let hole = Solid::cylinder(3.0, 30.0, DVec3::new(100.0, 100.0, -5.0), DVec3::Z).unwrap();
-                let plate = plate.boolean(&hole, BooleanOp::Cut).unwrap().solid;
+                // a hundred holes of 6 mm in a 10 x 10 pattern: the plate has many curved faces, so a small budget of triangles would starve the zoom
+                let mut plate = plate;
+                for k in 0..100 {
+                    let (x, y) = (100.0 + (k % 10) as f64 * 100.0, 100.0 + (k / 10) as f64 * 65.0);
+                    let hole = Solid::cylinder(3.0, 30.0, DVec3::new(x, y, -5.0), DVec3::Z).unwrap();
+                    plate = plate.boolean(&hole, BooleanOp::Cut).unwrap().solid;
+                }
                 let mut solids = vec![(plate, "Table plate".to_string())];
                 for i in 0..300 {
                     let (x, y) = (150.0 + (i % 20) as f64 * 50.0, 150.0 + (i / 20) as f64 * 40.0);
@@ -1050,6 +1055,102 @@ impl App {
                 );
             }
             50 => {
+                // the list of bodies: the first body is picked in the model, then the last one of the long list (301 rows)
+                let first = self.doc.bodies()[0].id;
+                self.clear_selection();
+                self.selection.push((first, 0));
+                self.layers_changed = true;
+                st.wait_frames = 6;
+            }
+            51 => {
+                let first = self.doc.bodies()[0].id;
+                check(
+                    &mut st,
+                    "a face of the first body picked in the model marks its row in the list, which is not scrolled",
+                    self.tree_probe == (Some(first), true, true) && self.tree_scroll_y < 1.0,
+                );
+                let last = self.doc.bodies().last().unwrap().id;
+                self.clear_selection();
+                self.selection.push((last, 0));
+                self.layers_changed = true;
+                st.wait_frames = 8;
+            }
+            52 => {
+                let last = self.doc.bodies().last().unwrap().id;
+                println!(
+                    "selftest: list of {} bodies, picked the last: probe {:?}, scrolled {:.0} px",
+                    self.doc.bodies().len(),
+                    self.tree_probe,
+                    self.tree_scroll_y
+                );
+                check(
+                    &mut st,
+                    "a body from the end of a long list picked in the model: its row is marked, the list scrolled to it and the row is in view",
+                    self.tree_probe == (Some(last), true, true) && self.tree_scroll_y > 100.0,
+                );
+                shot(&mut st, ctx, "list-follows-selection");
+            }
+            53 => {
+                // a face far from the origin: a circle is drawn on it and the Pull tool is chosen; the view must stay at the sketch
+                use rolidium_kernel::Solid;
+                self.replace_document(Document::new(), None);
+                let b =
+                    Solid::cuboid(DVec3::new(5000.0, 3000.0, 0.0), DVec3::new(5100.0, 3100.0, 50.0)).unwrap();
+                let _ = self.doc.apply(Command::AddSolids { solids: vec![b] });
+                self.request_meshes();
+                self.fitted = true;
+                self.view_anim = None;
+                self.camera = rolidium_render::Camera::default();
+                // the view looks at the origin from far away, so that the body is in view
+                self.camera.distance = 12000.0;
+                st.wait_frames = 3;
+            }
+            54 => {
+                if self.meshes.is_empty() {
+                    self.selftest = Some(st);
+                    return;
+                }
+                let Some((body, face)) = self.top_face() else {
+                    check(&mut st, "the top face of the far body exists", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                self.selection = vec![(body, face)];
+                self.key_pressed(Key::K, egui::Modifiers::NONE, rect);
+                st.wait_frames = 30;
+            }
+            55 => {
+                self.view_anim = None;
+                let has_sketch = self.sk.is_some();
+                let ok = self.add_entity(Entity::Circle {
+                    center: DVec2::new(0.0, 0.0),
+                    radius: 10.0,
+                });
+                check(
+                    &mut st,
+                    "a circle was drawn on the face far from the origin",
+                    ok && has_sketch,
+                );
+                // the Pull tool is chosen (P): the sketch is left
+                self.key_pressed(Key::P, egui::Modifiers::NONE, rect);
+                st.wait_frames = 40;
+            }
+            56 => {
+                self.view_anim = None;
+                let sketch_at = Vec3::new(5050.0, 3050.0, 50.0);
+                let from_sketch = (self.camera.target - sketch_at).length();
+                println!(
+                    "selftest: after leaving the sketch the view looks at {:?}, {from_sketch:.0} mm from the sketch, {:.0} mm from the origin",
+                    self.camera.target,
+                    self.camera.target.length()
+                );
+                check(
+                    &mut st,
+                    "after the circle on a face far from the origin and Pull, the centre of the view stays at the sketch",
+                    from_sketch < 200.0 && self.sk.is_none() && self.tool == Tool::Pull,
+                );
+            }
+            57 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
