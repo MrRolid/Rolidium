@@ -179,7 +179,7 @@ Useful options of the application: `rolidium file.rolidium` opens a document, `r
 ## The network
 
 Rolidium works without the network. Two optional functions connect to `rolidium.com`: a question once a day whether a newer version exists (only after you said yes; it sends the version, the system name and main
-number and the architecture, nothing else) and the sending of a report of a bug or an idea (only when you press Send in the panel at the bottom of the right column; the diagnostics are attached by default and you can see every file first; an idea can go without them). `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench` and `--diagnose` never use
+number and the architecture, nothing else) and the sending of a report of a bug or an idea (only when you press Send in the panel at the bottom of the right column; the diagnostics and a picture of the program's own window are attached by default to a bug and not to an idea, and you can see and switch off every file first; the picture shows what is visible in the window, including the model). `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench` and `--diagnose` never use
 the network, and `ROLIDIUM_OFFLINE=1` switches all of it off. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Keyboard shortcuts

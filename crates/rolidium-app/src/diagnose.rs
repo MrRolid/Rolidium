@@ -338,10 +338,103 @@ pub fn report(selected: Option<&str>, backend_setting: &str, outcomes: &[Backend
             t.push('\n');
         }
     }
-    if !any {
+    if outcomes.is_empty() {
+        t.push_str("(not examined: the Graphics test is off)\n");
+    } else if !any {
         t.push_str("(none found)\n");
     }
     sanitize(&t)
+}
+
+/// The files of the graphics test: `scenes.txt` and the pictures `scene-*.png` (the test scene is built into the program: a grid, axes, a sketch
+/// region and a body, drawn off screen by every adapter; it is not the screen and not the model of the person).
+pub fn graphics_files(outcomes: &[BackendOutcome]) -> Vec<(String, Vec<u8>)> {
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut scenes = String::from(
+        "Test scene (grid, axes, sketch region, body) drawn off screen by each adapter. Each backend ran in a process of its own with a time limit:\n\n",
+    );
+    for o in outcomes {
+        scenes.push_str(&format!(
+            "##### backend {}: {}\n\n",
+            o.backend,
+            o.describe_ending()
+        ));
+        for run in &o.adapters {
+            scenes.push_str(&format!("== {} ==\n{}\n", run.label, sanitize(&run.description)));
+            match &run.result {
+                Ok(check) => {
+                    scenes.push_str(&format!("result: {check}\n"));
+                    if let Some(png) = &run.png {
+                        files.push((format!("scene-{}.png", run.label), png.clone()));
+                    }
+                }
+                Err(e) => scenes.push_str(&format!("result: FAILED: {}\n", sanitize(e))),
+            }
+            for e in &run.errors {
+                scenes.push_str(&format!("graphics error: {}\n", sanitize(e)));
+            }
+            scenes.push('\n');
+        }
+    }
+    files.insert(0, ("scenes.txt".to_string(), scenes.into_bytes()));
+    files
+}
+
+/// The diagnostics without the graphics test, in memory: `summary.txt` (first), `report.txt`, `log.txt` and `settings.txt`.
+pub fn light_zip(
+    selected: Option<&str>,
+    backend_setting: &str,
+    settings_text: &str,
+    summary: &str,
+) -> Result<Vec<u8>, String> {
+    zip_of(&[
+        ("summary.txt", sanitize(summary).as_bytes()),
+        ("report.txt", report(selected, backend_setting, &[]).as_bytes()),
+        ("log.txt", sanitize(&crate::logging::read_log()).as_bytes()),
+        ("settings.txt", sanitize(settings_text).as_bytes()),
+    ])
+}
+
+/// A picture made smaller (box filter, RGBA) so that its longer side is at most `max_side`; the same picture when it is small enough.
+pub fn shrink_rgba(rgba: &[u8], w: u32, h: u32, max_side: u32) -> (Vec<u8>, u32, u32) {
+    let longest = w.max(h);
+    if longest <= max_side || w == 0 || h == 0 || rgba.len() < (w * h * 4) as usize {
+        return (rgba.to_vec(), w, h);
+    }
+    let f = max_side as f64 / longest as f64;
+    let (nw, nh) = (
+        ((w as f64 * f).round() as u32).max(1),
+        ((h as f64 * f).round() as u32).max(1),
+    );
+    let mut out = vec![0u8; (nw * nh * 4) as usize];
+    for y in 0..nh {
+        let (y0, y1) = (
+            (y as u64 * h as u64 / nh as u64) as u32,
+            (((y + 1) as u64 * h as u64 / nh as u64) as u32).max(1),
+        );
+        for x in 0..nw {
+            let (x0, x1) = (
+                (x as u64 * w as u64 / nw as u64) as u32,
+                (((x + 1) as u64 * w as u64 / nw as u64) as u32).max(1),
+            );
+            let mut acc = [0u32; 4];
+            let mut n = 0u32;
+            for yy in y0..y1.max(y0 + 1).min(h) {
+                for xx in x0..x1.max(x0 + 1).min(w) {
+                    let i = ((yy * w + xx) * 4) as usize;
+                    for c in 0..4 {
+                        acc[c] += rgba[i + c] as u32;
+                    }
+                    n += 1;
+                }
+            }
+            let o = ((y * nw + x) * 4) as usize;
+            for c in 0..4 {
+                out[o + c] = (acc[c] / n.max(1)) as u8;
+            }
+        }
+    }
+    (out, nw, nh)
 }
 
 /// Writes the diagnostics zip to `path`. Every backend is examined by a child process (see above).
@@ -385,32 +478,9 @@ pub fn write_zip_with(
     )?;
     add("log.txt", sanitize(&crate::logging::read_log()).as_bytes())?;
     add("settings.txt", sanitize(settings_text).as_bytes())?;
-    let mut scenes =
-        String::from("Test scene (grid, axes, sketch region, body) drawn off screen by each adapter. Each backend ran in a process of its own with a time limit:\n\n");
-    for o in outcomes {
-        scenes.push_str(&format!(
-            "##### backend {}: {}\n\n",
-            o.backend,
-            o.describe_ending()
-        ));
-        for run in &o.adapters {
-            scenes.push_str(&format!("== {} ==\n{}\n", run.label, sanitize(&run.description)));
-            match &run.result {
-                Ok(check) => {
-                    scenes.push_str(&format!("result: {check}\n"));
-                    if let Some(png) = &run.png {
-                        add(&format!("scene-{}.png", run.label), png)?;
-                    }
-                }
-                Err(e) => scenes.push_str(&format!("result: FAILED: {}\n", sanitize(e))),
-            }
-            for e in &run.errors {
-                scenes.push_str(&format!("graphics error: {}\n", sanitize(e)));
-            }
-            scenes.push('\n');
-        }
+    for (name, bytes) in graphics_files(outcomes) {
+        add(&name, &bytes)?;
     }
-    add("scenes.txt", scenes.as_bytes())?;
     zip.finish().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -682,44 +752,6 @@ pub fn with_file(bytes: &[u8], name: &str, data: &[u8]) -> Result<Vec<u8>, Strin
     }
     out.start_file(name, opts).map_err(|e| e.to_string())?;
     out.write_all(data).map_err(|e| e.to_string())?;
-    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
-}
-
-/// The same zip without the named files (the ones the person switched off). `summary.txt` is never left out.
-pub fn without_files(bytes: &[u8], skip: &[String]) -> Result<Vec<u8>, String> {
-    let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    for i in 0..src.len() {
-        let mut f = src.by_index(i).map_err(|e| e.to_string())?;
-        let name = f.name().map(|n| n.to_string()).map_err(|e| e.to_string())?;
-        if name != "summary.txt" && skip.contains(&name) {
-            continue;
-        }
-        let mut data = Vec::new();
-        std::io::Read::read_to_end(&mut f, &mut data).map_err(|e| e.to_string())?;
-        out.start_file(name, opts).map_err(|e| e.to_string())?;
-        out.write_all(&data).map_err(|e| e.to_string())?;
-    }
-    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
-}
-
-/// The same zip without the test pictures (`scene-*.png`): when it is too large to be sent.
-pub fn without_pictures(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    for i in 0..src.len() {
-        let mut f = src.by_index(i).map_err(|e| e.to_string())?;
-        let name = f.name().map(|n| n.to_string()).map_err(|e| e.to_string())?;
-        if name.ends_with(".png") {
-            continue;
-        }
-        let mut data = Vec::new();
-        std::io::Read::read_to_end(&mut f, &mut data).map_err(|e| e.to_string())?;
-        out.start_file(name, opts).map_err(|e| e.to_string())?;
-        out.write_all(&data).map_err(|e| e.to_string())?;
-    }
     Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
 }
 

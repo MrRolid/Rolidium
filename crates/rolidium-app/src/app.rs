@@ -4184,6 +4184,7 @@ impl eframe::App for App {
         self.updates_tick(&ctx);
         self.updates_ui(&ctx);
         self.feedback_preview(&ctx);
+        self.feedback_big(&ctx);
         self.guide_window(&ctx);
         self.rename_window(&ctx);
         self.dialogs(&ctx);

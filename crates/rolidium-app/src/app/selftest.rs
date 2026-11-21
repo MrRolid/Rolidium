@@ -1182,12 +1182,14 @@ impl App {
                 shot(&mut st, ctx, &name);
             }
             59 => {
-                // the picture of the folded panel is taken; now it is opened and filled
-                self.feedback.expanded = true;
+                // the picture of the folded panel is taken; now the person clicks the row: the picture of the window is taken first, then the
+                // panel opens
+                self.feedback.shot = None;
                 self.feedback.kind = rolidium_net::Kind::Bug;
                 self.feedback.text = "The hole in the plate looks square.".into();
                 self.feedback.contact = "me@example.org".into();
-                st.wait_frames = 10;
+                self.click_report_row();
+                st.wait_frames = 14;
             }
             60 => {
                 let screen = ctx.content_rect();
@@ -1210,6 +1212,31 @@ impl App {
                     &format!("the open report panel takes at most about 40 % of the column and stays above the status bar ({name})"),
                     r.height() > 60.0 && r.height() <= col * 0.4 + 1.0 && r.max.y <= self.status_top + 0.5,
                 );
+                // the click took a picture of the window before the panel opened
+                let ppp = ctx.pixels_per_point();
+                let want = [(screen.width() * ppp) as u32, (screen.height() * ppp) as u32];
+                let (got, colors, folded) = match &self.feedback.shot {
+                    Some(sh) => {
+                        let mut seen = std::collections::HashSet::new();
+                        for px in sh.rgba.as_chunks::<4>().0.iter().step_by(7) {
+                            if seen.len() < 64 {
+                                seen.insert([px[0], px[1], px[2]]);
+                            }
+                        }
+                        ([sh.w, sh.h], seen.len(), self.feedback.shot_panel_h)
+                    }
+                    None => ([0, 0], 0, 999.0),
+                };
+                check(
+                    &mut st,
+                    &format!("the click on the folded row took a picture of the window: its size is the size of the window ({}x{}), it is not one colour, and the panel was still folded in it", want[0], want[1]),
+                    got == want && colors >= 20 && folded < 40.0 && self.feedback.expanded,
+                );
+                if st.layout_i == 0 {
+                    if let Some(sh) = &self.feedback.shot {
+                        let _ = std::fs::write(st.dir.join("window-picture.png"), &sh.png);
+                    }
+                }
                 // no empty gap between the fields and the buttons: the panel is as high as its content (a bug text of 4 rows, the fields, the buttons)
                 check(
                     &mut st,
@@ -1249,6 +1276,7 @@ impl App {
                     self.feedback.kind = rolidium_net::Kind::Idea;
                     self.feedback.text = "A ruler tool, please.".into();
                     self.feedback.attach = false;
+                    self.feedback.attach_shot = false;
                     self.press_save(ctx);
                     st.wait_frames = 4;
                 }
@@ -1283,26 +1311,29 @@ impl App {
                 self.feedback.expanded = false;
                 self.feedback.text.clear();
                 self.feedback.attach = true;
+                self.feedback.attach_shot = true;
                 self.feedback.save_dir = None;
                 self.feedback.saved = None;
             }
             64 => {
-                // "What is sent": every file has a check box; a file switched off is left out of the zip, summary.txt stays
+                // "What is sent": the picture of the window first, then every file with a check box
                 let z = crate::diagnose::zip_of(&[
                     ("summary.txt", b"Rolidium 0.2.0\nGraphics: test\n"),
                     ("report.txt", b"report"),
                     ("log.txt", b"log"),
                     ("settings.txt", b"settings"),
-                    ("scenes.txt", b"scenes"),
-                    ("scene-vulkan-0.png", b"\x89PNG"),
                 ])
                 .unwrap_or_default();
-                self.feedback.set_prepared_for_test(z);
-                self.settings.report_skip = vec![
-                    "log.txt".into(),
-                    "scene-vulkan-0.png".into(),
-                    "summary.txt".into(),
-                ];
+                self.feedback.set_light(z);
+                self.feedback.set_graphics_for_test(vec![
+                    ("scenes.txt".into(), b"scenes".to_vec()),
+                    ("scene-vulkan-0.png".into(), b"\x89PNG".to_vec()),
+                ]);
+                self.feedback.kind = rolidium_net::Kind::Bug;
+                self.feedback.attach = true;
+                self.feedback.attach_shot = true;
+                self.feedback.graphics_test = false;
+                self.settings.report_skip = vec!["log.txt".into(), "summary.txt".into()];
                 self.feedback.preview_open = true;
                 st.wait_frames = 6;
             }
@@ -1310,22 +1341,130 @@ impl App {
                 shot(&mut st, ctx, "feedback-what-is-sent");
             }
             66 => {
-                let names: Vec<String> = self
-                    .outgoing_zip()
-                    .and_then(|b| feedback::list_zip(&b).ok())
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|f| f.0)
-                    .collect();
+                let names = |app: &App| -> Vec<String> {
+                    app.outgoing_zip()
+                        .ok()
+                        .flatten()
+                        .and_then(|b| feedback::list_zip(&b).ok())
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|f| f.0)
+                        .collect()
+                };
                 check(
                     &mut st,
-                    "files switched off in What is sent are not in the zip; summary.txt always is",
-                    names == ["summary.txt", "report.txt", "settings.txt", "scenes.txt"],
+                    "the zip has summary.txt, the picture of the window and the files that are switched on; log.txt (switched off) and the graphics test (off) are not in it",
+                    names(self) == ["summary.txt", "window.png", "report.txt", "settings.txt"],
+                );
+                self.feedback.attach_shot = false;
+                check(
+                    &mut st,
+                    "a picture of the window that is switched off is not in the zip",
+                    names(self) == ["summary.txt", "report.txt", "settings.txt"],
+                );
+                self.feedback.attach_shot = true;
+                self.feedback.attach = false;
+                check(
+                    &mut st,
+                    "with the diagnostics off and the picture on, the zip has only window.png",
+                    names(self) == ["window.png"],
+                );
+                self.feedback.attach = true;
+                self.feedback.graphics_test = true;
+                check(
+                    &mut st,
+                    "the graphics test is in the zip when it is switched on",
+                    names(self).contains(&"scenes.txt".to_string())
+                        && names(self).contains(&"scene-vulkan-0.png".to_string()),
+                );
+                self.feedback.graphics_test = false;
+                // a picture that does not compress: the whole zip must still be at most 2 MB, with summary.txt and a smaller window.png
+                let (w, h) = (1600u32, 1000u32);
+                let mut x = 0x9E37_79B9u32;
+                let noise: Vec<u8> = (0..w * h * 4)
+                    .map(|_| {
+                        x ^= x << 13;
+                        x ^= x >> 17;
+                        x ^= x << 5;
+                        x as u8
+                    })
+                    .collect();
+                let real = self.feedback.shot.take();
+                self.feedback.shot = feedback::WindowShot::from_rgba(noise, w, h).ok();
+                let big_png = self.feedback.shot.as_ref().map_or(0, |s| s.png.len());
+                let z = self.outgoing_zip().ok().flatten();
+                let list = z
+                    .as_deref()
+                    .and_then(|b| feedback::list_zip(b).ok())
+                    .unwrap_or_default();
+                println!(
+                    "selftest: a window picture of {} kB gave a zip of {} kB",
+                    big_png / 1024,
+                    z.as_ref().map_or(0, |b| b.len()) / 1024
+                );
+                check(
+                    &mut st,
+                    "a window picture that is too large is made smaller: the zip is at most 2 MB and keeps summary.txt and window.png",
+                    big_png > rolidium_net::MAX_ZIP
+                        && z.as_ref().is_some_and(|b| b.len() <= rolidium_net::MAX_ZIP)
+                        && list.iter().any(|f| f.0 == "summary.txt")
+                        && list.iter().any(|f| f.0 == "window.png"),
+                );
+                self.feedback.shot = real;
+                // the defaults of the kinds
+                let mut f = feedback::Feedback::default();
+                let bug = (f.attach, f.attach_shot);
+                f.set_kind(rolidium_net::Kind::Idea);
+                check(
+                    &mut st,
+                    "the diagnostics and the window picture are on for a bug and off for an idea",
+                    bug == (true, true) && !f.attach && !f.attach_shot,
+                );
+                check(
+                    &mut st,
+                    "the graphics test is off by default and on after a crash, with a blocked interface or with software drawing",
+                    !feedback::graphics_test_on(false, false, false)
+                        && feedback::graphics_test_on(true, false, false)
+                        && feedback::graphics_test_on(false, true, false)
+                        && feedback::graphics_test_on(false, false, true)
+                        && !feedback::Feedback::default().graphics_test,
+                );
+                let mut c = feedback::Feedback::default();
+                c.shot = None;
+                c.open_after_crash();
+                check(
+                    &mut st,
+                    "after a crash there is no window picture and the graphics test is on",
+                    c.shot.is_none() && !c.shot_on() && c.graphics_test,
                 );
                 self.feedback.preview_open = false;
                 self.settings.report_skip.clear();
+                // "Take again": the panel is hidden for the picture
+                self.feedback.expanded = true;
+                self.retake_shot();
+                st.wait_frames = 1;
             }
             67 => {
+                check(
+                    &mut st,
+                    "while the picture is retaken the open panel is hidden",
+                    self.shot_hides_panel() || matches!(self.feedback.shot_state, feedback::ShotState::Idle),
+                );
+                st.wait_frames = 12;
+            }
+            68 => {
+                let old = self.feedback.shot.as_ref().map(|s| s.png.len());
+                check(
+                    &mut st,
+                    "Take again: the new picture is there and the panel was hidden in it",
+                    matches!(self.feedback.shot_state, feedback::ShotState::Idle)
+                        && old.is_some()
+                        && self.feedback.shot_panel_h < 40.0
+                        && self.feedback.expanded,
+                );
+                self.feedback.expanded = false;
+            }
+            69 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
