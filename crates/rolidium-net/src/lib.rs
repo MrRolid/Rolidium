@@ -122,13 +122,43 @@ pub fn osv_from_windows_ver(text: &str) -> String {
     }
 }
 
+/// The version of Windows from the system (no other program is started).
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn windows_version() -> Option<(u32, u32, u32)> {
+    #[repr(C)]
+    struct OsVersionInfo {
+        size: u32,
+        major: u32,
+        minor: u32,
+        build: u32,
+        platform: u32,
+        csd: [u16; 128],
+    }
+    #[link(name = "ntdll")]
+    extern "system" {
+        fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
+    }
+    let mut i = OsVersionInfo {
+        size: std::mem::size_of::<OsVersionInfo>() as u32,
+        major: 0,
+        minor: 0,
+        build: 0,
+        platform: 0,
+        csd: [0; 128],
+    };
+    // SAFETY: `i` is a valid structure with its size set.
+    let status = unsafe { RtlGetVersion(&mut i) };
+    (status >= 0 && i.major > 0).then_some((i.major, i.minor, i.build))
+}
+
 fn system_name_and_main_number() -> String {
     #[cfg(windows)]
     {
-        let out = std::process::Command::new("cmd").args(["/C", "ver"]).output();
-        return out
-            .map(|o| osv_from_windows_ver(&String::from_utf8_lossy(&o.stdout)))
-            .unwrap_or_else(|_| "windows".into());
+        windows_version().map_or_else(
+            || "windows".into(),
+            |(major, minor, build)| osv_from_windows_ver(&format!("Version {major}.{minor}.{build}")),
+        )
     }
     #[cfg(not(windows))]
     {

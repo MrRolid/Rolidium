@@ -83,12 +83,14 @@ pub fn sanitize_with(text: &str, personal: &[(String, &'static str)]) -> String 
 pub fn system_version() -> String {
     #[cfg(windows)]
     {
-        let ver = std::process::Command::new("cmd")
-            .args(["/c", "ver"])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default();
-        format!("Windows ({ver}), {}", std::env::consts::ARCH)
+        let ver = crate::winsys::version().map_or_else(
+            || "version not reported".to_string(),
+            |(major, minor, build)| {
+                let name = if major == 10 && build >= 22000 { 11 } else { major };
+                format!("Windows {name}, version {major}.{minor}.{build}")
+            },
+        );
+        format!("{ver}, {}", std::env::consts::ARCH)
     }
     #[cfg(not(windows))]
     {
@@ -496,26 +498,11 @@ pub fn machine() -> Machine {
     let logical = std::thread::available_parallelism().map_or(1, |n| n.get());
     #[cfg(windows)]
     {
-        let ps = |cmd: &str| {
-            std::process::Command::new("powershell")
-                .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_default()
-        };
-        let out = ps("$c=Get-CimInstance Win32_Processor; $c[0].Name; ($c|Measure-Object NumberOfCores -Sum).Sum; (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory");
-        let mut l = out.lines();
-        let cpu_model = l.next().unwrap_or("").trim().to_string();
-        let physical = l.next().and_then(|v| v.trim().parse().ok());
-        let ram_mb = l
-            .next()
-            .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(|b| b / 1024 / 1024);
         Machine {
-            cpu_model,
-            physical,
+            cpu_model: crate::winsys::cpu_model().unwrap_or_default(),
+            physical: crate::winsys::physical_cores(),
             logical,
-            ram_mb,
+            ram_mb: crate::winsys::memory_mb(),
         }
     }
     #[cfg(not(windows))]
@@ -529,6 +516,7 @@ pub fn machine() -> Machine {
 }
 
 /// The same from the text of `/proc/cpuinfo` and `/proc/meminfo`.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn machine_from_linux(cpuinfo: &str, meminfo: &str, logical: usize) -> Machine {
     let model = cpuinfo
         .lines()

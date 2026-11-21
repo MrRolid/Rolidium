@@ -25,6 +25,8 @@ mod startup;
 mod support;
 mod viewport;
 mod winconsole;
+#[cfg(windows)]
+mod winsys;
 mod worker;
 
 /// Where bug reports and ideas go.
