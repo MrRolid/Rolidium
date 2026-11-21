@@ -24,6 +24,19 @@ pub fn chosen_backend(args: &[String], setting: &str) -> BackendChoice {
     })
 }
 
+/// Who fixed the interface (so that it was not chosen automatically): the command line, the environment or the setting.
+pub fn forced_by(args: &[String], setting: &str) -> Option<String> {
+    if args.iter().any(|a| a == "--backend") {
+        Some("command line".into())
+    } else if std::env::var("ROLIDIUM_BACKEND").is_ok_and(|v| v != "auto") {
+        Some("environment variable ROLIDIUM_BACKEND".into())
+    } else if setting != "auto" {
+        Some("setting".into())
+    } else {
+        None
+    }
+}
+
 /// Whether the user named a backend on the command line or in the environment (`--backend auto` then means "forget the skips").
 pub fn backend_given(args: &[String]) -> bool {
     args.iter().any(|a| a == "--backend") || std::env::var("ROLIDIUM_BACKEND").is_ok()

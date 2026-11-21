@@ -99,6 +99,14 @@ fn the_network_code_against_a_local_server() {
         format!("GET /api/version.json?{} HTTP/1.1", version_query("0.2.0", &info))
     );
     assert!(first.contains("v=0.2.0&os=") && first.contains("&osv=") && first.contains("&arch="));
+    // the question has exactly the four fields v, os, osv and arch: nothing about the graphics, the processor, the memory, the language or the report
+    let query = first
+        .split_once('?')
+        .and_then(|(_, q)| q.strip_suffix(" HTTP/1.1"))
+        .unwrap();
+    let keys: Vec<&str> = query.split('&').map(|kv| kv.split('=').next().unwrap()).collect();
+    assert_eq!(keys, ["v", "os", "osv", "arch"], "{query}");
+    assert!(first.split_once('?').unwrap().0.ends_with("/api/version.json"));
     let lower = head.to_ascii_lowercase();
     assert!(lower.contains("user-agent: rolidium/0.2.0\r\n"), "{head}");
     // nothing that identifies the person: no cookie, no authorization, no referer
@@ -144,7 +152,7 @@ fn the_network_code_against_a_local_server() {
     std::env::set_var("ROLIDIUM_TEST_BASE", &closed);
     let t = Instant::now();
     assert!(fetch_latest("0.2.0").is_err());
-    assert!(send_diagnostics(b"PK", "note", "", "0.2.0").is_err());
+    assert!(send_report(Kind::Bug, Some(b"PK"), "note", "", "0.2.0").is_err());
     assert!(t.elapsed() < VERSION_TIMEOUT + Duration::from_secs(2));
     // a server that accepts and says nothing: the time limit ends it
     let silent = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -168,7 +176,14 @@ fn the_network_code_against_a_local_server() {
         reply(200, r#"{"nope":1}"#),
     ]);
     std::env::set_var("ROLIDIUM_TEST_BASE", &base);
-    let id = send_diagnostics(b"PK-zip-bytes", "it crashed", "me@example.org", "0.2.0").unwrap();
+    let id = send_report(
+        Kind::Bug,
+        Some(b"PK-zip-bytes"),
+        "it crashed",
+        "me@example.org",
+        "0.2.0",
+    )
+    .unwrap();
     assert_eq!(id, "R-77");
     let (head, body) = seen.recv().unwrap();
     assert!(head.starts_with("POST /api/diagnostics HTTP/1.1"), "{head}");
@@ -178,6 +193,7 @@ fn the_network_code_against_a_local_server() {
     let text = String::from_utf8_lossy(&body).to_string();
     for part in [
         "name=\"note\"\r\n\r\nit crashed",
+        "name=\"kind\"\r\n\r\nbug",
         "name=\"contact\"\r\n\r\nme@example.org",
         "name=\"v\"\r\n\r\n0.2.0",
         "name=\"os\"",
@@ -187,21 +203,36 @@ fn the_network_code_against_a_local_server() {
         assert!(text.contains(part), "{part} missing in {text}");
     }
     assert!(
-        send_diagnostics(b"PK", "n", "", "0.2.0").is_err(),
+        send_report(Kind::Bug, Some(b"PK"), "n", "", "0.2.0").is_err(),
         "a server error"
     );
     assert!(
-        send_diagnostics(b"PK", "n", "", "0.2.0").is_err(),
+        send_report(Kind::Bug, Some(b"PK"), "n", "", "0.2.0").is_err(),
         "a reply without an id"
     );
     // limits: the zip, and the note is cut
-    assert!(send_diagnostics(&vec![0u8; MAX_ZIP + 1], "n", "", "0.2.0").is_err());
+    assert!(send_report(Kind::Bug, Some(&vec![0u8; MAX_ZIP + 1]), "n", "", "0.2.0").is_err());
     let (base, seen) = serve(vec![reply(200, r#"{"id":"1"}"#)]);
     std::env::set_var("ROLIDIUM_TEST_BASE", &base);
-    send_diagnostics(b"Z", &"€".repeat(5000), "", "0.2.0").unwrap();
+    send_report(Kind::Bug, Some(b"Z"), &"€".repeat(5000), "", "0.2.0").unwrap();
     let (_, body) = seen.recv().unwrap();
     let t = String::from_utf8_lossy(&body).to_string();
     assert_eq!(t.matches('€').count(), MAX_NOTE_CHARS);
+
+    // ---- an idea without diagnostics: no file part, the kind is `idea`; nothing at all is refused
+    let (base, seen) = serve(vec![reply(200, r#"{"id":"I-5"}"#)]);
+    std::env::set_var("ROLIDIUM_TEST_BASE", &base);
+    assert_eq!(
+        send_report(Kind::Idea, None, "a nicer ruler", "", "0.2.0").unwrap(),
+        "I-5"
+    );
+    let (_, body) = seen.recv().unwrap();
+    let t = String::from_utf8_lossy(&body).to_string();
+    assert!(t.contains("name=\"kind\"\r\n\r\nidea"), "{t}");
+    assert!(t.contains("name=\"note\"\r\n\r\na nicer ruler"), "{t}");
+    assert!(!t.contains("name=\"file\""), "{t}");
+    assert!(!t.contains("name=\"contact\""), "{t}");
+    assert!(send_report(Kind::Idea, None, "  ", "", "0.2.0").is_err());
 
     // ---- ROLIDIUM_OFFLINE switches everything off, before any connection
     let (base, seen) = serve(vec![reply(200, r#"{"latest":"0.3.0"}"#)]);
@@ -209,7 +240,7 @@ fn the_network_code_against_a_local_server() {
     std::env::set_var("ROLIDIUM_OFFLINE", "1");
     assert!(offline());
     assert!(fetch_latest("0.2.0").is_err());
-    assert!(send_diagnostics(b"Z", "n", "", "0.2.0").is_err());
+    assert!(send_report(Kind::Bug, Some(b"Z"), "n", "", "0.2.0").is_err());
     assert!(
         seen.recv_timeout(Duration::from_millis(300)).is_err(),
         "a connection was made while offline"

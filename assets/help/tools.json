@@ -388,6 +388,18 @@
     "animation": null
   },
   {
+    "id": "feedback",
+    "title": "Report a bug or an idea",
+    "shortcut": "",
+    "text": "The folded row at the bottom of the right column opens a panel. Choose Bug or Idea, write what happened or what you would like (up to 1000 characters) and, if you wish, leave an e-mail for a reply. The diagnostics are attached by default; Show what is sent lists every file. Nothing is sent before you press Send. If the server does not answer, your text stays and you can save the report to a file.",
+    "tips": [
+      "An idea can be sent without the diagnostics: switch Attach diagnostics off.",
+      "The diagnostics hold no models, no names of models, no name of the computer and no user name."
+    ],
+    "illustration": "feedback.svg",
+    "animation": null
+  },
+  {
     "id": "measure",
     "title": "Measure",
     "shortcut": "E",

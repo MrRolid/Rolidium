@@ -1,7 +1,7 @@
 # Privacy: when Rolidium uses the network
 
 Rolidium works without the network. It has **two optional functions** that connect to `rolidium.com`, and nothing else does. Everything else (modelling, files, `rolidium cli`,
-`rolidium mcp`, the self test, the benchmark, saving diagnostics to a file) never touches the network. All addresses are in one place in the code, `crates/rolidium-net/src/lib.rs`: only `https`
+`rolidium mcp`, the self test, the benchmark, saving a report or diagnostics to a file) never touches the network. All addresses are in one place in the code, `crates/rolidium-net/src/lib.rs`: only `https`
 and only the domain `rolidium.com`, the certificate is always checked, a redirect is never followed, and every call has a time limit.
 
 ## 1. The question about a new version
@@ -26,22 +26,28 @@ address is never taken from the answer of the server. The program downloads and 
 
 *How to switch it off.* Answer **No** on the card, or switch it off in Settings. `ROLIDIUM_OFFLINE=1` in the environment switches off all network use of the program whatever the settings say.
 
-## 2. Sending diagnostics
+## 2. Reporting a bug or an idea (with diagnostics, if you wish)
 
-*When.* Only when you ask: the button **Send diagnostics to the publisher** in Settings, or the offer shown at the next start after the program did not end properly (you can say *Not now*). Never automatically.
+*When.* Only when you ask: the folded row **Report a bug or an idea** at the bottom of the right column opens a panel. Nothing is sent by itself. After a run that ended with a crash the panel opens by itself at the
+next start with a note that the program ended badly; it still waits for you to press Send.
 
-*What you see first.* The list of the files in the zip (each can be opened), a field for a note (up to 2000 characters) and an optional e-mail address for a reply. **Nothing is sent before you press Send.**
+*What you decide.* Bug or Idea, a text of up to 1000 characters, an optional e-mail address for a reply, and whether the diagnostics are attached (on by default; an idea can be sent without them). The link
+**Show what is sent** lists every file of the zip, and each can be opened. **Nothing is sent before you press Send.**
 
-*What is in the zip.* The log of the program, its settings (no folders, no file names, no recent files), data about the graphics adapters and the system, the version of the program and, when the size allows,
-small test pictures drawn by the graphics backends (a grid, axes and a box, not your model). **No models and no names of models.** The home folder is replaced by `~` and the names of model files
-(`.rolidium`, `.step`, `.stp`, `.stl`) by `<model file>`; your user name and the name of the computer are replaced too. The zip is at most 2 MB.
+*What is in the zip.* First a readable **summary** (`summary.txt`): the version and the commit of the program, the language; the graphics card (name, manufacturer, driver and its version), the interface used
+(DirectX 12, Vulkan or OpenGL), whether the picture is drawn by software, whether the interface was chosen automatically or forced, and which interfaces are blocked after a crash; the processor (model, physical and
+logical cores), the number of threads set and in use, the memory, the name and version of the system, the architecture, the size of the window and the scale. Then the log of the program, its settings (no folders, no
+file names, no recent files), details of all graphics adapters and, when the size allows, small test pictures drawn by the graphics backends (a grid, axes and a box, not your model). **No models and no names of
+models, no name of the computer, no user name, no serial numbers, no network addresses.** The home folder is replaced by `~` and the names of model files (`.rolidium`, `.step`, `.stp`, `.stl`) by `<model file>`.
+The zip is at most 2 MB.
 
-*How it is sent.* A `POST` (multipart) to `https://rolidium.com/api/diagnostics` with the fields `file` (the zip), `note`, `contact` (only if you typed one), `v` (version) and `os`. The answer carries a report number, which
-is shown to you so that you can mention it in the forum.
+*How it is sent.* A `POST` (multipart) to `https://rolidium.com/api/diagnostics` with the fields `note` (your text), `kind` (`bug` or `idea`), `contact` (only if you typed one), `file` (the zip, only if attached),
+`v` (version) and `os`. The answer carries a report number, which is shown to you.
 
-*If the server does not answer or refuses* (the server may not exist yet), the window says so and offers to save the zip to a file and to send it by e-mail to connect@rolid.com.
+*If the server does not answer or refuses* (the server may not exist yet), your text stays in the panel, and it offers to save the report to a file (a zip; your text is in it as the file `message.txt`) and to send it
+by e-mail to connect@rolid.com. With `ROLIDIUM_OFFLINE=1` the panel offers only saving to a file.
 
-You can also save the same zip to a file at any time (*About* or *Settings*, **Save diagnostics**) and send it yourself.
+You can also save the diagnostics alone to a file at any time (*About* or *Settings*, **Save diagnostics**, or `rolidium --diagnose`) and send them yourself.
 
 ## Links
 

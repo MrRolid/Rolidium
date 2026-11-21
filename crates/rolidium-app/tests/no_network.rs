@@ -44,7 +44,7 @@ fn only_two_places_of_the_window_call_the_network() {
     for f in files {
         let text = std::fs::read_to_string(&f).unwrap();
         let text = text.split("#[cfg(test)]").next().unwrap_or(&text).to_string();
-        if text.contains("fetch_latest(") || text.contains("send_diagnostics(") {
+        if text.contains("fetch_latest(") || text.contains("send_report(") {
             callers.push(f.file_name().unwrap().to_string_lossy().into_owned());
         }
     }
@@ -57,5 +57,5 @@ fn only_two_places_of_the_window_call_the_network() {
     assert!(guard < call, "the question must come after the check");
     // and the main program calls it only from the window, never from --diagnose, --selftest or --bench
     let main = std::fs::read_to_string(root().join("crates/rolidium-app/src/main.rs")).unwrap();
-    assert!(!main.contains("fetch_latest") && !main.contains("send_diagnostics"));
+    assert!(!main.contains("fetch_latest") && !main.contains("send_report"));
 }

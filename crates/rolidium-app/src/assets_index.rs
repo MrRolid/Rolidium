@@ -60,6 +60,7 @@ pub static ICONS: &[(&str, &str)] = &[
 ];
 
 pub static HELP_ART: &[(&str, &str)] = &[
+    ("feedback", include_str!("../../../assets/help/feedback.svg")),
     ("select", include_str!("../../../assets/help/select.svg")),
     ("pull", include_str!("../../../assets/help/pull.svg")),
     ("finish", include_str!("../../../assets/help/finish.svg")),

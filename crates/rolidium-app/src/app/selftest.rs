@@ -1149,8 +1149,125 @@ impl App {
                     "after the circle on a face far from the origin and Pull, the centre of the view stays at the sketch",
                     from_sketch < 200.0 && self.sk.is_none() && self.tool == Tool::Pull,
                 );
+                st.layout_i = 0;
             }
             57 => {
+                // the report panel at the bottom of the right column, in two window sizes, folded and open
+                const SIZES: [(f32, f32); 2] = [(1280.0, 720.0), (1280.0, 600.0)];
+                let (w, h) = SIZES[st.layout_i.min(1)];
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(w, h)));
+                self.feedback.expanded = false;
+                self.feedback.save_dir = Some(st.dir.clone());
+                st.wait_frames = 12;
+            }
+            58 => {
+                let screen = ctx.content_rect();
+                let name = format!(
+                    "feedback-{}x{}-folded",
+                    screen.width() as i32,
+                    screen.height() as i32
+                );
+                let r = self.feedback.rect;
+                println!(
+                    "selftest: report panel folded in {}x{}: {:.0} points high",
+                    screen.width(),
+                    screen.height(),
+                    r.height()
+                );
+                check(
+                    &mut st,
+                    &format!("the folded report panel takes one row and is above the status bar ({name})"),
+                    r.height() > 5.0 && r.height() < 40.0 && r.max.y <= self.status_top + 0.5,
+                );
+                shot(&mut st, ctx, &name);
+                self.feedback.expanded = true;
+                self.feedback.kind = rolidium_net::Kind::Bug;
+                self.feedback.text = "The hole in the plate looks square.".into();
+                self.feedback.contact = "me@example.org".into();
+                st.wait_frames = 10;
+            }
+            59 => {
+                let screen = ctx.content_rect();
+                let name = format!(
+                    "feedback-{}x{}-open",
+                    screen.width() as i32,
+                    screen.height() as i32
+                );
+                let (r, col) = (self.feedback.rect, self.feedback.column_h);
+                println!(
+                    "selftest: report panel open in {}x{}: {:.0} of {:.0} points ({:.0} %)",
+                    screen.width(),
+                    screen.height(),
+                    r.height(),
+                    col,
+                    100.0 * r.height() / col.max(1.0)
+                );
+                check(
+                    &mut st,
+                    &format!("the open report panel takes at most about 40 % of the column and stays above the status bar ({name})"),
+                    r.height() > 60.0 && r.height() <= col * 0.4 + 1.0 && r.max.y <= self.status_top + 0.5,
+                );
+                shot(&mut st, ctx, &name);
+            }
+            60 => {
+                // the text survives a change of the tool and folding the panel
+                self.tool = Tool::Pull;
+                self.feedback.expanded = false;
+                st.wait_frames = 3;
+            }
+            61 => {
+                self.feedback.expanded = true;
+                check(
+                    &mut st,
+                    "the text of the report survives a change of the tool and folding the panel",
+                    self.feedback.text == "The hole in the plate looks square.",
+                );
+                if st.layout_i == 0 {
+                    st.layout_i = 1;
+                    st.step = 56; // the increment leads to the size change of step 57
+                } else {
+                    // write a text and save it to a file (without the diagnostics, which would start the graphics tests)
+                    self.feedback.kind = rolidium_net::Kind::Idea;
+                    self.feedback.text = "A ruler tool, please.".into();
+                    self.feedback.attach = false;
+                    self.press_save(ctx);
+                    st.wait_frames = 4;
+                }
+            }
+            62 => {
+                let path = self.feedback.saved.clone().unwrap_or_default();
+                let names = std::fs::read(&path)
+                    .ok()
+                    .and_then(|b| feedback::list_zip(&b).ok())
+                    .unwrap_or_default();
+                let msg = std::fs::File::open(&path)
+                    .ok()
+                    .and_then(|f| zip::ZipArchive::new(f).ok())
+                    .and_then(|mut z| {
+                        let mut f = z.by_name("message.txt").ok()?;
+                        let mut t = String::new();
+                        std::io::Read::read_to_string(&mut f, &mut t).ok()?;
+                        Some(t)
+                    })
+                    .unwrap_or_default();
+                check(
+                    &mut st,
+                    "the report is saved to a file with the text as a file of its own",
+                    names.len() == 1 && msg.contains("A ruler tool, please.") && msg.contains("idea"),
+                );
+                check(
+                    &mut st,
+                    "the text stays in the panel after saving",
+                    self.feedback.text == "A ruler tool, please." && self.feedback.expanded,
+                );
+                let _ = std::fs::remove_file(&path);
+                self.feedback.expanded = false;
+                self.feedback.text.clear();
+                self.feedback.attach = true;
+                self.feedback.save_dir = None;
+                self.feedback.saved = None;
+            }
+            63 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

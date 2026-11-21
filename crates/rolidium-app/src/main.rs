@@ -174,6 +174,22 @@ fn main() -> eframe::Result {
             None,
             backend.name(),
             &settings::Settings::load().diagnostic_text(),
+            &diagnose::summary_text(
+                &diagnose::SummaryInput {
+                    backend_setting: settings.backend.clone(),
+                    forced_by: graphics::forced_by(&args, &settings.backend),
+                    blocked: settings
+                        .backend_blocked
+                        .iter()
+                        .map(|b| b.backend.clone())
+                        .collect(),
+                    threads_setting: settings.threads,
+                    threads_used: rolidium_kernel::par::resolve(settings.threads as usize),
+                    language: settings.language.clone(),
+                    ..Default::default()
+                },
+                &diagnose::machine(),
+            ),
         ) {
             Ok(()) => {
                 println!("diagnostics written to {}", path.display());

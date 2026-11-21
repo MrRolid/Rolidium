@@ -56,7 +56,7 @@ Packages for Linux and Windows and their SHA-256 checksums are on the [releases 
 ## Reporting bugs and ideas
 
 Questions and help: the support forum at [rolidium.com/forum](https://rolidium.com/forum). Bugs and ideas: the forum or [GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For crashes and drawing
-problems, attach the zip from *About > Save diagnostics* (it contains no personal paths and no models), or send it from *Settings > Send diagnostics to the publisher* after you have seen what is sent; you get a report number to mention. Security problems: see [SECURITY.md](../SECURITY.md).
+problems, attach the zip from *About > Save diagnostics* (it contains no personal paths and no models), or use the panel *Report a bug or an idea* at the bottom of the right column after you have seen what is sent (an idea can go without diagnostics); you get a report number to mention. Security problems: see [SECURITY.md](../SECURITY.md).
 
 ## Licence
 

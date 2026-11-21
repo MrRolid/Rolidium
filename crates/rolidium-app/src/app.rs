@@ -250,8 +250,8 @@ pub struct App {
     tree_seen: Option<BodyId>,
     update: updates::UpdateState,
     feedback: feedback::Feedback,
-    /// The last run did not end properly: the offer to send diagnostics is shown.
-    crash_offer: bool,
+    /// The graphics adapter of the window (for the summary of the diagnostics).
+    gpu: crate::diagnose::GpuFacts,
     /// For the self test: the row of the body picked last: (body, marked in the list, drawn inside the visible part of the list) and how far the list is scrolled.
     tree_probe: (Option<BodyId>, bool, bool),
     tree_scroll_y: f32,
@@ -452,7 +452,7 @@ impl App {
             tree_seen: None,
             update: Default::default(),
             feedback: Default::default(),
-            crash_offer: false,
+            gpu: crate::diagnose::GpuFacts::from_info(&info),
             tree_probe: (None, false, false),
             tree_scroll_y: 0.0,
             export: ExportDialog::new(&settings),
@@ -543,8 +543,9 @@ impl App {
             && !BENCH_RUN.load(std::sync::atomic::Ordering::Relaxed)
             && !exit_after_first_frame
             && !bench_viewport
+            && crate::session::begin()
         {
-            app.crash_offer = crate::session::begin();
+            app.feedback.open_after_crash();
         }
         if bench_viewport {
             app.bench = Some(Bench::default());
@@ -2062,15 +2063,16 @@ impl App {
     fn start_save_diagnostics(&mut self, ctx: &egui::Context) {
         let job = std::sync::Arc::new(std::sync::Mutex::new(None));
         let slot = job.clone();
-        let (desc, backend, stext) = (
+        let (desc, backend, stext, summary) = (
             self.adapter_description.clone(),
             self.settings.backend.clone(),
             self.settings.diagnostic_text(),
+            self.summary_for(ctx),
         );
         let c = ctx.clone();
         std::thread::spawn(move || {
             let path = crate::diagnose::default_path();
-            let r = crate::diagnose::write_zip(&path, Some(&desc), &backend, &stext).map(|()| path);
+            let r = crate::diagnose::write_zip(&path, Some(&desc), &backend, &stext, &summary).map(|()| path);
             if let Ok(mut s) = slot.lock() {
                 *s = Some(r);
             }
@@ -3497,19 +3499,16 @@ impl App {
                         {
                             self.start_save_diagnostics(ctx);
                         }
-                        if ui
-                            .add_enabled(
-                                matches!(self.feedback, feedback::Feedback::Closed),
-                                egui::Button::new(tr("Send diagnostics to the publisher")),
-                            )
-                            .on_hover_text(tr(
-                                "You see what is sent first, and nothing is sent without your confirmation.",
-                            ))
-                            .clicked()
-                        {
-                            self.start_feedback(ctx);
-                        }
                     });
+                    if ui
+                        .link(tr("Report a bug or an idea…"))
+                        .on_hover_text(tr(
+                            "Opens the panel at the bottom of the right column. You see what is sent first, and nothing is sent without your confirmation.",
+                        ))
+                        .clicked()
+                    {
+                        self.feedback.expanded = true;
+                    }
                     if ui.link(tr("Privacy notice")).clicked() {
                         crate::diagnose::open_path(std::path::Path::new(rolidium_net::urls::PRIVACY));
                     }
@@ -3740,361 +3739,423 @@ impl eframe::App for App {
             .resizable(true)
             .default_size(240.0)
             .show(ui, |ui| {
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(tr("Document")).strong());
-                let mut tree_cmd: Option<(Command, &str)> = None;
-                egui::CollapsingHeader::new(tr("Bodies"))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let mut clicked = None;
-                        let bodies: Vec<rolidium_doc::Body> = self.doc.bodies().to_vec();
-                        // the bodies picked in the model are marked in the list, and the list scrolls to the last one picked
-                        let marked: std::collections::HashSet<BodyId> = self
-                            .selection
-                            .iter()
-                            .map(|s| s.0)
-                            .chain(self.body_sel)
-                            .chain(self.move_sel.iter().copied())
-                            .collect();
-                        let last_picked = self
-                            .body_sel
-                            .or_else(|| self.selection.last().map(|s| s.0))
-                            .or_else(|| self.move_sel.last().copied());
-                        let scroll_to = if last_picked != self.tree_seen {
-                            last_picked
-                        } else {
-                            None
-                        };
-                        self.tree_seen = last_picked;
-                        // the list scrolls by itself (hundreds of bodies), and follows the selection
-                        let list_h = (ui.ctx().content_rect().height() * 0.45).max(160.0);
-                        let scroll_out = egui::ScrollArea::vertical()
-                            .id_salt("body-list")
-                            .max_height(list_h)
-                            .auto_shrink([true, true])
+                // the report panel sits at the bottom (40 % of the column is its area, it uses what it needs), the rest of the column above it
+                let full = ui.available_rect_before_wrap();
+                // the folded row at the top of the panel is drawn above what is reserved (about 24 points), so the open panel is 40 % of the column
+                let area_h = (full.height() * 0.4 - 24.0).max(100.0).min(full.height());
+                let used_h = self.feedback.rect.height().clamp(20.0, area_h);
+                let fb_rect = Rect::from_min_max(Pos2::new(full.min.x, full.max.y - area_h), full.max);
+                let split = full.max.y - used_h - 6.0;
+                let top_rect = Rect::from_min_max(full.min, Pos2::new(full.max.x, split));
+                ui.painter().hline(
+                    full.x_range(),
+                    split + 2.0,
+                    ui.visuals().widgets.noninteractive.bg_stroke,
+                );
+                let before = self.feedback.rect.height();
+                ui.scope_builder(
+                    egui::UiBuilder::new()
+                        .max_rect(fb_rect)
+                        .layout(egui::Layout::bottom_up(egui::Align::Min)),
+                    |ui| self.feedback_panel(ui, full.height()),
+                );
+                if (self.feedback.rect.height() - before).abs() > 0.5 {
+                    ui.ctx().request_repaint();
+                }
+                ui.scope_builder(egui::UiBuilder::new().max_rect(top_rect), |ui| {
+                    {
+                        egui::ScrollArea::vertical()
+                            .id_salt("right-column")
+                            .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                for b in &bodies {
-                                    ui.horizontal(|ui| {
-                                        if icons::eye_button(ui, b.visible).clicked() {
-                                            tree_cmd = Some((
-                                                Command::SetVisible {
-                                                    target: ItemId::Body(b.id),
-                                                    visible: !b.visible,
-                                                },
-                                                if b.visible { "Hidden" } else { "Shown" },
+                                ui.add_space(4.0);
+                                ui.label(egui::RichText::new(tr("Document")).strong());
+                                let mut tree_cmd: Option<(Command, &str)> = None;
+                                egui::CollapsingHeader::new(tr("Bodies"))
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        let mut clicked = None;
+                                        let bodies: Vec<rolidium_doc::Body> = self.doc.bodies().to_vec();
+                                        // the bodies picked in the model are marked in the list, and the list scrolls to the last one picked
+                                        let marked: std::collections::HashSet<BodyId> = self
+                                            .selection
+                                            .iter()
+                                            .map(|s| s.0)
+                                            .chain(self.body_sel)
+                                            .chain(self.move_sel.iter().copied())
+                                            .collect();
+                                        let last_picked = self
+                                            .body_sel
+                                            .or_else(|| self.selection.last().map(|s| s.0))
+                                            .or_else(|| self.move_sel.last().copied());
+                                        let scroll_to = if last_picked != self.tree_seen {
+                                            last_picked
+                                        } else {
+                                            None
+                                        };
+                                        self.tree_seen = last_picked;
+                                        // the list scrolls by itself (hundreds of bodies), and follows the selection
+                                        let list_h = (ui.ctx().content_rect().height() * 0.45).max(160.0);
+                                        let scroll_out = egui::ScrollArea::vertical()
+                                            .id_salt("body-list")
+                                            .max_height(list_h)
+                                            .auto_shrink([true, true])
+                                            .show(ui, |ui| {
+                                                for b in &bodies {
+                                                    ui.horizontal(|ui| {
+                                                        if icons::eye_button(ui, b.visible).clicked() {
+                                                            tree_cmd = Some((
+                                                                Command::SetVisible {
+                                                                    target: ItemId::Body(b.id),
+                                                                    visible: !b.visible,
+                                                                },
+                                                                if b.visible { "Hidden" } else { "Shown" },
+                                                            ));
+                                                        }
+                                                        let faces =
+                                                            self.entry(b.id).map_or(0, |m| m.faces.len());
+                                                        let mut t = if b.visible {
+                                                            trf(
+                                                                "{}  ({} faces)",
+                                                                &[b.name.clone(), faces.to_string()],
+                                                            )
+                                                        } else {
+                                                            format!("{}  ({})", b.name, tr("hidden"))
+                                                        };
+                                                        if !b.visible {
+                                                            t = t.to_string();
+                                                        }
+                                                        let r =
+                                                            ui.selectable_label(marked.contains(&b.id), t);
+                                                        if scroll_to == Some(b.id) {
+                                                            r.scroll_to_me(Some(egui::Align::Center));
+                                                        }
+                                                        if Some(b.id) == last_picked {
+                                                            self.tree_probe = (
+                                                                Some(b.id),
+                                                                marked.contains(&b.id),
+                                                                ui.is_rect_visible(r.rect),
+                                                            );
+                                                        }
+                                                        if r.clicked() {
+                                                            clicked = Some(b.id);
+                                                        }
+                                                        if r.double_clicked() {
+                                                            // a double click renames (Enter confirms, Esc cancels)
+                                                            self.rename =
+                                                                Some((ItemId::Body(b.id), b.name.clone()));
+                                                        }
+                                                        r.context_menu(|ui| {
+                                                            if ui.button(tr("Delete")).clicked() {
+                                                                tree_cmd = Some((
+                                                                    Command::DeleteBody { body: b.id },
+                                                                    "Deleted (Ctrl+Z brings it back)",
+                                                                ));
+                                                                ui.close();
+                                                            }
+                                                            if ui
+                                                                .button(tr(if b.visible {
+                                                                    "Hide"
+                                                                } else {
+                                                                    "Show"
+                                                                }))
+                                                                .clicked()
+                                                            {
+                                                                tree_cmd = Some((
+                                                                    Command::SetVisible {
+                                                                        target: ItemId::Body(b.id),
+                                                                        visible: !b.visible,
+                                                                    },
+                                                                    if b.visible {
+                                                                        "Hidden"
+                                                                    } else {
+                                                                        "Shown"
+                                                                    },
+                                                                ));
+                                                                ui.close();
+                                                            }
+                                                            if ui.button(tr("Rename")).clicked() {
+                                                                self.rename = Some((
+                                                                    ItemId::Body(b.id),
+                                                                    b.name.clone(),
+                                                                ));
+                                                                ui.close();
+                                                            }
+                                                        });
+                                                    });
+                                                }
+                                            });
+                                        self.tree_scroll_y = scroll_out.state.clamped_offset().y;
+                                        if let Some(id) = clicked {
+                                            let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
+                                            if self.tool == Tool::Move && add {
+                                                self.move_toggle(id);
+                                            } else {
+                                                self.clear_selection();
+                                                self.body_sel = Some(id);
+                                                if self.tool == Tool::Move {
+                                                    self.move_sel = vec![id];
+                                                }
+                                            }
+                                            self.layers_changed = true;
+                                        }
+                                        if self.doc.bodies().is_empty() {
+                                            ui.weak(tr("(none)"));
+                                        }
+                                    });
+                                egui::CollapsingHeader::new(tr("Sketches"))
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        let mut clicked = None;
+                                        let sketches: Vec<rolidium_doc::SketchDoc> =
+                                            self.doc.sketches().to_vec();
+                                        for s in &sketches {
+                                            ui.horizontal(|ui| {
+                                                if icons::eye_button(ui, s.visible).clicked() {
+                                                    tree_cmd = Some((
+                                                        Command::SetVisible {
+                                                            target: ItemId::Sketch(s.id),
+                                                            visible: !s.visible,
+                                                        },
+                                                        if s.visible { "Hidden" } else { "Shown" },
+                                                    ));
+                                                }
+                                                let n = self
+                                                    .regions
+                                                    .iter()
+                                                    .find(|r| r.id == s.id)
+                                                    .map_or(0, |r| r.regions.len());
+                                                let on = if s.target.is_some() {
+                                                    tr("on a face")
+                                                } else {
+                                                    trf("on {}", &[plane_name(&s.plane).to_string()])
+                                                };
+                                                let t = trf(
+                                                    "{}  ({} shapes, {} regions, {})",
+                                                    &[
+                                                        s.name.clone(),
+                                                        s.sketch.entities().len().to_string(),
+                                                        n.to_string(),
+                                                        on,
+                                                    ],
+                                                );
+                                                let active =
+                                                    self.sk.as_ref().is_some_and(|m| m.sketch == Some(s.id));
+                                                let text = if active {
+                                                    egui::RichText::new(t).strong()
+                                                } else {
+                                                    egui::RichText::new(t)
+                                                };
+                                                let r =
+                                                    ui.selectable_label(self.sketch_sel == Some(s.id), text);
+                                                if r.clicked() {
+                                                    clicked = Some(s.id);
+                                                }
+                                                r.context_menu(|ui| {
+                                                    if ui.button(tr("Delete")).clicked() {
+                                                        tree_cmd = Some((
+                                                            Command::DeleteSketch { sketch: s.id },
+                                                            "Deleted (Ctrl+Z brings it back)",
+                                                        ));
+                                                        ui.close();
+                                                    }
+                                                    if ui
+                                                        .button(tr(if s.visible { "Hide" } else { "Show" }))
+                                                        .clicked()
+                                                    {
+                                                        tree_cmd = Some((
+                                                            Command::SetVisible {
+                                                                target: ItemId::Sketch(s.id),
+                                                                visible: !s.visible,
+                                                            },
+                                                            if s.visible { "Hidden" } else { "Shown" },
+                                                        ));
+                                                        ui.close();
+                                                    }
+                                                    if ui.button(tr("Rename")).clicked() {
+                                                        self.rename =
+                                                            Some((ItemId::Sketch(s.id), s.name.clone()));
+                                                        ui.close();
+                                                    }
+                                                });
+                                            });
+                                        }
+                                        if let Some(id) = clicked {
+                                            self.clear_selection();
+                                            self.sketch_sel = Some(id);
+                                        }
+                                        if self.doc.sketches().is_empty() {
+                                            ui.weak(tr("(none)"));
+                                        }
+                                    });
+                                egui::CollapsingHeader::new(tr("Curves"))
+                                    .default_open(true)
+                                    .show(ui, |ui| {
+                                        let mut clicked = None;
+                                        let curves: Vec<rolidium_doc::CurveDoc> = self.doc.curves().to_vec();
+                                        for c in &curves {
+                                            ui.horizontal(|ui| {
+                                                if icons::eye_button(ui, c.visible).clicked() {
+                                                    tree_cmd = Some((
+                                                        Command::SetVisible {
+                                                            target: ItemId::Curve(c.id),
+                                                            visible: !c.visible,
+                                                        },
+                                                        if c.visible { "Hidden" } else { "Shown" },
+                                                    ));
+                                                }
+                                                let kind = match c.def {
+                                                    rolidium_doc::CurveDef::Polyline { .. } => tr("3D line"),
+                                                    rolidium_doc::CurveDef::Helix(_) => tr("Helix"),
+                                                };
+                                                let t = if c.visible {
+                                                    format!("{}  ({})", c.name, kind)
+                                                } else {
+                                                    format!("{}  ({})", c.name, tr("hidden"))
+                                                };
+                                                let r = ui.selectable_label(self.curve_sel == Some(c.id), t);
+                                                if r.clicked() {
+                                                    clicked = Some(c.id);
+                                                }
+                                                r.context_menu(|ui| {
+                                                    if ui.button(tr("Delete")).clicked() {
+                                                        tree_cmd = Some((
+                                                            Command::DeleteCurve { curve: c.id },
+                                                            "Deleted (Ctrl+Z brings it back)",
+                                                        ));
+                                                        ui.close();
+                                                    }
+                                                    if ui
+                                                        .button(tr(if c.visible { "Hide" } else { "Show" }))
+                                                        .clicked()
+                                                    {
+                                                        tree_cmd = Some((
+                                                            Command::SetVisible {
+                                                                target: ItemId::Curve(c.id),
+                                                                visible: !c.visible,
+                                                            },
+                                                            if c.visible { "Hidden" } else { "Shown" },
+                                                        ));
+                                                        ui.close();
+                                                    }
+                                                    if ui.button(tr("Rename")).clicked() {
+                                                        self.rename =
+                                                            Some((ItemId::Curve(c.id), c.name.clone()));
+                                                        ui.close();
+                                                    }
+                                                });
+                                            });
+                                        }
+                                        if let Some(id) = clicked {
+                                            self.clear_selection();
+                                            self.curve_sel = Some(id);
+                                            if self.tool == Tool::Move {
+                                                self.move_curves = vec![id];
+                                            }
+                                            self.layers_changed = true;
+                                        }
+                                        if self.doc.curves().is_empty() {
+                                            ui.weak(tr("(none)"));
+                                        }
+                                    });
+                                if let Some((cmd, text)) = tree_cmd {
+                                    self.run_doc_command(cmd, text);
+                                }
+                                ui.separator();
+                                ui.label(egui::RichText::new(tr("Selection")).strong());
+                                if self.selection.is_empty()
+                                    && self.region_sel.is_none()
+                                    && self.entity_sel.is_none()
+                                    && self.edge_sel.is_empty()
+                                    && self.body_sel.is_none()
+                                    && self.curve_sel.is_none()
+                                {
+                                    ui.weak(tr("nothing selected"));
+                                }
+                                if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
+                                    ui.label(trf(
+                                        "Body: {} (Delete removes it)",
+                                        std::slice::from_ref(&b.name),
+                                    ));
+                                    ui.weak(tr("F2 or a double click on the name renames it"));
+                                }
+                                if self.entity_sel.is_some() {
+                                    ui.label(tr("Sketch shape (Delete removes it)"));
+                                }
+                                if let Some(c) = self.curve_sel.and_then(|c| self.doc.curve(c)) {
+                                    ui.label(trf(
+                                        "Curve: {} (Delete removes it)",
+                                        std::slice::from_ref(&c.name),
+                                    ));
+                                    if let Ok(p) = c.def.path() {
+                                        ui.label(trf("Length: {} mm", &[format!("{:.2}", p.length)]));
+                                    }
+                                }
+                                if !self.edge_sel.is_empty() {
+                                    ui.label(trf("{} edge(s)", &[self.edge_sel.len().to_string()]));
+                                    let b = self.edge_sel[0].0;
+                                    let sel: Vec<u32> = self
+                                        .edge_sel
+                                        .iter()
+                                        .filter(|(bb, _)| *bb == b)
+                                        .map(|(_, e)| *e)
+                                        .collect();
+                                    let n = self.chain_extra(b, &sel).len();
+                                    if n > 0 {
+                                        ui.colored_label(
+                                    Color32::from_rgb(217, 128, 255),
+                                    trf(
+                                        "{} more edge(s) continue them tangentially and are treated too",
+                                        &[n.to_string()],
+                                    ),
+                                );
+                                    }
+                                }
+                                for (b, f) in &self.selection {
+                                    if let Some(meta) = self.entry(*b).and_then(|m| m.faces.get(*f as usize))
+                                    {
+                                        ui.label(trf(
+                                            "Face #{}: {}",
+                                            &[f.to_string(), tr(&format!("{:?}", meta.kind))],
+                                        ));
+                                        if meta.kind == FaceKind::Plane {
+                                            ui.label(trf(
+                                                "Normal: {}, {}, {}",
+                                                &[
+                                                    format!("{:.2}", meta.normal.x),
+                                                    format!("{:.2}", meta.normal.y),
+                                                    format!("{:.2}", meta.normal.z),
+                                                ],
                                             ));
                                         }
-                                        let faces = self.entry(b.id).map_or(0, |m| m.faces.len());
-                                        let mut t = if b.visible {
-                                            trf("{}  ({} faces)", &[b.name.clone(), faces.to_string()])
-                                        } else {
-                                            format!("{}  ({})", b.name, tr("hidden"))
-                                        };
-                                        if !b.visible {
-                                            t = t.to_string();
+                                        if let Some(ft) = self.doc.body(*b).and_then(|bd| {
+                                            bd.features.iter().find(|ft| ft.faces.contains(&FaceId(*f)))
+                                        }) {
+                                            let name = tr(if ft.kind == rolidium_doc::BlendKind::Round {
+                                                "Round"
+                                            } else {
+                                                "Chamfer"
+                                            });
+                                            ui.label(trf("{}: {} mm", &[name, fmt_num(ft.size)]));
                                         }
-                                        let r = ui.selectable_label(marked.contains(&b.id), t);
-                                        if scroll_to == Some(b.id) {
-                                            r.scroll_to_me(Some(egui::Align::Center));
-                                        }
-                                        if Some(b.id) == last_picked {
-                                            self.tree_probe = (
-                                                Some(b.id),
-                                                marked.contains(&b.id),
-                                                ui.is_rect_visible(r.rect),
-                                            );
-                                        }
-                                        if r.clicked() {
-                                            clicked = Some(b.id);
-                                        }
-                                        if r.double_clicked() {
-                                            // a double click renames (Enter confirms, Esc cancels)
-                                            self.rename = Some((ItemId::Body(b.id), b.name.clone()));
-                                        }
-                                        r.context_menu(|ui| {
-                                            if ui.button(tr("Delete")).clicked() {
-                                                tree_cmd = Some((
-                                                    Command::DeleteBody { body: b.id },
-                                                    "Deleted (Ctrl+Z brings it back)",
-                                                ));
-                                                ui.close();
-                                            }
-                                            if ui
-                                                .button(tr(if b.visible { "Hide" } else { "Show" }))
-                                                .clicked()
-                                            {
-                                                tree_cmd = Some((
-                                                    Command::SetVisible {
-                                                        target: ItemId::Body(b.id),
-                                                        visible: !b.visible,
-                                                    },
-                                                    if b.visible { "Hidden" } else { "Shown" },
-                                                ));
-                                                ui.close();
-                                            }
-                                            if ui.button(tr("Rename")).clicked() {
-                                                self.rename = Some((ItemId::Body(b.id), b.name.clone()));
-                                                ui.close();
-                                            }
-                                        });
-                                    });
+                                    }
+                                }
+                                self.properties_ui(ui);
+                                if let Some((s, i)) = self.region_sel {
+                                    if let Some(r) = self
+                                        .regions
+                                        .iter()
+                                        .find(|r| r.id == s)
+                                        .and_then(|r| r.regions.get(i))
+                                    {
+                                        ui.label(trf("Sketch region #{}", &[(i + 1).to_string()]));
+                                        ui.label(trf("Area: {} mm²", &[format!("{:.2}", r.area())]));
+                                        ui.label(trf("Holes: {}", &[r.holes.len().to_string()]));
+                                    }
                                 }
                             });
-                        self.tree_scroll_y = scroll_out.state.clamped_offset().y;
-                        if let Some(id) = clicked {
-                            let add = ui.input(|i| i.modifiers.command || i.modifiers.shift);
-                            if self.tool == Tool::Move && add {
-                                self.move_toggle(id);
-                            } else {
-                                self.clear_selection();
-                                self.body_sel = Some(id);
-                                if self.tool == Tool::Move {
-                                    self.move_sel = vec![id];
-                                }
-                            }
-                            self.layers_changed = true;
-                        }
-                        if self.doc.bodies().is_empty() {
-                            ui.weak(tr("(none)"));
-                        }
-                    });
-                egui::CollapsingHeader::new(tr("Sketches"))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let mut clicked = None;
-                        let sketches: Vec<rolidium_doc::SketchDoc> = self.doc.sketches().to_vec();
-                        for s in &sketches {
-                            ui.horizontal(|ui| {
-                                if icons::eye_button(ui, s.visible).clicked() {
-                                    tree_cmd = Some((
-                                        Command::SetVisible {
-                                            target: ItemId::Sketch(s.id),
-                                            visible: !s.visible,
-                                        },
-                                        if s.visible { "Hidden" } else { "Shown" },
-                                    ));
-                                }
-                                let n = self
-                                    .regions
-                                    .iter()
-                                    .find(|r| r.id == s.id)
-                                    .map_or(0, |r| r.regions.len());
-                                let on = if s.target.is_some() {
-                                    tr("on a face")
-                                } else {
-                                    trf("on {}", &[plane_name(&s.plane).to_string()])
-                                };
-                                let t = trf(
-                                    "{}  ({} shapes, {} regions, {})",
-                                    &[
-                                        s.name.clone(),
-                                        s.sketch.entities().len().to_string(),
-                                        n.to_string(),
-                                        on,
-                                    ],
-                                );
-                                let active = self.sk.as_ref().is_some_and(|m| m.sketch == Some(s.id));
-                                let text = if active {
-                                    egui::RichText::new(t).strong()
-                                } else {
-                                    egui::RichText::new(t)
-                                };
-                                let r = ui.selectable_label(self.sketch_sel == Some(s.id), text);
-                                if r.clicked() {
-                                    clicked = Some(s.id);
-                                }
-                                r.context_menu(|ui| {
-                                    if ui.button(tr("Delete")).clicked() {
-                                        tree_cmd = Some((
-                                            Command::DeleteSketch { sketch: s.id },
-                                            "Deleted (Ctrl+Z brings it back)",
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr(if s.visible { "Hide" } else { "Show" })).clicked() {
-                                        tree_cmd = Some((
-                                            Command::SetVisible {
-                                                target: ItemId::Sketch(s.id),
-                                                visible: !s.visible,
-                                            },
-                                            if s.visible { "Hidden" } else { "Shown" },
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr("Rename")).clicked() {
-                                        self.rename = Some((ItemId::Sketch(s.id), s.name.clone()));
-                                        ui.close();
-                                    }
-                                });
-                            });
-                        }
-                        if let Some(id) = clicked {
-                            self.clear_selection();
-                            self.sketch_sel = Some(id);
-                        }
-                        if self.doc.sketches().is_empty() {
-                            ui.weak(tr("(none)"));
-                        }
-                    });
-                egui::CollapsingHeader::new(tr("Curves"))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        let mut clicked = None;
-                        let curves: Vec<rolidium_doc::CurveDoc> = self.doc.curves().to_vec();
-                        for c in &curves {
-                            ui.horizontal(|ui| {
-                                if icons::eye_button(ui, c.visible).clicked() {
-                                    tree_cmd = Some((
-                                        Command::SetVisible {
-                                            target: ItemId::Curve(c.id),
-                                            visible: !c.visible,
-                                        },
-                                        if c.visible { "Hidden" } else { "Shown" },
-                                    ));
-                                }
-                                let kind = match c.def {
-                                    rolidium_doc::CurveDef::Polyline { .. } => tr("3D line"),
-                                    rolidium_doc::CurveDef::Helix(_) => tr("Helix"),
-                                };
-                                let t = if c.visible {
-                                    format!("{}  ({})", c.name, kind)
-                                } else {
-                                    format!("{}  ({})", c.name, tr("hidden"))
-                                };
-                                let r = ui.selectable_label(self.curve_sel == Some(c.id), t);
-                                if r.clicked() {
-                                    clicked = Some(c.id);
-                                }
-                                r.context_menu(|ui| {
-                                    if ui.button(tr("Delete")).clicked() {
-                                        tree_cmd = Some((
-                                            Command::DeleteCurve { curve: c.id },
-                                            "Deleted (Ctrl+Z brings it back)",
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr(if c.visible { "Hide" } else { "Show" })).clicked() {
-                                        tree_cmd = Some((
-                                            Command::SetVisible {
-                                                target: ItemId::Curve(c.id),
-                                                visible: !c.visible,
-                                            },
-                                            if c.visible { "Hidden" } else { "Shown" },
-                                        ));
-                                        ui.close();
-                                    }
-                                    if ui.button(tr("Rename")).clicked() {
-                                        self.rename = Some((ItemId::Curve(c.id), c.name.clone()));
-                                        ui.close();
-                                    }
-                                });
-                            });
-                        }
-                        if let Some(id) = clicked {
-                            self.clear_selection();
-                            self.curve_sel = Some(id);
-                            if self.tool == Tool::Move {
-                                self.move_curves = vec![id];
-                            }
-                            self.layers_changed = true;
-                        }
-                        if self.doc.curves().is_empty() {
-                            ui.weak(tr("(none)"));
-                        }
-                    });
-                if let Some((cmd, text)) = tree_cmd {
-                    self.run_doc_command(cmd, text);
-                }
-                ui.separator();
-                ui.label(egui::RichText::new(tr("Selection")).strong());
-                if self.selection.is_empty()
-                    && self.region_sel.is_none()
-                    && self.entity_sel.is_none()
-                    && self.edge_sel.is_empty()
-                    && self.body_sel.is_none()
-                    && self.curve_sel.is_none()
-                {
-                    ui.weak(tr("nothing selected"));
-                }
-                if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
-                    ui.label(trf("Body: {} (Delete removes it)", std::slice::from_ref(&b.name)));
-                    ui.weak(tr("F2 or a double click on the name renames it"));
-                }
-                if self.entity_sel.is_some() {
-                    ui.label(tr("Sketch shape (Delete removes it)"));
-                }
-                if let Some(c) = self.curve_sel.and_then(|c| self.doc.curve(c)) {
-                    ui.label(trf(
-                        "Curve: {} (Delete removes it)",
-                        std::slice::from_ref(&c.name),
-                    ));
-                    if let Ok(p) = c.def.path() {
-                        ui.label(trf("Length: {} mm", &[format!("{:.2}", p.length)]));
                     }
-                }
-                if !self.edge_sel.is_empty() {
-                    ui.label(trf("{} edge(s)", &[self.edge_sel.len().to_string()]));
-                    let b = self.edge_sel[0].0;
-                    let sel: Vec<u32> = self
-                        .edge_sel
-                        .iter()
-                        .filter(|(bb, _)| *bb == b)
-                        .map(|(_, e)| *e)
-                        .collect();
-                    let n = self.chain_extra(b, &sel).len();
-                    if n > 0 {
-                        ui.colored_label(
-                            Color32::from_rgb(217, 128, 255),
-                            trf(
-                                "{} more edge(s) continue them tangentially and are treated too",
-                                &[n.to_string()],
-                            ),
-                        );
-                    }
-                }
-                for (b, f) in &self.selection {
-                    if let Some(meta) = self.entry(*b).and_then(|m| m.faces.get(*f as usize)) {
-                        ui.label(trf(
-                            "Face #{}: {}",
-                            &[f.to_string(), tr(&format!("{:?}", meta.kind))],
-                        ));
-                        if meta.kind == FaceKind::Plane {
-                            ui.label(trf(
-                                "Normal: {}, {}, {}",
-                                &[
-                                    format!("{:.2}", meta.normal.x),
-                                    format!("{:.2}", meta.normal.y),
-                                    format!("{:.2}", meta.normal.z),
-                                ],
-                            ));
-                        }
-                        if let Some(ft) = self
-                            .doc
-                            .body(*b)
-                            .and_then(|bd| bd.features.iter().find(|ft| ft.faces.contains(&FaceId(*f))))
-                        {
-                            let name = tr(if ft.kind == rolidium_doc::BlendKind::Round {
-                                "Round"
-                            } else {
-                                "Chamfer"
-                            });
-                            ui.label(trf("{}: {} mm", &[name, fmt_num(ft.size)]));
-                        }
-                    }
-                }
-                self.properties_ui(ui);
-                if let Some((s, i)) = self.region_sel {
-                    if let Some(r) = self
-                        .regions
-                        .iter()
-                        .find(|r| r.id == s)
-                        .and_then(|r| r.regions.get(i))
-                    {
-                        ui.label(trf("Sketch region #{}", &[(i + 1).to_string()]));
-                        ui.label(trf("Area: {} mm²", &[format!("{:.2}", r.area())]));
-                        ui.label(trf("Holes: {}", &[r.holes.len().to_string()]));
-                    }
-                }
+                });
             });
 
         egui::CentralPanel::default()
@@ -4122,8 +4183,7 @@ impl eframe::App for App {
         self.about_window(&ctx);
         self.updates_tick(&ctx);
         self.updates_ui(&ctx);
-        self.crash_offer_ui(&ctx);
-        self.feedback_window(&ctx);
+        self.feedback_preview(&ctx);
         self.guide_window(&ctx);
         self.rename_window(&ctx);
         self.dialogs(&ctx);

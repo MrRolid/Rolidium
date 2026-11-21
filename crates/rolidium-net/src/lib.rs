@@ -4,7 +4,7 @@
 //!
 //! * the question about a new version ([`fetch_latest`]): a GET with the version, the system (name and main number) and the architecture,
 //!   nothing else;
-//! * the sending of a diagnostics zip ([`send_diagnostics`]), only when the person has asked for it.
+//! * the sending of a diagnostics zip ([`send_report`]), only when the person has asked for it.
 //!
 //! All addresses are in [`urls`]. Only `https` and only the domain `rolidium.com` are used; a redirect is never followed (so a reply cannot send
 //! the program to another domain), the certificate is always checked against the bundled root certificates, and every call has a time limit.
@@ -29,7 +29,7 @@ pub const CONTACT_EMAIL: &str = "connect@rolid.com";
 pub const MAX_VERSION_REPLY: usize = 16 * 1024;
 /// The most bytes of the diagnostics zip, and of the note.
 pub const MAX_ZIP: usize = 2 * 1024 * 1024;
-pub const MAX_NOTE_CHARS: usize = 2000;
+pub const MAX_NOTE_CHARS: usize = 1000;
 /// The time limit of the question about the version, and of the sending.
 pub const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 pub const SEND_TIMEOUT: Duration = Duration::from_secs(30);
@@ -302,14 +302,33 @@ pub fn replace_home(text: &str, home: &str) -> String {
     out
 }
 
-/// The `multipart/form-data` body: the fields `note`, `contact` (when not empty), `v`, `os` and the file `file` (the zip).
+/// What the person reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Kind {
+    #[default]
+    Bug,
+    Idea,
+}
+
+impl Kind {
+    /// The value of the field `kind`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Kind::Bug => "bug",
+            Kind::Idea => "idea",
+        }
+    }
+}
+
+/// The `multipart/form-data` body: the fields `note`, `kind`, `contact` (when not empty), `v`, `os` and the file `file` (the zip, when there is one).
 pub fn multipart_body(
     boundary: &str,
+    kind: Kind,
     note: &str,
     contact: &str,
     version: &str,
     os: &str,
-    zip: &[u8],
+    zip: Option<&[u8]>,
 ) -> Vec<u8> {
     let mut b: Vec<u8> = Vec::new();
     let mut field = |name: &str, value: &str| {
@@ -319,19 +338,23 @@ pub fn multipart_body(
         );
     };
     field("note", note);
+    field("kind", kind.as_str());
     if !contact.is_empty() {
         field("contact", contact);
     }
     field("v", version);
     field("os", os);
-    b.extend_from_slice(
-        format!(
-            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"diagnostics.zip\"\r\nContent-Type: application/zip\r\n\r\n"
-        )
-        .as_bytes(),
-    );
-    b.extend_from_slice(zip);
-    b.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    if let Some(zip) = zip {
+        b.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"diagnostics.zip\"\r\nContent-Type: application/zip\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        b.extend_from_slice(zip);
+        b.extend_from_slice(b"\r\n");
+    }
+    b.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     b
 }
 
@@ -353,16 +376,25 @@ pub fn parse_report_id(bytes: &[u8]) -> Result<String, String> {
     Ok(id)
 }
 
-/// Sends the diagnostics (POST, multipart) and returns the number of the report. `note` is cut to [`MAX_NOTE_CHARS`] characters; the zip must be
-/// at most [`MAX_ZIP`] bytes. Only on the explicit request of the person.
-pub fn send_diagnostics(zip: &[u8], note: &str, contact: &str, version: &str) -> Result<String, String> {
+/// Sends a report (POST, multipart) and returns its number. `note` is cut to [`MAX_NOTE_CHARS`] characters; the zip (diagnostics, optional) must be
+/// at most [`MAX_ZIP`] bytes. A report needs a note or a zip. Only on the explicit request of the person.
+pub fn send_report(
+    kind: Kind,
+    zip: Option<&[u8]>,
+    note: &str,
+    contact: &str,
+    version: &str,
+) -> Result<String, String> {
     if offline() {
         return Err("offline".into());
     }
-    if zip.len() > MAX_ZIP {
+    if zip.is_some_and(|z| z.len() > MAX_ZIP) {
         return Err(format!("the zip is larger than {MAX_ZIP} bytes"));
     }
     let note: String = note.chars().take(MAX_NOTE_CHARS).collect();
+    if note.trim().is_empty() && zip.is_none() {
+        return Err("nothing to send".into());
+    }
     let contact: String = contact.chars().filter(|c| !c.is_control()).take(200).collect();
     let boundary = format!(
         "rolidium-{:x}",
@@ -372,6 +404,7 @@ pub fn send_diagnostics(zip: &[u8], note: &str, contact: &str, version: &str) ->
     );
     let body = multipart_body(
         &boundary,
+        kind,
         &note,
         contact.trim(),
         version,
@@ -507,7 +540,7 @@ mod tests {
 
     #[test]
     fn the_multipart_body_has_the_fields_and_the_file() {
-        let b = multipart_body("XX", "a note", "", "0.2.0", "linux", b"ZIPDATA");
+        let b = multipart_body("XX", Kind::Bug, "a note", "", "0.2.0", "linux", Some(b"ZIPDATA"));
         let t = String::from_utf8_lossy(&b).to_string();
         assert!(t.contains("name=\"note\"\r\n\r\na note\r\n"));
         assert!(!t.contains("name=\"contact\""));
@@ -515,7 +548,7 @@ mod tests {
         assert!(
             t.contains("name=\"file\"; filename=\"diagnostics.zip\"") && t.contains("ZIPDATA\r\n--XX--\r\n")
         );
-        let c = multipart_body("XX", "n", "me@example.org", "0.2.0", "linux", b"Z");
+        let c = multipart_body("XX", Kind::Idea, "n", "me@example.org", "0.2.0", "linux", None);
         assert!(String::from_utf8_lossy(&c).contains("name=\"contact\"\r\n\r\nme@example.org\r\n"));
     }
 

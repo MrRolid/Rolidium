@@ -348,8 +348,16 @@ pub fn write_zip(
     selected: Option<&str>,
     backend_setting: &str,
     settings_text: &str,
+    summary: &str,
 ) -> Result<(), String> {
-    write_zip_with(path, selected, backend_setting, settings_text, &run_isolated())
+    write_zip_with(
+        path,
+        selected,
+        backend_setting,
+        settings_text,
+        summary,
+        &run_isolated(),
+    )
 }
 
 pub fn write_zip_with(
@@ -357,6 +365,7 @@ pub fn write_zip_with(
     selected: Option<&str>,
     backend_setting: &str,
     settings_text: &str,
+    summary: &str,
     outcomes: &[BackendOutcome],
 ) -> Result<(), String> {
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
@@ -366,6 +375,8 @@ pub fn write_zip_with(
         zip.start_file(name, opts).map_err(|e| e.to_string())?;
         zip.write_all(bytes).map_err(|e| e.to_string())
     };
+    // the readable summary is always the first file
+    add("summary.txt", sanitize(summary).as_bytes())?;
     add(
         "report.txt",
         report(selected, backend_setting, outcomes).as_bytes(),
@@ -400,6 +411,290 @@ pub fn write_zip_with(
     add("scenes.txt", scenes.as_bytes())?;
     zip.finish().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ---- the summary: the first file of the zip, written to be read by a person ----
+
+/// What the graphics adapter of the window is.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct GpuFacts {
+    pub name: String,
+    pub vendor: String,
+    pub driver: String,
+    pub backend: String,
+    pub software: bool,
+}
+
+/// The manufacturer for a PCI vendor number (what wgpu reports); the number itself when it is not known.
+pub fn vendor_name(id: u32) -> String {
+    match id {
+        0x10de => "NVIDIA".into(),
+        0x1002 | 0x1022 => "AMD".into(),
+        0x8086 | 0x8087 => "Intel".into(),
+        0x13b5 => "ARM".into(),
+        0x5143 => "Qualcomm".into(),
+        0x106b => "Apple".into(),
+        0x1414 => "Microsoft".into(),
+        0x1010 => "Imagination".into(),
+        0x10005 => "Mesa".into(),
+        0 => "unknown".into(),
+        n => format!("unknown (vendor id {n:#06x})"),
+    }
+}
+
+impl GpuFacts {
+    pub fn from_info(info: &wgpu::AdapterInfo) -> Self {
+        GpuFacts {
+            name: info.name.clone(),
+            vendor: vendor_name(info.vendor),
+            driver: format!("{} {}", info.driver, info.driver_info).trim().to_string(),
+            backend: backend_name(info.backend).to_string(),
+            software: rolidium_render::is_software(info),
+        }
+    }
+}
+
+/// The name of an interface for people.
+pub fn backend_title(name: &str) -> &'static str {
+    match name {
+        "dx12" => "DirectX 12",
+        "vulkan" => "Vulkan",
+        "gl" => "OpenGL",
+        "metal" => "Metal",
+        _ => "other",
+    }
+}
+
+/// What the app knows about itself.
+#[derive(Debug, Clone, Default)]
+pub struct SummaryInput {
+    /// `None` when there is no window (`--diagnose`).
+    pub gpu: Option<GpuFacts>,
+    /// The setting `backend` (`auto` or a name).
+    pub backend_setting: String,
+    /// Who forced the interface: "command line", "environment variable ROLIDIUM_BACKEND", "setting" or nothing (automatic).
+    pub forced_by: Option<String>,
+    pub blocked: Vec<String>,
+    pub threads_setting: u32,
+    pub threads_used: usize,
+    /// Size of the window in pixels and the scale of the interface.
+    pub window: Option<([u32; 2], f32)>,
+    pub language: String,
+}
+
+/// The processor and the memory.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Machine {
+    pub cpu_model: String,
+    pub physical: Option<usize>,
+    pub logical: usize,
+    pub ram_mb: Option<u64>,
+}
+
+/// Model, number of physical and logical cores and memory of this computer. Only these facts are read: no serial numbers, no names.
+pub fn machine() -> Machine {
+    let logical = std::thread::available_parallelism().map_or(1, |n| n.get());
+    #[cfg(windows)]
+    {
+        let ps = |cmd: &str| {
+            std::process::Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", cmd])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default()
+        };
+        let out = ps("$c=Get-CimInstance Win32_Processor; $c[0].Name; ($c|Measure-Object NumberOfCores -Sum).Sum; (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory");
+        let mut l = out.lines();
+        let cpu_model = l.next().unwrap_or("").trim().to_string();
+        let physical = l.next().and_then(|v| v.trim().parse().ok());
+        let ram_mb = l
+            .next()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .map(|b| b / 1024 / 1024);
+        Machine {
+            cpu_model,
+            physical,
+            logical,
+            ram_mb,
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        machine_from_linux(
+            &std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default(),
+            &std::fs::read_to_string("/proc/meminfo").unwrap_or_default(),
+            logical,
+        )
+    }
+}
+
+/// The same from the text of `/proc/cpuinfo` and `/proc/meminfo`.
+pub fn machine_from_linux(cpuinfo: &str, meminfo: &str, logical: usize) -> Machine {
+    let model = cpuinfo
+        .lines()
+        .find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            (k.trim() == "model name").then(|| v.trim().to_string())
+        })
+        .unwrap_or_default();
+    // physical cores: the distinct pairs (physical id, core id)
+    let mut cores = std::collections::HashSet::new();
+    let (mut phys, mut core) = (None::<String>, None::<String>);
+    for l in cpuinfo.lines().chain(std::iter::once("")) {
+        if l.trim().is_empty() {
+            if let (Some(p), Some(c)) = (phys.take(), core.take()) {
+                cores.insert((p, c));
+            }
+            phys = None;
+            core = None;
+            continue;
+        }
+        if let Some((k, v)) = l.split_once(':') {
+            match k.trim() {
+                "physical id" => phys = Some(v.trim().to_string()),
+                "core id" => core = Some(v.trim().to_string()),
+                _ => {}
+            }
+        }
+    }
+    let ram_mb = meminfo.lines().find_map(|l| {
+        let rest = l.strip_prefix("MemTotal:")?;
+        let kb: u64 = rest.trim().trim_end_matches("kB").trim().parse().ok()?;
+        Some(kb / 1024)
+    });
+    Machine {
+        cpu_model: model,
+        physical: (!cores.is_empty()).then_some(cores.len()),
+        logical,
+        ram_mb,
+    }
+}
+
+/// The text of `summary.txt`: what a person needs first. No computer name, no user name, no serial numbers, no network addresses.
+pub fn summary_text(i: &SummaryInput, m: &Machine) -> String {
+    let mut t = String::new();
+    t.push_str("Rolidium diagnostics: summary\n\n");
+    t.push_str("== Program ==\n");
+    t.push_str(&format!("Version: {}\n", crate::version_string()));
+    t.push_str(&format!(
+        "Interface language: {}\n\n",
+        if i.language.is_empty() {
+            "automatic (from the system)"
+        } else {
+            &i.language
+        }
+    ));
+    t.push_str("== Graphics ==\n");
+    match &i.gpu {
+        Some(g) => {
+            t.push_str(&format!("Graphics card: {}\n", g.name));
+            t.push_str(&format!("Manufacturer: {}\n", g.vendor));
+            t.push_str(&format!(
+                "Driver and its version: {}\n",
+                if g.driver.is_empty() {
+                    "not reported"
+                } else {
+                    &g.driver
+                }
+            ));
+            t.push_str(&format!("Interface used: {}\n", backend_title(&g.backend)));
+            t.push_str(&format!(
+                "Software rendering (no graphics card): {}\n",
+                if g.software {
+                    "YES, the picture is drawn by the processor"
+                } else {
+                    "no"
+                }
+            ));
+        }
+        None => {
+            t.push_str("No window was open (run from the command line): see report.txt for the adapters.\n")
+        }
+    }
+    t.push_str(&format!(
+        "Interface chosen: {}\n",
+        match &i.forced_by {
+            Some(by) => format!("forced ({by}: {})", i.backend_setting),
+            None => "automatically".to_string(),
+        }
+    ));
+    t.push_str(&format!(
+        "Interfaces blocked after a crash: {}\n\n",
+        if i.blocked.is_empty() {
+            "none".to_string()
+        } else {
+            i.blocked.join(", ")
+        }
+    ));
+    t.push_str("== Computer ==\n");
+    t.push_str(&format!(
+        "Processor: {}\n",
+        if m.cpu_model.is_empty() {
+            "not reported"
+        } else {
+            &m.cpu_model
+        }
+    ));
+    t.push_str(&format!(
+        "Cores: {} physical, {} logical\n",
+        m.physical
+            .map_or("unknown number of".to_string(), |p| p.to_string()),
+        m.logical
+    ));
+    t.push_str(&format!(
+        "Threads: set to {}, in use {}\n",
+        if i.threads_setting == 0 {
+            "automatic".to_string()
+        } else {
+            i.threads_setting.to_string()
+        },
+        i.threads_used
+    ));
+    t.push_str(&format!(
+        "Memory: {}\n",
+        m.ram_mb.map_or("not reported".to_string(), |mb| format!(
+            "{:.1} GB",
+            mb as f64 / 1024.0
+        ))
+    ));
+    t.push_str(&format!("System: {}\n", system_version()));
+    t.push_str(&format!("Architecture: {}\n", std::env::consts::ARCH));
+    match i.window {
+        Some(([w, h], scale)) => {
+            t.push_str(&format!("Window: {w} x {h} pixels, interface scale {scale:.2}\n"))
+        }
+        None => t.push_str("Window: none\n"),
+    }
+    sanitize(&t)
+}
+
+/// A zip made of the given files only (the report without diagnostics, saved to a file).
+pub fn zip_of(files: &[(&str, &[u8])]) -> Result<Vec<u8>, String> {
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    for (name, data) in files {
+        out.start_file(*name, opts).map_err(|e| e.to_string())?;
+        out.write_all(data).map_err(|e| e.to_string())?;
+    }
+    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
+}
+
+/// The same zip with one more file.
+pub fn with_file(bytes: &[u8], name: &str, data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    for i in 0..src.len() {
+        let mut f = src.by_index(i).map_err(|e| e.to_string())?;
+        let n = f.name().map(|n| n.to_string()).map_err(|e| e.to_string())?;
+        let mut d = Vec::new();
+        std::io::Read::read_to_end(&mut f, &mut d).map_err(|e| e.to_string())?;
+        out.start_file(n, opts).map_err(|e| e.to_string())?;
+        out.write_all(&d).map_err(|e| e.to_string())?;
+    }
+    out.start_file(name, opts).map_err(|e| e.to_string())?;
+    out.write_all(data).map_err(|e| e.to_string())?;
+    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
 }
 
 /// The same zip without the test pictures (`scene-*.png`): when it is too large to be sent.
@@ -452,6 +747,83 @@ pub fn open_path(target: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_input() -> SummaryInput {
+        SummaryInput {
+            gpu: Some(GpuFacts {
+                name: "AMD Radeon RX 580".into(),
+                vendor: "AMD".into(),
+                driver: "AMD proprietary 24.1".into(),
+                backend: "dx12".into(),
+                software: false,
+            }),
+            backend_setting: "auto".into(),
+            forced_by: None,
+            blocked: vec!["vulkan".into()],
+            threads_setting: 0,
+            threads_used: 8,
+            window: Some(([1280, 720], 1.0)),
+            language: "cs".into(),
+        }
+    }
+
+    #[test]
+    fn the_summary_names_the_graphics_and_the_processor_and_nothing_personal() {
+        let m = machine_from_linux(
+            "processor : 0\nmodel name\t: Test CPU 3000\nphysical id\t: 0\ncore id\t: 0\n\nprocessor : 1\nmodel name\t: Test CPU 3000\nphysical id\t: 0\ncore id\t: 0\n\nprocessor : 2\nmodel name\t: Test CPU 3000\nphysical id\t: 0\ncore id\t: 1\n",
+            "MemTotal:       16384000 kB\n",
+            3,
+        );
+        assert_eq!(m.cpu_model, "Test CPU 3000");
+        assert_eq!((m.physical, m.logical, m.ram_mb), (Some(2), 3, Some(16000)));
+        let t = summary_text(&sample_input(), &m);
+        for want in [
+            "Graphics card: AMD Radeon RX 580",
+            "Manufacturer: AMD",
+            "Driver and its version: AMD proprietary 24.1",
+            "Interface used: DirectX 12",
+            "Software rendering (no graphics card): no",
+            "Interface chosen: automatically",
+            "blocked after a crash: vulkan",
+            "Processor: Test CPU 3000",
+            "2 physical, 3 logical",
+            "set to automatic, in use 8",
+            "Memory: 15.6 GB",
+            "Architecture:",
+            "Window: 1280 x 720 pixels, interface scale 1.00",
+            "Interface language: cs",
+            "Version: ",
+        ] {
+            assert!(t.contains(want), "{want} missing in\n{t}");
+        }
+        // software rendering and a forced interface are said plainly
+        let mut i = sample_input();
+        i.gpu.as_mut().unwrap().software = true;
+        i.forced_by = Some("setting".into());
+        i.backend_setting = "gl".into();
+        let t = summary_text(&i, &m);
+        assert!(t.contains("YES, the picture is drawn by the processor"));
+        assert!(t.contains("forced (setting: gl)"));
+        // nothing that identifies the person or the computer
+        for (what, _) in personal_strings() {
+            assert!(!t.contains(&what) || what == "~", "'{what}' is in the summary");
+        }
+        let lower = t.to_lowercase();
+        for banned in ["serial", "mac address", "hostname", "username", "ip address"] {
+            assert!(!lower.contains(banned), "{banned}");
+        }
+    }
+
+    #[test]
+    fn the_real_machine_is_described() {
+        let m = machine();
+        assert!(m.logical >= 1);
+        let t = summary_text(&sample_input(), &m);
+        assert!(t.contains("== Graphics ==") && t.contains("== Computer =="));
+        if cfg!(target_os = "linux") {
+            assert!(!m.cpu_model.is_empty() && m.ram_mb.is_some());
+        }
+    }
 
     #[test]
     fn personal_data_is_replaced() {
@@ -516,10 +888,16 @@ mod tests {
             Some("test adapter"),
             "auto",
             "theme=dark\n",
+            "summary text\n",
             &fake_outcomes(),
         )
         .unwrap();
         let mut z = zip::ZipArchive::new(std::fs::File::open(&path).unwrap()).unwrap();
+        assert_eq!(
+            z.by_index(0).unwrap().name().unwrap(),
+            "summary.txt",
+            "the summary is the first file"
+        );
         let names: Vec<String> = (0..z.len())
             .map(|i| {
                 z.by_index(i)

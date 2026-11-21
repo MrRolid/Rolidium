@@ -138,7 +138,7 @@ About window has "Run the guide again". Opening a file, restoring after a crash,
 * **Speed limits.** In a big document the kernel still does some work one call at a time: the facts about the faces and the validity check of a body wait for one lock of the kernel, so opening the router does not
   get faster beyond about 4 threads, and the checks of touching and overlapping bodies (and the slow test of the demos) do not use more than one core. A big document uses a lot of memory (the router: about 400 MB). Measured only
   with software graphics and under load; the numbers on a real graphics card are not measured by me.
-* **The new-version notice and the sending of diagnostics need a server.** The server at rolidium.com may not answer yet; then nothing is shown for the notice, and sending diagnostics offers to save the zip and to
+* **The new-version notice and the sending of diagnostics need a server.** The server at rolidium.com may not answer yet; then nothing is shown for the notice, and the report panel offers to save the report to a file and to
   send it by e-mail.
 * **The hand-made demo.** The router in `examples/demos/10-cnc-router` was built by a script and then edited by hand; its shapes are the author's. Some bodies of it overlap or touch nothing (the balls of the bearings,
   the nuts, the belt and the pulleys by design; five overlaps of screws with plates), see its README.
@@ -179,7 +179,7 @@ Useful options of the application: `rolidium file.rolidium` opens a document, `r
 ## The network
 
 Rolidium works without the network. Two optional functions connect to `rolidium.com`: a question once a day whether a newer version exists (only after you said yes; it sends the version, the system name and main
-number and the architecture, nothing else) and the sending of diagnostics (only when you ask, after you have seen what is sent). `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench` and `--diagnose` never use
+number and the architecture, nothing else) and the sending of a report of a bug or an idea (only when you press Send in the panel at the bottom of the right column; the diagnostics are attached by default and you can see every file first; an idea can go without them). `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench` and `--diagnose` never use
 the network, and `ROLIDIUM_OFFLINE=1` switches all of it off. Details: [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Keyboard shortcuts
@@ -233,7 +233,7 @@ A rough order, with no dates. Details and design notes are in [`docs/ROADMAP.md`
 ## Feedback
 
 Questions and help: the support forum at [rolidium.com/forum](https://rolidium.com/forum) (the web is [rolidium.com](https://rolidium.com)). Bug reports and ideas are welcome there and in
-[GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For graphics problems and crashes please attach the zip from *About > Save diagnostics*, or use *Settings > Send diagnostics to the publisher*
+[GitHub Issues](https://github.com/MrRolid/Rolidium/issues). For graphics problems and crashes please attach the zip from *About > Save diagnostics*, or use the panel *Report a bug or an idea* at the bottom of the right column
 (you see what is sent first; see [docs/PRIVACY.md](docs/PRIVACY.md)) and mention the report number you get. Security problems: see [SECURITY.md](SECURITY.md).
 
 Code contributions from outside are not accepted for now; [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
