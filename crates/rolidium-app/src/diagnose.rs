@@ -133,6 +133,8 @@ pub enum Ending {
     /// The process died; the code is the exit status when there is one.
     Crashed(Option<i32>),
     TimedOut,
+    /// The person pressed Cancel.
+    Cancelled,
     CannotStart(String),
 }
 
@@ -152,6 +154,7 @@ impl BackendOutcome {
             Ending::TimedOut => {
                 "TIMED OUT (no answer within the time limit; the test process was stopped)".into()
             }
+            Ending::Cancelled => "CANCELLED (the test process was stopped on request)".into(),
             Ending::CannotStart(e) => format!("could not be started: {e}"),
         }
     }
@@ -253,11 +256,21 @@ pub fn read_child_dir(dir: &Path) -> Vec<AdapterOutcome> {
     out
 }
 
+/// Set by the Cancel button of *About > Save diagnostics*: the children that run are stopped and the saving ends without a file.
+pub static CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The longest time the examination of all graphics interfaces may take (each child has its own, shorter limit besides).
+pub const ALL_BACKENDS_LIMIT: std::time::Duration = std::time::Duration::from_secs(150);
+
+/// How many child processes were started to examine the graphics (the self test checks that the report panel starts none).
+pub static CHILD_PROCESSES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// Starts the child of one backend and waits for it at most `limit`.
 pub fn run_child(exe: &Path, backend: &str, limit: std::time::Duration) -> BackendOutcome {
     let dir = std::env::temp_dir().join(format!("rolidium-diag-{}-{backend}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::create_dir_all(&dir);
+    CHILD_PROCESSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let spawned = std::process::Command::new(exe)
         .arg("--diag-child")
         .arg(backend)
@@ -278,6 +291,11 @@ pub fn run_child(exe: &Path, backend: &str, limit: std::time::Duration) -> Backe
                         } else {
                             Ending::Crashed(st.code())
                         };
+                    }
+                    Ok(None) if CANCEL.load(std::sync::atomic::Ordering::Relaxed) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        break Ending::Cancelled;
                     }
                     Ok(None) if start.elapsed() > limit => {
                         let _ = child.kill();
@@ -301,11 +319,30 @@ pub fn run_child(exe: &Path, backend: &str, limit: std::time::Duration) -> Backe
 
 /// Every backend of this system in a child process of its own.
 pub fn run_isolated() -> Vec<BackendOutcome> {
-    let limit = std::time::Duration::from_secs(60);
+    let per_child = std::time::Duration::from_secs(60);
+    let deadline = std::time::Instant::now() + ALL_BACKENDS_LIMIT;
     match std::env::current_exe() {
         Ok(exe) => child_backends()
             .into_iter()
-            .map(|b| run_child(&exe, b, limit))
+            .map(|b| {
+                // the whole examination has a limit too: what is left of it, at most the limit of one child
+                let left = deadline.saturating_duration_since(std::time::Instant::now());
+                if CANCEL.load(std::sync::atomic::Ordering::Relaxed) {
+                    BackendOutcome {
+                        backend: b.to_string(),
+                        ending: Ending::Cancelled,
+                        adapters: Vec::new(),
+                    }
+                } else if left.is_zero() {
+                    BackendOutcome {
+                        backend: b.to_string(),
+                        ending: Ending::TimedOut,
+                        adapters: Vec::new(),
+                    }
+                } else {
+                    run_child(&exe, b, per_child.min(left))
+                }
+            })
             .collect(),
         Err(e) => child_backends()
             .into_iter()
@@ -339,7 +376,7 @@ pub fn report(selected: Option<&str>, backend_setting: &str, outcomes: &[Backend
         }
     }
     if outcomes.is_empty() {
-        t.push_str("(not examined: the Graphics test is off)\n");
+        t.push_str("(not examined here: the other graphics interfaces are examined only by About > Save diagnostics and --diagnose)\n");
     } else if !any {
         t.push_str("(none found)\n");
     }
@@ -380,17 +417,13 @@ pub fn graphics_files(outcomes: &[BackendOutcome]) -> Vec<(String, Vec<u8>)> {
     files
 }
 
-/// The diagnostics without the graphics test, in memory: `summary.txt` (first), `report.txt`, `log.txt` and `settings.txt`.
-pub fn light_zip(
-    selected: Option<&str>,
-    backend_setting: &str,
-    settings_text: &str,
-    summary: &str,
-) -> Result<Vec<u8>, String> {
+/// The diagnostics of the report panel, in memory: `summary.txt` (first), `report.txt`, `log.txt` and `settings.txt`. The test scenes of the other
+/// graphics interfaces are not in it (they need child processes; they are only in *Save diagnostics* and `--diagnose`).
+pub fn light_zip_of(summary: &str, report: &str, log: &str, settings_text: &str) -> Result<Vec<u8>, String> {
     zip_of(&[
         ("summary.txt", sanitize(summary).as_bytes()),
-        ("report.txt", report(selected, backend_setting, &[]).as_bytes()),
-        ("log.txt", sanitize(&crate::logging::read_log()).as_bytes()),
+        ("report.txt", report.as_bytes()),
+        ("log.txt", sanitize(log).as_bytes()),
         ("settings.txt", sanitize(settings_text).as_bytes()),
     ])
 }
@@ -445,14 +478,12 @@ pub fn write_zip(
     settings_text: &str,
     summary: &str,
 ) -> Result<(), String> {
-    write_zip_with(
-        path,
-        selected,
-        backend_setting,
-        settings_text,
-        summary,
-        &run_isolated(),
-    )
+    CANCEL.store(false, std::sync::atomic::Ordering::Relaxed);
+    let outcomes = run_isolated();
+    if CANCEL.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("cancelled".into());
+    }
+    write_zip_with(path, selected, backend_setting, settings_text, summary, &outcomes)
 }
 
 pub fn write_zip_with(

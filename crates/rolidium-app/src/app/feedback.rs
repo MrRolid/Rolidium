@@ -5,6 +5,11 @@
 //! Send ("Show what is sent" lists every file of the zip, each with a check box). When the server does not answer (it may not exist yet) the
 //! text stays and the report can be saved to a file (a zip with the text as a file of its own) and sent by e-mail.
 //!
+//! The diagnostics of the panel are made only of what the program has in memory or reads without waiting (see [`prepare`]): no child process, no
+//! other graphics interface, no walk through the disk, no network. The test scenes of every graphics interface (child processes) are only in
+//! *About > Save diagnostics* and `rolidium --diagnose`. The preparation runs in the background, every step has its own limit, the whole takes
+//! about 2 seconds at most and after 5 seconds the panel gives up and offers to send the report without the diagnostics.
+//!
 //! The picture of the window (`window.png`) is taken when the person clicks the folded row, before the panel opens: the program asks eframe for
 //! a screenshot of its own window (`ViewportCommand::Screenshot`, the rendered frame is read back from the graphics card by eframe), never the
 //! screen through the system. It stays in memory and is written to a disk only inside the zip (or the saved report).
@@ -20,16 +25,10 @@ pub(super) const WINDOW_SHOT_MAX_SIDE: u32 = 1600;
 /// The smaller sizes tried when the whole zip does not fit into [`rolidium_net::MAX_ZIP`].
 const SHRINK_STEPS: [u32; 5] = [1200, 900, 700, 500, 350];
 
-/// The diagnostics without the graphics test: the zip (in memory) and the files in it with their sizes.
+/// The diagnostics: the zip (in memory) and the files in it with their sizes.
 pub(super) struct Prepared {
     bytes: Vec<u8>,
     files: Vec<(String, u64)>,
-}
-
-/// What a background job made: the diagnostics, the graphics test, or both.
-pub(super) struct Made {
-    light: Option<Vec<u8>>,
-    graphics: Option<Vec<(String, Vec<u8>)>>,
 }
 
 /// What to do when the zip is ready.
@@ -44,7 +43,9 @@ pub(super) enum Then {
 pub(super) enum Stage {
     #[default]
     Idle,
-    Preparing(Slot<Result<Made, String>>, Then),
+    Preparing(Slot<Result<Vec<u8>, String>>, Then, std::time::Instant),
+    /// The diagnostics could not be prepared in time (or at all): they are switched off and the report can be sent without them.
+    NoDiagnostics(String),
     Sending(Slot<Result<String, String>>),
     /// The number of the report (the panel is folded and the text is gone).
     Sent(String),
@@ -107,24 +108,24 @@ pub(super) struct Feedback {
     pub(super) attach: bool,
     /// Attach the picture of the window (it is only sent when there is one).
     pub(super) attach_shot: bool,
-    /// The graphics test (`scenes.txt` and `scene-*.png`): off, unless there was a crash, a backend is blocked or the drawing is by software.
-    pub(super) graphics_test: bool,
-    /// The program ended with a crash the last time (the graphics test is on then).
-    crashed: bool,
     pub(super) stage: Stage,
     prepared: Option<Prepared>,
-    graphics: Option<Vec<(String, Vec<u8>)>>,
     pub(super) shot: Option<WindowShot>,
     pub(super) shot_state: ShotState,
     /// The height of the panel when the last picture arrived (for the self test: the picture must show the folded panel).
     pub(super) shot_panel_h: f32,
+    /// Where the switch Bug/Idea and the field for the text were drawn in the last frame (for the self test: they must be visible).
+    pub(super) kind_rect: Rect,
+    pub(super) text_rect: Rect,
     pub(super) big_open: bool,
     pub(super) preview_open: bool,
     /// Where the panel was drawn in the last frame, and the height of the column it sits in (for the self test).
     pub(super) rect: Rect,
     pub(super) column_h: f32,
-    /// The height of the fields of the last frame.
-    fields_h: f32,
+    /// The heights the upper part (kind, text) and the lower part (e-mail, choices) used in the last frame, and the rows of the text then.
+    top_h: f32,
+    low_h: f32,
+    top_rows: usize,
     /// A saved file (shown as a line under the buttons).
     pub(super) saved: Option<PathBuf>,
     /// Where "Save to a file" writes (the Documents folder when not set; the self test sets it).
@@ -140,19 +141,20 @@ impl Default for Feedback {
             contact: String::new(),
             attach: true,
             attach_shot: true,
-            graphics_test: false,
-            crashed: false,
             stage: Stage::Idle,
             prepared: None,
-            graphics: None,
             shot: None,
             shot_state: ShotState::Idle,
             shot_panel_h: 0.0,
+            kind_rect: Rect::NOTHING,
+            text_rect: Rect::NOTHING,
             big_open: false,
             preview_open: false,
             rect: Rect::NOTHING,
             column_h: 0.0,
-            fields_h: 200.0,
+            top_h: 130.0,
+            low_h: 80.0,
+            top_rows: 0,
             saved: None,
             save_dir: None,
         }
@@ -161,14 +163,12 @@ impl Default for Feedback {
 
 impl Feedback {
     /// After a crash: the panel is open with a note that the program ended badly the last time. There is no picture of a window (the program
-    /// was not running), and the graphics test is on. Sending still waits for the person.
+    /// was not running). Sending still waits for the person.
     pub(super) fn open_after_crash(&mut self) {
         self.expanded = true;
         self.kind = Kind::Bug;
         self.attach = true;
         self.shot = None;
-        self.crashed = true;
-        self.graphics_test = true;
         if self.text.is_empty() {
             self.text = tr("The program ended with a crash the last time.");
         }
@@ -201,15 +201,29 @@ impl Feedback {
         }
     }
 
-    /// The diagnostics without the graphics test are made (the self test also uses it to have them "ready" without starting anything).
+    /// The diagnostics are made (the self test also uses it to have them "ready" without starting anything).
     pub(super) fn set_light(&mut self, bytes: Vec<u8>) {
         let files = list_zip(&bytes).unwrap_or_default();
         self.prepared = Some(Prepared { bytes, files });
     }
 
-    /// For the self test: the result of the graphics test without running it.
-    pub(super) fn set_graphics_for_test(&mut self, files: Vec<(String, Vec<u8>)>) {
-        self.graphics = Some(files);
+    /// For the self test: the diagnostics are forgotten (they are made again).
+    pub(super) fn clear_prepared(&mut self) {
+        self.forget_zip();
+    }
+
+    /// For the self test: the files of the diagnostics that are ready, and the text of one of them.
+    pub(super) fn prepared_files(&self) -> Vec<String> {
+        self.prepared
+            .as_ref()
+            .map(|p| p.files.iter().map(|f| f.0.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn prepared_text(&self, name: &str) -> Option<String> {
+        let p = self.prepared.as_ref()?;
+        let f = read_zip(&p.bytes).ok()?.into_iter().find(|f| f.0 == name)?;
+        Some(String::from_utf8_lossy(&f.1).to_string())
     }
 
     fn forget_zip(&mut self) {
@@ -222,11 +236,8 @@ impl Feedback {
         self.text.clear();
         self.expanded = false;
         self.forget_zip();
-        self.graphics = None;
         self.shot = None;
         self.big_open = false;
-        self.crashed = false;
-        self.graphics_test = false;
         self.stage = Stage::Sent(id);
     }
 
@@ -259,11 +270,6 @@ impl Feedback {
     }
 }
 
-/// Whether the graphics test is on by itself: after a crash, when a graphics interface is blocked after a crash, and with software drawing.
-pub(super) fn graphics_test_on(crashed: bool, blocked: bool, software: bool) -> bool {
-    crashed || blocked || software
-}
-
 /// The files of a zip with their sizes.
 pub(super) fn list_zip(bytes: &[u8]) -> Result<Vec<(String, u64)>, String> {
     let mut z = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
@@ -289,14 +295,12 @@ fn read_zip(bytes: &[u8]) -> Result<Vec<(String, Vec<u8>)>, String> {
     Ok(v)
 }
 
-/// Puts the zip of a report together from what is switched on: the diagnostics (`light`, without the files in `skip`; `summary.txt` always stays),
-/// the graphics test, and the picture of the window (`window.png`, right after the summary). `None` when there is nothing to send. The zip must be
-/// at most [`rolidium_net::MAX_ZIP`] bytes: when it is larger the pictures of the graphics test go first, then the picture of the window gets
-/// smaller step by step. `summary.txt` is never left out.
+/// Puts the zip of a report together from what is switched on: the diagnostics (`light`, without the files in `skip`; `summary.txt` always stays)
+/// and the picture of the window (`window.png`, right after the summary). `None` when there is nothing to send. The zip must be
+/// at most [`rolidium_net::MAX_ZIP`] bytes: when it is larger the picture of the window gets smaller step by step. `summary.txt` is never left out.
 pub(super) fn assemble_zip(
     light: Option<&[u8]>,
     skip: &[String],
-    graphics: Option<&[(String, Vec<u8>)]>,
     window: Option<&WindowShot>,
 ) -> Result<Option<Vec<u8>>, String> {
     let mut text_files: Vec<(String, Vec<u8>)> = Vec::new();
@@ -307,11 +311,10 @@ pub(super) fn assemble_zip(
             }
         }
     }
-    let pictures: Vec<(String, Vec<u8>)> = graphics.map(|g| g.to_vec()).unwrap_or_default();
-    if text_files.is_empty() && pictures.is_empty() && window.is_none() {
+    if text_files.is_empty() && window.is_none() {
         return Ok(None);
     }
-    let write = |drop_scene_pictures: bool, win: Option<Vec<u8>>| -> Result<Vec<u8>, String> {
+    let write = |win: Option<Vec<u8>>| -> Result<Vec<u8>, String> {
         let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let deflate =
             zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -332,24 +335,15 @@ pub(super) fn assemble_zip(
         if !window_done {
             put("window.png", win.as_deref().unwrap_or(&[]), stored)?;
         }
-        for (n, d) in &pictures {
-            if drop_scene_pictures && n.ends_with(".png") {
-                continue;
-            }
-            put(n, d, if n.ends_with(".png") { stored } else { deflate })?;
-        }
         Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
     };
-    let mut bytes = write(false, window.map(|w| w.png.clone()))?;
-    if bytes.len() > rolidium_net::MAX_ZIP && pictures.iter().any(|(n, _)| n.ends_with(".png")) {
-        bytes = write(true, window.map(|w| w.png.clone()))?;
-    }
+    let mut bytes = write(window.map(|w| w.png.clone()))?;
     if let Some(w) = window {
         for side in SHRINK_STEPS {
             if bytes.len() <= rolidium_net::MAX_ZIP {
                 break;
             }
-            bytes = write(true, Some(w.png_at(side)?))?;
+            bytes = write(Some(w.png_at(side)?))?;
         }
     }
     if bytes.len() > rolidium_net::MAX_ZIP {
@@ -358,28 +352,106 @@ pub(super) fn assemble_zip(
     Ok(Some(bytes))
 }
 
-/// Makes what is not made yet, in a background thread: the diagnostics without the graphics test, and/or the graphics test (every backend in a
-/// process of its own).
+/// Test hooks (the self test): 1 = the whole preparation hangs, 2 = the step that reads the log hangs.
+pub(super) static TEST_STALL: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// How long the whole preparation may take, and the time after which the panel gives up.
+pub(super) const PREPARE_LIMIT: std::time::Duration = std::time::Duration::from_millis(2000);
+pub(super) const PREPARE_GIVE_UP: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Runs one step of the preparation in a thread of its own and waits for it at most `limit` (and not beyond the common `deadline`). A step that does
+/// not answer is left behind and `None` is returned (the caller writes "not reported"). The start and the length of every step go to the log, so that
+/// the next time the log tells where it waited.
+fn timed_step<T: Send + 'static>(
+    name: &str,
+    t0: std::time::Instant,
+    deadline: std::time::Instant,
+    limit: std::time::Duration,
+    f: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    let start = std::time::Instant::now();
+    let at = start.duration_since(t0).as_millis();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    let wait = limit.min(deadline.saturating_duration_since(start));
+    let r = rx.recv_timeout(wait).ok();
+    let took = start.elapsed().as_millis();
+    let how = if r.is_some() {
+        "done"
+    } else {
+        "NOT REPORTED (no answer in time)"
+    };
+    log(&format!(
+        "report preparation: step {name}: started at +{at} ms, {how} after {took} ms"
+    ));
+    r
+}
+
+/// Makes the diagnostics of the panel in a background thread, only from what is in memory or is read without waiting: the facts about the graphics
+/// of the adapter the window runs on (they were read at the start), the system, the processor, the cores, the memory, the threads, the size of the
+/// window, the log and the settings of the program. No child process, no other graphics interface, no walk through the disk, no network. Every step
+/// has its own limit; one that fails or is late is "not reported" and the next one goes on. The whole takes 2 seconds at most.
 fn prepare(
     desc: String,
     backend: String,
     settings_text: String,
-    summary: String,
-    light: bool,
-    graphics: bool,
-) -> Result<Made, String> {
-    let light = if light {
-        Some(crate::diagnose::light_zip(
-            Some(&desc),
-            &backend,
-            &settings_text,
-            &summary,
-        )?)
-    } else {
-        None
-    };
-    let graphics = graphics.then(|| crate::diagnose::graphics_files(&crate::diagnose::run_isolated()));
-    Ok(Made { light, graphics })
+    input: crate::diagnose::SummaryInput,
+) -> Result<Vec<u8>, String> {
+    use std::time::Duration;
+    let t0 = std::time::Instant::now();
+    let deadline = t0 + PREPARE_LIMIT;
+    log("report preparation: started");
+    if TEST_STALL.load(std::sync::atomic::Ordering::Relaxed) == 1 {
+        std::thread::sleep(Duration::from_secs(60));
+    }
+    // 1. the summary: the facts of the computer (system calls, no process)
+    let summary = timed_step(
+        "facts of the computer",
+        t0,
+        deadline,
+        Duration::from_millis(800),
+        {
+            let input = input.clone();
+            move || crate::diagnose::summary_text(&input, &crate::diagnose::machine())
+        },
+    )
+    .unwrap_or_else(|| crate::diagnose::summary_text(&input, &crate::diagnose::Machine::default()));
+    // 2. the log of the program
+    let stall_log = TEST_STALL.load(std::sync::atomic::Ordering::Relaxed) == 2;
+    let log_text = timed_step(
+        "log of the program",
+        t0,
+        deadline,
+        Duration::from_millis(500),
+        move || {
+            if stall_log {
+                std::thread::sleep(Duration::from_secs(60));
+            }
+            crate::logging::read_log()
+        },
+    )
+    .unwrap_or_else(|| "not reported\n".to_string());
+    // 3. the report: the adapter of the window and the system (in memory); the other adapters are not examined here
+    let report = timed_step(
+        "report of the system",
+        t0,
+        deadline,
+        Duration::from_millis(500),
+        move || crate::diagnose::report(Some(&desc), &backend, &[]),
+    )
+    .unwrap_or_else(|| "not reported\n".to_string());
+    // 4. the zip, in memory
+    let t = std::time::Instant::now();
+    let zip = crate::diagnose::light_zip_of(&summary, &report, &log_text, &settings_text);
+    log(&format!(
+        "report preparation: step zip: started at +{} ms, done after {} ms; all took {} ms",
+        t.duration_since(t0).as_millis(),
+        t.elapsed().as_millis(),
+        t0.elapsed().as_millis()
+    ));
+    zip
 }
 
 /// The RGBA bytes of a screenshot of eframe (opaque).
@@ -400,9 +472,6 @@ impl App {
                 .then(|| fb.prepared.as_ref().map(|p| p.bytes.as_slice()))
                 .flatten(),
             &self.settings.report_skip,
-            (fb.attach && fb.graphics_test)
-                .then_some(fb.graphics.as_deref())
-                .flatten(),
             fb.shot.as_ref().filter(|_| fb.attach_shot),
         )
     }
@@ -441,48 +510,35 @@ impl App {
         crate::diagnose::summary_text(&self.summary_input(ctx), &crate::diagnose::machine())
     }
 
-    /// The graphics test is on by itself after a crash, when a graphics interface is blocked after a crash, and when the drawing is by software.
-    pub(super) fn graphics_test_default(&self) -> bool {
-        graphics_test_on(
-            self.feedback.crashed,
-            !self.settings.backend_blocked.is_empty(),
-            self.gpu.software,
-        )
-    }
-
     /// Whether something that is switched on is not made yet.
     fn needs_light(&self) -> bool {
         self.feedback.attach && self.feedback.prepared.is_none()
     }
 
-    fn needs_graphics(&self) -> bool {
-        self.feedback.attach && self.feedback.graphics_test && self.feedback.graphics.is_none()
-    }
-
-    /// Starts making what is missing (the next step runs when it is ready).
+    /// Starts making the diagnostics (the next step runs when they are ready, or the panel gives up after 5 seconds).
     pub(super) fn prepare_zip(&mut self, ctx: &egui::Context, then: Then) {
-        let slot: Slot<Result<Made, String>> = Arc::new(Mutex::new(None));
+        let slot: Slot<Result<Vec<u8>, String>> = Arc::new(Mutex::new(None));
         let (s2, c) = (slot.clone(), ctx.clone());
-        let (desc, backend, stext, summary) = (
+        let (desc, backend, stext, input) = (
             self.adapter_description.clone(),
             self.settings.backend.clone(),
             self.settings.diagnostic_text(),
-            self.summary_for(ctx),
+            self.summary_input(ctx),
         );
-        let (light, graphics) = (self.needs_light(), self.needs_graphics());
         std::thread::spawn(move || {
-            let r = prepare(desc, backend, stext, summary, light, graphics);
+            let r = prepare(desc, backend, stext, input);
             if let Ok(mut s) = s2.lock() {
                 *s = Some(r);
             }
             c.request_repaint();
         });
-        self.feedback.stage = Stage::Preparing(slot, then);
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        self.feedback.stage = Stage::Preparing(slot, then, std::time::Instant::now());
     }
 
     /// Does `then` now, or makes first what is missing.
     pub(super) fn ready_then(&mut self, ctx: &egui::Context, then: Then) {
-        if self.needs_light() || self.needs_graphics() {
+        if self.needs_light() {
             self.prepare_zip(ctx, then);
             return;
         }
@@ -643,7 +699,6 @@ impl App {
     /// The picture is taken (or could not be): the panel opens when this was the click on the folded row.
     fn finish_open(&mut self, expand: bool) {
         if expand {
-            self.feedback.graphics_test = self.graphics_test_default();
             self.feedback.expanded = true;
         }
     }
@@ -653,20 +708,23 @@ impl App {
         self.shot_poll(ctx);
         let stage = std::mem::take(&mut self.feedback.stage);
         self.feedback.stage = match stage {
-            Stage::Preparing(slot, then) => {
+            Stage::Preparing(slot, then, since) => {
                 let r = slot.lock().ok().and_then(|mut s| s.take());
                 match r {
-                    None => {
-                        ctx.request_repaint_after(std::time::Duration::from_millis(200));
-                        Stage::Preparing(slot, then)
+                    None if since.elapsed() >= PREPARE_GIVE_UP => {
+                        log(&format!(
+                            "report preparation: no answer after {} ms, the diagnostics are switched off",
+                            since.elapsed().as_millis()
+                        ));
+                        self.feedback.attach = false;
+                        Stage::NoDiagnostics(tr("The diagnostics could not be prepared in time. They are switched off; you can send the report without them."))
                     }
-                    Some(Ok(m)) => {
-                        if let Some(l) = m.light {
-                            self.feedback.set_light(l);
-                        }
-                        if let Some(g) = m.graphics {
-                            self.feedback.graphics = Some(g);
-                        }
+                    None => {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                        Stage::Preparing(slot, then, since)
+                    }
+                    Some(Ok(l)) => {
+                        self.feedback.set_light(l);
                         match then {
                             Then::Preview => {
                                 self.feedback.preview_open = true;
@@ -684,7 +742,8 @@ impl App {
                     }
                     Some(Err(e)) => {
                         log(&format!("diagnostics not made: {e}"));
-                        Stage::Failed(e)
+                        self.feedback.attach = false;
+                        Stage::NoDiagnostics(tr("The diagnostics could not be prepared in time. They are switched off; you can send the report without them."))
                     }
                 }
             }
@@ -759,6 +818,9 @@ impl App {
                         ui.label(tr("Sending…"));
                     });
                 }
+                Stage::NoDiagnostics(msg) => {
+                    ui.label(egui::RichText::new(msg.as_str()).color(ui.visuals().warn_fg_color));
+                }
                 Stage::Failed(e) => {
                     if !offline {
                         ui.weak(e.as_str());
@@ -780,48 +842,37 @@ impl App {
                     }
                 }
             }
-            // 3. the fields (they scroll when the window is low)
-            // what is below the fields is drawn already; the folded row above them needs about 30 points. The height is fixed (the content of the
-            // last frame, at most what is left), so that the panel never grows beyond its area.
-            let budget = (ui.available_height() - 34.0).max(60.0);
-            let h = budget.min(self.feedback.fields_h + 4.0).max(60.0);
-            let mut used_h = self.feedback.fields_h;
-            // the scroll area takes all the height it is offered (even with max_height), so it is offered exactly h: no gap under the fields
+            // 3. the fields. The order is fixed: at the top the kind and the field for the text, which are always visible; only the lower part (e-mail,
+            // choices, the picture) scrolls. When there is little room the text field has three rows and the picture hides behind a link.
+            let lh = ui.text_style_height(&egui::TextStyle::Body);
+            let est_top = |rows: usize| (rows as f32 + 2.0) * lh + 46.0;
+            // what is left for the fields: the area minus what is drawn below (buttons, messages) and the folded row above
+            let avail = (ui.available_height() - 34.0).max(60.0);
+            let rows: usize = if avail >= est_top(4) + 100.0 { 4 } else { 3 };
+            let roomy = avail >= est_top(4) + 190.0;
+            let top_h = if self.feedback.top_rows == rows {
+                self.feedback.top_h
+            } else {
+                est_top(rows)
+            }
+            .min((avail - 44.0).max(60.0));
+            let low_h = (avail - top_h).clamp(44.0, (self.feedback.low_h + 4.0).max(44.0));
             let w = ui.available_width();
+            let (mut used_top, mut used_low) = (self.feedback.top_h, self.feedback.low_h);
+            // the lower part is drawn first (the layout goes from the bottom up) and scrolls
             ui.allocate_ui_with_layout(
-                egui::Vec2::new(w, h),
+                egui::Vec2::new(w, low_h),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
                     egui::ScrollArea::vertical()
                         .id_salt("feedback-scroll")
-                        .max_height(h)
-                        .min_scrolled_height(h)
+                        .max_height(low_h)
+                        .min_scrolled_height(low_h)
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            // the panel is laid out from the bottom up; the fields go from the top down
                             ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                                 let start_y = ui.cursor().min.y;
                                 let fb = &mut self.feedback;
-                                let mut kind = fb.kind;
-                                ui.horizontal(|ui| {
-                                    ui.selectable_value(&mut kind, Kind::Bug, tr("Bug"));
-                                    ui.selectable_value(&mut kind, Kind::Idea, tr("Idea"));
-                                });
-                                fb.set_kind(kind);
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut fb.text)
-                                        .id_salt("feedback-text")
-                                        .desired_rows(4)
-                                        .desired_width(f32::INFINITY)
-                                        .char_limit(rolidium_net::MAX_NOTE_CHARS)
-                                        .hint_text(tr("What happened, or what would you like?")),
-                                );
-                                fb.clamp_text();
-                                ui.weak(format!(
-                                    "{} / {}",
-                                    fb.text.chars().count(),
-                                    rolidium_net::MAX_NOTE_CHARS
-                                ));
                                 ui.label(tr("Your e-mail for a reply (optional)"));
                                 ui.add(
                                     egui::TextEdit::singleline(&mut fb.contact)
@@ -838,32 +889,77 @@ impl App {
                                         }
                                     });
                                     if let Some(s) = &fb.shot {
-                                        if let Some(tex) = &s.tex {
-                                            let k = (120.0 / s.w as f32).min(68.0 / s.h as f32);
-                                            let size = egui::vec2(s.w as f32 * k, s.h as f32 * k);
-                                            let img = egui::Image::new(egui::load::SizedTexture::new(
-                                                tex.id(),
-                                                size,
-                                            ))
-                                            .sense(egui::Sense::click());
-                                            let r =
-                                                ui.add(img).on_hover_cursor(egui::CursorIcon::PointingHand);
-                                            if r.clicked() {
+                                        match (&s.tex, roomy) {
+                                            (Some(tex), true) => {
+                                                let k = (120.0 / s.w as f32).min(68.0 / s.h as f32);
+                                                let size = egui::vec2(s.w as f32 * k, s.h as f32 * k);
+                                                let img = egui::Image::new(egui::load::SizedTexture::new(
+                                                    tex.id(),
+                                                    size,
+                                                ))
+                                                .sense(egui::Sense::click());
+                                                let r = ui
+                                                    .add(img)
+                                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                                if r.clicked() {
+                                                    act = PanelAct::Big;
+                                                }
+                                            }
+                                            (Some(_), false)
+                                                if ui.link(tr("Show the window picture")).clicked() =>
+                                            {
                                                 act = PanelAct::Big;
                                             }
+                                            _ => {}
                                         }
                                     }
                                 }
                                 if (fb.attach || fb.shot_on()) && ui.link(tr("Show what is sent")).clicked() {
                                     act = PanelAct::Preview;
                                 }
-                                // what the fields really use (the area given to the layout is larger)
-                                used_h = ui.cursor().min.y - start_y;
+                                used_low = ui.cursor().min.y - start_y;
                             });
                         });
                 },
             );
-            self.feedback.fields_h = used_h;
+            // the upper part, always visible: the kind and the text
+            ui.allocate_ui_with_layout(
+                egui::Vec2::new(w, top_h),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    let start_y = ui.cursor().min.y;
+                    let fb = &mut self.feedback;
+                    let mut kind = fb.kind;
+                    fb.kind_rect = ui
+                        .horizontal(|ui| {
+                            ui.selectable_value(&mut kind, Kind::Bug, tr("Bug"));
+                            ui.selectable_value(&mut kind, Kind::Idea, tr("Idea"));
+                        })
+                        .response
+                        .rect;
+                    fb.set_kind(kind);
+                    fb.text_rect = ui
+                        .add(
+                            egui::TextEdit::multiline(&mut fb.text)
+                                .id_salt("feedback-text")
+                                .desired_rows(rows)
+                                .desired_width(f32::INFINITY)
+                                .char_limit(rolidium_net::MAX_NOTE_CHARS)
+                                .hint_text(tr("What happened, or what would you like?")),
+                        )
+                        .rect;
+                    fb.clamp_text();
+                    ui.weak(format!(
+                        "{} / {}",
+                        fb.text.chars().count(),
+                        rolidium_net::MAX_NOTE_CHARS
+                    ));
+                    used_top = ui.cursor().min.y - start_y;
+                },
+            );
+            self.feedback.top_h = used_top;
+            self.feedback.top_rows = rows;
+            self.feedback.low_h = used_low;
         }
         // 4. the report number after a sending
         if let (Stage::Sent(id), false) = (&self.feedback.stage, self.shot_hides_panel()) {
@@ -925,13 +1021,7 @@ impl App {
             Vec::new()
         };
         let shot_size = fb.shot.as_ref().map(|s| s.png.len() as u64);
-        let graphics_size = fb
-            .graphics
-            .as_ref()
-            .map(|g| g.iter().map(|f| f.1.len() as u64).sum::<u64>());
-        let (mut attach_shot, mut graphics_test) = (fb.attach_shot, fb.graphics_test);
-        let attach = fb.attach;
-        let computing = matches!(fb.stage, Stage::Preparing(..));
+        let mut attach_shot = fb.attach_shot;
         let mut skip = self.settings.report_skip.clone();
         let mut close = false;
         let mut open_name: Option<String> = None;
@@ -941,12 +1031,9 @@ impl App {
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.set_max_width(460.0);
-                ui.label(tr("This is exactly what will be sent with the report. Nothing is sent before you press Send. The zip has a summary, the log, the settings (without file names), data about the graphics, the system and the version of the program. These files hold no models and no file names, and the home folder is replaced by ~."));
+                ui.label(tr("This is exactly what will be sent with the report. Nothing is sent before you press Send. The zip has a summary, the log, the settings (without file names), data about the graphics of this window, the system and the version of the program. These files hold no models and no file names, and the home folder is replaced by ~. The test of the other graphics interfaces is only in About > Save diagnostics."));
                 if shot_size.is_some() {
                     ui.label(tr("The window picture shows what is visible in the window, including the model and the names of the bodies. Switch it off if you do not want to send it."));
-                }
-                if attach {
-                    ui.label(tr("The Graphics test has the pictures scene-*.png of a test scene built into the program, not of your screen or your model. It is off unless there was a crash, a graphics interface is blocked or the drawing is done by software."));
                 }
                 ui.weak(tr("Switch off a file and it is not sent and not saved to the zip. summary.txt is always sent with the diagnostics."));
                 ui.add_space(4.0);
@@ -974,18 +1061,6 @@ impl App {
                         }
                     });
                 }
-                if attach {
-                    ui.horizontal(|ui| {
-                        let mut label = tr("Graphics test");
-                        if let Some(sz) = graphics_size {
-                            label.push_str(&format!("  ({} kB)", sz.div_ceil(1024)));
-                        }
-                        ui.checkbox(&mut graphics_test, label);
-                        if computing {
-                            ui.spinner();
-                        }
-                    });
-                }
                 ui.add_space(4.0);
                 if ui.button(tr("Close")).clicked() {
                     close = true;
@@ -996,13 +1071,6 @@ impl App {
             self.settings.save();
         }
         self.feedback.attach_shot = attach_shot;
-        if graphics_test != self.feedback.graphics_test {
-            self.feedback.graphics_test = graphics_test;
-            // the scenes are computed only when the item is switched on
-            if graphics_test && !computing {
-                self.ready_then(ctx, Then::Preview);
-            }
-        }
         if let Some(name) = open_name {
             if name == "window.png" {
                 if let Some(s) = &self.feedback.shot {
@@ -1198,7 +1266,7 @@ mod tests {
     #[test]
     fn files_switched_off_are_not_in_the_zip_but_the_summary_always_is() {
         let skip = vec!["log.txt".to_string(), "summary.txt".to_string()];
-        let z = assemble_zip(Some(&light()), &skip, None, None).unwrap();
+        let z = assemble_zip(Some(&light()), &skip, None).unwrap();
         assert_eq!(names(z), ["summary.txt", "report.txt", "settings.txt"]);
     }
 
@@ -1206,12 +1274,9 @@ mod tests {
     fn the_window_picture_is_independent_of_the_diagnostics() {
         let w = picture(64, 48, false);
         // diagnostics off, picture on: only window.png
-        assert_eq!(
-            names(assemble_zip(None, &[], None, Some(&w)).unwrap()),
-            ["window.png"]
-        );
+        assert_eq!(names(assemble_zip(None, &[], Some(&w)).unwrap()), ["window.png"]);
         // both: summary first, then the picture
-        let both = names(assemble_zip(Some(&light()), &[], None, Some(&w)).unwrap());
+        let both = names(assemble_zip(Some(&light()), &[], Some(&w)).unwrap());
         assert_eq!(
             both,
             [
@@ -1223,24 +1288,9 @@ mod tests {
             ]
         );
         // the picture off: nothing of it
-        assert_eq!(
-            names(assemble_zip(Some(&light()), &[], None, None).unwrap()).len(),
-            4
-        );
+        assert_eq!(names(assemble_zip(Some(&light()), &[], None).unwrap()).len(), 4);
         // nothing at all: no zip
-        assert!(assemble_zip(None, &[], None, None).unwrap().is_none());
-    }
-
-    #[test]
-    fn the_graphics_test_is_only_in_the_zip_when_it_is_given() {
-        let g = vec![
-            ("scenes.txt".to_string(), b"x".to_vec()),
-            ("scene-gl-0.png".to_string(), b"p".to_vec()),
-        ];
-        let with = names(assemble_zip(Some(&light()), &[], Some(&g), None).unwrap());
-        assert!(with.contains(&"scenes.txt".to_string()) && with.contains(&"scene-gl-0.png".to_string()));
-        let without = names(assemble_zip(Some(&light()), &[], None, None).unwrap());
-        assert!(!without.iter().any(|n| n.starts_with("scene")));
+        assert!(assemble_zip(None, &[], None).unwrap().is_none());
     }
 
     #[test]
@@ -1251,20 +1301,10 @@ mod tests {
             "the test picture must not fit: {}",
             big.png.len()
         );
-        let z = assemble_zip(Some(&light()), &[], None, Some(&big))
-            .unwrap()
-            .unwrap();
+        let z = assemble_zip(Some(&light()), &[], Some(&big)).unwrap().unwrap();
         assert!(z.len() <= rolidium_net::MAX_ZIP, "{} bytes", z.len());
         let n = names(Some(z));
         assert!(n.contains(&"summary.txt".to_string()) && n.contains(&"window.png".to_string()));
-        // the scene pictures go first
-        let pics = vec![("scene-gl-0.png".to_string(), vec![7u8; 2_200_000])];
-        let small = picture(200, 100, false);
-        let z = assemble_zip(Some(&light()), &[], Some(&pics), Some(&small))
-            .unwrap()
-            .unwrap();
-        let n = names(Some(z));
-        assert!(!n.contains(&"scene-gl-0.png".to_string()) && n.contains(&"window.png".to_string()));
     }
 
     #[test]
@@ -1281,7 +1321,7 @@ mod tests {
     #[test]
     fn the_defaults_follow_the_kind_for_the_picture_too() {
         let mut f = Feedback::default();
-        assert!(f.attach && f.attach_shot && !f.graphics_test);
+        assert!(f.attach && f.attach_shot);
         f.set_kind(Kind::Idea);
         assert!(!f.attach && !f.attach_shot);
         f.set_kind(Kind::Bug);
@@ -1289,19 +1329,11 @@ mod tests {
     }
 
     #[test]
-    fn there_is_no_picture_after_a_crash_and_the_graphics_test_is_on() {
+    fn there_is_no_picture_after_a_crash() {
         let mut f = Feedback::default();
         f.shot = Some(picture(10, 10, false));
         f.open_after_crash();
-        assert!(f.shot.is_none() && !f.shot_on() && f.graphics_test);
-    }
-
-    #[test]
-    fn the_graphics_test_switches_on_by_itself_in_three_cases() {
-        assert!(!graphics_test_on(false, false, false));
-        assert!(graphics_test_on(true, false, false));
-        assert!(graphics_test_on(false, true, false));
-        assert!(graphics_test_on(false, false, true));
+        assert!(f.shot.is_none() && !f.shot_on());
     }
 
     #[test]

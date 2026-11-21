@@ -15,6 +15,9 @@ pub struct SelfTest {
     failures: Vec<String>,
     /// Which window size / scale of the left column layout check is running.
     layout_i: usize,
+    /// When the preparation of the diagnostics of the report panel was started (steps 70 and later).
+    t_prep: Option<std::time::Instant>,
+    children0: usize,
 }
 
 impl SelfTest {
@@ -28,6 +31,8 @@ impl SelfTest {
             slot: Default::default(),
             failures: Vec::new(),
             layout_i: 0,
+            t_prep: None,
+            children0: 0,
         }
     }
 }
@@ -1153,8 +1158,13 @@ impl App {
             }
             57 => {
                 // the report panel at the bottom of the right column, in two window sizes, folded and open
-                const SIZES: [(f32, f32); 3] = [(1280.0, 720.0), (1280.0, 600.0), (1280.0, 1000.0)];
-                let (w, h) = SIZES[st.layout_i.min(2)];
+                const SIZES: [(f32, f32); 4] = [
+                    (1024.0, 700.0),
+                    (1180.0, 700.0),
+                    (1280.0, 600.0),
+                    (1280.0, 1000.0),
+                ];
+                let (w, h) = SIZES[st.layout_i.min(3)];
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(w, h)));
                 self.feedback.expanded = false;
                 self.feedback.save_dir = Some(st.dir.clone());
@@ -1209,8 +1219,8 @@ impl App {
                 );
                 check(
                     &mut st,
-                    &format!("the open report panel takes at most about 40 % of the column and stays above the status bar ({name})"),
-                    r.height() > 60.0 && r.height() <= col * 0.4 + 1.0 && r.max.y <= self.status_top + 0.5,
+                    &format!("the open report panel takes at most about 40 % of the column (250 points when that is less) and stays above the status bar ({name})"),
+                    r.height() > 60.0 && r.height() <= (col * 0.4).max(250.0) + 1.0 && r.max.y <= self.status_top + 0.5,
                 );
                 // the click took a picture of the window before the panel opened
                 let ppp = ctx.pixels_per_point();
@@ -1258,7 +1268,7 @@ impl App {
                     "the text of the report survives a change of the tool and folding the panel",
                     self.feedback.text == "The hole in the plate looks square.",
                 );
-                if st.layout_i < 2 {
+                if st.layout_i < 3 {
                     st.layout_i += 1;
                     st.step = 56; // the increment leads to the size change of step 57
                 } else {
@@ -1325,14 +1335,9 @@ impl App {
                 ])
                 .unwrap_or_default();
                 self.feedback.set_light(z);
-                self.feedback.set_graphics_for_test(vec![
-                    ("scenes.txt".into(), b"scenes".to_vec()),
-                    ("scene-vulkan-0.png".into(), b"\x89PNG".to_vec()),
-                ]);
                 self.feedback.kind = rolidium_net::Kind::Bug;
                 self.feedback.attach = true;
                 self.feedback.attach_shot = true;
-                self.feedback.graphics_test = false;
                 self.settings.report_skip = vec!["log.txt".into(), "summary.txt".into()];
                 self.feedback.preview_open = true;
                 st.wait_frames = 6;
@@ -1353,7 +1358,7 @@ impl App {
                 };
                 check(
                     &mut st,
-                    "the zip has summary.txt, the picture of the window and the files that are switched on; log.txt (switched off) and the graphics test (off) are not in it",
+                    "the zip has summary.txt, the picture of the window and the files that are switched on; log.txt (switched off) is not in it, and there are no scene-*.png and no scenes.txt",
                     names(self) == ["summary.txt", "window.png", "report.txt", "settings.txt"],
                 );
                 self.feedback.attach_shot = false;
@@ -1370,14 +1375,6 @@ impl App {
                     names(self) == ["window.png"],
                 );
                 self.feedback.attach = true;
-                self.feedback.graphics_test = true;
-                check(
-                    &mut st,
-                    "the graphics test is in the zip when it is switched on",
-                    names(self).contains(&"scenes.txt".to_string())
-                        && names(self).contains(&"scene-vulkan-0.png".to_string()),
-                );
-                self.feedback.graphics_test = false;
                 // a picture that does not compress: the whole zip must still be at most 2 MB, with summary.txt and a smaller window.png
                 let (w, h) = (1600u32, 1000u32);
                 let mut x = 0x9E37_79B9u32;
@@ -1420,22 +1417,13 @@ impl App {
                     "the diagnostics and the window picture are on for a bug and off for an idea",
                     bug == (true, true) && !f.attach && !f.attach_shot,
                 );
-                check(
-                    &mut st,
-                    "the graphics test is off by default and on after a crash, with a blocked interface or with software drawing",
-                    !feedback::graphics_test_on(false, false, false)
-                        && feedback::graphics_test_on(true, false, false)
-                        && feedback::graphics_test_on(false, true, false)
-                        && feedback::graphics_test_on(false, false, true)
-                        && !feedback::Feedback::default().graphics_test,
-                );
                 let mut c = feedback::Feedback::default();
                 c.shot = None;
                 c.open_after_crash();
                 check(
                     &mut st,
-                    "after a crash there is no window picture and the graphics test is on",
-                    c.shot.is_none() && !c.shot_on() && c.graphics_test,
+                    "after a crash there is no window picture",
+                    c.shot.is_none() && !c.shot_on(),
                 );
                 self.feedback.preview_open = false;
                 self.settings.report_skip.clear();
@@ -1465,6 +1453,105 @@ impl App {
                 self.feedback.expanded = false;
             }
             69 => {
+                // the diagnostics of the report panel: made in the background from memory, within 2 seconds, without a child process
+                self.feedback.attach = true;
+                self.feedback.clear_prepared();
+                st.children0 = crate::diagnose::CHILD_PROCESSES.load(std::sync::atomic::Ordering::Relaxed);
+                st.t_prep = Some(std::time::Instant::now());
+                self.prepare_zip(ctx, feedback::Then::Preview);
+                st.wait_frames = 1;
+            }
+            70 => {
+                let took = st.t_prep.map_or(99.0, |t| t.elapsed().as_secs_f32());
+                if matches!(self.feedback.stage, feedback::Stage::Preparing(..)) && took < 7.0 {
+                    st.step = 69; // wait: the increment brings this step again
+                    st.wait_frames = 1;
+                } else {
+                    let names = self.feedback.prepared_files();
+                    println!("selftest: the diagnostics of the panel were ready after {took:.2} s");
+                    check(
+                        &mut st,
+                        "the diagnostics of the report panel are ready within 2 seconds",
+                        !names.is_empty() && took <= 2.2,
+                    );
+                    let no_children = crate::diagnose::CHILD_PROCESSES
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                        == st.children0;
+                    check(&mut st, "the preparation started no child process", no_children);
+                    check(
+                        &mut st,
+                        "the diagnostics of the panel have the summary, the report, the log and the settings, and no scene-*.png and no scenes.txt",
+                        names == ["summary.txt", "report.txt", "log.txt", "settings.txt"],
+                    );
+                    let log = std::fs::read_to_string(crate::logging::log_path().unwrap_or_default())
+                        .unwrap_or_default();
+                    check(
+                        &mut st,
+                        "every step of the preparation is in the log with its start and length",
+                        log.contains("step facts of the computer: started at +")
+                            && log.contains("step log of the program: started at +")
+                            && log.contains("step report of the system: started at +")
+                            && log.contains("step zip: started at +"),
+                    );
+                    self.feedback.preview_open = false;
+                    // a step that hangs: the log is not read in time, "not reported", the rest goes on
+                    feedback::TEST_STALL.store(2, std::sync::atomic::Ordering::Relaxed);
+                    self.feedback.clear_prepared();
+                    st.t_prep = Some(std::time::Instant::now());
+                    self.prepare_zip(ctx, feedback::Then::Preview);
+                    st.wait_frames = 1;
+                }
+            }
+            71 => {
+                let took = st.t_prep.map_or(99.0, |t| t.elapsed().as_secs_f32());
+                if matches!(self.feedback.stage, feedback::Stage::Preparing(..)) && took < 7.0 {
+                    st.step = 70;
+                    st.wait_frames = 1;
+                } else {
+                    feedback::TEST_STALL.store(0, std::sync::atomic::Ordering::Relaxed);
+                    println!("selftest: with a hanging step the diagnostics were ready after {took:.2} s");
+                    check(
+                        &mut st,
+                        "a step that hangs is \"not reported\" and the diagnostics are ready within 2 seconds anyway",
+                        took <= 2.5
+                            && self.feedback.prepared_text("log.txt").is_some_and(|t| t.contains("not reported"))
+                            && self.feedback.prepared_files().len() == 4,
+                    );
+                    self.feedback.preview_open = false;
+                    // the whole preparation hangs: after 5 seconds the panel says so and the report can be sent without the diagnostics
+                    feedback::TEST_STALL.store(1, std::sync::atomic::Ordering::Relaxed);
+                    self.feedback.clear_prepared();
+                    self.feedback.attach = true;
+                    self.feedback.kind = rolidium_net::Kind::Bug;
+                    self.feedback.text = "a hanging preparation".into();
+                    st.t_prep = Some(std::time::Instant::now());
+                    self.prepare_zip(ctx, feedback::Then::Send);
+                    st.wait_frames = 1;
+                }
+            }
+            72 => {
+                let took = st.t_prep.map_or(99.0, |t| t.elapsed().as_secs_f32());
+                if matches!(self.feedback.stage, feedback::Stage::Preparing(..)) && took < 8.0 {
+                    st.step = 71;
+                    st.wait_frames = 1;
+                } else {
+                    feedback::TEST_STALL.store(0, std::sync::atomic::Ordering::Relaxed);
+                    println!("selftest: with a hanging preparation the panel gave up after {took:.2} s");
+                    check(
+                        &mut st,
+                        "when the preparation does not finish, the panel says so within 5 seconds, switches the diagnostics off and the report can be sent without them",
+                        matches!(self.feedback.stage, feedback::Stage::NoDiagnostics(_))
+                            && (4.9..=5.8).contains(&took)
+                            && !self.feedback.attach
+                            && self.feedback.can_send(),
+                    );
+                    self.feedback.stage = feedback::Stage::Idle;
+                    self.feedback.attach = true;
+                    self.feedback.text.clear();
+                    self.feedback.clear_prepared();
+                }
+            }
+            73 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

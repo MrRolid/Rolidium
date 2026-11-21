@@ -2140,6 +2140,9 @@ impl App {
                     }
                     if busy {
                         ui.spinner();
+                        if ui.button(tr("Cancel")).clicked() {
+                            crate::diagnose::CANCEL.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
                     }
                 });
                 if let Some(job) = &self.diagnostics_job {
@@ -2147,6 +2150,7 @@ impl App {
                     if let Some(r) = done {
                         match r {
                             Ok(p) => self.diagnostics_saved = Some(p),
+                            Err(e) if e == "cancelled" => {}
                             Err(e) => self.diagnostics_error = Some(e),
                         }
                         self.diagnostics_job = None;
@@ -3742,7 +3746,8 @@ impl eframe::App for App {
                 // the report panel sits at the bottom (40 % of the column is its area, it uses what it needs), the rest of the column above it
                 let full = ui.available_rect_before_wrap();
                 // the folded row at the top of the panel is drawn above what is reserved (about 24 points), so the open panel is 40 % of the column
-                let area_h = (full.height() * 0.4 - 24.0).max(100.0).min(full.height());
+                // (at least 226 points, so that the kind and the text always fit above the buttons even in a low window)
+                let area_h = (full.height() * 0.4 - 24.0).max(226.0).min(full.height() * 0.7);
                 let used_h = self.feedback.rect.height().clamp(20.0, area_h);
                 let fb_rect = Rect::from_min_max(Pos2::new(full.min.x, full.max.y - area_h), full.max);
                 let split = full.max.y - used_h - 6.0;
