@@ -191,6 +191,17 @@ struct SketchRegions {
 }
 
 /// A diagnostics zip being written on another thread: the result appears in the slot when it is done.
+/// What the status bar shows about the graphics: (the name of the card, the label "software drawing"). In the presentation mode
+/// (`ROLIDIUM_PRESENTATION=1`, a help for pictures of the window) both are left out; nothing else changes.
+pub(crate) fn status_labels(presentation: bool, software: bool) -> (bool, bool) {
+    (!presentation, software && !presentation)
+}
+
+/// Whether the environment asks for the presentation mode.
+pub(crate) fn presentation_env() -> bool {
+    std::env::var("ROLIDIUM_PRESENTATION").is_ok_and(|v| v == "1")
+}
+
 type DiagnosticsJob = std::sync::Arc<std::sync::Mutex<Option<Result<std::path::PathBuf, String>>>>;
 
 pub struct App {
@@ -219,6 +230,10 @@ pub struct App {
     adapter_software: bool,
     adapter_description: String,
     diagnostics_saved: Option<std::path::PathBuf>,
+    /// What the status bar showed in the last frame: (the name of the graphics card, the label of software drawing). For the self test.
+    status_shows: (bool, bool),
+    /// The self test sets this instead of the environment variable.
+    presentation_override: Option<bool>,
     diagnostics_job: Option<DiagnosticsJob>,
     diagnostics_error: Option<String>,
     started: Instant,
@@ -423,6 +438,8 @@ impl App {
             adapter_software,
             adapter_description: rolidium_render::describe_adapter(&rs.adapter),
             diagnostics_saved: None,
+            status_shows: (true, false),
+            presentation_override: None,
             diagnostics_job: None,
             diagnostics_error: None,
             started,
@@ -2082,6 +2099,10 @@ impl App {
         self.diagnostics_error = None;
     }
 
+    fn presentation(&self) -> bool {
+        self.presentation_override.unwrap_or_else(presentation_env)
+    }
+
     fn about_window(&mut self, ctx: &egui::Context) {
         if !self.about_open {
             return;
@@ -3683,11 +3704,15 @@ impl eframe::App for App {
                         egui::RichText::new(crate::version_string()).color(Color32::from_rgb(150, 200, 255)),
                     );
                     ui.separator();
-                    ui.scope(|ui| {
-                        ui.set_max_width(120.0);
-                        ui.add(egui::Label::new(egui::RichText::new(&self.adapter).weak()).truncate());
-                    });
-                    if self.adapter_software {
+                    let labels = status_labels(self.presentation(), self.adapter_software);
+                    self.status_shows = labels;
+                    if labels.0 {
+                        ui.scope(|ui| {
+                            ui.set_max_width(120.0);
+                            ui.add(egui::Label::new(egui::RichText::new(&self.adapter).weak()).truncate());
+                        });
+                    }
+                    if labels.1 {
                         ui.label(egui::RichText::new(tr("software drawing")).small().color(Color32::from_rgb(220, 160, 80)))
                             .on_hover_text(tr("The picture is drawn by the processor, not by a graphics card, so it can be slow and may look different. Try another graphics backend in Settings, or update the graphics driver."));
                     }
@@ -4400,6 +4425,14 @@ fn scene_bounds(meshes: &[MeshEntry], lo: &mut Vec3, hi: &mut Vec3) {
 #[cfg(test)]
 mod marks_tests {
     use super::*;
+
+    #[test]
+    fn the_presentation_mode_leaves_out_the_card_and_the_software_label_only() {
+        assert_eq!(status_labels(false, true), (true, true));
+        assert_eq!(status_labels(false, false), (true, false));
+        assert_eq!(status_labels(true, true), (false, false));
+        assert_eq!(status_labels(true, false), (false, false));
+    }
 
     fn slot(b: BodyId) -> Option<u32> {
         // body ids 10, 20, 30 live in slots 0, 1, 2; body 99 has no mesh

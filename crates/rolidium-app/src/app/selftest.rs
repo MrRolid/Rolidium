@@ -1552,6 +1552,28 @@ impl App {
                 }
             }
             73 => {
+                // the presentation mode (ROLIDIUM_PRESENTATION=1): the status bar leaves out the name of the card and the label of software drawing
+                self.presentation_override = Some(false);
+                st.wait_frames = 3;
+            }
+            74 => {
+                let normal = self.status_shows;
+                self.presentation_override = Some(true);
+                st.wait_frames = 3;
+                st.t_prep = None;
+                st.children0 = usize::from(normal.0) * 2 + usize::from(normal.1);
+            }
+            75 => {
+                let normal = (st.children0 & 2 != 0, st.children0 & 1 != 0);
+                let shown = self.status_shows;
+                self.presentation_override = None;
+                check(
+                    &mut st,
+                    "without the presentation mode the status bar shows the name of the card (and the software drawing label when it applies); with it both are missing",
+                    normal.0 && normal.1 == self.adapter_software && shown == (false, false),
+                );
+            }
+            76 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

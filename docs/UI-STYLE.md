@@ -109,3 +109,7 @@ interrupts the animation. Settings > "Turn the view square to the sketch automat
 * Smooth edges (the seams between faces that continue each other: the turns of a spring, the seam of a cylinder) are drawn thin and faint (22 % of the edge colour); sharp edges as before. They can still be picked and measured.
 * A face shows its area once ("Area"). When a curve and a body edge lie in the same place the curve is picked first; clicking the same place again takes the next candidate.
 * The view turned to a sketch plane never zooms in closer than a window 20 mm across.
+
+## Presentation mode (a help for pictures of the window)
+
+With `ROLIDIUM_PRESENTATION=1` the status bar leaves out the label of software drawing and the name of the graphics card, so that pictures of the window for the web show nothing about how they were drawn; nothing else changes (behaviour, calculations, the diagnostics and the log still say how the picture is really drawn), and there is no switch in Settings.
