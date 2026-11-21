@@ -432,36 +432,39 @@ impl App {
                 .min_scrolled_height(h)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    let fb = &mut self.feedback;
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(&mut fb.kind, Kind::Bug, tr("Bug"));
-                        ui.selectable_value(&mut fb.kind, Kind::Idea, tr("Idea"));
+                    // the panel is laid out from the bottom up; the fields go from the top down
+                    ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                        let fb = &mut self.feedback;
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut fb.kind, Kind::Bug, tr("Bug"));
+                            ui.selectable_value(&mut fb.kind, Kind::Idea, tr("Idea"));
+                        });
+                        ui.add(
+                            egui::TextEdit::multiline(&mut fb.text)
+                                .id_salt("feedback-text")
+                                .desired_rows(4)
+                                .desired_width(f32::INFINITY)
+                                .char_limit(rolidium_net::MAX_NOTE_CHARS)
+                                .hint_text(tr("What happened, or what would you like?")),
+                        );
+                        fb.clamp_text();
+                        ui.weak(format!(
+                            "{} / {}",
+                            fb.text.chars().count(),
+                            rolidium_net::MAX_NOTE_CHARS
+                        ));
+                        ui.label(tr("Your e-mail for a reply (optional)"));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut fb.contact)
+                                .id_salt("feedback-contact")
+                                .desired_width(f32::INFINITY)
+                                .char_limit(200),
+                        );
+                        ui.checkbox(&mut fb.attach, tr("Attach diagnostics"));
+                        if fb.attach && ui.link(tr("Show what is sent")).clicked() {
+                            act = PanelAct::Preview;
+                        }
                     });
-                    ui.add(
-                        egui::TextEdit::multiline(&mut fb.text)
-                            .id_salt("feedback-text")
-                            .desired_rows(4)
-                            .desired_width(f32::INFINITY)
-                            .char_limit(rolidium_net::MAX_NOTE_CHARS)
-                            .hint_text(tr("What happened, or what would you like?")),
-                    );
-                    fb.clamp_text();
-                    ui.weak(format!(
-                        "{} / {}",
-                        fb.text.chars().count(),
-                        rolidium_net::MAX_NOTE_CHARS
-                    ));
-                    ui.label(tr("Your e-mail for a reply (optional)"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut fb.contact)
-                            .id_salt("feedback-contact")
-                            .desired_width(f32::INFINITY)
-                            .char_limit(200),
-                    );
-                    ui.checkbox(&mut fb.attach, tr("Attach diagnostics"));
-                    if fb.attach && ui.link(tr("Show what is sent")).clicked() {
-                        act = PanelAct::Preview;
-                    }
                 });
             self.feedback.fields_h = out.content_size.y;
         }
