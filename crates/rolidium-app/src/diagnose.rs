@@ -685,6 +685,25 @@ pub fn with_file(bytes: &[u8], name: &str, data: &[u8]) -> Result<Vec<u8>, Strin
     Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
 }
 
+/// The same zip without the named files (the ones the person switched off). `summary.txt` is never left out.
+pub fn without_files(bytes: &[u8], skip: &[String]) -> Result<Vec<u8>, String> {
+    let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    let mut out = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    for i in 0..src.len() {
+        let mut f = src.by_index(i).map_err(|e| e.to_string())?;
+        let name = f.name().map(|n| n.to_string()).map_err(|e| e.to_string())?;
+        if name != "summary.txt" && skip.contains(&name) {
+            continue;
+        }
+        let mut data = Vec::new();
+        std::io::Read::read_to_end(&mut f, &mut data).map_err(|e| e.to_string())?;
+        out.start_file(name, opts).map_err(|e| e.to_string())?;
+        out.write_all(&data).map_err(|e| e.to_string())?;
+    }
+    Ok(out.finish().map_err(|e| e.to_string())?.into_inner())
+}
+
 /// The same zip without the test pictures (`scene-*.png`): when it is too large to be sent.
 pub fn without_pictures(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let mut src = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;

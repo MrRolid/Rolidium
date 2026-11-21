@@ -89,9 +89,18 @@ impl Feedback {
         }
     }
 
-    /// Whether Send can be pressed: some text, or the diagnostics.
+    /// Whether Send can be pressed: an idea needs text, a bug needs text or the diagnostics.
     pub(super) fn can_send(&self) -> bool {
-        !self.text.trim().is_empty() || self.attach
+        !self.text.trim().is_empty() || (self.kind == Kind::Bug && self.attach)
+    }
+
+    /// The diagnostics are attached by default to a bug and not to an idea (the person can change it).
+    pub(super) fn set_kind(&mut self, kind: Kind) {
+        if self.kind != kind {
+            self.kind = kind;
+            self.attach = kind == Kind::Bug;
+            self.forget_zip();
+        }
     }
 
     /// Cuts the text to the limit (a pasted text may be longer than the field takes).
@@ -99,6 +108,16 @@ impl Feedback {
         if self.text.chars().count() > rolidium_net::MAX_NOTE_CHARS {
             self.text = self.text.chars().take(rolidium_net::MAX_NOTE_CHARS).collect();
         }
+    }
+
+    /// For the self test: a zip that is "ready" without starting the graphics tests.
+    pub(super) fn set_prepared_for_test(&mut self, bytes: Vec<u8>) {
+        let files = list_zip(&bytes).unwrap_or_default();
+        self.prepared = Some(Prepared {
+            path: std::env::temp_dir().join("rolidium-selftest-prepared.zip"),
+            bytes,
+            files,
+        });
     }
 
     fn forget_zip(&mut self) {
@@ -178,6 +197,15 @@ fn prepare(
 }
 
 impl App {
+    /// The zip as it goes out: without the files the person switched off (`summary.txt` stays).
+    pub(super) fn outgoing_zip(&self) -> Option<Vec<u8>> {
+        let p = self.feedback.prepared.as_ref()?;
+        if self.settings.report_skip.is_empty() {
+            return Some(p.bytes.clone());
+        }
+        crate::diagnose::without_files(&p.bytes, &self.settings.report_skip).ok()
+    }
+
     /// What the app knows about itself, for the first file of the diagnostics.
     pub(super) fn summary_input(&self, ctx: &egui::Context) -> crate::diagnose::SummaryInput {
         let args: Vec<String> = std::env::args().collect();
@@ -237,10 +265,8 @@ impl App {
         let slot: Slot<Result<String, String>> = Arc::new(Mutex::new(None));
         let (s2, c) = (slot.clone(), ctx.clone());
         let fb = &self.feedback;
-        let zip = fb
-            .attach
-            .then(|| fb.prepared.as_ref().map(|p| p.bytes.clone()))
-            .flatten();
+        let zip = if fb.attach { self.outgoing_zip() } else { None };
+        let fb = &self.feedback;
         let (kind, note, contact) = (fb.kind, fb.text.clone(), fb.contact.clone());
         std::thread::spawn(move || {
             let res =
@@ -269,7 +295,9 @@ impl App {
 
     /// The report as a zip in the Documents folder: the diagnostics (when attached) and the text as a file of its own.
     pub(super) fn press_save(&mut self, ctx: &egui::Context) {
-        if matches!(self.feedback.stage, Stage::Preparing(..) | Stage::Sending(_)) {
+        if !self.feedback.can_send()
+            || matches!(self.feedback.stage, Stage::Preparing(..) | Stage::Sending(_))
+        {
             return;
         }
         if self.feedback.attach && self.feedback.prepared.is_none() {
@@ -281,8 +309,8 @@ impl App {
 
     fn save_report_zip(&mut self) {
         let msg = self.feedback.message_text();
-        let made = match (&self.feedback.prepared, self.feedback.attach) {
-            (Some(p), true) => crate::diagnose::with_file(&p.bytes, "message.txt", msg.as_bytes()),
+        let made = match (self.outgoing_zip(), self.feedback.attach) {
+            (Some(b), true) => crate::diagnose::with_file(&b, "message.txt", msg.as_bytes()),
             _ => crate::diagnose::zip_of(&[("message.txt", msg.as_bytes())]),
         };
         let mut path = crate::diagnose::default_path();
@@ -376,7 +404,10 @@ impl App {
                     act = PanelAct::Send;
                 }
                 if ui
-                    .add_enabled(!busy, egui::Button::new(tr("Save to a file")))
+                    .add_enabled(
+                        !busy && self.feedback.can_send(),
+                        egui::Button::new(tr("Save to a file")),
+                    )
                     .clicked()
                 {
                     act = PanelAct::Save;
@@ -426,47 +457,61 @@ impl App {
             // last frame, at most what is left), so that the panel never grows beyond its area.
             let budget = (ui.available_height() - 34.0).max(60.0);
             let h = budget.min(self.feedback.fields_h + 4.0).max(60.0);
-            let out = egui::ScrollArea::vertical()
-                .id_salt("feedback-scroll")
-                .max_height(h)
-                .min_scrolled_height(h)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    // the panel is laid out from the bottom up; the fields go from the top down
-                    ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                        let fb = &mut self.feedback;
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut fb.kind, Kind::Bug, tr("Bug"));
-                            ui.selectable_value(&mut fb.kind, Kind::Idea, tr("Idea"));
+            let mut used_h = self.feedback.fields_h;
+            // the scroll area takes all the height it is offered (even with max_height), so it is offered exactly h: no gap under the fields
+            let w = ui.available_width();
+            ui.allocate_ui_with_layout(
+                egui::Vec2::new(w, h),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    egui::ScrollArea::vertical()
+                        .id_salt("feedback-scroll")
+                        .max_height(h)
+                        .min_scrolled_height(h)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            // the panel is laid out from the bottom up; the fields go from the top down
+                            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                                let start_y = ui.cursor().min.y;
+                                let fb = &mut self.feedback;
+                                let mut kind = fb.kind;
+                                ui.horizontal(|ui| {
+                                    ui.selectable_value(&mut kind, Kind::Bug, tr("Bug"));
+                                    ui.selectable_value(&mut kind, Kind::Idea, tr("Idea"));
+                                });
+                                fb.set_kind(kind);
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut fb.text)
+                                        .id_salt("feedback-text")
+                                        .desired_rows(4)
+                                        .desired_width(f32::INFINITY)
+                                        .char_limit(rolidium_net::MAX_NOTE_CHARS)
+                                        .hint_text(tr("What happened, or what would you like?")),
+                                );
+                                fb.clamp_text();
+                                ui.weak(format!(
+                                    "{} / {}",
+                                    fb.text.chars().count(),
+                                    rolidium_net::MAX_NOTE_CHARS
+                                ));
+                                ui.label(tr("Your e-mail for a reply (optional)"));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut fb.contact)
+                                        .id_salt("feedback-contact")
+                                        .desired_width(f32::INFINITY)
+                                        .char_limit(200),
+                                );
+                                ui.checkbox(&mut fb.attach, tr("Attach diagnostics"));
+                                if fb.attach && ui.link(tr("Show what is sent")).clicked() {
+                                    act = PanelAct::Preview;
+                                }
+                                // what the fields really use (the area given to the layout is larger)
+                                used_h = ui.cursor().min.y - start_y;
+                            });
                         });
-                        ui.add(
-                            egui::TextEdit::multiline(&mut fb.text)
-                                .id_salt("feedback-text")
-                                .desired_rows(4)
-                                .desired_width(f32::INFINITY)
-                                .char_limit(rolidium_net::MAX_NOTE_CHARS)
-                                .hint_text(tr("What happened, or what would you like?")),
-                        );
-                        fb.clamp_text();
-                        ui.weak(format!(
-                            "{} / {}",
-                            fb.text.chars().count(),
-                            rolidium_net::MAX_NOTE_CHARS
-                        ));
-                        ui.label(tr("Your e-mail for a reply (optional)"));
-                        ui.add(
-                            egui::TextEdit::singleline(&mut fb.contact)
-                                .id_salt("feedback-contact")
-                                .desired_width(f32::INFINITY)
-                                .char_limit(200),
-                        );
-                        ui.checkbox(&mut fb.attach, tr("Attach diagnostics"));
-                        if fb.attach && ui.link(tr("Show what is sent")).clicked() {
-                            act = PanelAct::Preview;
-                        }
-                    });
-                });
-            self.feedback.fields_h = out.content_size.y;
+                },
+            );
+            self.feedback.fields_h = used_h;
         }
         // 4. the report number after a sending
         if let Stage::Sent(id) = &self.feedback.stage {
@@ -524,6 +569,8 @@ impl App {
             self.feedback.preview_open = false;
             return;
         };
+        let files = p.files.clone();
+        let mut skip = self.settings.report_skip.clone();
         let mut close = false;
         let mut open_name = None;
         egui::Window::new(tr("What is sent"))
@@ -533,10 +580,20 @@ impl App {
             .show(ctx, |ui| {
                 ui.set_max_width(460.0);
                 ui.label(tr("This is exactly what will be sent with the report. Nothing is sent before you press Send. The zip has a summary, the log, the settings (without file names), data about the graphics, the system and the version of the program. It has no models and no names of models, and the home folder is replaced by ~."));
+                ui.label(tr("The pictures scene-*.png show a test scene built into the program, not your screen and not your model."));
+                ui.weak(tr("Switch off a file and it is not sent and not saved to the zip. summary.txt is always sent with the diagnostics."));
                 ui.add_space(4.0);
-                for (name, size) in &p.files {
+                for (name, size) in &files {
                     ui.horizontal(|ui| {
-                        ui.label(format!("{name}  ({} kB)", size.div_ceil(1024)));
+                        let required = name == "summary.txt";
+                        let mut on = required || !skip.contains(name);
+                        let label = format!("{name}  ({} kB)", size.div_ceil(1024));
+                        if ui.add_enabled(!required, egui::Checkbox::new(&mut on, label)).changed() {
+                            skip.retain(|n| n != name);
+                            if !on {
+                                skip.push(name.clone());
+                            }
+                        }
                         if ui.small_button(tr("Open")).clicked() {
                             open_name = Some(name.clone());
                         }
@@ -547,6 +604,10 @@ impl App {
                     close = true;
                 }
             });
+        if skip != self.settings.report_skip {
+            self.settings.report_skip = skip;
+            self.settings.save();
+        }
         if let (Some(name), Some(p)) = (open_name, &self.feedback.prepared) {
             open_zip_entry(&p.bytes, &name);
         }
@@ -612,18 +673,63 @@ mod tests {
     }
 
     #[test]
-    fn send_needs_text_or_diagnostics() {
+    fn a_bug_needs_text_or_diagnostics_and_an_idea_needs_text() {
         let mut f = Feedback::default();
         assert!(
-            f.attach && f.can_send(),
-            "the diagnostics are attached by default"
+            f.kind == Kind::Bug && f.attach && f.can_send(),
+            "a bug without text goes with the diagnostics"
         );
         f.attach = false;
         assert!(!f.can_send());
         f.text = "  ".into();
         assert!(!f.can_send());
-        f.text = "an idea".into();
+        f.text = "a crash".into();
         assert!(f.can_send());
+        // an idea: no text, no sending, even when the diagnostics are on
+        let mut g = Feedback::default();
+        g.set_kind(Kind::Idea);
+        g.attach = true;
+        assert!(!g.can_send());
+        g.text = " \n ".into();
+        assert!(!g.can_send());
+        g.text = "a ruler".into();
+        assert!(g.can_send());
+    }
+
+    #[test]
+    fn the_default_of_the_diagnostics_follows_the_kind_and_can_be_changed() {
+        let mut f = Feedback::default();
+        assert!(f.attach);
+        f.set_kind(Kind::Idea);
+        assert!(!f.attach, "an idea starts without the diagnostics");
+        f.attach = true; // the person's choice stays until the kind changes
+        f.set_kind(Kind::Idea);
+        assert!(f.attach);
+        f.set_kind(Kind::Bug);
+        assert!(f.attach);
+        f.attach = false;
+        f.set_kind(Kind::Idea);
+        f.set_kind(Kind::Bug);
+        assert!(f.attach, "back to a bug: on again");
+    }
+
+    #[test]
+    fn files_switched_off_are_not_in_the_zip_but_the_summary_always_is() {
+        let z = crate::diagnose::zip_of(&[
+            ("summary.txt", b"s"),
+            ("log.txt", b"l"),
+            ("scene-gl-0.png", b"p"),
+            ("scenes.txt", b"t"),
+        ])
+        .unwrap();
+        let skip = vec![
+            "log.txt".to_string(),
+            "scene-gl-0.png".to_string(),
+            "summary.txt".to_string(),
+        ];
+        let out = crate::diagnose::without_files(&z, &skip).unwrap();
+        let names: Vec<String> = list_zip(&out).unwrap().into_iter().map(|f| f.0).collect();
+        assert_eq!(names, ["summary.txt", "scenes.txt"]);
     }
 
     #[test]

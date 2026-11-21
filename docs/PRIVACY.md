@@ -31,8 +31,8 @@ address is never taken from the answer of the server. The program downloads and 
 *When.* Only when you ask: the folded row **Report a bug or an idea** at the bottom of the right column opens a panel. Nothing is sent by itself. After a run that ended with a crash the panel opens by itself at the
 next start with a note that the program ended badly; it still waits for you to press Send.
 
-*What you decide.* Bug or Idea, a text of up to 1000 characters, an optional e-mail address for a reply, and whether the diagnostics are attached (on by default; an idea can be sent without them). The link
-**Show what is sent** lists every file of the zip, and each can be opened. **Nothing is sent before you press Send.**
+*What you decide.* Bug or Idea, a text of up to 1000 characters, an optional e-mail address for a reply, and whether the diagnostics are attached (on for a bug and off for an idea; you can change it; an idea needs a text, a bug without text can be sent only with the diagnostics). The link
+**Show what is sent** lists every file of the zip, and each can be opened and has a check box: a file you switch off is neither sent nor saved (`summary.txt` always goes with the diagnostics; your choice is remembered). The pictures `scene-*.png` show a test scene built into the program, not your screen and not your model. **Nothing is sent before you press Send.**
 
 *What is in the zip.* First a readable **summary** (`summary.txt`): the version and the commit of the program, the language; the graphics card (name, manufacturer, driver and its version), the interface used
 (DirectX 12, Vulkan or OpenGL), whether the picture is drawn by software, whether the interface was chosen automatically or forced, and which interfaces are blocked after a crash; the processor (model, physical and

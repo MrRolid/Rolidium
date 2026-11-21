@@ -1153,8 +1153,8 @@ impl App {
             }
             57 => {
                 // the report panel at the bottom of the right column, in two window sizes, folded and open
-                const SIZES: [(f32, f32); 2] = [(1280.0, 720.0), (1280.0, 600.0)];
-                let (w, h) = SIZES[st.layout_i.min(1)];
+                const SIZES: [(f32, f32); 3] = [(1280.0, 720.0), (1280.0, 600.0), (1280.0, 1000.0)];
+                let (w, h) = SIZES[st.layout_i.min(2)];
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(w, h)));
                 self.feedback.expanded = false;
                 self.feedback.save_dir = Some(st.dir.clone());
@@ -1210,6 +1210,12 @@ impl App {
                     &format!("the open report panel takes at most about 40 % of the column and stays above the status bar ({name})"),
                     r.height() > 60.0 && r.height() <= col * 0.4 + 1.0 && r.max.y <= self.status_top + 0.5,
                 );
+                // no empty gap between the fields and the buttons: the panel is as high as its content (a bug text of 4 rows, the fields, the buttons)
+                check(
+                    &mut st,
+                    &format!("the open report panel is as high as its content, with no gap between the fields and the buttons ({name})"),
+                    r.height() < 440.0,
+                );
                 shot(&mut st, ctx, &name);
             }
             61 => {
@@ -1225,10 +1231,20 @@ impl App {
                     "the text of the report survives a change of the tool and folding the panel",
                     self.feedback.text == "The hole in the plate looks square.",
                 );
-                if st.layout_i == 0 {
-                    st.layout_i = 1;
+                if st.layout_i < 2 {
+                    st.layout_i += 1;
                     st.step = 56; // the increment leads to the size change of step 57
                 } else {
+                    // an idea without text cannot be sent or saved; the diagnostics are off for an idea
+                    let mut idea = feedback::Feedback::default();
+                    idea.set_kind(rolidium_net::Kind::Idea);
+                    let off_by_default = !idea.attach;
+                    idea.attach = true;
+                    check(
+                        &mut st,
+                        "an idea starts without the diagnostics and cannot be sent without text; a bug can be sent without text with them",
+                        off_by_default && !idea.can_send() && feedback::Feedback::default().can_send(),
+                    );
                     // write a text and save it to a file (without the diagnostics, which would start the graphics tests)
                     self.feedback.kind = rolidium_net::Kind::Idea;
                     self.feedback.text = "A ruler tool, please.".into();
@@ -1271,6 +1287,45 @@ impl App {
                 self.feedback.saved = None;
             }
             64 => {
+                // "What is sent": every file has a check box; a file switched off is left out of the zip, summary.txt stays
+                let z = crate::diagnose::zip_of(&[
+                    ("summary.txt", b"Rolidium 0.2.0\nGraphics: test\n"),
+                    ("report.txt", b"report"),
+                    ("log.txt", b"log"),
+                    ("settings.txt", b"settings"),
+                    ("scenes.txt", b"scenes"),
+                    ("scene-vulkan-0.png", b"\x89PNG"),
+                ])
+                .unwrap_or_default();
+                self.feedback.set_prepared_for_test(z);
+                self.settings.report_skip = vec![
+                    "log.txt".into(),
+                    "scene-vulkan-0.png".into(),
+                    "summary.txt".into(),
+                ];
+                self.feedback.preview_open = true;
+                st.wait_frames = 6;
+            }
+            65 => {
+                shot(&mut st, ctx, "feedback-what-is-sent");
+            }
+            66 => {
+                let names: Vec<String> = self
+                    .outgoing_zip()
+                    .and_then(|b| feedback::list_zip(&b).ok())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|f| f.0)
+                    .collect();
+                check(
+                    &mut st,
+                    "files switched off in What is sent are not in the zip; summary.txt always is",
+                    names == ["summary.txt", "report.txt", "settings.txt", "scenes.txt"],
+                );
+                self.feedback.preview_open = false;
+                self.settings.report_skip.clear();
+            }
+            67 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

@@ -391,9 +391,9 @@
     "id": "feedback",
     "title": "Report a bug or an idea",
     "shortcut": "",
-    "text": "The folded row at the bottom of the right column opens a panel. Choose Bug or Idea, write what happened or what you would like (up to 1000 characters) and, if you wish, leave an e-mail for a reply. The diagnostics are attached by default; Show what is sent lists every file. Nothing is sent before you press Send. If the server does not answer, your text stays and you can save the report to a file.",
+    "text": "The folded row at the bottom of the right column opens a panel. Choose Bug or Idea, write what happened or what you would like (up to 1000 characters) and, if you wish, leave an e-mail for a reply. The diagnostics are attached by default to a bug and not to an idea (you can change it); Show what is sent lists every file, and each file has a check box: a file you switch off is not sent. Nothing is sent before you press Send. If the server does not answer, your text stays and you can save the report to a file.",
     "tips": [
-      "An idea can be sent without the diagnostics: switch Attach diagnostics off.",
+      "An idea needs some text; a bug can be sent without text only with the diagnostics.",
       "The diagnostics hold no models, no names of models, no name of the computer and no user name."
     ],
     "illustration": "feedback.svg",

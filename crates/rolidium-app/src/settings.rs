@@ -98,6 +98,8 @@ pub struct Settings {
     pub guide_mask: u8,
     /// The largest gap of the Join ends tool, mm.
     pub join_gap: f64,
+    /// Files of the diagnostics the person switched off in "What is sent" (`summary.txt` cannot be switched off).
+    pub report_skip: Vec<String>,
 }
 
 impl Default for Settings {
@@ -132,6 +134,7 @@ impl Default for Settings {
             guide_enabled: true,
             guide_mask: 0,
             join_gap: 1.0,
+            report_skip: Vec::new(),
         }
     }
 }
@@ -200,6 +203,14 @@ impl Settings {
                         .filter(|g: &f64| g.is_finite() && *g > 0.0)
                         .unwrap_or(1.0)
                 }
+                "report_skip" => {
+                    s.report_skip = v
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|n| !n.is_empty() && *n != "summary.txt")
+                        .map(String::from)
+                        .collect()
+                }
                 _ => {}
             }
         }
@@ -259,8 +270,8 @@ impl Settings {
         );
         let mut text = text;
         text.push_str(&format!(
-            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\n",
-            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap
+            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\n",
+            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(",")
         ));
         if let Some(i) = self.donate_index {
             text.push_str(&format!("donate_index={i}\n"));
@@ -328,6 +339,7 @@ mod tests {
             guide_enabled: false,
             guide_mask: 5,
             join_gap: 0.25,
+            report_skip: vec!["log.txt".into()],
         };
         s.save();
         assert_eq!(Settings::load(), s);
