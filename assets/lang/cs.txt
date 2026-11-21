@@ -729,7 +729,6 @@ Opens the panel at the bottom of the right column. You see what is sent first, a
 Report a bug or an idea => Nahlásit chybu nebo námět
 Report a bug or an idea… => Nahlásit chybu nebo námět…
 Report number {}. => Číslo hlášení: {}.
-Report number {}. Thank you. => Číslo hlášení: {}. Děkujeme.
 Save to a file => Uložit do souboru
 Show what is sent => Zobrazit, co se odešle
 The network is switched off (ROLIDIUM_OFFLINE). The report can only be saved to a file. => Síť je vypnutá (ROLIDIUM_OFFLINE). Hlášení lze jen uložit do souboru.

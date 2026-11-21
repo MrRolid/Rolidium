@@ -729,7 +729,6 @@ Opens the panel at the bottom of the right column. You see what is sent first, a
 Report a bug or an idea => Signaler un bogue ou une idée
 Report a bug or an idea… => Signaler un bogue ou une idée…
 Report number {}. => Numéro du signalement : {}.
-Report number {}. Thank you. => Numéro du signalement : {}. Merci.
 Save to a file => Enregistrer dans un fichier
 Show what is sent => Afficher ce qui est envoyé
 The network is switched off (ROLIDIUM_OFFLINE). The report can only be saved to a file. => Le réseau est désactivé (ROLIDIUM_OFFLINE). Le signalement ne peut être qu'enregistré dans un fichier.

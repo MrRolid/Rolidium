@@ -1180,13 +1180,16 @@ impl App {
                     r.height() > 5.0 && r.height() < 40.0 && r.max.y <= self.status_top + 0.5,
                 );
                 shot(&mut st, ctx, &name);
+            }
+            59 => {
+                // the picture of the folded panel is taken; now it is opened and filled
                 self.feedback.expanded = true;
                 self.feedback.kind = rolidium_net::Kind::Bug;
                 self.feedback.text = "The hole in the plate looks square.".into();
                 self.feedback.contact = "me@example.org".into();
                 st.wait_frames = 10;
             }
-            59 => {
+            60 => {
                 let screen = ctx.content_rect();
                 let name = format!(
                     "feedback-{}x{}-open",
@@ -1209,13 +1212,13 @@ impl App {
                 );
                 shot(&mut st, ctx, &name);
             }
-            60 => {
+            61 => {
                 // the text survives a change of the tool and folding the panel
                 self.tool = Tool::Pull;
                 self.feedback.expanded = false;
                 st.wait_frames = 3;
             }
-            61 => {
+            62 => {
                 self.feedback.expanded = true;
                 check(
                     &mut st,
@@ -1234,7 +1237,7 @@ impl App {
                     st.wait_frames = 4;
                 }
             }
-            62 => {
+            63 => {
                 let path = self.feedback.saved.clone().unwrap_or_default();
                 let names = std::fs::read(&path)
                     .ok()
@@ -1267,7 +1270,7 @@ impl App {
                 self.feedback.save_dir = None;
                 self.feedback.saved = None;
             }
-            63 => {
+            64 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

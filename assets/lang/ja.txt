@@ -729,7 +729,6 @@ Opens the panel at the bottom of the right column. You see what is sent first, a
 Report a bug or an idea => 不具合やアイデアを報告
 Report a bug or an idea… => 不具合やアイデアを報告…
 Report number {}. => 報告番号：{}。
-Report number {}. Thank you. => 報告番号：{}。ありがとうございました。
 Save to a file => ファイルに保存
 Show what is sent => 送信内容を表示
 The network is switched off (ROLIDIUM_OFFLINE). The report can only be saved to a file. => ネットワークはオフです（ROLIDIUM_OFFLINE）。報告はファイルに保存することしかできません。

@@ -470,8 +470,8 @@ impl App {
         }
         // 4. the report number after a sending
         if let Stage::Sent(id) = &self.feedback.stage {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(trf("Report number {}. Thank you.", std::slice::from_ref(id)));
+            ui.horizontal(|ui| {
+                ui.label(trf("Report number {}.", std::slice::from_ref(id)));
                 if ui.small_button(tr("Close")).clicked() {
                     act = PanelAct::CloseSent;
                 }
