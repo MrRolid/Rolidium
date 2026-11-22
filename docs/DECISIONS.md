@@ -419,3 +419,7 @@ must be a version of digits and dots). The address of the download page is a con
 feature of the crate, enabled only by its own tests; a program build has no such thing). `cli`, `mcp`, the crates of the model and the kernel do not depend on the crate (a test checks it), and the window calls it from two places only,
 the question (guarded by the consent, `ROLIDIUM_OFFLINE` and the mode of the program) and the sending (the person's button). A run that did not end properly is found by a locked marker file (`session.running`); it only offers the sending.
 Privacy text: `docs/PRIVACY.md`.
+
+## D43: 3D printing through other people's slicers
+Rolidium gets no slicer of its own. Mature slicers exist (PrusaSlicer, OrcaSlicer, Cura, Bambu Studio), and several of them are licensed under the AGPL, so taking their code into Rolidium would stand in the way of a
+commercial licence of Rolidium. Working with them through files (3MF) and the command line keeps the licences apart: the slicers run as separate programs and none of their code is in ours. The plan is in the roadmap ("3D printing"): the export of 3MF, opening the model in an installed slicer, and later calling the slicer with the user's profile and sending the G-code to OctoPrint, Moonraker or PrusaLink.

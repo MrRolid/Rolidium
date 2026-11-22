@@ -12,6 +12,14 @@ around a circle with a count and a distance or an angle, in the window and in th
 about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
 centre of a body.
 
+**3D printing.** In three steps; Rolidium does not get a slicer of its own.
+1. *Export 3MF*: with units, several bodies at once, their names, and later colours.
+2. *Open in a slicer*: the program finds an installed PrusaSlicer, OrcaSlicer, Cura or Bambu Studio and hands the model over as a 3MF placed on the bed.
+3. *Print from Rolidium*: the slicer is called from the command line with the user's profile, and the G-code is sent to the printer through OctoPrint, Moonraker or PrusaLink.
+   Before printing there is a confirmation with a preview and a warning not to leave the printer unattended. Bambu Lab printers only through step 2.
+
+Slicers run as separate programs; their code is not taken into Rolidium (see D43).
+
 **Pulling cylindrical and conical faces, and a draft of a face by an angle.** Pull works on flat faces today; on a curved face it says
 that it works only on flat ones. The next step is to pull a cylindrical or conical face, which changes the diameter of a hole or a shaft
 (the radius grows or shrinks, a cone keeps its angle), and to tilt a face by a given angle (draft), so that walls can be made sloping
