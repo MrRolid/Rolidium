@@ -80,6 +80,8 @@ PY
 scripts/package-linux.sh "$L" "$version" dist/release
 # ---- the demos
 scripts/package-demos.sh
+# ---- the text for reporting a false alarm to antivirus vendors
+scripts/make-antivirus-text.sh
 # ---- checksums of everything
 (cd dist/release && rm -f SHA256SUMS && sha256sum rolidium-"$version"-linux-x86_64.tar.gz rolidium_"$version"_amd64.deb Rolidium-"$version"-x86_64.AppImage \
     rolidium-"$version"-windows-x86_64.zip rolidium-demos-"$version".zip | tee SHA256SUMS)
