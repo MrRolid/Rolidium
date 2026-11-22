@@ -16,6 +16,7 @@ pub use rolidium_sketch;
 
 pub mod display;
 pub mod file;
+mod generate;
 mod links;
 mod sketchops;
 pub use links::{
@@ -374,6 +375,16 @@ pub enum Command {
     /// A curve (3D line or helix) as an object of the document.
     AddCurve {
         def: CurveDef,
+    },
+    /// A new definition of a curve (the helix of a spring with another pitch, a polyline with other points); what was made along it follows.
+    EditCurve {
+        curve: CurveId,
+        def: CurveDef,
+    },
+    /// Move a sketch in space (its plane and with it all its shapes) by `translation`; what was made from it follows.
+    MoveSketch {
+        sketch: SketchId,
+        translation: DVec3,
     },
     DeleteCurve {
         curve: CurveId,
@@ -2051,79 +2062,7 @@ impl Job {
                 ruled,
                 mode,
             } => {
-                if profiles.len() < 2 {
-                    return Err(KernelError::Invalid("A loft needs at least two profiles".into()).into());
-                }
-                // gather the profiles
-                let mut owned: Vec<(Profile, PlaneDef)> = Vec::new();
-                let mut kinds: Vec<Option<usize>> = Vec::new(); // index into owned, or None for a face
-                let mut face_inputs: Vec<(BodyId, Option<FaceId>, u32)> = Vec::new();
-                let mut used: Vec<(SketchId, Vec<rolidium_sketch::EntityId>)> = Vec::new();
-                let mut target: Option<BodyId> = None;
-                for p in profiles {
-                    match *p {
-                        LoftRef::Region { sketch, region } => {
-                            let sd = st
-                                .sketches
-                                .iter()
-                                .find(|s| s.id == sketch)
-                                .ok_or(DocError::NoSuchSketch)?;
-                            let regions = sd.sketch.regions();
-                            let reg = regions.get(region).ok_or(DocError::NoSuchRegion)?;
-                            owned.push((region_profile(reg), sd.plane));
-                            kinds.push(Some(owned.len() - 1));
-                            used.push((sketch, reg.exclusive_entities.clone()));
-                            target = target.or(sd.target);
-                        }
-                        LoftRef::Face { body, face } => {
-                            if !st.bodies.iter().any(|b| b.id == body) {
-                                return Err(DocError::NoSuchBody);
-                            }
-                            kinds.push(None);
-                            face_inputs.push((body, Some(face), 0));
-                            target = target.or(Some(body));
-                        }
-                        LoftRef::EdgeLoop { body, edge } => {
-                            if !st.bodies.iter().any(|b| b.id == body) {
-                                return Err(DocError::NoSuchBody);
-                            }
-                            kinds.push(None);
-                            face_inputs.push((body, None, edge));
-                            target = target.or(Some(body));
-                        }
-                    }
-                }
-                let mut fi = 0;
-                let mut inputs: Vec<rolidium_kernel::LoftInput> = Vec::new();
-                for k in &kinds {
-                    match k {
-                        Some(i) => {
-                            let (pr, pl) = &owned[*i];
-                            inputs.push(rolidium_kernel::LoftInput::Profile {
-                                profile: pr,
-                                origin: pl.origin,
-                                normal: pl.normal,
-                                x_dir: pl.x_dir,
-                            });
-                        }
-                        None => {
-                            let (b, f, e) = face_inputs[fi];
-                            fi += 1;
-                            let solid = &st.bodies.iter().find(|x| x.id == b).unwrap().solid;
-                            inputs.push(match f {
-                                Some(face) => rolidium_kernel::LoftInput::Face { solid, face },
-                                None => rolidium_kernel::LoftInput::Edge {
-                                    solid,
-                                    edge: rolidium_kernel::EdgeId(e),
-                                },
-                            });
-                        }
-                    }
-                }
-                let tool = Solid::loft(&inputs, *ruled).map_err(|e| match e {
-                    KernelError::Native(m) => KernelError::Invalid(format!("The loft failed: {m}")),
-                    e => e,
-                })?;
+                let generate::Made { tool, target, used, .. } = generate::loft(&st, profiles, *ruled)?;
                 let touched = match mode {
                     LoftMode::NewBody => apply_tool(&mut st, None, tool, BooleanOp::Fuse, self.next_id)?,
                     LoftMode::Add => {
@@ -2180,6 +2119,28 @@ impl Job {
                 c.created_curve = Some(id);
                 Ok(c)
             }
+            Command::EditCurve { curve, def } => {
+                def.path()?; // the curve must be buildable
+                let c = st
+                    .curves
+                    .iter_mut()
+                    .find(|c| c.id == *curve)
+                    .ok_or(DocError::NoSuchCurve)?;
+                c.def = def.clone();
+                Ok(self.done(st, "Edit curve"))
+            }
+            Command::MoveSketch { sketch, translation } => {
+                if !translation.is_finite() {
+                    return Err(KernelError::Invalid("the shift must be a number".into()).into());
+                }
+                let sd = st
+                    .sketches
+                    .iter_mut()
+                    .find(|s| s.id == *sketch)
+                    .ok_or(DocError::NoSuchSketch)?;
+                sd.plane.origin += *translation;
+                Ok(self.done(st, "Move sketch"))
+            }
             Command::DeleteCurve { curve } => {
                 let n = st.curves.len();
                 st.curves.retain(|c| c.id != *curve);
@@ -2214,116 +2175,13 @@ impl Job {
                 mode,
                 rounded,
             } => {
-                // the profile
-                let mut owned: Option<(Profile, PlaneDef)> = None;
-                let mut face_input: Option<(BodyId, Option<FaceId>, u32)> = None;
-                let mut used: Option<(SketchId, Vec<rolidium_sketch::EntityId>)> = None;
-                let target: Option<BodyId>;
-                match *profile {
-                    LoftRef::Region { sketch, region } => {
-                        let sd = st
-                            .sketches
-                            .iter()
-                            .find(|s| s.id == sketch)
-                            .ok_or(DocError::NoSuchSketch)?;
-                        let regions = sd.sketch.regions();
-                        let reg = regions.get(region).ok_or(DocError::NoSuchRegion)?;
-                        owned = Some((region_profile(reg), sd.plane));
-                        used = Some((sketch, reg.exclusive_entities.clone()));
-                        target = sd.target;
-                    }
-                    LoftRef::Face { body, face } => {
-                        if !st.bodies.iter().any(|b| b.id == body) {
-                            return Err(DocError::NoSuchBody);
-                        }
-                        face_input = Some((body, Some(face), 0));
-                        target = Some(body);
-                    }
-                    LoftRef::EdgeLoop { body, edge } => {
-                        if !st.bodies.iter().any(|b| b.id == body) {
-                            return Err(DocError::NoSuchBody);
-                        }
-                        face_input = Some((body, None, edge));
-                        target = Some(body);
-                    }
-                }
-                // the path
-                let kpath = match path {
-                    SweepPath::Curve(id) => st
-                        .curves
-                        .iter()
-                        .find(|c| c.id == *id)
-                        .ok_or(DocError::NoSuchCurve)?
-                        .def
-                        .path()?,
-                    SweepPath::Sketch { sketch, entities } => {
-                        let sd = st
-                            .sketches
-                            .iter()
-                            .find(|s| s.id == *sketch)
-                            .ok_or(DocError::NoSuchSketch)?;
-                        let segs = sketch_path_segments(&sd.plane, &sd.sketch, entities)?;
-                        rolidium_kernel::Path::build(rolidium_kernel::PathSource::Segments(&segs))?
-                    }
-                    SweepPath::Edges { body, edges } => {
-                        let b = st
-                            .bodies
-                            .iter()
-                            .find(|b| b.id == *body)
-                            .ok_or(DocError::NoSuchBody)?;
-                        let ids: Vec<rolidium_kernel::EdgeId> =
-                            edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
-                        rolidium_kernel::Path::build(rolidium_kernel::PathSource::Edges {
-                            solid: &b.solid,
-                            edges: &ids,
-                        })?
-                    }
-                };
-                let input = match (&owned, &face_input) {
-                    (Some((pr, pl)), _) => rolidium_kernel::LoftInput::Profile {
-                        profile: pr,
-                        origin: pl.origin,
-                        normal: pl.normal,
-                        x_dir: pl.x_dir,
-                    },
-                    (_, Some((b, f, e))) => {
-                        let solid = &st
-                            .bodies
-                            .iter()
-                            .find(|x| x.id == *b)
-                            .ok_or(DocError::NoSuchBody)?
-                            .solid;
-                        match f {
-                            Some(face) => rolidium_kernel::LoftInput::Face { solid, face: *face },
-                            None => rolidium_kernel::LoftInput::Edge {
-                                solid,
-                                edge: rolidium_kernel::EdgeId(*e),
-                            },
-                        }
-                    }
-                    _ => return Err(KernelError::Invalid("There is no profile".into()).into()),
-                };
-                let swept = Solid::sweep(
-                    &input,
-                    &kpath,
-                    &rolidium_kernel::SweepOptions { rounded: *rounded },
-                )?;
-                let tool = swept.solid;
-                let mut notice = None;
-                if swept
-                    .warnings
-                    .contains(&rolidium_kernel::SweepWarning::ProfileNotAtPath)
-                {
-                    notice = Some(
-                        "The profile does not lie at the start of the path; the sweep was made anyway"
-                            .to_string(),
-                    );
-                } else if swept
-                    .warnings
-                    .contains(&rolidium_kernel::SweepWarning::ProfileNotPerpendicular)
-                {
-                    notice = Some("The profile is not perpendicular to the path where it starts; the sweep was made anyway".to_string());
-                }
+                let generate::Made {
+                    tool,
+                    target,
+                    used,
+                    notice,
+                } = generate::sweep(&st, profile, path, *rounded)?;
+                let used = used.into_iter().next();
                 let effective = match mode {
                     SweepMode::Auto if target.is_some() => SweepMode::Add,
                     SweepMode::Auto => SweepMode::NewBody,

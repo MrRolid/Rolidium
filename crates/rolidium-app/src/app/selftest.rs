@@ -1163,7 +1163,7 @@ impl App {
                 );
                 // the Pull tool is chosen (P): the sketch is left
                 self.key_pressed(Key::P, egui::Modifiers::NONE, rect);
-                st.wait_frames = 40;
+                st.wait_frames = 90;
             }
             56 => {
                 self.view_anim = None;
@@ -1616,7 +1616,7 @@ impl App {
                 self.link_ui.p.count = 4;
                 self.link_ui.p.spacing = 20.0;
                 self.apply_link();
-                st.wait_frames = 40;
+                st.wait_frames = 90;
             }
             78 => {
                 let n = self.doc.bodies().len();
@@ -1632,7 +1632,7 @@ impl App {
                     self.link_ui.p.count = 2;
                     self.apply_link();
                 }
-                st.wait_frames = 40;
+                st.wait_frames = 90;
             }
             79 => {
                 let n = self.doc.bodies().len();
@@ -1857,6 +1857,44 @@ impl App {
                 shot(&mut st, ctx, "zoomed-spring");
             }
             89 => {
+                // the tool "Move sketch plane": the view turns into the isometric one, and back square to the plane at the end
+                self.replace_document(Document::new(), None);
+                self.settings.auto_turn_view = true;
+                self.enter_sketch_on(rolidium_doc::rolidium_sketch::PlaneDef::base());
+                self.view_anim = None;
+                self.camera.set_view(StandardView::Top);
+                self.begin_plane_move();
+                check(&mut st, "starting Move sketch plane begins the turn of the view", self.view_anim.is_some());
+                st.wait_frames = 90;
+            }
+            90 => {
+                let iso = {
+                    let mut c = self.camera;
+                    c.set_view(StandardView::Isometric);
+                    c
+                };
+                check(
+                    &mut st,
+                    "the view settled in the isometric view",
+                    self.view_anim.is_none()
+                        && (self.camera.yaw - iso.yaw).abs() < 1e-3
+                        && (self.camera.pitch - iso.pitch).abs() < 1e-3,
+                );
+                self.finish_plane_move();
+                check(&mut st, "ending Move sketch plane turns the view back", self.view_anim.is_some());
+                st.wait_frames = 90;
+            }
+            91 => {
+                let mut top = self.camera;
+                top.set_view(StandardView::Top);
+                check(
+                    &mut st,
+                    "the view is square to the sketch plane again",
+                    self.view_anim.is_none() && (self.camera.pitch - top.pitch).abs() < 1e-3,
+                );
+                self.sk = None;
+            }
+            92 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

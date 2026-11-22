@@ -86,14 +86,33 @@ pub enum LinkKind {
     Linear(LinearParams, PatternMode),
     Circular(CircularParams, PatternMode),
     Mirror(MirrorParams),
+    /// A loft through the profiles (regions of sketches, faces or edge loops of bodies); it follows the sketches and bodies it was made from.
+    Loft {
+        profiles: Vec<LoftRef>,
+        ruled: bool,
+        mode: PatternMode,
+    },
+    /// A profile swept along a path (a curve, a chain of a sketch or edges of a body); it follows the profile and the path.
+    Sweep {
+        profile: LoftRef,
+        path: SweepPath,
+        rounded: bool,
+        mode: PatternMode,
+    },
 }
 
 impl LinkKind {
     pub fn mode(&self) -> PatternMode {
         match self {
             LinkKind::Linear(_, m) | LinkKind::Circular(_, m) => *m,
+            LinkKind::Loft { mode, .. } | LinkKind::Sweep { mode, .. } => *mode,
             LinkKind::Mirror(_) => PatternMode::New,
         }
+    }
+
+    /// Whether the link makes its solid from sketches, curves and faces (a loft or a sweep) and not from copies of bodies.
+    pub fn generates(&self) -> bool {
+        matches!(self, LinkKind::Loft { .. } | LinkKind::Sweep { .. })
     }
 
     /// The default name of a new link.
@@ -103,6 +122,8 @@ impl LinkKind {
             LinkKind::Linear(..) => "Linear pattern",
             LinkKind::Circular(..) => "Circular pattern",
             LinkKind::Mirror(_) => "Mirror",
+            LinkKind::Loft { .. } => "Loft",
+            LinkKind::Sweep { .. } => "Sweep",
         }
     }
 }
@@ -124,6 +145,8 @@ pub struct Link {
     pub error: Option<String>,
     /// Remarks of the last calculation (pieces that overlap or lie outside).
     pub warnings: Vec<String>,
+    /// For a loft or a sweep: the state of the sketches and curves it depends on when it was last calculated (see `generate::stamp`).
+    pub stamp: u64,
 }
 
 /// A group of bodies in the right column. Groups nest; a body belongs to one group at most.
@@ -242,6 +265,7 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
                 return Err(bad("The mirror plane has no normal"));
             }
         }
+        LinkKind::Loft { .. } | LinkKind::Sweep { .. } => {}
     }
     Ok(out)
 }
@@ -289,8 +313,53 @@ fn common_volume(a: &Solid, b: &Solid) -> f64 {
         .unwrap_or(0.0)
 }
 
+/// A loft or a sweep: the tool from the profiles and the path as they are now, then the one new body, or added to / cut from the body
+/// the link works on. The faces of that body that a profile names are the faces of the body as it was before the link (`base`).
+fn calculate_generated(st: &State, link: &Link) -> Result<Outcome, DocError> {
+    let mut at = st.clone();
+    if let (Some(t), Some(base)) = (link.kind.mode().target(), &link.base) {
+        if let Some(b) = at.bodies.iter_mut().find(|b| b.id == t) {
+            b.solid = base.clone();
+        }
+    }
+    let made = match &link.kind {
+        LinkKind::Loft { profiles, ruled, .. } => generate::loft(&at, profiles, *ruled)?,
+        LinkKind::Sweep {
+            profile,
+            path,
+            rounded,
+            ..
+        } => generate::sweep(&at, profile, path, *rounded)?,
+        _ => return Err(bad("This link does not make its solid from profiles")),
+    };
+    let warnings: Vec<String> = made.notice.into_iter().collect();
+    match link.kind.mode() {
+        PatternMode::New => Ok(Outcome {
+            copies: vec![(0, made.tool, History::default())],
+            target: None,
+            warnings,
+        }),
+        PatternMode::Add(_) | PatternMode::Cut(_) => {
+            let cut = matches!(link.kind.mode(), PatternMode::Cut(_));
+            let base = link
+                .base
+                .clone()
+                .ok_or_else(|| bad("The link lost the body it works on"))?;
+            let r = base.boolean_checked(&made.tool, if cut { BooleanOp::Cut } else { BooleanOp::Fuse })?;
+            Ok(Outcome {
+                copies: Vec::new(),
+                target: Some(r.solid),
+                warnings,
+            })
+        }
+    }
+}
+
 /// Calculates a link from the sources in `st` (and `base` for a pattern that adds or cuts).
 fn calculate(st: &State, link: &Link) -> Result<Outcome, DocError> {
+    if link.kind.generates() {
+        return calculate_generated(st, link);
+    }
     let plan = placements(&link.kind)?;
     let sources: Vec<&Body> = link
         .sources
@@ -412,6 +481,39 @@ fn apply(st: &mut State, link: &mut Link, out: Outcome, next: &mut u64) {
         link.results = vec![t];
         return;
     }
+    if link.kind.generates() {
+        // the one body of a loft or a sweep: the same body again, or a new one
+        let old = std::mem::take(&mut link.results);
+        let Some((_, solid, _)) = out.copies.into_iter().next() else {
+            link.results = old;
+            return;
+        };
+        let id = match old.first().copied().filter(|id| st.bodies.iter().any(|b| b.id == *id)) {
+            Some(id) => {
+                if let Some(b) = st.bodies.iter_mut().find(|b| b.id == id) {
+                    b.solid = solid;
+                }
+                id
+            }
+            None => {
+                let id = *next;
+                *next += 1;
+                st.body_counter += 1;
+                st.bodies.push(Body {
+                    id,
+                    name: format!("Body {}", st.body_counter),
+                    solid,
+                    color: [0.72, 0.76, 0.82],
+                    visible: true,
+                    features: Vec::new(),
+                    material: None,
+                });
+                id
+            }
+        };
+        link.results = vec![id];
+        return;
+    }
     let old = std::mem::take(&mut link.results);
     let mut ids = Vec::new();
     let mut per_source = vec![0usize; link.sources.len()];
@@ -467,6 +569,24 @@ pub(crate) fn create(
     name: &str,
     next: &mut u64,
 ) -> Result<LinkId, DocError> {
+    // a loft or a sweep depends on the bodies, sketches and curves its profiles and path name, not on the bodies the caller lists
+    let sources = if kind.generates() {
+        let d = generate::deps(&kind);
+        let target = kind.mode().target();
+        for s in &d.sketches {
+            if !st.sketches.iter().any(|x| x.id == *s) {
+                return Err(DocError::NoSuchSketch);
+            }
+        }
+        for c in &d.curves {
+            if !st.curves.iter().any(|x| x.id == *c) {
+                return Err(DocError::NoSuchCurve);
+            }
+        }
+        d.bodies.into_iter().filter(|b| Some(*b) != target).collect()
+    } else {
+        sources
+    };
     for s in &sources {
         if !st.bodies.iter().any(|b| b.id == *s) {
             return Err(DocError::NoSuchBody);
@@ -480,7 +600,7 @@ pub(crate) fn create(
         }
     }
     if let Some(t) = kind.mode().target() {
-        if sources.contains(&t) {
+        if sources.contains(&t) && !kind.generates() {
             return Err(bad("The body the pattern works on cannot be its own source"));
         }
         if !st.bodies.iter().any(|b| b.id == t) {
@@ -510,11 +630,19 @@ pub(crate) fn create(
         seen: Vec::new(),
         error: None,
         warnings: Vec::new(),
+        stamp: 0,
     };
     let out = calculate(st, &link)?;
     apply(st, &mut link, out, next);
+    link.stamp = generate::stamp(st, &link.kind);
+    // the sketches a loft or a sweep was made from are its sources: they are hidden, the link keeps them (Delete link shows them again)
+    for sk in generate::deps(&link.kind).sketches {
+        if let Some(s) = st.sketches.iter_mut().find(|s| s.id == sk) {
+            s.visible = false;
+        }
+    }
     // the sources of a pattern that adds or cuts are tools: they are hidden, the result is the target
-    if link.kind.mode().target().is_some() {
+    if link.kind.mode().target().is_some() && !link.kind.generates() {
         for s in &link.sources {
             if let Some(b) = st.bodies.iter_mut().find(|b| b.id == *s) {
                 b.visible = false;
@@ -560,6 +688,7 @@ pub(crate) fn edit(
         link.kind = k;
         let out = calculate(st, &link)?;
         apply(st, &mut link, out, next);
+        link.stamp = generate::stamp(st, &link.kind);
         link.seen = link
             .sources
             .iter()
@@ -607,6 +736,11 @@ pub(crate) fn delete(st: &mut State, id: LinkId) -> Result<(), DocError> {
             }
         }
     }
+    for sk in generate::deps(&link.kind).sketches {
+        if let Some(s) = st.sketches.iter_mut().find(|s| s.id == sk) {
+            s.visible = true;
+        }
+    }
     st.links.retain(|l| l.id != id);
     Ok(())
 }
@@ -624,6 +758,7 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             .collect();
         let missing = now.iter().any(|o| o.is_none());
         let same = !missing
+            && generate::stamp(st, &link.kind) == link.stamp
             && now.len() == link.seen.len()
             && now
                 .iter()
@@ -664,6 +799,7 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             .filter_map(|s| st.bodies.iter().find(|b| b.id == *s))
             .map(|b| b.solid.clone())
             .collect();
+        link.stamp = generate::stamp(st, &link.kind);
         st.links[i] = link;
     }
     // bodies that are gone are not in a group

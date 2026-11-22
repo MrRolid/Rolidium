@@ -27,6 +27,11 @@ impl App {
             typed: String::new(),
             waiting_target: false,
         });
+        // the view turns smoothly into the isometric one, so that the arrow and the shift of the plane can be seen
+        // (a click or a drag interrupts the turn, as everywhere)
+        if self.settings.auto_turn_view {
+            self.animate_standard_view(StandardView::Isometric);
+        }
         self.set_status(
             "Move sketch plane: drag the arrow, type a distance and press Enter, or press U and click a vertex or a face",
             false,
@@ -42,8 +47,20 @@ impl App {
         Some((self.project(c, rect)?, self.project(tip, rect)?))
     }
 
+    /// After the move (confirmed or cancelled) the view turns back square to the sketch plane.
+    fn turn_back_to_plane(&mut self) {
+        if !self.settings.auto_turn_view {
+            return;
+        }
+        if let Some(sm) = &self.sk {
+            let to = super::viewanim::plane_view(&self.camera, sm.base_plane.normal.as_vec3());
+            self.animate_to(to);
+        }
+    }
+
     pub(super) fn cancel_plane_move(&mut self) {
         if let Some(pm) = self.plane_move.take() {
+            self.turn_back_to_plane();
             if let Some(sm) = &mut self.sk {
                 sm.set_offset(pm.start);
                 sm.offset_text = fmt_num(pm.start);
@@ -54,6 +71,7 @@ impl App {
 
     pub(super) fn finish_plane_move(&mut self) {
         let Some(pm) = self.plane_move.take() else { return };
+        self.turn_back_to_plane();
         let typed = parse_num(&pm.typed);
         if let Some(sm) = &mut self.sk {
             if let Some(v) = typed {

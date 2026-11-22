@@ -196,6 +196,64 @@ fn axis_from(v: &Value) -> Result<crate::Axis, FileError> {
     })
 }
 
+fn ref_json(r: &crate::LoftRef) -> Value {
+    match r {
+        crate::LoftRef::Region { sketch, region } => json!({"kind": "region", "sketch": sketch, "region": region}),
+        crate::LoftRef::Face { body, face } => json!({"kind": "face", "body": body, "face": face.0}),
+        crate::LoftRef::EdgeLoop { body, edge } => json!({"kind": "edge_loop", "body": body, "edge": edge}),
+    }
+}
+
+fn ref_from(j: &Value) -> Result<crate::LoftRef, FileError> {
+    let n = |k: &str| j[k].as_u64().ok_or_else(|| corrupt("a profile without a number"));
+    Ok(match j["kind"].as_str() {
+        Some("region") => crate::LoftRef::Region {
+            sketch: n("sketch")?,
+            region: n("region")? as usize,
+        },
+        Some("face") => crate::LoftRef::Face {
+            body: n("body")?,
+            face: rolidium_kernel::FaceId(n("face")? as u32),
+        },
+        Some("edge_loop") => crate::LoftRef::EdgeLoop {
+            body: n("body")?,
+            edge: n("edge")? as u32,
+        },
+        _ => return Err(corrupt("a profile of an unknown kind")),
+    })
+}
+
+fn path_json(p: &crate::SweepPath) -> Value {
+    match p {
+        crate::SweepPath::Curve(c) => json!({"kind": "curve", "curve": c}),
+        crate::SweepPath::Sketch { sketch, entities } => {
+            json!({"kind": "sketch", "sketch": sketch, "entities": entities})
+        }
+        crate::SweepPath::Edges { body, edges } => json!({"kind": "edges", "body": body, "edges": edges}),
+    }
+}
+
+fn path_from(j: &Value) -> Result<crate::SweepPath, FileError> {
+    let list = |k: &str| -> Vec<u64> {
+        j[k].as_array()
+            .map(|a| a.iter().filter_map(Value::as_u64).collect())
+            .unwrap_or_default()
+    };
+    let n = |k: &str| j[k].as_u64().ok_or_else(|| corrupt("a path without a number"));
+    Ok(match j["kind"].as_str() {
+        Some("curve") => crate::SweepPath::Curve(n("curve")?),
+        Some("sketch") => crate::SweepPath::Sketch {
+            sketch: n("sketch")?,
+            entities: list("entities").into_iter().map(|e| e as _).collect(),
+        },
+        Some("edges") => crate::SweepPath::Edges {
+            body: n("body")?,
+            edges: list("edges").into_iter().map(|e| e as u32).collect(),
+        },
+        _ => return Err(corrupt("a path of an unknown kind")),
+    })
+}
+
 /// The JSON of a link (without the solid it started from, which is a BREP entry of its own).
 fn link_json(l: &crate::Link) -> Value {
     use crate::{LinkKind, PatternMode};
@@ -242,6 +300,24 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("origin".into(), arr3(m.origin));
             j.insert("normal".into(), arr3(m.normal));
         }
+        LinkKind::Loft { profiles, ruled, mode: m } => {
+            j.insert("type".into(), json!("loft"));
+            mode(m, &mut j);
+            j.insert("profiles".into(), Value::Array(profiles.iter().map(ref_json).collect()));
+            j.insert("ruled".into(), json!(ruled));
+        }
+        LinkKind::Sweep {
+            profile,
+            path,
+            rounded,
+            mode: m,
+        } => {
+            j.insert("type".into(), json!("sweep"));
+            mode(m, &mut j);
+            j.insert("profile".into(), ref_json(profile));
+            j.insert("path".into(), path_json(path));
+            j.insert("rounded".into(), json!(rounded));
+        }
     }
     Value::Object(j)
 }
@@ -251,8 +327,9 @@ fn link_from(
     id: u64,
     j: &Value,
     base: Option<Solid>,
-    bodies: &[crate::Body],
+    state: &crate::State,
 ) -> Result<Option<crate::Link>, FileError> {
+    let bodies = &state.bodies[..];
     use crate::{CircularParams, LinearParams, LinkKind, MirrorParams, PatternMode};
     let ids = |k: &str| -> Vec<u64> {
         j[k].as_array()
@@ -306,6 +383,22 @@ fn link_from(
             origin: get3(&j["origin"])?,
             normal: get3(&j["normal"])?,
         }),
+        Some("loft") => LinkKind::Loft {
+            profiles: j["profiles"]
+                .as_array()
+                .ok_or_else(|| corrupt("a loft without profiles"))?
+                .iter()
+                .map(ref_from)
+                .collect::<Result<_, _>>()?,
+            ruled: j["ruled"].as_bool().unwrap_or(false),
+            mode: mode()?,
+        },
+        Some("sweep") => LinkKind::Sweep {
+            profile: ref_from(&j["profile"])?,
+            path: path_from(&j["path"])?,
+            rounded: j["rounded"].as_bool().unwrap_or(false),
+            mode: mode()?,
+        },
         _ => return Ok(None),
     };
     let sources = ids("sources");
@@ -321,6 +414,15 @@ fn link_from(
     if kind.mode().target().is_some() && base.is_none() {
         return Ok(None);
     }
+    // a loft or a sweep whose sketches or curves are not in the file is dropped too (its body stays)
+    let deps = crate::generate::deps(&kind);
+    if deps.sketches.iter().any(|s| !state.sketches.iter().any(|x| x.id == *s))
+        || deps.curves.iter().any(|c| !state.curves.iter().any(|x| x.id == *c))
+        || deps.bodies.iter().any(|b| !bodies.iter().any(|x| x.id == *b))
+    {
+        return Ok(None);
+    }
+    let stamp = crate::generate::stamp(state, &kind);
     let seen = sources
         .iter()
         .filter_map(|s| bodies.iter().find(|b| b.id == *s))
@@ -336,6 +438,7 @@ fn link_from(
         seen,
         error: j["error"].as_str().map(str::to_string),
         warnings: Vec::new(),
+        stamp,
     }))
 }
 
@@ -826,7 +929,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
                 .and_then(|d| Solid::read_brep(&d).ok()),
             None => None,
         };
-        if let Some(link) = link_from(id, &j, base, &state.bodies)? {
+        if let Some(link) = link_from(id, &j, base, &state)? {
             known.push(file.to_string());
             if let Some(n) = l["base"].as_str() {
                 known.push(n.to_string());
