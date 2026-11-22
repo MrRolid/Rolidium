@@ -330,3 +330,115 @@ fn links_and_groups_are_saved_and_opened() {
     let loaded = rolidium_doc::file::load_from_bytes(&rolidium_doc::file::save_to_bytes(&plain, None, "0.2.0").unwrap()).unwrap();
     assert!(loaded.state.links.is_empty() && loaded.state.groups.is_empty());
 }
+
+fn sketch_with(d: &mut Document, entity: rolidium_doc::rolidium_sketch::Entity) -> u64 {
+    use rolidium_doc::{rolidium_sketch::PlaneDef, SketchTarget};
+    d.apply(Command::AddEntity { target: SketchTarget::New { plane: PlaneDef::from_face(DVec3::ZERO, DVec3::Z), body: None }, entity })
+        .unwrap()
+        .created_sketch
+        .unwrap()
+}
+
+#[test]
+fn a_pattern_of_shapes_in_a_sketch_gives_regions_that_pull_together() {
+    use rolidium_doc::rolidium_sketch::{DVec2, Entity};
+    use rolidium_doc::SketchPattern;
+    let mut d = Document::new();
+    let sk = sketch_with(&mut d, Entity::Circle { center: DVec2::new(0.0, 0.0), radius: 3.0 });
+    // 4 circles in a row, then the row twice more in the other direction: 12 circles
+    d.apply(Command::SketchPattern {
+        sketch: sk,
+        entities: vec![],
+        pattern: SketchPattern::Linear { dir: DVec2::X, count: 4, spacing: 10.0, by_total: false, second: Some((DVec2::Y, 3, 10.0, false)) },
+    })
+    .unwrap();
+    assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 12);
+    let regions = d.sketch(sk).unwrap().sketch.regions().len();
+    assert_eq!(regions, 12);
+    // pull every region: 12 cylinders of 3 mm radius and 5 mm height
+    for _ in 0..regions {
+        d.apply(Command::PullRegion { sketch: sk, region: 0, distance: 5.0, mode: PullMode::New }).unwrap();
+    }
+    assert_eq!(d.bodies().len(), 12);
+    assert!((total(&d) - 12.0 * PI * 9.0 * 5.0).abs() < 1e-6, "{}", total(&d));
+    // six circles round a point, and a rectangle turned into lines
+    let mut d2 = Document::new();
+    let s2 = sketch_with(&mut d2, Entity::Circle { center: DVec2::new(20.0, 0.0), radius: 2.0 });
+    d2.apply(Command::SketchPattern {
+        sketch: s2,
+        entities: vec![],
+        pattern: SketchPattern::Circular { center: DVec2::ZERO, count: 6, angle_deg: 0.0, full: true },
+    })
+    .unwrap();
+    assert_eq!(d2.sketch(s2).unwrap().sketch.regions().len(), 6);
+    let s3 = sketch_with(&mut d2, Entity::Rect { a: DVec2::new(10.0, 0.0), b: DVec2::new(20.0, 5.0) });
+    d2.apply(Command::SketchPattern {
+        sketch: s3,
+        entities: vec![],
+        pattern: SketchPattern::Circular { center: DVec2::ZERO, count: 4, angle_deg: 45.0, full: false },
+    })
+    .unwrap();
+    // turned by 45 and 135 degrees a rectangle is four lines; turned by 90 degrees it is a rectangle again: 1 + 4 + 1 + 4 shapes
+    assert_eq!(d2.sketch(s3).unwrap().sketch.entities().len(), 10);
+    assert!(d2.sketch(s3).unwrap().sketch.regions().len() >= 4);
+}
+
+#[test]
+fn shapes_of_a_sketch_are_mirrored_in_a_line() {
+    use rolidium_doc::rolidium_sketch::{DVec2, Entity};
+    let mut d = Document::new();
+    let sk = sketch_with(&mut d, Entity::Arc { center: DVec2::new(10.0, 0.0), radius: 5.0, start: 0.0, sweep: std::f64::consts::FRAC_PI_2 });
+    d.apply(Command::AddEntity { target: rolidium_doc::SketchTarget::Existing(sk), entity: Entity::Line { a: DVec2::new(15.0, 0.0), b: DVec2::new(10.0, 0.0) } }).unwrap();
+    d.apply(Command::AddEntity { target: rolidium_doc::SketchTarget::Existing(sk), entity: Entity::Line { a: DVec2::new(10.0, 5.0), b: DVec2::new(10.0, 0.0) } }).unwrap();
+    // a quarter disc; its mirror image across the Y axis (x = 0) lies at x from -15 to -10
+    d.apply(Command::SketchMirror { sketch: sk, entities: vec![], a: DVec2::new(0.0, 0.0), b: DVec2::new(0.0, 1.0), keep: true }).unwrap();
+    assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 6);
+    assert_eq!(d.sketch(sk).unwrap().sketch.regions().len(), 2);
+    for (i, _) in (0..2).enumerate() {
+        d.apply(Command::PullRegion { sketch: sk, region: 0, distance: 4.0, mode: PullMode::New }).unwrap();
+        assert_eq!(d.bodies().len(), i + 1);
+    }
+    let quarter = PI * 25.0 / 4.0 * 4.0;
+    for b in d.bodies() {
+        assert!((b.solid.volume().unwrap() - quarter).abs() < 1e-6, "{}", b.solid.volume().unwrap());
+    }
+    let xs: Vec<f64> = d.bodies().iter().map(|b| b.solid.props().unwrap().centroid.x).collect();
+    assert!(xs[0] * xs[1] < 0.0 && (xs[0] + xs[1]).abs() < 1e-6, "{xs:?}");
+    // without keep the shapes are replaced
+    let mut d2 = Document::new();
+    let s2 = sketch_with(&mut d2, Entity::Circle { center: DVec2::new(10.0, 10.0), radius: 2.0 });
+    d2.apply(Command::SketchMirror { sketch: s2, entities: vec![], a: DVec2::ZERO, b: DVec2::new(1.0, 1.0), keep: false }).unwrap();
+    let e = d2.sketch(s2).unwrap().sketch.entities().to_vec();
+    assert_eq!(e.len(), 1);
+    assert!(matches!(e[0].1, Entity::Circle { center, .. } if (center - DVec2::new(10.0, 10.0)).length() < 1e-9), "{:?}", e[0].1);
+}
+
+#[test]
+fn a_body_is_mirrored_in_place_kept_or_merged_into_one_symmetric_body() {
+    let plate = |d: &mut Document| add_solid(d, "Half", Solid::cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(20.0, 10.0, 5.0)).unwrap());
+    // in place: the same volume on the other side
+    let mut d = Document::new();
+    let a = plate(&mut d);
+    d.apply(Command::Mirror { bodies: vec![a], origin: DVec3::ZERO, normal: DVec3::X, keep: false, merge: false }).unwrap();
+    assert_eq!(d.bodies().len(), 1);
+    assert!((d.body(a).unwrap().solid.props().unwrap().max.x - 0.0).abs() < 1e-9);
+    // keep the original: two bodies
+    let mut d = Document::new();
+    let a = plate(&mut d);
+    d.apply(Command::Mirror { bodies: vec![a], origin: DVec3::ZERO, normal: DVec3::X, keep: true, merge: false }).unwrap();
+    assert_eq!(d.bodies().len(), 2);
+    assert!((total(&d) - 2.0 * 1000.0).abs() < 1e-6);
+    // merged: one body of twice the volume, 40 mm long (the halves touch in the plane)
+    let mut d = Document::new();
+    let a = plate(&mut d);
+    d.apply(Command::Mirror { bodies: vec![a], origin: DVec3::ZERO, normal: DVec3::X, keep: true, merge: true }).unwrap();
+    assert_eq!(d.bodies().len(), 1);
+    let p = d.body(a).unwrap().solid.props().unwrap();
+    assert!((p.volume - 2000.0).abs() < 1e-6 && (p.max.x - p.min.x - 40.0).abs() < 1e-9, "{p:?}");
+    assert!(d.undo() && d.bodies().len() == 1 && (volume(&d, a) - 1000.0).abs() < 1e-6);
+    // a body far from the plane cannot be merged with its image: the reason is given
+    let mut d = Document::new();
+    let far = add_solid(&mut d, "Far", Solid::cuboid(DVec3::new(30.0, 0.0, 0.0), DVec3::new(40.0, 10.0, 5.0)).unwrap());
+    let e = d.apply(Command::Mirror { bodies: vec![far], origin: DVec3::ZERO, normal: DVec3::X, keep: true, merge: true }).unwrap_err();
+    assert!(e.to_string().contains("do not touch") || e.to_string().contains("does not touch"), "{e}");
+}

@@ -17,6 +17,8 @@ pub use rolidium_sketch;
 pub mod display;
 pub mod file;
 mod links;
+mod sketchops;
+pub use sketchops::SketchPattern;
 pub use links::{link_of_result, Axis, CircularParams, Direction2, Group, GroupId, Link, LinkId, LinkKind, LinearParams, MirrorParams, PatternMode, MAX_PIECES};
 
 #[derive(Debug, thiserror::Error)]
@@ -477,6 +479,29 @@ pub enum Command {
     /// Dissolve a group: its bodies and groups go one level up.
     Ungroup {
         group: GroupId,
+    },
+    /// Mirror bodies in a plane, once (a link that follows the original is `AddLink` with a mirror): with `keep` the originals stay and the images
+    /// are new bodies, else the bodies themselves are mirrored; with `merge` every image is fused with its original into one symmetric body.
+    Mirror {
+        bodies: Vec<BodyId>,
+        origin: DVec3,
+        normal: DVec3,
+        keep: bool,
+        merge: bool,
+    },
+    /// Copies of sketch shapes along a line or round a point (`entities` empty: all the shapes of the sketch).
+    SketchPattern {
+        sketch: SketchId,
+        entities: Vec<rolidium_sketch::EntityId>,
+        pattern: SketchPattern,
+    },
+    /// Mirror sketch shapes in the line through `a` and `b` (`entities` empty: all the shapes); with `keep` the originals stay.
+    SketchMirror {
+        sketch: SketchId,
+        entities: Vec<rolidium_sketch::EntityId>,
+        a: rolidium_sketch::DVec2,
+        b: rolidium_sketch::DVec2,
+        keep: bool,
     },
 }
 
@@ -2472,6 +2497,55 @@ impl Job {
                 }
                 st.groups.retain(|x| x.id != g.id);
                 Ok(self.done(st, "Ungroup"))
+            }
+            Command::SketchPattern { sketch, entities, pattern } => {
+                let sk = st.sketches.iter_mut().find(|s| s.id == *sketch).ok_or(DocError::NoSuchSketch)?;
+                let n = sketchops::pattern(sk, entities, pattern)?;
+                let mut c = self.done(st, "Sketch pattern");
+                c.notice = Some(format!("{n} shape(s) added"));
+                Ok(c)
+            }
+            Command::SketchMirror { sketch, entities, a, b, keep } => {
+                let sk = st.sketches.iter_mut().find(|s| s.id == *sketch).ok_or(DocError::NoSuchSketch)?;
+                sketchops::mirror(sk, entities, *a, *b, *keep)?;
+                Ok(self.done(st, "Sketch mirror"))
+            }
+            Command::Mirror { bodies, origin, normal, keep, merge } => {
+                if bodies.is_empty() {
+                    return Err(KernelError::Invalid("no body is selected".into()).into());
+                }
+                let mut next = self.next_id;
+                let mut first = None;
+                for bid in bodies {
+                    let pos = st.bodies.iter().position(|b| b.id == *bid).ok_or(DocError::NoSuchBody)?;
+                    let r = st.bodies[pos].solid.mirrored(*origin, *normal)?;
+                    if *merge {
+                        let fused = st.bodies[pos].solid.boolean_checked(&r.solid, BooleanOp::Fuse).map_err(|_| {
+                            DocError::from(KernelError::Invalid("The body does not touch its mirror image, so they cannot be merged into one body. Move it to the plane or use a mirror without merging".into()))
+                        })?;
+                        let b = &mut st.bodies[pos];
+                        b.solid = fused.solid;
+                        b.features.clear();
+                        first.get_or_insert(*bid);
+                    } else if *keep {
+                        st.body_counter += 1;
+                        let mut features = st.bodies[pos].features.clone();
+                        remap_features(&mut features, &r.history);
+                        let id = next;
+                        next += 1;
+                        first.get_or_insert(id);
+                        let src = st.bodies[pos].clone();
+                        st.bodies.push(Body { id, name: format!("{} mirror", src.name), solid: r.solid, color: src.color, visible: true, features, material: src.material });
+                    } else {
+                        let b = &mut st.bodies[pos];
+                        remap_features(&mut b.features, &r.history);
+                        b.solid = r.solid;
+                        first.get_or_insert(*bid);
+                    }
+                }
+                let mut c = self.done(st, if *merge { "Mirror and merge" } else { "Mirror" });
+                c.touched_body = first;
+                Ok(c)
             }
             Command::DeleteBody { body } => {
                 let n = st.bodies.len();
