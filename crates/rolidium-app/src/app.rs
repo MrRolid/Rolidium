@@ -36,6 +36,7 @@ mod files;
 mod filltool;
 mod guide_ui;
 mod jointool;
+mod linktool;
 mod lofttool;
 mod measuretool;
 mod movetool;
@@ -114,6 +115,8 @@ pub enum Tool {
     Measure,
     Fill,
     Join,
+    Pattern,
+    Mirror,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -209,6 +212,10 @@ pub struct App {
     worker: Worker,
     busy: Busy,
     pending: Option<PendingPull>,
+    /// A command that edits a body made by a link, waiting for the answer: (command, link, link name, body name).
+    derived_ask: Option<(Command, rolidium_doc::LinkId, String, String)>,
+    /// The command to run once the link is removed.
+    after_unlink: Option<Command>,
     meshes: Arc<Vec<MeshEntry>>,
     scene_radius_cache: (usize, f32),
     meshes_changed: bool,
@@ -323,6 +330,8 @@ pub struct App {
     chamfer_angle_text: String,
     chamfer_flip: bool,
     combine: combinetool::CombineUi,
+    link_ui: linktool::LinkUi,
+    link_sel: Option<rolidium_doc::LinkId>,
     hover_body: Option<BodyId>,
     /// Where the last cycling click was, and which candidate it took.
     pick_cycle: Option<(Pos2, usize)>,
@@ -520,6 +529,10 @@ impl App {
             chamfer_angle_text: "45".into(),
             chamfer_flip: false,
             combine: Default::default(),
+            link_ui: Default::default(),
+            link_sel: None,
+            derived_ask: None,
+            after_unlink: None,
             hover_body: None,
             pick_cycle: None,
             revolve: None,
@@ -724,8 +737,20 @@ impl App {
                     if let Some(sk) = filled {
                         self.fill_after(sk);
                     }
+                    if let Some(next) = self.after_unlink.take() {
+                        self.submit(next);
+                    }
+                }
+                Done::Derived(b) => {
+                    let (cmd, link, link_name, body_name) = *b;
+                    self.fill_pending = false;
+                    self.reselect_blend = None;
+                    self.pending = None;
+                    self.busy = Busy::No;
+                    self.derived_ask = Some((cmd, link, link_name, body_name));
                 }
                 Done::Command(Err(msg)) => {
+                    self.after_unlink = None;
                     self.fill_pending = false;
                     self.reselect_blend = None;
                     self.pending = None;
@@ -1072,6 +1097,7 @@ impl App {
             }
         }
         layers.extend(self.combine_layers());
+        layers.extend(self.link_layers());
         layers.extend(self.loft_layers());
         layers.extend(self.curve_layers());
         if let Some(l) = self.revolve_layer() {
@@ -1802,6 +1828,7 @@ impl App {
             Key::Z if modifiers.command && modifiers.shift => return self.redo(),
             Key::Z if modifiers.command => return self.undo(),
             Key::Y if modifiers.command => return self.redo(),
+            Key::G if modifiers.command => return self.group_marked(),
             Key::N if modifiers.command => return self.request(Pending::New),
             Key::O if modifiers.command => return self.request(Pending::OpenDialog),
             Key::S if modifiers.command && modifiers.shift => return self.save_clicked(true),
@@ -1818,6 +1845,17 @@ impl App {
             // F2 renames the selected body
             if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
                 self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+            } else if let Some(l) = self
+                .link_sel
+                .and_then(|id| self.doc.state().links.iter().find(|l| l.id == id))
+            {
+                self.rename = Some((ItemId::Link(l.id), l.name.clone()));
+            } else if let Some(g) = self.doc.state().groups.iter().find(|g| {
+                !g.bodies.is_empty()
+                    && g.bodies.len() == self.move_sel.len()
+                    && g.bodies.iter().all(|b| self.move_sel.contains(b))
+            }) {
+                self.rename = Some((ItemId::Group(g.id), g.name.clone()));
             }
             return;
         }
@@ -1935,6 +1973,8 @@ impl App {
             Key::P => self.tool = Tool::Pull,
             Key::M => self.tool = Tool::Move,
             Key::I => self.tool = Tool::Combine,
+            Key::T => self.activate_link_tool(linktool::LinkMode::Linear),
+            Key::B => self.activate_link_tool(linktool::LinkMode::Mirror),
             Key::L => self.activate_loft(),
             Key::W => self.activate_sweep(),
             Key::H => self.activate_helix(),
@@ -1977,9 +2017,10 @@ impl App {
             cmd,
             Command::DeleteBody { .. }
                 | Command::SetVisible {
-                    target: ItemId::Body(_),
+                    target: ItemId::Body(_) | ItemId::Link(_) | ItemId::Group(_),
                     ..
                 }
+                | Command::DeleteLink { .. }
         );
         match self.doc.apply(cmd) {
             Ok(_) => {
@@ -2744,11 +2785,16 @@ impl App {
             }
             return;
         }
-        if !matches!(self.tool, Tool::Move | Tool::Combine) && self.hover_body.take().is_some() {
+        if !matches!(
+            self.tool,
+            Tool::Move | Tool::Combine | Tool::Pattern | Tool::Mirror
+        ) && self.hover_body.take().is_some()
+        {
             self.layers_changed = true;
         }
         match self.tool {
             Tool::Combine => self.combine_input(resp),
+            Tool::Pattern | Tool::Mirror => self.link_input(resp),
             Tool::Loft => {
                 let raw_face = self.hovered_face();
                 self.loft_input(resp, raw_face);
@@ -3602,6 +3648,8 @@ impl App {
             }
             (None, Tool::Loft) => tr("Loft: click the profiles (sketch regions or flat faces) in the order they should be joined, then Apply or Enter."),
             (None, Tool::Combine) => tr("Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter."),
+            (None, Tool::Pattern) => tr("Pattern: click the body to repeat, set the direction (or the axis), the number of pieces and the spacing, then Apply or Enter."),
+            (None, Tool::Mirror) => tr("Mirror: click the body, choose the plane (a base plane, a flat face or a sketch) and how the image is kept, then Apply or Enter."),
             (None, Tool::Join) => tr("Join ends: select the lines (Shift adds more; nothing selected means the whole sketch), choose the largest gap, Enter confirms"),
             (None, Tool::Fill) => tr("Fill: click an edge of a hole or opening, or the lines of a shape that is not filled yet. Shift adds more."),
             (None, Tool::Measure) => tr("Measure: click two elements (vertex, edge, face, point of a sketch or curve). Esc clears."),
@@ -3844,6 +3892,7 @@ impl eframe::App for App {
                                                         }
                                                         let faces =
                                                             self.entry(b.id).map_or(0, |m| m.faces.len());
+                                                        let derived = rolidium_doc::link_of_result(self.doc.state(), b.id).is_some();
                                                         let mut t = if b.visible {
                                                             trf(
                                                                 "{}  ({} faces)",
@@ -3852,11 +3901,23 @@ impl eframe::App for App {
                                                         } else {
                                                             format!("{}  ({})", b.name, tr("hidden"))
                                                         };
-                                                        if !b.visible {
-                                                            t = t.to_string();
+                                                        if derived {
+                                                            t = format!("⛓ {t}");
                                                         }
                                                         let r =
                                                             ui.selectable_label(marked.contains(&b.id), t);
+                                                        // a body can be dragged onto a group
+                                                        let r = r.interact(egui::Sense::click_and_drag());
+                                                        if r.drag_started() {
+                                                            r.dnd_set_drag_payload(linktool::Dnd::Body(b.id));
+                                                        }
+                                                        let r = match rolidium_doc::link_of_result(self.doc.state(), b.id) {
+                                                            Some(l) => r.on_hover_text(trf(
+                                                                "Made by the link '{}'. Click the link in the list of links to change it.",
+                                                                &[l.name.clone()],
+                                                            )),
+                                                            None => r,
+                                                        };
                                                         if scroll_to == Some(b.id) {
                                                             r.scroll_to_me(Some(egui::Align::Center));
                                                         }
@@ -3933,6 +3994,7 @@ impl eframe::App for App {
                                             ui.weak(tr("(none)"));
                                         }
                                     });
+                                self.links_and_groups_tree(ui, &mut tree_cmd);
                                 egui::CollapsingHeader::new(tr("Sketches"))
                                     .default_open(true)
                                     .show(ui, |ui| {
@@ -4199,6 +4261,7 @@ impl eframe::App for App {
         self.show_dim_panel(&ctx, vr);
         self.move_panel(&ctx, vr);
         self.combine_panel(&ctx, vr);
+        self.link_panel(&ctx, vr);
         self.busy_overlay(&ctx, vr);
         self.measure_panel(&ctx, vr);
         self.loft_panel(&ctx, vr);
@@ -4217,6 +4280,7 @@ impl eframe::App for App {
         self.feedback_big(&ctx);
         self.guide_window(&ctx);
         self.rename_window(&ctx);
+        self.derived_window(&ctx);
         self.dialogs(&ctx);
         self.autosave_tick();
 

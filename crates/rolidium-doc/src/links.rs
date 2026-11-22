@@ -163,7 +163,9 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
     match kind {
         LinkKind::Linear(p, _) => {
             if p.count < 1 || p.count > MAX_PIECES as u32 {
-                return Err(bad(format!("The number of pieces must be between 1 and {MAX_PIECES}")));
+                return Err(bad(format!(
+                    "The number of pieces must be between 1 and {MAX_PIECES}"
+                )));
             }
             let d = p.axis.dir;
             if !d.is_finite() || d.length() < 1e-9 {
@@ -174,12 +176,18 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
             let (c2, d2, s2) = match &p.second {
                 Some(s) => {
                     if s.count < 1 || s.count > MAX_PIECES as u32 {
-                        return Err(bad(format!("The number of pieces must be between 1 and {MAX_PIECES}")));
+                        return Err(bad(format!(
+                            "The number of pieces must be between 1 and {MAX_PIECES}"
+                        )));
                     }
                     if !s.axis.dir.is_finite() || s.axis.dir.length() < 1e-9 {
                         return Err(bad("The second direction of the grid has no length"));
                     }
-                    (s.count, s.axis.dir.normalize(), step_of(s.count, s.spacing, s.by_total))
+                    (
+                        s.count,
+                        s.axis.dir.normalize(),
+                        step_of(s.count, s.spacing, s.by_total),
+                    )
                 }
                 None => (1, DVec3::Z, 0.0),
             };
@@ -205,7 +213,9 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
         }
         LinkKind::Circular(p, _) => {
             if p.count < 1 || p.count > MAX_PIECES as u32 {
-                return Err(bad(format!("The number of pieces must be between 1 and {MAX_PIECES}")));
+                return Err(bad(format!(
+                    "The number of pieces must be between 1 and {MAX_PIECES}"
+                )));
             }
             if !p.axis.dir.is_finite() || p.axis.dir.length() < 1e-9 {
                 return Err(bad("The axis of the pattern has no direction"));
@@ -262,7 +272,9 @@ struct Outcome {
 
 fn boxes_meet(a: &Solid, b: &Solid) -> bool {
     match (a.bounding_box(), b.bounding_box()) {
-        (Ok((a0, a1)), Ok((b0, b1))) => a0.cmple(b1 + DVec3::splat(1e-6)).all() && b0.cmple(a1 + DVec3::splat(1e-6)).all(),
+        (Ok((a0, a1)), Ok((b0, b1))) => {
+            a0.cmple(b1 + DVec3::splat(1e-6)).all() && b0.cmple(a1 + DVec3::splat(1e-6)).all()
+        }
         _ => true,
     }
 }
@@ -271,7 +283,10 @@ fn common_volume(a: &Solid, b: &Solid) -> f64 {
     if !boxes_meet(a, b) {
         return 0.0;
     }
-    a.boolean(b, BooleanOp::Common).ok().and_then(|r| r.solid.volume().ok()).unwrap_or(0.0)
+    a.boolean(b, BooleanOp::Common)
+        .ok()
+        .and_then(|r| r.solid.volume().ok())
+        .unwrap_or(0.0)
 }
 
 /// Calculates a link from the sources in `st` (and `base` for a pattern that adds or cuts).
@@ -319,13 +334,24 @@ fn calculate(st: &State, link: &Link) -> Result<Outcome, DocError> {
         }
         PatternMode::Add(t) | PatternMode::Cut(t) => {
             let cut = matches!(link.kind.mode(), PatternMode::Cut(_));
-            let mut cur = link.base.clone().ok_or_else(|| bad("The link lost the body it works on"))?;
+            let mut cur = link
+                .base
+                .clone()
+                .ok_or_else(|| bad("The link lost the body it works on"))?;
             let tb = st.bodies.iter().find(|b| b.id == t).ok_or(DocError::NoSuchBody)?;
             let _ = tb;
             let mut outside = 0;
-            let pieces: Vec<&Solid> = sources.iter().map(|b| &b.solid).chain(copies.iter().map(|c| &c.1)).collect();
+            let pieces: Vec<&Solid> = sources
+                .iter()
+                .map(|b| &b.solid)
+                .chain(copies.iter().map(|c| &c.1))
+                .collect();
             for p in pieces {
-                let meets = if cut { common_volume(&cur, p) > 1e-9 } else { boxes_meet(&cur, p) && cur.distance_to(p).map(|d| d < 1e-6).unwrap_or(true) };
+                let meets = if cut {
+                    common_volume(&cur, p) > 1e-9
+                } else {
+                    boxes_meet(&cur, p) && cur.distance_to(p).map(|d| d < 1e-6).unwrap_or(true)
+                };
                 if !meets {
                     outside += 1;
                     continue;
@@ -342,7 +368,11 @@ fn calculate(st: &State, link: &Link) -> Result<Outcome, DocError> {
             target = Some(cur);
         }
     }
-    Ok(Outcome { copies, target, warnings })
+    Ok(Outcome {
+        copies,
+        target,
+        warnings,
+    })
 }
 
 /// Puts the outcome into the state: the copies take the ids of the bodies the link made before (in order), new bodies get new ids, surplus bodies go.
@@ -365,7 +395,11 @@ fn apply(st: &mut State, link: &mut Link, out: Outcome, next: &mut u64) {
         let Some(src) = src else { continue };
         let mut features = src.features.clone();
         remap_features(&mut features, &history);
-        if let Some(id) = old.get(k).copied().filter(|id| st.bodies.iter().any(|b| b.id == *id)) {
+        if let Some(id) = old
+            .get(k)
+            .copied()
+            .filter(|id| st.bodies.iter().any(|b| b.id == *id))
+        {
             let b = st.bodies.iter_mut().find(|b| b.id == id).unwrap();
             b.solid = solid;
             b.features = features;
@@ -411,7 +445,11 @@ pub(crate) fn create(
         if !st.bodies.iter().any(|b| b.id == *s) {
             return Err(DocError::NoSuchBody);
         }
-        if st.links.iter().any(|l| l.results.contains(s) && !matches!(l.kind.mode(), PatternMode::New)) {
+        if st
+            .links
+            .iter()
+            .any(|l| l.results.contains(s) && !matches!(l.kind.mode(), PatternMode::New))
+        {
             // a body that is the target of another pattern is not a source of a new one (it would change with it)
         }
     }
@@ -431,7 +469,11 @@ pub(crate) fn create(
     } else {
         name.trim().to_string()
     };
-    let base = kind.mode().target().and_then(|t| st.bodies.iter().find(|b| b.id == t)).map(|b| b.solid.clone());
+    let base = kind
+        .mode()
+        .target()
+        .and_then(|t| st.bodies.iter().find(|b| b.id == t))
+        .map(|b| b.solid.clone());
     let mut link = Link {
         id,
         name,
@@ -453,7 +495,12 @@ pub(crate) fn create(
             }
         }
     }
-    link.seen = link.sources.iter().filter_map(|s| st.bodies.iter().find(|b| b.id == *s)).map(|b| b.solid.clone()).collect();
+    link.seen = link
+        .sources
+        .iter()
+        .filter_map(|s| st.bodies.iter().find(|b| b.id == *s))
+        .map(|b| b.solid.clone())
+        .collect();
     st.links.push(link);
     Ok(id)
 }
@@ -466,7 +513,11 @@ pub(crate) fn edit(
     name: Option<&str>,
     next: &mut u64,
 ) -> Result<(), DocError> {
-    let pos = st.links.iter().position(|l| l.id == id).ok_or(DocError::NoSuchLink)?;
+    let pos = st
+        .links
+        .iter()
+        .position(|l| l.id == id)
+        .ok_or(DocError::NoSuchLink)?;
     let mut link = st.links[pos].clone();
     if let Some(n) = name {
         let n = n.trim();
@@ -483,7 +534,12 @@ pub(crate) fn edit(
         link.kind = k;
         let out = calculate(st, &link)?;
         apply(st, &mut link, out, next);
-        link.seen = link.sources.iter().filter_map(|s| st.bodies.iter().find(|b| b.id == *s)).map(|b| b.solid.clone()).collect();
+        link.seen = link
+            .sources
+            .iter()
+            .filter_map(|s| st.bodies.iter().find(|b| b.id == *s))
+            .map(|b| b.solid.clone())
+            .collect();
     }
     st.links[pos] = link;
     Ok(())
@@ -501,7 +557,12 @@ pub(crate) fn unlink(st: &mut State, id: LinkId) -> Result<(), DocError> {
 
 /// Removes the link and what it made: the copies go, a target that was added to or cut from gets its old solid back.
 pub(crate) fn delete(st: &mut State, id: LinkId) -> Result<(), DocError> {
-    let link = st.links.iter().find(|l| l.id == id).cloned().ok_or(DocError::NoSuchLink)?;
+    let link = st
+        .links
+        .iter()
+        .find(|l| l.id == id)
+        .cloned()
+        .ok_or(DocError::NoSuchLink)?;
     match (link.kind.mode().target(), &link.base) {
         (Some(t), Some(base)) => {
             if let Some(b) = st.bodies.iter_mut().find(|b| b.id == t) {
@@ -530,9 +591,18 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
     let mut notes = Vec::new();
     for i in 0..st.links.len() {
         let link = &st.links[i];
-        let now: Vec<Option<&Solid>> = link.sources.iter().map(|s| st.bodies.iter().find(|b| b.id == *s).map(|b| &b.solid)).collect();
+        let now: Vec<Option<&Solid>> = link
+            .sources
+            .iter()
+            .map(|s| st.bodies.iter().find(|b| b.id == *s).map(|b| &b.solid))
+            .collect();
         let missing = now.iter().any(|o| o.is_none());
-        let same = !missing && now.len() == link.seen.len() && now.iter().zip(&link.seen).all(|(a, b)| a.is_some_and(|a| a.shape_id() == b.shape_id()));
+        let same = !missing
+            && now.len() == link.seen.len()
+            && now
+                .iter()
+                .zip(&link.seen)
+                .all(|(a, b)| a.is_some_and(|a| a.shape_id() == b.shape_id()));
         if same {
             continue;
         }
@@ -540,7 +610,10 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
         if missing {
             link.error = Some("A source body of the link was deleted".into());
             link.seen = Vec::new();
-            notes.push(format!("{}: a source body was deleted, the link keeps its last result", link.name));
+            notes.push(format!(
+                "{}: a source body was deleted, the link keeps its last result",
+                link.name
+            ));
             st.links[i] = link;
             continue;
         }
@@ -553,10 +626,18 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             }
             Err(e) => {
                 link.error = Some(e.to_string());
-                notes.push(format!("{} could not be recalculated: {e}. It keeps its last result", link.name));
+                notes.push(format!(
+                    "{} could not be recalculated: {e}. It keeps its last result",
+                    link.name
+                ));
             }
         }
-        link.seen = link.sources.iter().filter_map(|s| st.bodies.iter().find(|b| b.id == *s)).map(|b| b.solid.clone()).collect();
+        link.seen = link
+            .sources
+            .iter()
+            .filter_map(|s| st.bodies.iter().find(|b| b.id == *s))
+            .map(|b| b.solid.clone())
+            .collect();
         st.links[i] = link;
     }
     // bodies that are gone are not in a group
@@ -590,4 +671,16 @@ pub(crate) fn derived_edit(before: &State, after: &State) -> Option<(LinkId, Str
 /// The link that made this body, if any.
 pub fn link_of_result(st: &State, body: BodyId) -> Option<&Link> {
     st.links.iter().find(|l| l.results.contains(&body))
+}
+
+/// How the pieces of a pattern are placed, for a preview: `(translation, pivot, axis, angle)` for each piece other than the original (rotate about the axis
+/// through the pivot by the angle, then translate). Empty for a mirror. The error says what is wrong with the parameters.
+pub fn placements_of(kind: &LinkKind) -> Result<Vec<(DVec3, DVec3, DVec3, f64)>, String> {
+    placements(kind)
+        .map(|v| {
+            v.into_iter()
+                .map(|p| (p.translation, p.pivot, p.axis, p.angle))
+                .collect()
+        })
+        .map_err(|e| e.to_string())
 }

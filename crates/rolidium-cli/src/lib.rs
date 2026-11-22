@@ -50,8 +50,8 @@ use std::path::{Path, PathBuf};
 
 pub mod bench;
 pub mod describe;
-mod links_cmd;
 pub mod entry;
+mod links_cmd;
 pub mod mcp;
 pub mod phases;
 pub mod soft;
@@ -252,7 +252,16 @@ impl Runner {
         let mut new_name = None;
         if !matches!(
             tokens[0].as_str(),
-            "rename" | "material" | "delete" | "describe" | "select" | "linear-pattern" | "circular-pattern" | "mirror" | "group" | "edit-link"
+            "rename"
+                | "material"
+                | "delete"
+                | "describe"
+                | "select"
+                | "linear-pattern"
+                | "circular-pattern"
+                | "mirror"
+                | "group"
+                | "edit-link"
         ) {
             if let Some(i) = tokens.iter().position(|t| t == "name") {
                 if let Some(n) = tokens.get(i + 1).cloned() {

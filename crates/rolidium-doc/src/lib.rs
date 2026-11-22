@@ -18,8 +18,11 @@ pub mod display;
 pub mod file;
 mod links;
 mod sketchops;
+pub use links::{
+    link_of_result, placements_of, Axis, CircularParams, Direction2, Group, GroupId, LinearParams, Link,
+    LinkId, LinkKind, MirrorParams, PatternMode, MAX_PIECES,
+};
 pub use sketchops::SketchPattern;
-pub use links::{link_of_result, Axis, CircularParams, Direction2, Group, GroupId, Link, LinkId, LinkKind, LinearParams, MirrorParams, PatternMode, MAX_PIECES};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DocError {
@@ -704,14 +707,34 @@ impl Job {
         let mut c = self.compute_command()?;
         let link_command = matches!(
             self.command,
-            Command::AddLink { .. } | Command::EditLink { .. } | Command::Unlink { .. } | Command::DeleteLink { .. }
+            Command::AddLink { .. }
+                | Command::EditLink { .. }
+                | Command::Unlink { .. }
+                | Command::DeleteLink { .. }
         );
         if !link_command {
             if let Some((link, link_name, body, body_name)) = links::derived_edit(&self.base, &c.state) {
-                return Err(DocError::Derived { link, link_name, body, body_name });
+                return Err(DocError::Derived {
+                    link,
+                    link_name,
+                    body,
+                    body_name,
+                });
             }
         }
-        let mut next = self.next_id.max(c.state.bodies.iter().map(|b| b.id).chain(c.state.sketches.iter().map(|s| s.id)).chain(c.state.curves.iter().map(|s| s.id)).chain(c.state.links.iter().map(|l| l.id)).chain(c.state.groups.iter().map(|g| g.id)).max().unwrap_or(0) + 1);
+        let mut next = self.next_id.max(
+            c.state
+                .bodies
+                .iter()
+                .map(|b| b.id)
+                .chain(c.state.sketches.iter().map(|s| s.id))
+                .chain(c.state.curves.iter().map(|s| s.id))
+                .chain(c.state.links.iter().map(|l| l.id))
+                .chain(c.state.groups.iter().map(|g| g.id))
+                .max()
+                .unwrap_or(0)
+                + 1,
+        );
         let notes = links::refresh(&mut c.state, &mut next);
         if !notes.is_empty() {
             let text = notes.join("; ");
@@ -1767,7 +1790,13 @@ impl Job {
                     }
                     ItemId::Link(id) => {
                         // the bodies of a link are shown or hidden together
-                        let results = st.links.iter().find(|l| l.id == *id).ok_or(DocError::NoSuchLink)?.results.clone();
+                        let results = st
+                            .links
+                            .iter()
+                            .find(|l| l.id == *id)
+                            .ok_or(DocError::NoSuchLink)?
+                            .results
+                            .clone();
                         for b in st.bodies.iter_mut().filter(|b| results.contains(&b.id)) {
                             b.visible = *visible;
                         }
@@ -2396,8 +2425,18 @@ impl Job {
             Command::AddLink { kind, sources, name } => {
                 let mut next = self.next_id;
                 let id = links::create(&mut st, kind.clone(), sources.clone(), name, &mut next)?;
-                let results = st.links.iter().find(|l| l.id == id).map(|l| l.results.clone()).unwrap_or_default();
-                let warnings = st.links.iter().find(|l| l.id == id).map(|l| l.warnings.join("; ")).unwrap_or_default();
+                let results = st
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .map(|l| l.results.clone())
+                    .unwrap_or_default();
+                let warnings = st
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .map(|l| l.warnings.join("; "))
+                    .unwrap_or_default();
                 let mut c = self.done(st, "Add link");
                 c.touched_body = results.first().copied();
                 if !warnings.is_empty() {
@@ -2408,8 +2447,18 @@ impl Job {
             Command::EditLink { link, kind, name } => {
                 let mut next = self.next_id;
                 links::edit(&mut st, *link, kind.clone(), name.as_deref(), &mut next)?;
-                let results = st.links.iter().find(|l| l.id == *link).map(|l| l.results.clone()).unwrap_or_default();
-                let warnings = st.links.iter().find(|l| l.id == *link).map(|l| l.warnings.join("; ")).unwrap_or_default();
+                let results = st
+                    .links
+                    .iter()
+                    .find(|l| l.id == *link)
+                    .map(|l| l.results.clone())
+                    .unwrap_or_default();
+                let warnings = st
+                    .links
+                    .iter()
+                    .find(|l| l.id == *link)
+                    .map(|l| l.warnings.join("; "))
+                    .unwrap_or_default();
                 let mut c = self.done(st, "Edit link");
                 c.touched_body = results.first().copied();
                 if !warnings.is_empty() {
@@ -2440,7 +2489,11 @@ impl Job {
                     }
                 }
                 st.group_counter += 1;
-                let name = if name.trim().is_empty() { format!("Group {}", st.group_counter) } else { name.trim().to_string() };
+                let name = if name.trim().is_empty() {
+                    format!("Group {}", st.group_counter)
+                } else {
+                    name.trim().to_string()
+                };
                 for b in bodies {
                     links::remove_from_groups(&mut st, *b);
                 }
@@ -2480,13 +2533,23 @@ impl Job {
                     if p == *group {
                         return Err(KernelError::Invalid("a group cannot be moved into itself".into()).into());
                     }
-                    up = st.groups.iter().find(|g| g.id == p).ok_or(DocError::NoSuchGroup)?.parent;
+                    up = st
+                        .groups
+                        .iter()
+                        .find(|g| g.id == p)
+                        .ok_or(DocError::NoSuchGroup)?
+                        .parent;
                 }
                 st.groups.iter_mut().find(|g| g.id == *group).unwrap().parent = *parent;
                 Ok(self.done(st, "Move group"))
             }
             Command::Ungroup { group } => {
-                let g = st.groups.iter().find(|g| g.id == *group).cloned().ok_or(DocError::NoSuchGroup)?;
+                let g = st
+                    .groups
+                    .iter()
+                    .find(|g| g.id == *group)
+                    .cloned()
+                    .ok_or(DocError::NoSuchGroup)?;
                 for x in st.groups.iter_mut().filter(|x| x.parent == Some(g.id)) {
                     x.parent = g.parent;
                 }
@@ -2498,26 +2561,54 @@ impl Job {
                 st.groups.retain(|x| x.id != g.id);
                 Ok(self.done(st, "Ungroup"))
             }
-            Command::SketchPattern { sketch, entities, pattern } => {
-                let sk = st.sketches.iter_mut().find(|s| s.id == *sketch).ok_or(DocError::NoSuchSketch)?;
+            Command::SketchPattern {
+                sketch,
+                entities,
+                pattern,
+            } => {
+                let sk = st
+                    .sketches
+                    .iter_mut()
+                    .find(|s| s.id == *sketch)
+                    .ok_or(DocError::NoSuchSketch)?;
                 let n = sketchops::pattern(sk, entities, pattern)?;
                 let mut c = self.done(st, "Sketch pattern");
                 c.notice = Some(format!("{n} shape(s) added"));
                 Ok(c)
             }
-            Command::SketchMirror { sketch, entities, a, b, keep } => {
-                let sk = st.sketches.iter_mut().find(|s| s.id == *sketch).ok_or(DocError::NoSuchSketch)?;
+            Command::SketchMirror {
+                sketch,
+                entities,
+                a,
+                b,
+                keep,
+            } => {
+                let sk = st
+                    .sketches
+                    .iter_mut()
+                    .find(|s| s.id == *sketch)
+                    .ok_or(DocError::NoSuchSketch)?;
                 sketchops::mirror(sk, entities, *a, *b, *keep)?;
                 Ok(self.done(st, "Sketch mirror"))
             }
-            Command::Mirror { bodies, origin, normal, keep, merge } => {
+            Command::Mirror {
+                bodies,
+                origin,
+                normal,
+                keep,
+                merge,
+            } => {
                 if bodies.is_empty() {
                     return Err(KernelError::Invalid("no body is selected".into()).into());
                 }
                 let mut next = self.next_id;
                 let mut first = None;
                 for bid in bodies {
-                    let pos = st.bodies.iter().position(|b| b.id == *bid).ok_or(DocError::NoSuchBody)?;
+                    let pos = st
+                        .bodies
+                        .iter()
+                        .position(|b| b.id == *bid)
+                        .ok_or(DocError::NoSuchBody)?;
                     let r = st.bodies[pos].solid.mirrored(*origin, *normal)?;
                     if *merge {
                         let fused = st.bodies[pos].solid.boolean_checked(&r.solid, BooleanOp::Fuse).map_err(|_| {
@@ -2535,7 +2626,15 @@ impl Job {
                         next += 1;
                         first.get_or_insert(id);
                         let src = st.bodies[pos].clone();
-                        st.bodies.push(Body { id, name: format!("{} mirror", src.name), solid: r.solid, color: src.color, visible: true, features, material: src.material });
+                        st.bodies.push(Body {
+                            id,
+                            name: format!("{} mirror", src.name),
+                            solid: r.solid,
+                            color: src.color,
+                            visible: true,
+                            features,
+                            material: src.material,
+                        });
                     } else {
                         let b = &mut st.bodies[pos];
                         remap_features(&mut b.features, &r.history);

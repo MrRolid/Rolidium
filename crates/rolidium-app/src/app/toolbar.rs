@@ -502,6 +502,35 @@ impl App {
             if r.clicked() {
                 self.activate_join();
             }
+            for (mode, id, name, key) in [
+                (super::linktool::LinkMode::Linear, "pattern", "Pattern", "T"),
+                (super::linktool::LinkMode::Mirror, "mirror", "Mirror", "B"),
+            ] {
+                icons::stateful();
+                let tool = if mode == super::linktool::LinkMode::Mirror {
+                    Tool::Mirror
+                } else {
+                    Tool::Pattern
+                };
+                let why = busy.or(if self.doc.bodies().is_empty() {
+                    Some("There is no body to repeat or mirror")
+                } else {
+                    None
+                });
+                let r = icons::icon_button_why(
+                    ui,
+                    &self.help,
+                    id,
+                    &format!("{} ({key})", tr(name)),
+                    self.tool == tool && self.sk.is_none(),
+                    why,
+                    34.0,
+                    key,
+                );
+                if r.clicked() {
+                    self.activate_link_tool(mode);
+                }
+            }
         });
         let no_edge = if self.edge_sel.is_empty() {
             Some("Select an edge first")

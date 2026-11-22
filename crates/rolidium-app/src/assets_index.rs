@@ -49,6 +49,8 @@ pub static ICONS: &[(&str, &str)] = &[
     ("sweep", include_str!("../../../assets/icons/sweep.svg")),
     ("finish", include_str!("../../../assets/icons/finish.svg")),
     ("fill", include_str!("../../../assets/icons/fill.svg")),
+    ("pattern", include_str!("../../../assets/icons/pattern.svg")),
+    ("mirror", include_str!("../../../assets/icons/mirror.svg")),
     ("join", include_str!("../../../assets/icons/join.svg")),
     ("measure", include_str!("../../../assets/icons/measure.svg")),
     ("line3d", include_str!("../../../assets/icons/line3d.svg")),
@@ -61,6 +63,8 @@ pub static ICONS: &[(&str, &str)] = &[
 
 pub static HELP_ART: &[(&str, &str)] = &[
     ("feedback", include_str!("../../../assets/help/feedback.svg")),
+    ("pattern", include_str!("../../../assets/help/pattern.svg")),
+    ("mirror", include_str!("../../../assets/help/mirror.svg")),
     ("select", include_str!("../../../assets/help/select.svg")),
     ("pull", include_str!("../../../assets/help/pull.svg")),
     ("finish", include_str!("../../../assets/help/finish.svg")),

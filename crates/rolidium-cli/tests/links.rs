@@ -23,7 +23,8 @@ fn a_row_a_grid_and_a_bolt_circle_from_scripts() {
     assert_eq!(r.doc.bodies().len(), 12);
     // a plate of 100 x 100 x 10 and a tool of 10 x 10 x 30 (x 70..80, y 45..55: 20 mm from the centre), 6 times round the centre: the 6 pieces do not overlap
     let mut r = run("box 100 100 10\nbox 10 10 30\nmove 70 45 -10 body 2\n");
-    r.run_line("circular-pattern 6 full 0 0 1 through 50 50 0 from 2 cut 1").unwrap();
+    r.run_line("circular-pattern 6 full 0 0 1 through 50 50 0 from 2 cut 1")
+        .unwrap();
     let removed = 100.0 * 100.0 * 10.0 - r.doc.bodies()[0].solid.volume().unwrap();
     assert!(removed > 5000.0 && removed < 6000.0 + 1e-6, "{removed}");
     assert!(!r.doc.bodies()[1].visible, "the tool is hidden");
@@ -40,7 +41,10 @@ fn a_link_is_listed_edited_and_removed() {
     r.run_line("links").unwrap();
     // the copies are derived: a hand edit says what to do
     let e = r.run_line("pull top 5 body 2").unwrap_err();
-    assert!(e.contains("made by the link 'Row'") && e.contains("unlink"), "{e}");
+    assert!(
+        e.contains("made by the link 'Row'") && e.contains("unlink"),
+        "{e}"
+    );
     r.run_line("unlink 1").unwrap();
     assert!(r.doc.state().links.is_empty());
     r.run_line("pull top 5 body 2").unwrap();

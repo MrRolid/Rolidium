@@ -14,15 +14,23 @@
 //! Bodies, links and groups are numbered from 1 in the order of `info` / `links` / `groups`.
 
 use super::*;
-use rolidium_doc::{Axis, CircularParams, Direction2, LinearParams, LinkKind, MirrorParams, PatternMode, SketchPattern};
+use rolidium_doc::{
+    Axis, CircularParams, Direction2, LinearParams, LinkKind, MirrorParams, PatternMode, SketchPattern,
+};
 
 fn number(s: &str) -> Result<f64, String> {
-    s.replace(',', ".").parse::<f64>().map_err(|_| format!("'{s}' is not a number"))
+    s.replace(',', ".")
+        .parse::<f64>()
+        .map_err(|_| format!("'{s}' is not a number"))
 }
 
 /// The numbers after position `i` up to the next word that is not a number.
 fn numbers_from<'a>(w: &[&'a str], i: usize) -> Vec<&'a str> {
-    w.iter().skip(i).take_while(|t| t.replace(',', ".").parse::<f64>().is_ok()).copied().collect()
+    w.iter()
+        .skip(i)
+        .take_while(|t| t.replace(',', ".").parse::<f64>().is_ok())
+        .copied()
+        .collect()
 }
 
 struct Cursor<'a, 'b> {
@@ -32,7 +40,10 @@ struct Cursor<'a, 'b> {
 
 impl<'a, 'b> Cursor<'a, 'b> {
     fn num(&mut self, what: &str) -> Result<f64, String> {
-        let t = self.w.get(self.i).ok_or_else(|| format!("{} is missing: {what}", self.w[0]))?;
+        let t = self
+            .w
+            .get(self.i)
+            .ok_or_else(|| format!("{} is missing: {what}", self.w[0]))?;
         self.i += 1;
         number(t)
     }
@@ -58,7 +69,12 @@ impl Runner {
             .bodies()
             .get((n as usize).wrapping_sub(1))
             .map(|b| b.id)
-            .ok_or_else(|| format!("there is no body {n}; the document has {} body(ies)", self.doc.bodies().len()))
+            .ok_or_else(|| {
+                format!(
+                    "there is no body {n}; the document has {} body(ies)",
+                    self.doc.bodies().len()
+                )
+            })
     }
 
     fn link_number(&self, n: f64) -> Result<rolidium_doc::LinkId, String> {
@@ -67,7 +83,12 @@ impl Runner {
             .links
             .get((n as usize).wrapping_sub(1))
             .map(|l| l.id)
-            .ok_or_else(|| format!("there is no link {n}; the document has {} link(s)", self.doc.state().links.len()))
+            .ok_or_else(|| {
+                format!(
+                    "there is no link {n}; the document has {} link(s)",
+                    self.doc.state().links.len()
+                )
+            })
     }
 
     fn group_number(&self, n: f64) -> Result<rolidium_doc::GroupId, String> {
@@ -76,7 +97,12 @@ impl Runner {
             .groups
             .get((n as usize).wrapping_sub(1))
             .map(|g| g.id)
-            .ok_or_else(|| format!("there is no group {n}; the document has {} group(s)", self.doc.state().groups.len()))
+            .ok_or_else(|| {
+                format!(
+                    "there is no group {n}; the document has {} group(s)",
+                    self.doc.state().groups.len()
+                )
+            })
     }
 
     /// The sources named after `from` (all the numbers that follow), else the first body (or `body N`).
@@ -96,16 +122,27 @@ impl Runner {
     fn mode_of(&self, w: &[&str]) -> Result<PatternMode, String> {
         for (word, add) in [("add", true), ("cut", false)] {
             if let Some(i) = w.iter().position(|t| *t == word) {
-                let n = number(w.get(i + 1).ok_or_else(|| format!("'{word}' needs the number of a body"))?)?;
+                let n = number(
+                    w.get(i + 1)
+                        .ok_or_else(|| format!("'{word}' needs the number of a body"))?,
+                )?;
                 let id = self.body_number(n)?;
-                return Ok(if add { PatternMode::Add(id) } else { PatternMode::Cut(id) });
+                return Ok(if add {
+                    PatternMode::Add(id)
+                } else {
+                    PatternMode::Cut(id)
+                });
             }
         }
         Ok(PatternMode::New)
     }
 
     fn name_of(w: &[&str]) -> String {
-        w.iter().position(|t| *t == "name").and_then(|i| w.get(i + 1)).map(|s| s.to_string()).unwrap_or_default()
+        w.iter()
+            .position(|t| *t == "name")
+            .and_then(|i| w.get(i + 1))
+            .map(|s| s.to_string())
+            .unwrap_or_default()
     }
 
     fn report_link(&mut self, what: &str) {
@@ -118,7 +155,11 @@ impl Runner {
                 l.name,
                 bodies,
                 st.bodies.len(),
-                if l.warnings.is_empty() { String::new() } else { format!("; {}", l.warnings.join("; ")) }
+                if l.warnings.is_empty() {
+                    String::new()
+                } else {
+                    format!("; {}", l.warnings.join("; "))
+                }
             ));
         }
     }
@@ -138,30 +179,71 @@ impl Runner {
                         let mut c2 = Cursor { w, i: i + 1 };
                         let (n, s) = (c2.num("the second count")? as u32, c2.num("the second spacing")?);
                         let d = c2.vec3("the second direction")?;
-                        Some(Direction2 { axis: Axis { origin: DVec3::ZERO, dir: d }, count: n, spacing: s, by_total: c2.eat("total") })
+                        Some(Direction2 {
+                            axis: Axis {
+                                origin: DVec3::ZERO,
+                                dir: d,
+                            },
+                            count: n,
+                            spacing: s,
+                            by_total: c2.eat("total"),
+                        })
                     }
                     None => None,
                 };
                 let kind = LinkKind::Linear(
-                    LinearParams { axis: Axis { origin: DVec3::ZERO, dir }, count, spacing, by_total, second },
+                    LinearParams {
+                        axis: Axis {
+                            origin: DVec3::ZERO,
+                            dir,
+                        },
+                        count,
+                        spacing,
+                        by_total,
+                        second,
+                    },
                     self.mode_of(w)?,
                 );
                 let sources = self.sources_of(w)?;
-                self.doc.apply(Command::AddLink { kind, sources, name: Self::name_of(w) }).map_err(err)?;
+                self.doc
+                    .apply(Command::AddLink {
+                        kind,
+                        sources,
+                        name: Self::name_of(w),
+                    })
+                    .map_err(err)?;
                 self.report_link("linear-pattern");
             }
             "circular-pattern" => {
                 let mut c = Cursor { w, i: 1 };
                 let count = c.num("the number of pieces")? as u32;
-                let (angle_deg, full) = if c.eat("full") { (0.0, true) } else { (c.num("the angle")?, false) };
+                let (angle_deg, full) = if c.eat("full") {
+                    (0.0, true)
+                } else {
+                    (c.num("the angle")?, false)
+                };
                 let dir = c.vec3("the axis")?;
                 let origin = match w.iter().position(|t| *t == "through") {
                     Some(i) => Cursor { w, i: i + 1 }.vec3("the point of the axis")?,
                     None => DVec3::ZERO,
                 };
-                let kind = LinkKind::Circular(CircularParams { axis: Axis { origin, dir }, count, angle_deg, full }, self.mode_of(w)?);
+                let kind = LinkKind::Circular(
+                    CircularParams {
+                        axis: Axis { origin, dir },
+                        count,
+                        angle_deg,
+                        full,
+                    },
+                    self.mode_of(w)?,
+                );
                 let sources = self.sources_of(w)?;
-                self.doc.apply(Command::AddLink { kind, sources, name: Self::name_of(w) }).map_err(err)?;
+                self.doc
+                    .apply(Command::AddLink {
+                        kind,
+                        sources,
+                        name: Self::name_of(w),
+                    })
+                    .map_err(err)?;
                 self.report_link("circular-pattern");
             }
             "mirror" => {
@@ -187,10 +269,24 @@ impl Runner {
                 let (live, keep, merge) = (w.contains(&"live"), w.contains(&"keep"), w.contains(&"merge"));
                 if live {
                     let kind = LinkKind::Mirror(MirrorParams { origin, normal });
-                    self.doc.apply(Command::AddLink { kind, sources, name: Self::name_of(w) }).map_err(err)?;
+                    self.doc
+                        .apply(Command::AddLink {
+                            kind,
+                            sources,
+                            name: Self::name_of(w),
+                        })
+                        .map_err(err)?;
                     self.report_link("mirror");
                 } else {
-                    self.doc.apply(Command::Mirror { bodies: sources, origin, normal, keep: keep || merge, merge }).map_err(err)?;
+                    self.doc
+                        .apply(Command::Mirror {
+                            bodies: sources,
+                            origin,
+                            normal,
+                            keep: keep || merge,
+                            merge,
+                        })
+                        .map_err(err)?;
                     self.say(format!("mirror: {} body(ies)", self.doc.bodies().len()));
                 }
             }
@@ -208,8 +304,22 @@ impl Runner {
                             .join(" ")
                     };
                     let what = match &l.kind {
-                        LinkKind::Linear(p, _) => format!("linear, {} pieces, spacing {}{}{}", p.count, p.spacing, if p.by_total { " (total)" } else { "" }, if p.second.is_some() { ", grid" } else { "" }),
-                        LinkKind::Circular(p, _) => format!("circular, {} pieces, {}", p.count, if p.full { "full circle".to_string() } else { format!("{} degrees apart", p.angle_deg) }),
+                        LinkKind::Linear(p, _) => format!(
+                            "linear, {} pieces, spacing {}{}{}",
+                            p.count,
+                            p.spacing,
+                            if p.by_total { " (total)" } else { "" },
+                            if p.second.is_some() { ", grid" } else { "" }
+                        ),
+                        LinkKind::Circular(p, _) => format!(
+                            "circular, {} pieces, {}",
+                            p.count,
+                            if p.full {
+                                "full circle".to_string()
+                            } else {
+                                format!("{} degrees apart", p.angle_deg)
+                            }
+                        ),
                         LinkKind::Mirror(_) => "mirror".to_string(),
                     };
                     self.say(format!(
@@ -223,7 +333,10 @@ impl Runner {
                             PatternMode::Add(_) => " (added to it)".to_string(),
                             PatternMode::Cut(_) => " (cut from it)".to_string(),
                         },
-                        l.error.as_ref().map(|e| format!("; ERROR: {e}")).unwrap_or_default()
+                        l.error
+                            .as_ref()
+                            .map(|e| format!("; ERROR: {e}"))
+                            .unwrap_or_default()
                     ));
                 }
             }
@@ -231,14 +344,27 @@ impl Runner {
                 let mut c = Cursor { w, i: 1 };
                 let n = c.num("the number of the link")?;
                 let id = self.link_number(n)?;
-                let l = self.doc.state().links.iter().find(|l| l.id == id).unwrap().clone();
+                let l = self
+                    .doc
+                    .state()
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .unwrap()
+                    .clone();
                 let val = |word: &str| -> Result<Option<f64>, String> {
                     match w.iter().position(|t| *t == word) {
-                        Some(i) => Ok(Some(number(w.get(i + 1).ok_or_else(|| format!("'{word}' needs a number"))?)?)),
+                        Some(i) => Ok(Some(number(
+                            w.get(i + 1).ok_or_else(|| format!("'{word}' needs a number"))?,
+                        )?)),
                         None => Ok(None),
                     }
                 };
-                let name = w.iter().position(|t| *t == "name").and_then(|i| w.get(i + 1)).map(|s| s.to_string());
+                let name = w
+                    .iter()
+                    .position(|t| *t == "name")
+                    .and_then(|i| w.get(i + 1))
+                    .map(|s| s.to_string());
                 let kind = match &l.kind {
                     LinkKind::Linear(p, m) => {
                         let mut p = p.clone();
@@ -274,29 +400,76 @@ impl Runner {
                         Some(LinkKind::Mirror(m))
                     }
                 };
-                self.doc.apply(Command::EditLink { link: id, kind, name }).map_err(err)?;
-                let l = self.doc.state().links.iter().find(|l| l.id == id).unwrap().clone();
-                self.say(format!("edit-link: '{}' now has {} body(ies); {} in the document{}", l.name, l.results.len(), self.doc.bodies().len(), if l.warnings.is_empty() { String::new() } else { format!("; {}", l.warnings.join("; ")) }));
+                self.doc
+                    .apply(Command::EditLink { link: id, kind, name })
+                    .map_err(err)?;
+                let l = self
+                    .doc
+                    .state()
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .unwrap()
+                    .clone();
+                self.say(format!(
+                    "edit-link: '{}' now has {} body(ies); {} in the document{}",
+                    l.name,
+                    l.results.len(),
+                    self.doc.bodies().len(),
+                    if l.warnings.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; {}", l.warnings.join("; "))
+                    }
+                ));
             }
             "unlink" | "delete-link" => {
-                let id = self.link_number(number(w.get(1).ok_or_else(|| format!("{} needs the number of a link", w[0]))?)?)?;
-                let cmd = if w[0] == "unlink" { Command::Unlink { link: id } } else { Command::DeleteLink { link: id } };
+                let id = self.link_number(number(
+                    w.get(1)
+                        .ok_or_else(|| format!("{} needs the number of a link", w[0]))?,
+                )?)?;
+                let cmd = if w[0] == "unlink" {
+                    Command::Unlink { link: id }
+                } else {
+                    Command::DeleteLink { link: id }
+                };
                 self.doc.apply(cmd).map_err(err)?;
-                self.say(format!("{}: {} body(ies), {} link(s)", w[0], self.doc.bodies().len(), self.doc.state().links.len()));
+                self.say(format!(
+                    "{}: {} body(ies), {} link(s)",
+                    w[0],
+                    self.doc.bodies().len(),
+                    self.doc.state().links.len()
+                ));
             }
             "group" => {
                 let ns = numbers_from(w, 1);
                 if ns.is_empty() {
                     return Err("group needs the numbers of the bodies".into());
                 }
-                let bodies: Vec<BodyId> = ns.iter().map(|n| self.body_number(number(n)?)).collect::<Result<_, _>>()?;
+                let bodies: Vec<BodyId> = ns
+                    .iter()
+                    .map(|n| self.body_number(number(n)?))
+                    .collect::<Result<_, _>>()?;
                 let parent = match w.iter().position(|t| *t == "in") {
-                    Some(i) => Some(self.group_number(number(w.get(i + 1).ok_or("'in' needs the number of a group")?)?)?),
+                    Some(i) => Some(
+                        self.group_number(number(w.get(i + 1).ok_or("'in' needs the number of a group")?)?)?,
+                    ),
                     None => None,
                 };
-                self.doc.apply(Command::CreateGroup { bodies, name: Self::name_of(w), parent }).map_err(err)?;
+                self.doc
+                    .apply(Command::CreateGroup {
+                        bodies,
+                        name: Self::name_of(w),
+                        parent,
+                    })
+                    .map_err(err)?;
                 let g = self.doc.state().groups.last().unwrap().clone();
-                self.say(format!("group {}: '{}' with {} body(ies)", self.doc.state().groups.len(), g.name, g.bodies.len()));
+                self.say(format!(
+                    "group {}: '{}' with {} body(ies)",
+                    self.doc.state().groups.len(),
+                    g.name,
+                    g.bodies.len()
+                ));
             }
             "groups" => {
                 let st = self.doc.state().clone();
@@ -304,29 +477,58 @@ impl Runner {
                     self.say("no groups");
                 }
                 for (i, g) in st.groups.iter().enumerate() {
-                    let nums: Vec<String> = g.bodies.iter().filter_map(|id| st.bodies.iter().position(|b| b.id == *id)).map(|p| (p + 1).to_string()).collect();
-                    let parent = g.parent.and_then(|p| st.groups.iter().position(|x| x.id == p)).map(|p| format!(", in group {}", p + 1)).unwrap_or_default();
-                    self.say(format!("group {}: '{}'{parent}, bodies {}{}", i + 1, g.name, nums.join(" "), if g.visible { "" } else { " (hidden)" }));
+                    let nums: Vec<String> = g
+                        .bodies
+                        .iter()
+                        .filter_map(|id| st.bodies.iter().position(|b| b.id == *id))
+                        .map(|p| (p + 1).to_string())
+                        .collect();
+                    let parent = g
+                        .parent
+                        .and_then(|p| st.groups.iter().position(|x| x.id == p))
+                        .map(|p| format!(", in group {}", p + 1))
+                        .unwrap_or_default();
+                    self.say(format!(
+                        "group {}: '{}'{parent}, bodies {}{}",
+                        i + 1,
+                        g.name,
+                        nums.join(" "),
+                        if g.visible { "" } else { " (hidden)" }
+                    ));
                 }
             }
             "move-to-group" => {
                 let target = match w.get(1) {
                     Some(&"none") => None,
                     Some(n) => Some(self.group_number(number(n)?)?),
-                    None => return Err("move-to-group needs a group number (or none) and body numbers".into()),
+                    None => {
+                        return Err("move-to-group needs a group number (or none) and body numbers".into())
+                    }
                 };
                 let ns = numbers_from(w, 2);
                 if ns.is_empty() {
                     return Err("move-to-group needs the numbers of the bodies".into());
                 }
-                let bodies: Vec<BodyId> = ns.iter().map(|n| self.body_number(number(n)?)).collect::<Result<_, _>>()?;
-                self.doc.apply(Command::MoveToGroup { bodies, group: target }).map_err(err)?;
+                let bodies: Vec<BodyId> = ns
+                    .iter()
+                    .map(|n| self.body_number(number(n)?))
+                    .collect::<Result<_, _>>()?;
+                self.doc
+                    .apply(Command::MoveToGroup {
+                        bodies,
+                        group: target,
+                    })
+                    .map_err(err)?;
                 self.say(format!("move-to-group: {} body(ies) moved", ns.len()));
             }
             "ungroup" => {
-                let id = self.group_number(number(w.get(1).ok_or("ungroup needs the number of a group")?)?)?;
+                let id =
+                    self.group_number(number(w.get(1).ok_or("ungroup needs the number of a group")?)?)?;
                 self.doc.apply(Command::Ungroup { group: id }).map_err(err)?;
-                self.say(format!("ungroup: {} group(s) left", self.doc.state().groups.len()));
+                self.say(format!(
+                    "ungroup: {} group(s) left",
+                    self.doc.state().groups.len()
+                ));
             }
             "sketch-pattern" => {
                 let sketch = self.sketch.ok_or("there is no current sketch")?;
@@ -341,33 +543,80 @@ impl Runner {
                         let second = match w.iter().position(|t| *t == "second") {
                             Some(i) => {
                                 let mut c2 = Cursor { w, i: i + 1 };
-                                let (n, s) = (c2.num("the second count")? as u32, c2.num("the second spacing")?);
-                                let d = rolidium_doc::rolidium_sketch::DVec2::new(c2.num("dx")?, c2.num("dy")?);
+                                let (n, s) =
+                                    (c2.num("the second count")? as u32, c2.num("the second spacing")?);
+                                let d =
+                                    rolidium_doc::rolidium_sketch::DVec2::new(c2.num("dx")?, c2.num("dy")?);
                                 Some((d, n, s, c2.eat("total")))
                             }
                             None => None,
                         };
-                        SketchPattern::Linear { dir, count, spacing, by_total, second }
+                        SketchPattern::Linear {
+                            dir,
+                            count,
+                            spacing,
+                            by_total,
+                            second,
+                        }
                     }
                     "circular" => {
                         let count = c.num("the number of pieces")? as u32;
-                        let (angle_deg, full) = if c.eat("full") { (0.0, true) } else { (c.num("the angle")?, false) };
+                        let (angle_deg, full) = if c.eat("full") {
+                            (0.0, true)
+                        } else {
+                            (c.num("the angle")?, false)
+                        };
                         let center = rolidium_doc::rolidium_sketch::DVec2::new(c.num("cx")?, c.num("cy")?);
-                        SketchPattern::Circular { center, count, angle_deg, full }
+                        SketchPattern::Circular {
+                            center,
+                            count,
+                            angle_deg,
+                            full,
+                        }
                     }
                     o => return Err(format!("unknown pattern '{o}' (linear or circular)")),
                 };
-                self.doc.apply(Command::SketchPattern { sketch, entities: vec![], pattern }).map_err(err)?;
-                let n = self.doc.sketch(sketch).map(|s| s.sketch.entities().len()).unwrap_or(0);
-                self.say(format!("sketch-pattern: the sketch has {n} shape(s), {} region(s)", self.doc.sketch(sketch).map(|s| s.sketch.regions().len()).unwrap_or(0)));
+                self.doc
+                    .apply(Command::SketchPattern {
+                        sketch,
+                        entities: vec![],
+                        pattern,
+                    })
+                    .map_err(err)?;
+                let n = self
+                    .doc
+                    .sketch(sketch)
+                    .map(|s| s.sketch.entities().len())
+                    .unwrap_or(0);
+                self.say(format!(
+                    "sketch-pattern: the sketch has {n} shape(s), {} region(s)",
+                    self.doc
+                        .sketch(sketch)
+                        .map(|s| s.sketch.regions().len())
+                        .unwrap_or(0)
+                ));
             }
             "sketch-mirror" => {
                 let sketch = self.sketch.ok_or("there is no current sketch")?;
                 let mut c = Cursor { w, i: 1 };
                 let a = rolidium_doc::rolidium_sketch::DVec2::new(c.num("ax")?, c.num("ay")?);
                 let b = rolidium_doc::rolidium_sketch::DVec2::new(c.num("bx")?, c.num("by")?);
-                self.doc.apply(Command::SketchMirror { sketch, entities: vec![], a, b, keep: c.eat("keep") }).map_err(err)?;
-                self.say(format!("sketch-mirror: the sketch has {} shape(s)", self.doc.sketch(sketch).map(|s| s.sketch.entities().len()).unwrap_or(0)));
+                self.doc
+                    .apply(Command::SketchMirror {
+                        sketch,
+                        entities: vec![],
+                        a,
+                        b,
+                        keep: c.eat("keep"),
+                    })
+                    .map_err(err)?;
+                self.say(format!(
+                    "sketch-mirror: the sketch has {} shape(s)",
+                    self.doc
+                        .sketch(sketch)
+                        .map(|s| s.sketch.entities().len())
+                        .unwrap_or(0)
+                ));
             }
             _ => return Ok(false),
         }

@@ -107,6 +107,8 @@ pub enum Done {
     /// A background job died with an internal error.
     Failed(String),
     Command(Result<(Computed, Vec<MeshEntry>), String>),
+    /// The command edits a body that a link made: the command, the link, its name and the name of the body (the person decides).
+    Derived(Box<(rolidium_doc::Command, rolidium_doc::LinkId, String, String)>),
     Meshes(Result<Vec<MeshEntry>, String>),
     Export(Result<(PathBuf, usize), String>),
     MeshStats(u64, Result<usize, String>),
@@ -211,7 +213,18 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
             let started = std::time::Instant::now();
             let _ = rolidium_kernel::timing::take();
             let mut run_ms = 0.0;
-            let r = job.run().map_err(|e: DocError| e.to_string()).and_then(|c| {
+            let command = job.command.clone();
+            let ran = job.run();
+            if let Err(DocError::Derived {
+                link,
+                link_name,
+                body_name,
+                ..
+            }) = &ran
+            {
+                return Done::Derived(Box::new((command, *link, link_name.clone(), body_name.clone())));
+            }
+            let r = ran.map_err(|e: DocError| e.to_string()).and_then(|c| {
                 run_ms = started.elapsed().as_secs_f64() * 1e3;
                 let inputs: Vec<BodyInput> = c
                     .state

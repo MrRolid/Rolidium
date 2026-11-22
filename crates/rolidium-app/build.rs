@@ -18,8 +18,13 @@ fn main() {
     }
     // "0.2.0" only for a clean build of exactly the tag v<version>; every other build is "0.2.0-dev" (development version)
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
-    let exact_tag = git(&["describe", "--exact-match", "--tags", "HEAD"]).is_some_and(|t| t == format!("v{version}"));
-    let label = if exact_tag && !hash.ends_with('+') { version } else { format!("{version}-dev") };
+    let exact_tag =
+        git(&["describe", "--exact-match", "--tags", "HEAD"]).is_some_and(|t| t == format!("v{version}"));
+    let label = if exact_tag && !hash.ends_with('+') {
+        version
+    } else {
+        format!("{version}-dev")
+    };
     println!("cargo:rustc-env=ROLIDIUM_VERSION_LABEL={label}");
     println!("cargo:rustc-env=ROLIDIUM_BUILD_HASH={hash}");
     println!("cargo:rerun-if-changed=../../.git/refs/tags");

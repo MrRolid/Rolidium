@@ -442,6 +442,11 @@ mod coverage {
 
     /// Texts that reach the screen through tables or `format!`, so the scan cannot see them.
     const EXTRA: &[&str] = &[
+        "Mirror the body itself", "The body is mirrored where it is.", "Keep the original", "The mirror image is a new body.",
+        "Merge into one body", "The image is fused with the original into one symmetric body (the body must touch the plane).",
+        "Live mirror", "The mirror image follows when you change the original. A merged body cannot be live: an edit of one half could not be carried to the other reliably.",
+        "Click the body to repeat or mirror", "Click the body the pieces are added to or cut out of",
+        "Select the bodies to group first", "Group made", "Group dissolved", "Moved", "The link was removed",
         "There is nothing to cut: the bodies do not overlap",
         "The result of the operation does not add up (its volume is impossible for these bodies), so nothing was changed. Try moving one body by a hundredth of a millimetre, or combine the bodies in another order",
         "Select", "Pull", "Sketch", "Line", "Rectangle", "Circle", "Plan view", "3D mode", "Edges", "Round",

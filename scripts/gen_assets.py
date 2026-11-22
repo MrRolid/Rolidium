@@ -129,6 +129,8 @@ icons = {
     "sweep": neutral(path("M3 19 C10 19 9 7 21 6")) + accent(path("M2 16 A3 3 0 1 1 8 16 A3 3 0 1 1 2 16 Z", ACC_FILL)),
     "finish": neutral(path("M3 20 H21")) + accent(path("M4.5 11.5 L9.5 16.5 L19.5 6.5")),
     "fill": neutral(path("M12 3 A9 9 0 1 1 11.99 3 Z", extra=' stroke-dasharray="3 3"')) + accent(path("M12 7.5 A4.5 4.5 0 1 1 11.99 7.5 Z", ACC_FILL)),
+    "pattern": neutral(path("M3 8 H8 V16 H3 Z")) + accent(path("M10 8 H15 V16 H10 Z", ACC_FILL), path("M17 8 H22 V16 H17 Z", ACC_FILL)),
+    "mirror": neutral(path("M3 7 L9 10 V19 L3 16 Z")) + accent(path("M21 7 L15 10 V19 L21 16 Z", ACC_FILL), path("M12 3 V21", extra=' stroke-dasharray="2 2"')),
     "join": neutral(path("M3.5 18.5 H8 M16 5.5 H20.5 M3.5 16 V21 M20.5 3 V8")) + accent(path("M8 18.5 L16 5.5")),
     "measure": neutral(path("M3 17 H21 M3 14 V20 M21 14 V20")) + accent(path("M7 10 L3 10 M17 10 L21 10 M7 10 L10 7.5 M7 10 L10 12.5 M17 10 L14 7.5 M17 10 L14 12.5 M7 10 H17")),
     "line3d": neutral(path("M4 19 L10 14 L14 18 L20 7")) + accent(path("M3 19 a1 1 0 1 0 2 0 a1 1 0 1 0 -2 0 M19 7 a1 1 0 1 0 2 0 a1 1 0 1 0 -2 0 M13 18 a1 1 0 1 0 2 0 a1 1 0 1 0 -2 0")),
@@ -213,6 +215,8 @@ help_art = {
                  f'<rect x="156" y="114" width="26" height="8" rx="3" fill="{A}" stroke="none"/>'
                  f'<path d="M24 70 H120 M108 60 L120 70 L108 80" fill="none" stroke="{N}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
                  f'<path d="M30 40 a16 16 0 1 0 32 0 a16 16 0 1 0 -32 0 M46 32 V44 M46 48 V50" fill="none" stroke="{A}" stroke-width="3" stroke-linecap="round"/></svg>'),
+    "pattern": scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 50, R[1] - 24) + b0(R[0] - 18, R[1] - 24, top=A) + b0(R[0] + 14, R[1] - 24, top=A)),
+    "mirror": scene(b0(L[0] - 38, L[1] - 24), b0(R[0] - 50, R[1] - 24) + b0(R[0] + 14, R[1] - 24, top=A) + f'<path d="M{R[0]} {R[1]-60} V{R[1]+30}" stroke="{A}" stroke-width="2" stroke-dasharray="5 4"/>'),
     "select": scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 18, R[1] - 24, top=A)),
     "pull": scene(b0(L[0] - 18, L[1] - 20, top=A) + arrow(L[0] - 18 + 0, L[1] - 20 - 22 - 16, L[0] - 18, L[1] - 20 - 22 - 40, A),
                   b0(R[0] - 18, R[1] - 20, h=1.0) + box(R[0] - 18, R[1] - 20, 1.6, 1.2, 0.8, z0=1.0, top=A, stroke=A)),
@@ -296,6 +300,8 @@ tools = [
     ("eye_on", "Visibility", "", "The eye in the document tree hides or shows a body or a sketch. Hidden objects cannot be selected and are not exported.", []),
     ("eye_off", "Hidden", "", "This object is hidden. Click the eye to show it again.", []),
     ("arc", "Arc", "A", "Click the start point, the end point, then a point on the arc. Type a radius after the end point and press Enter for an exact arc.", ["If the start lies at the end of a line or an arc, the arc can continue it tangentially (marked on screen).", "After an arc the next one continues from its end; Esc stops."]),
+    ("pattern", "Pattern", "T", "Repeats a body along a line or round an axis. Click the body, choose Along a line or Round an axis, set the direction (X, Y, Z, an edge or a face) or the axis, the number of pieces and the spacing; a translucent preview shows the pieces. The result can be new bodies, an addition to a body or a cut out of a body. The pattern is a link: change the source and the pieces follow, click the link in the document list to change its numbers.", ["Pieces that overlap each other or lie outside the body are shown in red with a message.", "A second direction makes a grid; a full circle divides evenly.", "Remove the link keeps the pieces as ordinary bodies."]),
+    ("mirror", "Mirror", "B", "Mirrors a body in a plane: a base plane, a flat face or the plane of a sketch, with an offset. Choose to mirror the body itself, to keep the original and add the image, to merge both halves into one body, or a live mirror that follows the original.", ["Merging needs a body that touches the plane.", "A live mirror is a link; a merged body is made once, because an edit of one half cannot be carried to the other reliably."]),
     ("combine", "Combine", "I", "Click the target body, then one or more other bodies. Choose Merge, Cut (subtract the others from the target) or Intersect, optionally keep the tool bodies, and press Apply or Enter.", ["Target and tools are highlighted in different colours.", "A cut that splits the target makes separate bodies."]),
     ("donate", "Support development", "", "Opens the About window at the section with a Bitcoin address and its QR code. Nothing is sent anywhere and there are no reminders.", []),
     ("about", "About", "", "Name, version and build of this program, and how to support its development.", []),

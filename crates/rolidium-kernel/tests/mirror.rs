@@ -12,16 +12,28 @@ fn a_mirrored_body_keeps_its_volume_and_lies_on_the_other_side() {
     let v = body.volume().unwrap();
     let m = body.mirrored(DVec3::ZERO, DVec3::X).unwrap().solid;
     assert!(m.is_valid());
-    assert!((m.volume().unwrap() - v).abs() < 1e-6, "{} vs {v}", m.volume().unwrap());
+    assert!(
+        (m.volume().unwrap() - v).abs() < 1e-6,
+        "{} vs {v}",
+        m.volume().unwrap()
+    );
     let (a, b) = (body.props().unwrap(), m.props().unwrap());
-    assert!((b.min.x + a.max.x).abs() < 1e-9 && (b.max.x + a.min.x).abs() < 1e-9, "{:?} {:?}", a.min, b.max);
+    assert!(
+        (b.min.x + a.max.x).abs() < 1e-9 && (b.max.x + a.min.x).abs() < 1e-9,
+        "{:?} {:?}",
+        a.min,
+        b.max
+    );
     assert!((b.min.y - a.min.y).abs() < 1e-9 && (b.max.z - a.max.z).abs() < 1e-9);
     assert!((b.centroid.x + a.centroid.x).abs() < 1e-6 && (b.centroid.y - a.centroid.y).abs() < 1e-6);
     // mirrored twice: the original again
     let back = m.mirrored(DVec3::ZERO, DVec3::X).unwrap().solid;
     assert!((back.volume().unwrap() - v).abs() < 1e-6);
     // an oblique plane through a point
-    let o = body.mirrored(DVec3::new(0.0, 15.0, 0.0), DVec3::new(0.0, 1.0, 1.0)).unwrap().solid;
+    let o = body
+        .mirrored(DVec3::new(0.0, 15.0, 0.0), DVec3::new(0.0, 1.0, 1.0))
+        .unwrap()
+        .solid;
     assert!(o.is_valid() && (o.volume().unwrap() - v).abs() < 1e-6);
     // no plane
     assert!(body.mirrored(DVec3::ZERO, DVec3::ZERO).is_err());

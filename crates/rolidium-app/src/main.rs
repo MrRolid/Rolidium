@@ -51,7 +51,11 @@ pub fn third_party_licenses_path() -> Option<std::path::PathBuf> {
 
 /// "0.1.1 a1b2c3d": version and build hash.
 pub fn version_string() -> String {
-    format!("{} {}", env!("ROLIDIUM_VERSION_LABEL"), env!("ROLIDIUM_BUILD_HASH"))
+    format!(
+        "{} {}",
+        env!("ROLIDIUM_VERSION_LABEL"),
+        env!("ROLIDIUM_BUILD_HASH")
+    )
 }
 
 /// `--window-size 1280x720` (for tests of the layout); the default is 1280 x 800.

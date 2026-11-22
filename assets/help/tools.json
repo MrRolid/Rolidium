@@ -286,6 +286,31 @@
     "animation": null
   },
   {
+    "id": "pattern",
+    "title": "Pattern",
+    "shortcut": "T",
+    "text": "Repeats a body along a line or round an axis. Click the body, choose Along a line or Round an axis, set the direction (X, Y, Z, an edge or a face) or the axis, the number of pieces and the spacing; a translucent preview shows the pieces. The result can be new bodies, an addition to a body or a cut out of a body. The pattern is a link: change the source and the pieces follow, click the link in the document list to change its numbers.",
+    "tips": [
+      "Pieces that overlap each other or lie outside the body are shown in red with a message.",
+      "A second direction makes a grid; a full circle divides evenly.",
+      "Remove the link keeps the pieces as ordinary bodies."
+    ],
+    "illustration": "pattern.svg",
+    "animation": null
+  },
+  {
+    "id": "mirror",
+    "title": "Mirror",
+    "shortcut": "B",
+    "text": "Mirrors a body in a plane: a base plane, a flat face or the plane of a sketch, with an offset. Choose to mirror the body itself, to keep the original and add the image, to merge both halves into one body, or a live mirror that follows the original.",
+    "tips": [
+      "Merging needs a body that touches the plane.",
+      "A live mirror is a link; a merged body is made once, because an edit of one half cannot be carried to the other reliably."
+    ],
+    "illustration": "mirror.svg",
+    "animation": null
+  },
+  {
     "id": "combine",
     "title": "Combine",
     "shortcut": "I",

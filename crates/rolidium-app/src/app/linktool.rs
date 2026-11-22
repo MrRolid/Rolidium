@@ -1,0 +1,1422 @@
+// Copyright (c) 2026 Rolid spol. s r.o.
+// SPDX-License-Identifier: AGPL-3.0-only
+//! The Pattern and Mirror tools, and the panel that changes a link after it was made. A link (a pattern or a live mirror) remembers its source,
+//! its parameters and the bodies it made; the panel shows a translucent preview of the pieces while the parameters change, and a click on Apply is
+//! one step of Undo.
+
+use super::*;
+use crate::i18n::{tr, trf};
+use rolidium_doc::{
+    Axis, CircularParams, Direction2, LinearParams, LinkId, LinkKind, MirrorParams, PatternMode,
+};
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum LinkMode {
+    #[default]
+    Linear,
+    Circular,
+    Mirror,
+}
+
+/// What the next click in the view sets.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum LinkPick {
+    Direction,
+    Direction2,
+    Axis,
+    Plane,
+    Target,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum MirrorHow {
+    InPlace,
+    #[default]
+    Keep,
+    Merge,
+    Live,
+}
+
+/// The parameters in the panel (what changes the preview).
+#[derive(Clone, PartialEq, Debug)]
+pub struct LinkParams {
+    pub mode: LinkMode,
+    pub dir: DVec3,
+    pub dir_label: String,
+    pub count: u32,
+    pub spacing: f64,
+    pub by_total: bool,
+    pub second: bool,
+    pub dir2: DVec3,
+    pub dir2_label: String,
+    pub count2: u32,
+    pub spacing2: f64,
+    pub by_total2: bool,
+    pub axis: Axis,
+    pub axis_label: String,
+    pub angle: f64,
+    pub full: bool,
+    /// 0 new bodies, 1 add to a body, 2 cut from a body.
+    pub result: u8,
+    pub target: Option<BodyId>,
+    pub plane: Axis,
+    pub plane_label: String,
+    pub how: MirrorHow,
+}
+
+impl Default for LinkParams {
+    fn default() -> Self {
+        LinkParams {
+            mode: LinkMode::Linear,
+            dir: DVec3::X,
+            dir_label: "X".into(),
+            count: 3,
+            spacing: 20.0,
+            by_total: false,
+            second: false,
+            dir2: DVec3::Y,
+            dir2_label: "Y".into(),
+            count2: 3,
+            spacing2: 20.0,
+            by_total2: false,
+            axis: Axis {
+                origin: DVec3::ZERO,
+                dir: DVec3::Z,
+            },
+            axis_label: "Z".into(),
+            angle: 60.0,
+            full: true,
+            result: 0,
+            target: None,
+            plane: Axis {
+                origin: DVec3::ZERO,
+                dir: DVec3::X,
+            },
+            plane_label: "YZ".into(),
+            how: MirrorHow::Keep,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct LinkUi {
+    pub p: LinkParams,
+    /// The link that is being changed (the panel of an existing link), else a new one is made.
+    pub editing: Option<LinkId>,
+    pub pick: Option<LinkPick>,
+    /// The pieces of the preview as triangles (normal, and those that may overlap or lie outside), and a remark about them.
+    pub note: std::cell::RefCell<String>,
+    pub plane_sketch: usize,
+    /// The mouse handle of the spacing is being dragged.
+    pub handle_drag: bool,
+}
+
+fn dv(v: Vec3) -> DVec3 {
+    v.as_dvec3()
+}
+
+/// The bounding box of a mesh transformed by `f`.
+fn moved_box(lo: DVec3, hi: DVec3, f: &dyn Fn(DVec3) -> DVec3) -> (DVec3, DVec3) {
+    let mut a = DVec3::splat(f64::MAX);
+    let mut b = DVec3::splat(f64::MIN);
+    for i in 0..8 {
+        let c = DVec3::new(
+            if i & 1 == 0 { lo.x } else { hi.x },
+            if i & 2 == 0 { lo.y } else { hi.y },
+            if i & 4 == 0 { lo.z } else { hi.z },
+        );
+        let p = f(c);
+        a = a.min(p);
+        b = b.max(p);
+    }
+    (a, b)
+}
+
+fn boxes_meet(a: (DVec3, DVec3), b: (DVec3, DVec3)) -> bool {
+    a.0.cmplt(b.1 - DVec3::splat(1e-6)).all() && b.0.cmplt(a.1 - DVec3::splat(1e-6)).all()
+}
+
+impl LinkParams {
+    /// The kind of link these parameters make.
+    pub fn kind(&self) -> LinkKind {
+        let mode = match (self.result, self.target) {
+            (1, Some(t)) => PatternMode::Add(t),
+            (2, Some(t)) => PatternMode::Cut(t),
+            _ => PatternMode::New,
+        };
+        match self.mode {
+            LinkMode::Linear => LinkKind::Linear(
+                LinearParams {
+                    axis: Axis {
+                        origin: DVec3::ZERO,
+                        dir: self.dir,
+                    },
+                    count: self.count,
+                    spacing: self.spacing,
+                    by_total: self.by_total,
+                    second: self.second.then_some(Direction2 {
+                        axis: Axis {
+                            origin: DVec3::ZERO,
+                            dir: self.dir2,
+                        },
+                        count: self.count2,
+                        spacing: self.spacing2,
+                        by_total: self.by_total2,
+                    }),
+                },
+                mode,
+            ),
+            LinkMode::Circular => LinkKind::Circular(
+                CircularParams {
+                    axis: self.axis,
+                    count: self.count,
+                    angle_deg: self.angle,
+                    full: self.full,
+                },
+                mode,
+            ),
+            LinkMode::Mirror => LinkKind::Mirror(MirrorParams {
+                origin: self.plane.origin,
+                normal: self.plane.dir,
+            }),
+        }
+    }
+
+    /// The parameters of an existing link, for its panel.
+    pub fn from_link(l: &rolidium_doc::Link) -> LinkParams {
+        let mut p = LinkParams::default();
+        let result = |m: PatternMode| match m {
+            PatternMode::New => (0, None),
+            PatternMode::Add(t) => (1, Some(t)),
+            PatternMode::Cut(t) => (2, Some(t)),
+        };
+        match &l.kind {
+            LinkKind::Linear(q, m) => {
+                p.mode = LinkMode::Linear;
+                p.dir = q.axis.dir;
+                p.dir_label = tr("as made");
+                p.count = q.count;
+                p.spacing = q.spacing;
+                p.by_total = q.by_total;
+                if let Some(s) = &q.second {
+                    p.second = true;
+                    p.dir2 = s.axis.dir;
+                    p.dir2_label = tr("as made");
+                    p.count2 = s.count;
+                    p.spacing2 = s.spacing;
+                    p.by_total2 = s.by_total;
+                }
+                (p.result, p.target) = result(*m);
+            }
+            LinkKind::Circular(q, m) => {
+                p.mode = LinkMode::Circular;
+                p.axis = q.axis;
+                p.axis_label = tr("as made");
+                p.count = q.count;
+                p.angle = q.angle_deg;
+                p.full = q.full;
+                (p.result, p.target) = result(*m);
+            }
+            LinkKind::Mirror(m) => {
+                p.mode = LinkMode::Mirror;
+                p.plane = Axis {
+                    origin: m.origin,
+                    dir: m.normal,
+                };
+                p.plane_label = tr("as made");
+                p.how = MirrorHow::Live;
+            }
+        }
+        p
+    }
+}
+
+impl App {
+    /// The bodies the tool works on: the bodies marked in the view or in the list.
+    pub(super) fn link_sources(&self) -> Vec<BodyId> {
+        if !self.move_sel.is_empty() {
+            return self.move_sel.clone();
+        }
+        self.body_sel.into_iter().collect()
+    }
+
+    pub(super) fn activate_link_tool(&mut self, mode: LinkMode) {
+        if self.doc.bodies().is_empty() {
+            self.set_status("There is no body to repeat or mirror", true);
+            return;
+        }
+        self.leave_sketch();
+        self.tool = if mode == LinkMode::Mirror {
+            Tool::Mirror
+        } else {
+            Tool::Pattern
+        };
+        if self.move_sel.is_empty() {
+            // the body of a picked face, or the body picked in the list
+            if let Some(b) = self.body_sel.or_else(|| self.selection.last().map(|s| s.0)) {
+                self.move_sel = vec![b];
+            }
+        }
+        self.link_ui.editing = None;
+        let old = std::mem::take(&mut self.link_ui.p);
+        self.link_ui.p = LinkParams {
+            mode,
+            ..LinkParams::default()
+        };
+        if mode == LinkMode::Circular {
+            self.link_ui.p.count = 6;
+        }
+        // the same defaults after the first time: the number of pieces and the kind of result are not remembered, the spacing follows the body
+        let _ = old;
+        self.link_ui.pick = None;
+        self.default_spacing();
+        self.layers_changed = true;
+    }
+
+    /// A spacing that leaves a gap between the pieces: the size of the sources along the direction and a fifth more.
+    fn default_spacing(&mut self) {
+        let dir = self.link_ui.p.dir.normalize_or_zero();
+        let mut ext = 0.0f64;
+        for b in self.link_sources() {
+            if let Some(m) = self.entry(b) {
+                let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+                for p in &m.mesh.positions {
+                    let d = dv(*p).dot(dir);
+                    lo = lo.min(d);
+                    hi = hi.max(d);
+                }
+                if lo <= hi {
+                    ext = ext.max(hi - lo);
+                }
+            }
+        }
+        if ext > 1e-6 {
+            let s = (ext * 1.2 * 10.0).round() / 10.0;
+            self.link_ui.p.spacing = s;
+            self.link_ui.p.spacing2 = s;
+        }
+    }
+
+    /// Opens the panel of a link (a click on it in the list of the document).
+    pub(super) fn open_link(&mut self, id: LinkId) {
+        let Some(l) = self.doc.state().links.iter().find(|l| l.id == id).cloned() else {
+            return;
+        };
+        self.leave_sketch();
+        self.link_ui.p = LinkParams::from_link(&l);
+        self.link_ui.editing = Some(id);
+        self.link_ui.pick = None;
+        self.tool = if l.kind.title() == "Mirror" {
+            Tool::Mirror
+        } else {
+            Tool::Pattern
+        };
+        self.move_sel = l.sources.clone();
+        self.body_sel = None;
+        self.selection.clear();
+        self.link_sel = Some(id);
+        self.layers_changed = true;
+    }
+
+    pub(super) fn close_link_tool(&mut self) {
+        self.link_ui.editing = None;
+        self.link_ui.pick = None;
+        self.link_sel = None;
+        self.move_sel.clear();
+        self.tool = Tool::Select;
+        self.layers_changed = true;
+    }
+
+    /// A click in the view while the tool works: a body (a source, or the target when picking one), or a face or an edge that gives the direction.
+    pub(super) fn link_input(&mut self, resp: &egui::Response) {
+        let hover = if resp.hovered() {
+            self.hovered_face().map(|(b, _)| b)
+        } else {
+            None
+        };
+        if hover != self.hover_body {
+            self.hover_body = hover;
+            self.layers_changed = true;
+        }
+        if self.spacing_handle(resp) {
+            return;
+        }
+        if !resp.clicked_by(PointerButton::Primary) {
+            return;
+        }
+        match self.link_ui.pick {
+            Some(LinkPick::Target) => {
+                if let Some(b) = hover {
+                    if !self.move_sel.contains(&b) {
+                        self.link_ui.p.target = Some(b);
+                        self.link_ui.pick = None;
+                        self.layers_changed = true;
+                    } else {
+                        self.set_status("The body the pieces go into cannot be one of the sources", true);
+                    }
+                }
+            }
+            Some(p @ (LinkPick::Direction | LinkPick::Direction2 | LinkPick::Axis | LinkPick::Plane)) => {
+                if self.pick_link_geometry(p) {
+                    self.link_ui.pick = None;
+                    self.layers_changed = true;
+                }
+            }
+            None => {
+                if self.link_ui.editing.is_some() {
+                    return;
+                }
+                if let Some(b) = hover {
+                    if let Some(i) = self.move_sel.iter().position(|x| *x == b) {
+                        self.move_sel.remove(i);
+                    } else {
+                        self.move_sel.push(b);
+                    }
+                    self.default_spacing();
+                    self.layers_changed = true;
+                }
+            }
+        }
+    }
+
+    /// Sets a direction, an axis or a plane from the edge or the face under the pointer. `true` when something was taken.
+    fn pick_link_geometry(&mut self, what: LinkPick) -> bool {
+        // an edge: a straight one gives a direction and a point
+        if let Some(Obj::Edge(b, e)) = self.hover_obj {
+            if let Some(body) = self.doc.body(b) {
+                if let Ok(i) = body.solid.edge_info(rolidium_kernel::EdgeId(e)) {
+                    if i.kind == rolidium_kernel::EdgeKind::Line && (i.end - i.start).length() > 1e-9 {
+                        let d = (i.end - i.start).normalize();
+                        let p = &mut self.link_ui.p;
+                        match what {
+                            LinkPick::Direction => (p.dir, p.dir_label) = (d, tr("an edge")),
+                            LinkPick::Direction2 => (p.dir2, p.dir2_label) = (d, tr("an edge")),
+                            LinkPick::Axis => {
+                                (p.axis, p.axis_label) = (
+                                    Axis {
+                                        origin: i.start,
+                                        dir: d,
+                                    },
+                                    tr("an edge"),
+                                )
+                            }
+                            LinkPick::Plane => {
+                                self.set_status("Click a flat face for the mirror plane", true);
+                                return false;
+                            }
+                            LinkPick::Target => {}
+                        }
+                        return true;
+                    }
+                }
+            }
+        }
+        let Some((b, f)) = self.hovered_face() else {
+            return false;
+        };
+        let Some(info) = self
+            .doc
+            .body(b)
+            .and_then(|body| body.solid.face_info(FaceId(f)).ok())
+        else {
+            return false;
+        };
+        let p = &mut self.link_ui.p;
+        match (what, info.kind) {
+            (LinkPick::Direction, FaceKind::Plane) => (p.dir, p.dir_label) = (info.normal, tr("a face")),
+            (LinkPick::Direction2, FaceKind::Plane) => (p.dir2, p.dir2_label) = (info.normal, tr("a face")),
+            (LinkPick::Direction, FaceKind::Cylinder | FaceKind::Cone) => {
+                (p.dir, p.dir_label) = (info.normal, tr("a face"))
+            }
+            (LinkPick::Direction2, FaceKind::Cylinder | FaceKind::Cone) => {
+                (p.dir2, p.dir2_label) = (info.normal, tr("a face"))
+            }
+            (LinkPick::Axis, FaceKind::Cylinder | FaceKind::Cone) => {
+                (p.axis, p.axis_label) = (
+                    Axis {
+                        origin: info.origin,
+                        dir: info.normal,
+                    },
+                    tr("the axis of a hole or a shaft"),
+                )
+            }
+            (LinkPick::Axis, FaceKind::Plane) => {
+                (p.axis, p.axis_label) = (
+                    Axis {
+                        origin: info.origin,
+                        dir: info.normal,
+                    },
+                    tr("a face"),
+                )
+            }
+            (LinkPick::Plane, FaceKind::Plane) => {
+                (p.plane, p.plane_label) = (
+                    Axis {
+                        origin: info.origin,
+                        dir: info.normal,
+                    },
+                    tr("a face"),
+                )
+            }
+            (LinkPick::Plane, _) => {
+                self.set_status("Click a flat face for the mirror plane", true);
+                return false;
+            }
+            _ => {
+                self.set_status("Click a flat or a round face, or a straight edge", true);
+                return false;
+            }
+        }
+        true
+    }
+
+    /// The translucent pieces of the preview, and a remark about those that may overlap or lie outside (from the boxes of the bodies).
+    fn compute_link_preview(&self) -> (Vec<Vec3>, Vec<Vec3>) {
+        let (mut ok, mut badv) = (Vec::new(), Vec::new());
+        self.link_ui.note.borrow_mut().clear();
+        let sources = self.link_sources();
+        if sources.is_empty() || !matches!(self.tool, Tool::Pattern | Tool::Mirror) {
+            return (ok, badv);
+        }
+        let kind = self.link_ui.p.kind();
+        let mirror = self.link_ui.p.mode == LinkMode::Mirror;
+        let plan = match rolidium_doc::placements_of(&kind) {
+            Ok(p) => p,
+            Err(e) => {
+                *self.link_ui.note.borrow_mut() = e;
+                return (ok, badv);
+            }
+        };
+        let transforms: Vec<Box<dyn Fn(DVec3) -> DVec3>> = if mirror {
+            let (o, n) = (
+                self.link_ui.p.plane.origin,
+                self.link_ui.p.plane.dir.normalize_or_zero(),
+            );
+            vec![Box::new(move |p| p - n * (2.0 * (p - o).dot(n)))]
+        } else {
+            plan.iter()
+                .map(|(t, pivot, axis, angle)| {
+                    let q = if axis.length() > 1e-9 && angle.abs() > 1e-12 {
+                        glam::DQuat::from_axis_angle(axis.normalize(), *angle)
+                    } else {
+                        glam::DQuat::IDENTITY
+                    };
+                    let (t, pivot) = (*t, *pivot);
+                    Box::new(move |p: DVec3| pivot + q * (p - pivot) + t) as Box<dyn Fn(DVec3) -> DVec3>
+                })
+                .collect()
+        };
+        let mut tris_budget = 600_000usize;
+        let mut boxes: Vec<(DVec3, DVec3)> = Vec::new();
+        let mut originals: Vec<(DVec3, DVec3)> = Vec::new();
+        let mut per_piece: Vec<(usize, usize)> = Vec::new(); // (source, transform) of each piece
+        for (si, b) in sources.iter().enumerate() {
+            let Some(m) = self.entry(*b) else { continue };
+            let (mut lo, mut hi) = (DVec3::splat(f64::MAX), DVec3::splat(f64::MIN));
+            for p in &m.mesh.positions {
+                lo = lo.min(dv(*p));
+                hi = hi.max(dv(*p));
+            }
+            if lo.x > hi.x {
+                continue;
+            }
+            originals.push((lo, hi));
+            for (ti, f) in transforms.iter().enumerate() {
+                boxes.push(moved_box(lo, hi, f.as_ref()));
+                per_piece.push((si, ti));
+            }
+        }
+        // which pieces are doubtful
+        let mut bad = vec![false; boxes.len()];
+        let mut overlaps = 0usize;
+        let all: Vec<(DVec3, DVec3)> = originals.iter().copied().chain(boxes.iter().copied()).collect();
+        if matches!(kind.mode(), PatternMode::New) {
+            for i in 0..boxes.len() {
+                let me = &boxes[i];
+                for (j, other) in all.iter().enumerate() {
+                    // the other pieces and the originals, not itself
+                    if j == originals.len() + i {
+                        continue;
+                    }
+                    if boxes_meet(*me, *other) {
+                        bad[i] = true;
+                        overlaps += 1;
+                        break;
+                    }
+                }
+            }
+            if overlaps > 0 {
+                *self.link_ui.note.borrow_mut() =
+                    format!("{overlaps} {}", tr("piece(s) may overlap another piece"));
+            }
+        } else if let Some(t) = kind.mode().target() {
+            if let Some(m) = self.entry(t) {
+                let (mut lo, mut hi) = (DVec3::splat(f64::MAX), DVec3::splat(f64::MIN));
+                for p in &m.mesh.positions {
+                    lo = lo.min(dv(*p));
+                    hi = hi.max(dv(*p));
+                }
+                let mut outside = 0;
+                for i in 0..boxes.len() {
+                    let touches = boxes[i].0.cmple(hi + DVec3::splat(1e-6)).all()
+                        && lo.cmple(boxes[i].1 + DVec3::splat(1e-6)).all();
+                    if !touches {
+                        bad[i] = true;
+                        outside += 1;
+                    }
+                }
+                if outside > 0 {
+                    *self.link_ui.note.borrow_mut() =
+                        format!("{outside} {}", tr("piece(s) lie outside the body"));
+                }
+            }
+        }
+        for (k, (si, ti)) in per_piece.iter().enumerate() {
+            let Some(m) = self.entry(sources[*si]) else {
+                continue;
+            };
+            let n = m.mesh.indices.len();
+            if n > tris_budget {
+                // too many triangles to draw every piece: the box of the piece instead
+                let (a, b) = boxes[k];
+                let dst = if bad[k] { &mut badv } else { &mut ok };
+                box_triangles(a.as_vec3(), b.as_vec3(), dst);
+                continue;
+            }
+            tris_budget -= n;
+            let f = &transforms[*ti];
+            let dst = if bad[k] { &mut badv } else { &mut ok };
+            let flip = mirror;
+            for t in m.mesh.indices.chunks_exact(3) {
+                let p: Vec<Vec3> = t
+                    .iter()
+                    .map(|i| f(dv(m.mesh.positions[*i as usize])).as_vec3())
+                    .collect();
+                if flip {
+                    dst.extend_from_slice(&[p[0], p[2], p[1]]);
+                } else {
+                    dst.extend_from_slice(&[p[0], p[1], p[2]]);
+                }
+            }
+        }
+        (ok, badv)
+    }
+
+    pub(super) fn link_layers(&self) -> Vec<PreviewDraw> {
+        let mut out = Vec::new();
+        if !matches!(self.tool, Tool::Pattern | Tool::Mirror) {
+            return out;
+        }
+        let (ok, bad) = self.compute_link_preview();
+        for b in self.link_sources() {
+            out.push(PreviewDraw {
+                thick: self.body_edge_lines(b),
+                thick_color: [0.95, 0.35, 0.95, 1.0],
+                ..Default::default()
+            });
+        }
+        if let Some(t) = self
+            .link_ui
+            .p
+            .target
+            .filter(|_| self.link_ui.p.result != 0 && self.link_ui.p.mode != LinkMode::Mirror)
+        {
+            out.push(PreviewDraw {
+                thick: self.body_edge_lines(t),
+                thick_color: [0.25, 0.85, 1.0, 1.0],
+                ..Default::default()
+            });
+        }
+        if !ok.is_empty() {
+            out.push(PreviewDraw {
+                triangles: ok,
+                color: [0.35, 0.65, 1.0, 0.35],
+                ..Default::default()
+            });
+        }
+        if !bad.is_empty() {
+            out.push(PreviewDraw {
+                triangles: bad,
+                color: [1.0, 0.35, 0.3, 0.45],
+                ..Default::default()
+            });
+        }
+        out
+    }
+
+    /// The command that the panel makes: a new link, a change of the link, or a plain mirror.
+    fn link_command(&self) -> Option<Command> {
+        let sources = self.link_sources();
+        let p = &self.link_ui.p;
+        if let Some(id) = self.link_ui.editing {
+            return Some(Command::EditLink {
+                link: id,
+                kind: Some(p.kind()),
+                name: None,
+            });
+        }
+        if sources.is_empty() {
+            return None;
+        }
+        if p.mode == LinkMode::Mirror {
+            return Some(match p.how {
+                MirrorHow::Live => Command::AddLink {
+                    kind: p.kind(),
+                    sources,
+                    name: String::new(),
+                },
+                how => Command::Mirror {
+                    bodies: sources,
+                    origin: p.plane.origin,
+                    normal: p.plane.dir,
+                    keep: how != MirrorHow::InPlace,
+                    merge: how == MirrorHow::Merge,
+                },
+            });
+        }
+        Some(Command::AddLink {
+            kind: p.kind(),
+            sources,
+            name: String::new(),
+        })
+    }
+
+    pub(super) fn apply_link(&mut self) {
+        if !self.idle() {
+            return;
+        }
+        let why = if self.link_ui.editing.is_none() && self.link_sources().is_empty() {
+            Some("Click the body to repeat or mirror")
+        } else if self.link_ui.p.result != 0
+            && self.link_ui.p.target.is_none()
+            && self.link_ui.p.mode != LinkMode::Mirror
+        {
+            Some("Click the body the pieces are added to or cut out of")
+        } else {
+            None
+        };
+        if let Some(w) = why {
+            self.set_status(w, true);
+            return;
+        }
+        let Some(cmd) = self.link_command() else { return };
+        self.pending = None;
+        self.submit(cmd);
+        self.set_status("Computing…", false);
+        let editing = self.link_ui.editing.is_some();
+        if !editing {
+            self.move_sel.clear();
+            self.link_ui.pick = None;
+            self.tool = Tool::Select;
+        }
+        self.layers_changed = true;
+    }
+
+    /// The panel of the Pattern and Mirror tools and of an existing link.
+    #[allow(deprecated)]
+    pub(super) fn link_panel(&mut self, ctx: &egui::Context, rect: Rect) {
+        if !matches!(self.tool, Tool::Pattern | Tool::Mirror) {
+            return;
+        }
+        let before = self.link_ui.p.clone();
+        let mut apply = false;
+        let mut cancel = false;
+        let mut unlink = None;
+        let mut delete = None;
+        let mut docks = std::mem::take(&mut self.docks);
+        let editing = self.link_ui.editing;
+        let title = match (editing, self.link_ui.p.mode) {
+            (Some(id), _) => self
+                .doc
+                .state()
+                .links
+                .iter()
+                .find(|l| l.id == id)
+                .map(|l| l.name.clone())
+                .unwrap_or_default(),
+            (None, LinkMode::Mirror) => tr("Mirror"),
+            (None, _) => tr("Pattern"),
+        };
+        let sources: Vec<String> = self
+            .link_sources()
+            .iter()
+            .filter_map(|b| self.doc.body(*b))
+            .map(|b| b.name.clone())
+            .collect();
+        let bodies = self.doc.bodies().to_vec();
+        let sketches = self.doc.sketches().to_vec();
+        let error = editing
+            .and_then(|id| self.doc.state().links.iter().find(|l| l.id == id))
+            .and_then(|l| l.error.clone());
+        let mut ui_state = std::mem::take(&mut self.link_ui);
+        docks.panel(ctx, "link", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
+            let p = &mut ui_state.p;
+            ui.horizontal_wrapped(|ui| {
+                ui.colored_label(Color32::from_rgb(242, 89, 242), tr("Source"));
+                ui.label(if sources.is_empty() { tr("click the body in the view") } else { sources.join(", ") });
+            });
+            if editing.is_none() && p.mode != LinkMode::Mirror {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut p.mode, LinkMode::Linear, tr("Along a line"));
+                    ui.selectable_value(&mut p.mode, LinkMode::Circular, tr("Round an axis"));
+                });
+            }
+            let pick_btn = |ui: &mut egui::Ui, st: &mut Option<LinkPick>, what: LinkPick, label: &str| {
+                let on = *st == Some(what);
+                if ui.selectable_label(on, label).on_hover_text(tr("Then click a straight edge or a face in the view")).clicked() {
+                    *st = if on { None } else { Some(what) };
+                }
+            };
+            let dir_row = |ui: &mut egui::Ui, st: &mut Option<LinkPick>, what: LinkPick, dir: &mut DVec3, label: &mut String| {
+                ui.horizontal_wrapped(|ui| {
+                    for (v, n) in [(DVec3::X, "X"), (DVec3::Y, "Y"), (DVec3::Z, "Z")] {
+                        if ui.selectable_label(*label == n, n).clicked() {
+                            *dir = v;
+                            *label = n.into();
+                        }
+                    }
+                    pick_btn(ui, st, what, &tr("Pick"));
+                    if ui.button("⇄").on_hover_text(tr("Reverse the direction")).clicked() {
+                        *dir = -*dir;
+                    }
+                });
+                ui.weak(format!("{}: ({:.2}, {:.2}, {:.2})", label, dir.x, dir.y, dir.z));
+            };
+            match p.mode {
+                LinkMode::Linear => {
+                    ui.label(tr("Direction"));
+                    dir_row(ui, &mut ui_state.pick, LinkPick::Direction, &mut p.dir, &mut p.dir_label);
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Pieces"));
+                        ui.add(egui::DragValue::new(&mut p.count).range(1..=1000).speed(0.2));
+                        ui.label(if p.by_total { tr("Length") } else { tr("Spacing") });
+                        ui.add(egui::DragValue::new(&mut p.spacing).speed(0.5).suffix(" mm"));
+                    });
+                    ui.checkbox(&mut p.by_total, tr("The spacing is the whole length"));
+                    ui.checkbox(&mut p.second, tr("A second direction (a grid)"));
+                    if p.second {
+                        dir_row(ui, &mut ui_state.pick, LinkPick::Direction2, &mut p.dir2, &mut p.dir2_label);
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Pieces"));
+                            ui.add(egui::DragValue::new(&mut p.count2).range(1..=1000).speed(0.2));
+                            ui.label(if p.by_total2 { tr("Length") } else { tr("Spacing") });
+                            ui.add(egui::DragValue::new(&mut p.spacing2).speed(0.5).suffix(" mm"));
+                        });
+                        ui.checkbox(&mut p.by_total2, tr("The spacing is the whole length"));
+                    }
+                }
+                LinkMode::Circular => {
+                    ui.label(tr("Axis"));
+                    ui.horizontal_wrapped(|ui| {
+                        for (v, n) in [(DVec3::X, "X"), (DVec3::Y, "Y"), (DVec3::Z, "Z")] {
+                            if ui.selectable_label(p.axis_label == n, n).clicked() {
+                                p.axis = Axis { origin: DVec3::ZERO, dir: v };
+                                p.axis_label = n.into();
+                            }
+                        }
+                        pick_btn(ui, &mut ui_state.pick, LinkPick::Axis, &tr("Pick"));
+                    });
+                    ui.weak(format!(
+                        "{}: ({:.1}, {:.1}, {:.1}) → ({:.2}, {:.2}, {:.2})",
+                        p.axis_label, p.axis.origin.x, p.axis.origin.y, p.axis.origin.z, p.axis.dir.x, p.axis.dir.y, p.axis.dir.z
+                    ));
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Pieces"));
+                        ui.add(egui::DragValue::new(&mut p.count).range(1..=1000).speed(0.2));
+                        ui.checkbox(&mut p.full, tr("Round the whole circle"));
+                    });
+                    ui.add_enabled_ui(!p.full, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Angle between pieces"));
+                            ui.add(egui::DragValue::new(&mut p.angle).speed(0.5).suffix("°"));
+                        });
+                    });
+                }
+                LinkMode::Mirror => {
+                    ui.label(tr("Mirror plane"));
+                    ui.horizontal_wrapped(|ui| {
+                        for (v, n, name) in [(DVec3::X, "YZ", "X"), (DVec3::Y, "XZ", "Y"), (DVec3::Z, "XY", "Z")] {
+                            let _ = name;
+                            if ui.selectable_label(p.plane_label == n, n).clicked() {
+                                p.plane = Axis { origin: DVec3::ZERO, dir: v };
+                                p.plane_label = n.into();
+                            }
+                        }
+                        pick_btn(ui, &mut ui_state.pick, LinkPick::Plane, &tr("Flat face"));
+                    });
+                    if !sketches.is_empty() {
+                        egui::ComboBox::from_id_salt("mirror-sketch")
+                            .selected_text(tr("Plane of a sketch"))
+                            .show_ui(ui, |ui| {
+                                for (i, s) in sketches.iter().enumerate() {
+                                    if ui.selectable_label(ui_state.plane_sketch == i + 1 && p.plane_label == s.name, &s.name).clicked() {
+                                        ui_state.plane_sketch = i + 1;
+                                        p.plane = Axis { origin: s.plane.origin, dir: s.plane.normal };
+                                        p.plane_label = s.name.clone();
+                                    }
+                                }
+                            });
+                    }
+                    ui.weak(format!(
+                        "{}: ({:.1}, {:.1}, {:.1}) ⟂ ({:.2}, {:.2}, {:.2})",
+                        p.plane_label, p.plane.origin.x, p.plane.origin.y, p.plane.origin.z, p.plane.dir.x, p.plane.dir.y, p.plane.dir.z
+                    ));
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Offset"));
+                        let n = p.plane.dir.normalize_or_zero();
+                        let mut off = p.plane.origin.dot(n);
+                        if ui.add(egui::DragValue::new(&mut off).speed(0.5).suffix(" mm")).changed() {
+                            p.plane.origin = n * off + (p.plane.origin - n * p.plane.origin.dot(n));
+                            p.plane_label = tr("as set");
+                        }
+                    });
+                    if editing.is_none() {
+                        ui.separator();
+                        for (h, n, tip) in [
+                            (MirrorHow::InPlace, "Mirror the body itself", "The body is mirrored where it is."),
+                            (MirrorHow::Keep, "Keep the original", "The mirror image is a new body."),
+                            (MirrorHow::Merge, "Merge into one body", "The image is fused with the original into one symmetric body (the body must touch the plane)."),
+                            (MirrorHow::Live, "Live mirror", "The mirror image follows when you change the original. A merged body cannot be live: an edit of one half could not be carried to the other reliably."),
+                        ] {
+                            ui.radio_value(&mut p.how, h, tr(n)).on_hover_text(tr(tip));
+                        }
+                    }
+                }
+            }
+            if p.mode != LinkMode::Mirror {
+                ui.separator();
+                let locked = editing.is_some();
+                ui.add_enabled_ui(!locked, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.radio_value(&mut p.result, 0, tr("New bodies"));
+                        ui.radio_value(&mut p.result, 1, tr("Add to a body"));
+                        ui.radio_value(&mut p.result, 2, tr("Cut from a body"));
+                    });
+                    if p.result != 0 {
+                        ui.horizontal(|ui| {
+                            let name = p.target.and_then(|t| bodies.iter().find(|b| b.id == t)).map(|b| b.name.clone());
+                            let on = ui_state.pick == Some(LinkPick::Target);
+                            if ui.selectable_label(on, tr("Pick the body")).clicked() {
+                                ui_state.pick = if on { None } else { Some(LinkPick::Target) };
+                            }
+                            ui.label(name.unwrap_or_else(|| tr("click the body in the view")));
+                        });
+                    }
+                });
+            }
+            if let Some(pk) = ui_state.pick {
+                ui.colored_label(
+                    Color32::from_rgb(255, 200, 100),
+                    match pk {
+                        LinkPick::Target => tr("Click the body in the view"),
+                        LinkPick::Plane => tr("Click a flat face in the view"),
+                        _ => tr("Click a straight edge or a face in the view"),
+                    },
+                );
+            }
+            if !ui_state.note.borrow().is_empty() {
+                ui.colored_label(Color32::from_rgb(255, 150, 120), ui_state.note.borrow().as_str());
+            }
+            if let Some(e) = &error {
+                ui.colored_label(Color32::from_rgb(255, 120, 110), format!("{}: {e}", tr("The last calculation failed; the link keeps its last result")));
+            }
+            ui.horizontal(|ui| {
+                if ui.button(tr("Apply")).clicked() {
+                    apply = true;
+                }
+                if ui.button(tr("Cancel")).clicked() {
+                    cancel = true;
+                }
+            });
+            if let Some(id) = editing {
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Remove the link")).on_hover_text(tr("The bodies stay as ordinary bodies")).clicked() {
+                        unlink = Some(id);
+                    }
+                    if ui.button(tr("Delete with its bodies")).on_hover_text(tr("The copies go; a body that was added to or cut from gets its old shape back")).clicked() {
+                        delete = Some(id);
+                    }
+                });
+            }
+        });
+        self.link_ui = ui_state;
+        self.docks = docks;
+        if self.link_ui.p != before {
+            self.layers_changed = true;
+        }
+        if apply {
+            self.apply_link();
+        }
+        if let Some(id) = unlink {
+            self.close_link_tool();
+            self.submit(Command::Unlink { link: id });
+        } else if let Some(id) = delete {
+            self.close_link_tool();
+            self.submit(Command::DeleteLink { link: id });
+        } else if cancel {
+            self.close_link_tool();
+        }
+    }
+}
+
+/// The 12 triangles of a box.
+fn box_triangles(lo: Vec3, hi: Vec3, out: &mut Vec<Vec3>) {
+    let c = |i: u32| {
+        Vec3::new(
+            if i & 1 == 0 { lo.x } else { hi.x },
+            if i & 2 == 0 { lo.y } else { hi.y },
+            if i & 4 == 0 { lo.z } else { hi.z },
+        )
+    };
+    for q in [
+        [0u32, 1, 3, 2],
+        [4, 6, 7, 5],
+        [0, 4, 5, 1],
+        [2, 3, 7, 6],
+        [0, 2, 6, 4],
+        [1, 5, 7, 3],
+    ] {
+        out.extend_from_slice(&[c(q[0]), c(q[1]), c(q[2]), c(q[0]), c(q[2]), c(q[3])]);
+    }
+}
+
+impl App {
+    /// The question after a hand edit of a body that a link made: remove the link and make the edit, or leave everything as it is.
+    #[allow(deprecated)]
+    pub(super) fn derived_window(&mut self, ctx: &egui::Context) {
+        let Some((_, _, link_name, body_name)) = &self.derived_ask else {
+            return;
+        };
+        let text = trf(
+            "The body '{}' is made by the link '{}'. Editing it by hand would break the link.",
+            &[body_name.clone(), link_name.clone()],
+        );
+        let mut answer = None;
+        egui::Window::new(tr("The body is made by a link"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.set_max_width(380.0);
+                ui.label(text);
+                ui.weak(tr("Removing the link keeps all its bodies as ordinary bodies, then the edit is made. Ctrl+Z brings the link back."));
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Remove the link and edit")).clicked() {
+                        answer = Some(true);
+                    }
+                    if ui.button(tr("Cancel")).clicked() {
+                        answer = Some(false);
+                    }
+                });
+            });
+        match answer {
+            Some(true) => {
+                if let Some((cmd, link, _, _)) = self.derived_ask.take() {
+                    self.after_unlink = Some(cmd);
+                    self.submit(Command::Unlink { link });
+                }
+            }
+            Some(false) => self.derived_ask = None,
+            None => {}
+        }
+    }
+}
+
+/// What is dragged in the lists of the document: a body or a group.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Dnd {
+    Body(BodyId),
+    Group(rolidium_doc::GroupId),
+}
+
+type TreeCmd = Option<(Command, &'static str)>;
+
+impl App {
+    /// The bodies that are marked now (in the view or in the list).
+    pub(super) fn marked_bodies(&self) -> Vec<BodyId> {
+        let mut v: Vec<BodyId> = self.move_sel.clone();
+        for b in self
+            .body_sel
+            .into_iter()
+            .chain(self.selection.iter().map(|s| s.0))
+        {
+            if !v.contains(&b) {
+                v.push(b);
+            }
+        }
+        v
+    }
+
+    /// Ctrl+G: the marked bodies become a group (or, with a group row marked and no bodies, nothing happens).
+    pub(super) fn group_marked(&mut self) {
+        let bodies = self.marked_bodies();
+        if bodies.is_empty() {
+            self.set_status("Select the bodies to group first", true);
+            return;
+        }
+        let name = tr("Group");
+        let n = self.doc.state().groups.len() + 1;
+        self.run_doc_command(
+            Command::CreateGroup {
+                bodies,
+                name: format!("{name} {n}"),
+                parent: None,
+            },
+            "Group made",
+        );
+    }
+
+    /// The lists of links and of groups under the list of bodies. `cmd` receives the command that a click asks for.
+    pub(super) fn links_and_groups_tree(&mut self, ui: &mut egui::Ui, cmd: &mut TreeCmd) {
+        let st = self.doc.state().clone();
+        if !st.links.is_empty() {
+            egui::CollapsingHeader::new(tr("Links"))
+                .default_open(true)
+                .show(ui, |ui| {
+                    for l in &st.links {
+                        ui.horizontal(|ui| {
+                            let shown = l
+                                .results
+                                .iter()
+                                .any(|r| st.bodies.iter().any(|b| b.id == *r && b.visible));
+                            if icons::eye_button(ui, shown).clicked() {
+                                *cmd = Some((
+                                    Command::SetVisible {
+                                        target: ItemId::Link(l.id),
+                                        visible: !shown,
+                                    },
+                                    if shown { "Hidden" } else { "Shown" },
+                                ));
+                            }
+                            let mut t =
+                                trf("{}  ({} bodies)", &[l.name.clone(), l.results.len().to_string()]);
+                            if l.error.is_some() {
+                                t = format!("⚠ {t}");
+                            }
+                            let r = ui.selectable_label(self.link_sel == Some(l.id), t);
+                            let r = match (&l.error, l.warnings.first()) {
+                                (Some(e), _) => r.on_hover_text(format!(
+                                    "{}: {e}",
+                                    tr("The last calculation failed; the link keeps its last result")
+                                )),
+                                (None, Some(w)) => r.on_hover_text(w),
+                                _ => r.on_hover_text(tr("Click to change the numbers of the link")),
+                            };
+                            if r.clicked() {
+                                self.open_link(l.id);
+                            }
+                            if r.double_clicked() {
+                                self.rename = Some((ItemId::Link(l.id), l.name.clone()));
+                            }
+                            r.context_menu(|ui| {
+                                if ui.button(tr("Change the link")).clicked() {
+                                    self.open_link(l.id);
+                                    ui.close();
+                                }
+                                if ui.button(tr("Rename")).clicked() {
+                                    self.rename = Some((ItemId::Link(l.id), l.name.clone()));
+                                    ui.close();
+                                }
+                                if ui
+                                    .button(tr("Remove the link"))
+                                    .on_hover_text(tr("The bodies stay as ordinary bodies"))
+                                    .clicked()
+                                {
+                                    *cmd = Some((Command::Unlink { link: l.id }, "The link was removed"));
+                                    ui.close();
+                                }
+                                if ui.button(tr("Delete with its bodies")).clicked() {
+                                    *cmd = Some((
+                                        Command::DeleteLink { link: l.id },
+                                        "Deleted (Ctrl+Z brings it back)",
+                                    ));
+                                    ui.close();
+                                }
+                            });
+                        });
+                    }
+                });
+        }
+        egui::CollapsingHeader::new(tr("Groups"))
+            .default_open(true)
+            .show(ui, |ui| {
+                if ui
+                    .button(tr("New group from the marked bodies"))
+                    .on_hover_text(tr(
+                        "Ctrl+G. Drag bodies and groups onto a group to move them into it.",
+                    ))
+                    .clicked()
+                {
+                    self.group_marked();
+                }
+                let dragging = egui::DragAndDrop::has_any_payload(ui.ctx());
+                if dragging && !st.groups.is_empty() {
+                    let r = ui.add(
+                        egui::Label::new(egui::RichText::new(tr("Out of every group")).weak())
+                            .sense(egui::Sense::hover()),
+                    );
+                    let r = ui.interact(r.rect.expand(2.0), r.id.with("out"), egui::Sense::hover());
+                    if let Some(p) = r.dnd_release_payload::<Dnd>() {
+                        *cmd = Some(match *p {
+                            Dnd::Body(b) => (
+                                Command::MoveToGroup {
+                                    bodies: vec![b],
+                                    group: None,
+                                },
+                                "Moved",
+                            ),
+                            Dnd::Group(g) => (
+                                Command::MoveGroup {
+                                    group: g,
+                                    parent: None,
+                                },
+                                "Moved",
+                            ),
+                        });
+                    }
+                }
+                for g in st.groups.iter().filter(|g| g.parent.is_none()) {
+                    self.group_rows(ui, &st, g, cmd, 0);
+                }
+                if st.groups.is_empty() {
+                    ui.weak(tr("(none)"));
+                }
+            });
+    }
+
+    fn group_rows(
+        &mut self,
+        ui: &mut egui::Ui,
+        st: &rolidium_doc::State,
+        g: &rolidium_doc::Group,
+        cmd: &mut TreeCmd,
+        depth: usize,
+    ) {
+        if depth > 32 {
+            return;
+        }
+        let id = ui.make_persistent_id(("group", g.id));
+        let state = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true);
+        let header = state.show_header(ui, |ui| {
+            if icons::eye_button(ui, g.visible).clicked() {
+                *cmd = Some((
+                    Command::SetVisible {
+                        target: ItemId::Group(g.id),
+                        visible: !g.visible,
+                    },
+                    if g.visible { "Hidden" } else { "Shown" },
+                ));
+            }
+            let all = self.group_members(st, g.id);
+            let marked = !all.is_empty() && all.iter().all(|b| self.marked_bodies().contains(b));
+            let r = ui.selectable_label(marked, format!("{}  ({})", g.name, all.len()));
+            let r = r.interact(egui::Sense::click_and_drag());
+            if r.drag_started() {
+                r.dnd_set_drag_payload(Dnd::Group(g.id));
+            }
+            if let Some(p) = r.dnd_release_payload::<Dnd>() {
+                *cmd = Some(match *p {
+                    Dnd::Body(b) => (
+                        Command::MoveToGroup {
+                            bodies: vec![b],
+                            group: Some(g.id),
+                        },
+                        "Moved",
+                    ),
+                    Dnd::Group(x) => (
+                        Command::MoveGroup {
+                            group: x,
+                            parent: Some(g.id),
+                        },
+                        "Moved",
+                    ),
+                });
+            }
+            if r.clicked() {
+                // a click on the group marks all its bodies
+                self.clear_selection();
+                self.move_sel = all.clone();
+                self.body_sel = None;
+                self.layers_changed = true;
+            }
+            if r.double_clicked() {
+                self.rename = Some((ItemId::Group(g.id), g.name.clone()));
+            }
+            r.context_menu(|ui| {
+                if ui.button(tr("Rename")).clicked() {
+                    self.rename = Some((ItemId::Group(g.id), g.name.clone()));
+                    ui.close();
+                }
+                if ui
+                    .button(tr("Group inside"))
+                    .on_hover_text(tr("Makes a group of the marked bodies inside this group"))
+                    .clicked()
+                {
+                    let bodies = self.marked_bodies();
+                    if !bodies.is_empty() {
+                        let name = format!("{} {}", tr("Group"), st.groups.len() + 1);
+                        *cmd = Some((
+                            Command::CreateGroup {
+                                bodies,
+                                name,
+                                parent: Some(g.id),
+                            },
+                            "Group made",
+                        ));
+                    }
+                    ui.close();
+                }
+                if ui
+                    .button(tr("Dissolve the group"))
+                    .on_hover_text(tr("The bodies stay, one level up"))
+                    .clicked()
+                {
+                    *cmd = Some((Command::Ungroup { group: g.id }, "Group dissolved"));
+                    ui.close();
+                }
+            });
+        });
+        header.body(|ui| {
+            for sub in st.groups.iter().filter(|x| x.parent == Some(g.id)) {
+                self.group_rows(ui, st, sub, cmd, depth + 1);
+            }
+            for bid in &g.bodies {
+                let Some(b) = st.bodies.iter().find(|b| b.id == *bid) else {
+                    continue;
+                };
+                let on = self.marked_bodies().contains(bid);
+                let r = ui.selectable_label(
+                    on,
+                    if b.visible {
+                        b.name.clone()
+                    } else {
+                        format!("{}  ({})", b.name, tr("hidden"))
+                    },
+                );
+                let r = r.interact(egui::Sense::click_and_drag());
+                if r.drag_started() {
+                    r.dnd_set_drag_payload(Dnd::Body(*bid));
+                }
+                if r.clicked() {
+                    self.clear_selection();
+                    self.body_sel = Some(*bid);
+                    self.move_sel.clear();
+                    self.layers_changed = true;
+                }
+                if r.double_clicked() {
+                    self.rename = Some((ItemId::Body(*bid), b.name.clone()));
+                }
+            }
+        });
+    }
+
+    /// The bodies of a group and of the groups inside it.
+    fn group_members(&self, st: &rolidium_doc::State, g: rolidium_doc::GroupId) -> Vec<BodyId> {
+        let mut out = Vec::new();
+        let mut todo = vec![g];
+        let mut guard = 0;
+        while let Some(x) = todo.pop() {
+            guard += 1;
+            if guard > 10_000 {
+                break;
+            }
+            for gr in st.groups.iter().filter(|gr| gr.id == x) {
+                out.extend(gr.bodies.iter().copied());
+            }
+            todo.extend(st.groups.iter().filter(|gr| gr.parent == Some(x)).map(|gr| gr.id));
+        }
+        out
+    }
+}
+
+impl App {
+    /// The centre of the sources (for the handle), in the model.
+    fn sources_centre(&self) -> Option<DVec3> {
+        let (mut lo, mut hi) = (DVec3::splat(f64::MAX), DVec3::splat(f64::MIN));
+        for b in self.link_sources() {
+            if let Some(m) = self.entry(b) {
+                for p in &m.mesh.positions {
+                    lo = lo.min(dv(*p));
+                    hi = hi.max(dv(*p));
+                }
+            }
+        }
+        (lo.x <= hi.x).then(|| (lo + hi) * 0.5)
+    }
+
+    /// A handle at the first copy of a linear pattern: drag it along the direction to change the spacing. `true` while it is used.
+    #[allow(deprecated)]
+    fn spacing_handle(&mut self, resp: &egui::Response) -> bool {
+        if self.tool != Tool::Pattern
+            || self.link_ui.p.mode != LinkMode::Linear
+            || self.link_ui.pick.is_some()
+        {
+            return false;
+        }
+        let Some(c) = self.sources_centre() else {
+            return false;
+        };
+        let rect = resp.rect;
+        let dir = self.link_ui.p.dir.normalize_or_zero();
+        if dir == DVec3::ZERO {
+            return false;
+        }
+        let step = if self.link_ui.p.by_total && self.link_ui.p.count > 1 {
+            self.link_ui.p.spacing / (self.link_ui.p.count - 1) as f64
+        } else {
+            self.link_ui.p.spacing
+        };
+        let (Some(a), Some(b)) = (
+            self.project(c.as_vec3(), rect),
+            self.project((c + dir * step).as_vec3(), rect),
+        ) else {
+            return false;
+        };
+        let painter = resp.ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new("link-handle"),
+        ));
+        let over = resp.hover_pos().is_some_and(|p| p.distance(b) < 11.0);
+        painter.line_segment([a, b], egui::Stroke::new(1.5, Color32::from_rgb(255, 200, 100)));
+        painter.circle(
+            b,
+            if over || self.link_ui.handle_drag {
+                8.0
+            } else {
+                6.0
+            },
+            Color32::from_rgb(255, 200, 100),
+            egui::Stroke::new(1.5, Color32::BLACK),
+        );
+        if resp.drag_started_by(PointerButton::Primary) && over {
+            self.link_ui.handle_drag = true;
+        }
+        if !resp.dragged_by(PointerButton::Primary) {
+            self.link_ui.handle_drag = false;
+        }
+        if self.link_ui.handle_drag {
+            if let Some(p) = resp.interact_pointer_pos() {
+                let screen = b - a;
+                let px_per_mm = screen.length() as f64 / step.max(1e-9);
+                if px_per_mm > 1e-6 {
+                    let along = ((p - a).dot(screen.normalized()) as f64) / px_per_mm;
+                    let mut mm = along.max(0.1);
+                    // snaps to whole millimetres (Shift: free)
+                    if !resp.ctx.input(|i| i.modifiers.shift) {
+                        mm = mm.round().max(1.0);
+                    }
+                    let p = &mut self.link_ui.p;
+                    p.spacing = if p.by_total && p.count > 1 {
+                        mm * (p.count - 1) as f64
+                    } else {
+                        mm
+                    };
+                    self.layers_changed = true;
+                }
+            }
+            resp.ctx.request_repaint();
+            return true;
+        }
+        false
+    }
+}

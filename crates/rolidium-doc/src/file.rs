@@ -190,7 +190,10 @@ fn axis_json(a: &crate::Axis) -> Value {
 }
 
 fn axis_from(v: &Value) -> Result<crate::Axis, FileError> {
-    Ok(crate::Axis { origin: get3(&v["origin"])?, dir: get3(&v["dir"])? })
+    Ok(crate::Axis {
+        origin: get3(&v["origin"])?,
+        dir: get3(&v["dir"])?,
+    })
 }
 
 /// The JSON of a link (without the solid it started from, which is a BREP entry of its own).
@@ -244,9 +247,18 @@ fn link_json(l: &crate::Link) -> Value {
 }
 
 /// A link from its JSON; `None` when its kind is not known to this program (the entry is then kept as it is).
-fn link_from(id: u64, j: &Value, base: Option<Solid>, bodies: &[crate::Body]) -> Result<Option<crate::Link>, FileError> {
+fn link_from(
+    id: u64,
+    j: &Value,
+    base: Option<Solid>,
+    bodies: &[crate::Body],
+) -> Result<Option<crate::Link>, FileError> {
     use crate::{CircularParams, LinearParams, LinkKind, MirrorParams, PatternMode};
-    let ids = |k: &str| -> Vec<u64> { j[k].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default() };
+    let ids = |k: &str| -> Vec<u64> {
+        j[k].as_array()
+            .map(|a| a.iter().filter_map(Value::as_u64).collect())
+            .unwrap_or_default()
+    };
     let mode = || -> Result<PatternMode, FileError> {
         let t = j["target"].as_u64();
         Ok(match (j["mode"].as_str().unwrap_or("new"), t) {
@@ -259,13 +271,18 @@ fn link_from(id: u64, j: &Value, base: Option<Solid>, bodies: &[crate::Body]) ->
         Some("linear") => LinkKind::Linear(
             LinearParams {
                 axis: axis_from(&j["axis"])?,
-                count: j["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                count: j["count"]
+                    .as_u64()
+                    .ok_or_else(|| corrupt("a link without a count"))? as u32,
                 spacing: get_f(&j["spacing"])?,
                 by_total: j["by_total"].as_bool().unwrap_or(false),
                 second: match &j["second"] {
                     Value::Object(_) => Some(crate::Direction2 {
                         axis: axis_from(&j["second"]["axis"])?,
-                        count: j["second"]["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                        count: j["second"]["count"]
+                            .as_u64()
+                            .ok_or_else(|| corrupt("a link without a count"))?
+                            as u32,
                         spacing: get_f(&j["second"]["spacing"])?,
                         by_total: j["second"]["by_total"].as_bool().unwrap_or(false),
                     }),
@@ -277,25 +294,38 @@ fn link_from(id: u64, j: &Value, base: Option<Solid>, bodies: &[crate::Body]) ->
         Some("circular") => LinkKind::Circular(
             CircularParams {
                 axis: axis_from(&j["axis"])?,
-                count: j["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                count: j["count"]
+                    .as_u64()
+                    .ok_or_else(|| corrupt("a link without a count"))? as u32,
                 angle_deg: get_f(&j["angle_deg"])?,
                 full: j["full"].as_bool().unwrap_or(true),
             },
             mode()?,
         ),
-        Some("mirror") => LinkKind::Mirror(MirrorParams { origin: get3(&j["origin"])?, normal: get3(&j["normal"])? }),
+        Some("mirror") => LinkKind::Mirror(MirrorParams {
+            origin: get3(&j["origin"])?,
+            normal: get3(&j["normal"])?,
+        }),
         _ => return Ok(None),
     };
     let sources = ids("sources");
     let results = ids("results");
     // a link that points to bodies that are not in the file is dropped (its bodies stay as ordinary bodies)
-    if sources.iter().chain(results.iter()).any(|b| !bodies.iter().any(|x| x.id == *b)) {
+    if sources
+        .iter()
+        .chain(results.iter())
+        .any(|b| !bodies.iter().any(|x| x.id == *b))
+    {
         return Ok(None);
     }
     if kind.mode().target().is_some() && base.is_none() {
         return Ok(None);
     }
-    let seen = sources.iter().filter_map(|s| bodies.iter().find(|b| b.id == *s)).map(|b| b.solid.clone()).collect();
+    let seen = sources
+        .iter()
+        .filter_map(|s| bodies.iter().find(|b| b.id == *s))
+        .map(|b| b.solid.clone())
+        .collect();
     Ok(Some(crate::Link {
         id,
         name: j["name"].as_str().unwrap_or("Link").to_string(),
@@ -433,7 +463,11 @@ pub fn save_to_bytes(
         if !st.links.is_empty() {
             let mut links = Vec::new();
             for l in &st.links {
-                put(&mut zip, &format!("links/{}.json", l.id), &serde_json::to_vec_pretty(&link_json(l)).map_err(corrupt)?)?;
+                put(
+                    &mut zip,
+                    &format!("links/{}.json", l.id),
+                    &serde_json::to_vec_pretty(&link_json(l)).map_err(corrupt)?,
+                )?;
                 let mut entry = json!({"id": l.id, "file": format!("links/{}.json", l.id)});
                 if let Some(b) = &l.base {
                     let brep = b.write_brep().map_err(|e| FileError::Io(e.to_string()))?;
@@ -776,11 +810,20 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         max_id = max_id.max(id);
     }
     // links and groups (files of an older program have none)
-    for l in manifest.get("links").and_then(Value::as_array).cloned().unwrap_or_default() {
-        let (Some(id), Some(file)) = (l["id"].as_u64(), l["file"].as_str()) else { continue };
+    for l in manifest
+        .get("links")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
+        let (Some(id), Some(file)) = (l["id"].as_u64(), l["file"].as_str()) else {
+            continue;
+        };
         let j: Value = serde_json::from_slice(&read_entry(&mut zip, file)?).map_err(corrupt)?;
         let base = match l["base"].as_str() {
-            Some(n) => read_entry(&mut zip, n).ok().and_then(|d| Solid::read_brep(&d).ok()),
+            Some(n) => read_entry(&mut zip, n)
+                .ok()
+                .and_then(|d| Solid::read_brep(&d).ok()),
             None => None,
         };
         if let Some(link) = link_from(id, &j, base, &state.bodies)? {
@@ -792,14 +835,27 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             state.links.push(link);
         }
     }
-    for g in manifest.get("groups").and_then(Value::as_array).cloned().unwrap_or_default() {
+    for g in manifest
+        .get("groups")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
         let Some(id) = g["id"].as_u64() else { continue };
         state.groups.push(crate::Group {
             id,
             name: g["name"].as_str().unwrap_or("Group").to_string(),
             parent: g["parent"].as_u64(),
             visible: g["visible"].as_bool().unwrap_or(true),
-            bodies: g["bodies"].as_array().map(|a| a.iter().filter_map(Value::as_u64).filter(|b| state.bodies.iter().any(|x| x.id == *b)).collect()).unwrap_or_default(),
+            bodies: g["bodies"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_u64)
+                        .filter(|b| state.bodies.iter().any(|x| x.id == *b))
+                        .collect()
+                })
+                .unwrap_or_default(),
         });
         max_id = max_id.max(id);
     }

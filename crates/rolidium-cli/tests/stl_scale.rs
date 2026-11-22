@@ -37,7 +37,11 @@ fn read_stl_bbox(bytes: &[u8]) -> ([f64; 3], [f64; 3], usize) {
         for l in text.lines() {
             let w: Vec<&str> = l.split_whitespace().collect();
             if w.len() == 4 && w[0] == "vertex" {
-                add([w[1].parse().unwrap(), w[2].parse().unwrap(), w[3].parse().unwrap()]);
+                add([
+                    w[1].parse().unwrap(),
+                    w[2].parse().unwrap(),
+                    w[3].parse().unwrap(),
+                ]);
             }
             if w.first() == Some(&"endfacet") {
                 triangles += 1;
@@ -64,7 +68,10 @@ fn a_cube_of_20_mm_is_20_mm_in_the_stl_file() {
         assert!(n >= 12, "{name}: {n} triangles");
         for i in 0..3 {
             let side = hi[i] - lo[i];
-            assert!((side - 20.0).abs() <= 0.001, "{name}: side {i} is {side} mm, not 20");
+            assert!(
+                (side - 20.0).abs() <= 0.001,
+                "{name}: side {i} is {side} mm, not 20"
+            );
         }
     }
     let _ = std::fs::remove_dir_all(&dir);
