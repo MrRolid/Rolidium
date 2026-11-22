@@ -41,7 +41,7 @@ pub enum DocError {
     NoSuchLink,
     #[error("The group no longer exists")]
     NoSuchGroup,
-    #[error("The body '{body_name}' is made by the link '{link_name}', so editing it by hand would break the link. Remove the link first (it keeps the bodies as they are), or leave the body alone")]
+    #[error("The body '{body_name}' is made by the link '{link_name}', so editing it by hand would break the link. Remove the link first (the command 'unlink' keeps the bodies as they are), or leave the body alone")]
     Derived {
         link: LinkId,
         link_name: String,

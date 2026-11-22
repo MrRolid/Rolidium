@@ -50,6 +50,7 @@ use std::path::{Path, PathBuf};
 
 pub mod bench;
 pub mod describe;
+mod links_cmd;
 pub mod entry;
 pub mod mcp;
 pub mod phases;
@@ -251,7 +252,7 @@ impl Runner {
         let mut new_name = None;
         if !matches!(
             tokens[0].as_str(),
-            "rename" | "material" | "delete" | "describe" | "select"
+            "rename" | "material" | "delete" | "describe" | "select" | "linear-pattern" | "circular-pattern" | "mirror" | "group" | "edit-link"
         ) {
             if let Some(i) = tokens.iter().position(|t| t == "name") {
                 if let Some(n) = tokens.get(i + 1).cloned() {
@@ -1484,6 +1485,15 @@ impl Runner {
                     };
                 }
                 self.render_png(Path::new(path), width, height, view)?;
+            }
+            "linear-pattern" | "circular-pattern" | "mirror" | "links" => {
+                self.run_links_command(&w)?;
+            }
+            "edit-link" | "unlink" | "delete-link" | "group" | "groups" => {
+                self.run_links_command(&w)?;
+            }
+            "move-to-group" | "ungroup" | "sketch-pattern" | "sketch-mirror" => {
+                self.run_links_command(&w)?;
             }
             other => return Err(format!("unknown command '{other}'")),
         }

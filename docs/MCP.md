@@ -103,6 +103,19 @@ The server uses one thread per core less one for the calculations that can share
 | `measure` | Measure the distance (and angle, parallel-face distance, axes distance where they apply) between two elements of a body |
 | `set_material` | Set the material of a body, which decides its mass: steel, aluminium, brass, copper, PLA, PETG, ABS, or a density in g/cm3 |
 | `mass` | Report the mass (g) of every body from its volume and material |
+| `linear_pattern` | Make a pattern of a body along a straight line (a link): the body and copies at a spacing, also as a grid, or added to or cut out of another body (a row of holes from one cylinder) |
+| `circular_pattern` | Make a pattern of a body round an axis (a link): copies turned by an angle one after another, or spread evenly round the whole circle |
+| `mirror_body` | Mirror a body in a plane: in place, keeping the original, merged with it into one symmetric body, or as a live link that follows the original |
+| `list_links` | List the links (patterns and mirrors) with their parameters, source bodies and the bodies they made |
+| `edit_link` | Change a link (number of pieces, spacing, angle, mirror plane, name) and calculate it again |
+| `unlink` | Remove a link; the bodies it made stay as ordinary bodies |
+| `delete_link` | Remove a link and what it made |
+| `group_bodies` | Put bodies into a new group (groups nest, and are hidden, shown and renamed as a whole) |
+| `list_groups` | List the groups with their bodies |
+| `move_to_group` | Move bodies into a group, or out of every group |
+| `ungroup` | Dissolve a group: its bodies and groups go one level up |
+| `sketch_pattern` | Repeat the shapes of the current sketch along a line or round a point (the new shapes make regions that can be pulled together) |
+| `sketch_mirror` | Mirror the shapes of the current sketch in a line |
 | `undo` | Undo the last change of the model |
 | `redo` | Redo the change that was undone |
 | `describe_model` | Describe the whole model with the numbers and ids other tools refer to: bodies (number, volume, mass, bounding box, faces with … |
