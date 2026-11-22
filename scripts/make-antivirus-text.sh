@@ -23,7 +23,7 @@ Web:          https://rolidium.com   (downloads: https://rolidium.com/download, 
 Source code:  https://github.com/MrRolid/Rolidium   (open source, GNU AGPL-3.0-only; the program can be built from the source, see BUILDING.md)
 
 Files and checksums (SHA-256)
-  $zip
+  $(basename "$zip")
       $zsum
   rolidium-$version/rolidium.exe inside the zip ($esize bytes)
       $esum
@@ -36,7 +36,7 @@ What the program is
 
 What it does with the disk
   * It reads and writes only the files the user chooses in its own file dialog (.rolidium documents, STEP and STL files) and, for scripts, the folder given on the command line.
-  * Settings: %APPDATA%\\rolidium. The log and autosave copies: %LOCALAPPDATA%\\rolidium. Short-lived files in %TEMP% (names start with "rolidium-"): a copy of a file of the diagnostics that
+  * Settings: %APPDATA%\\rolidium. The log and autosave copies: %LOCALAPPDATA%\\rolidium. Small temporary files in %TEMP% (names start with "rolidium-"; they may stay until the temporary folder is cleaned): a copy of a file of the diagnostics that
     the user opens from the window, and the working folders of the optional graphics test.
   * It does not write to the registry, install a service or a scheduled task, add itself to the start-up programs, change other programs, inject code or ask for administrator rights.
     It reads the processor name and the Windows version from the registry (read only) and with system calls, to put them in the diagnostics the user may send.
