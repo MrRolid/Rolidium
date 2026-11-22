@@ -7,7 +7,7 @@ reasons are in [DECISIONS.md](DECISIONS.md).
 
 The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
 
-1. **Repeat along a line and around a circle, and groups of bodies.** A pattern of a body or a feature (holes, screws, carriages) along a line or
+1. **Repeat along a line and around a circle, and groups of bodies.** *(Done in the 0.3.0 development, see the changelog. Left over: groups in STEP files as an assembly structure, because the prebuilt OpenCascade has no XCAF libraries; a live mirror is only for a separate mirror image, a merged mirror is made once; patterns and mirrors of sketch shapes are copies, not links.)* A pattern of a body or a feature (holes, screws, carriages) along a line or
    around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
    about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
    centre of a body (found while building the demo models, see `examples/demos/README.md`).
