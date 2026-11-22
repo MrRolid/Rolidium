@@ -5,29 +5,25 @@ reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
-The first things after the release (found while building the demo models, see `examples/demos/README.md`):
+The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
 
-**Repeat along a line and around a circle, and groups of bodies.** A pattern of a body or a feature (holes, screws, carriages) along a line or
-around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
-about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
-centre of a body.
-
-**3D printing.** In three steps; Rolidium does not get a slicer of its own.
-1. *Export 3MF*: with units, several bodies at once, their names, and later colours.
-2. *Open in a slicer*: the program finds an installed PrusaSlicer, OrcaSlicer, Cura or Bambu Studio and hands the model over as a 3MF placed on the bed.
-3. *Print from Rolidium*: the slicer is called from the command line with the user's profile, and the G-code is sent to the printer through OctoPrint, Moonraker or PrusaLink.
-   Before printing there is a confirmation with a preview and a warning not to leave the printer unattended. Bambu Lab printers only through step 2.
-
-Slicers run as separate programs; their code is not taken into Rolidium (see D43).
-
-**Pulling cylindrical and conical faces, and a draft of a face by an angle.** Pull works on flat faces today; on a curved face it says
-that it works only on flat ones. The next step is to pull a cylindrical or conical face, which changes the diameter of a hole or a shaft
-(the radius grows or shrinks, a cone keeps its angle), and to tilt a face by a given angle (draft), so that walls can be made sloping
-for casting and printing. Both reuse the dimension panel that already changes the diameter of a hole.
-
-**More of the kernel on several cores.** Meshing and reading a file use several threads, but the facts about the faces (one native call per face) and the validity check of each body still
-wait for one lock of the kernel, which is about 60 % of opening the router (D40, `docs/PERFORMANCE.md`). The next step is to find out which of those calls are safe to run for different
-bodies at the same time and to take the lock off them, and to run the checks of touching and overlapping bodies on several threads.
+1. **Repeat along a line and around a circle, and groups of bodies.** A pattern of a body or a feature (holes, screws, carriages) along a line or
+   around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
+   about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
+   centre of a body (found while building the demo models, see `examples/demos/README.md`).
+2. **Checks before printing.** Walls that are too thin for the nozzle diameter, overhangs, and a recommended orientation of the part.
+3. **Printer profile.** Nozzle, clearance and tolerance. A test part for measuring the clearance of the printer. Holes and threads M3 to M12 with clearance for screws and nuts, and pockets for nuts.
+4. **Printing through slicers.** Rolidium does not get a slicer of its own (D43).
+   * *Export 3MF*: with units, several bodies at once, their names, and later colours.
+   * *Open in a slicer*: the program finds an installed PrusaSlicer, OrcaSlicer, Cura or Bambu Studio and hands the model over as a 3MF placed on the bed, and reads the print time
+     and the filament use back from the slicer. An estimate of the mass and of the print time in the status bar.
+   * *Print from Rolidium*: the slicer is called from the command line with the user's profile, and the G-code is sent to the printer through OctoPrint, Moonraker or PrusaLink.
+     Before printing there is a confirmation with a preview and a warning not to leave the printer unattended. Bambu Lab printers only through the step of opening in a slicer.
+   * Slicers run as separate programs; their code is not taken into Rolidium.
+5. **Templates.** An electronics box, Gridfinity (boxes and a baseplate for the size of a drawer), tube elbows and couplings, hinges, clips.
+6. **STL import and editing.** Select a part of a mesh with a brush, delete it, separate it, fill holes, and turn simple shapes (a cylinder, a box, a cone) into a real solid. The plan for recognising faces is in
+   the design notes below (*STL import*).
+7. **A check of the STL scale.** STL has no units and is always taken as millimetres; an automatic test exports a cube of 20 mm and checks that it is 20 mm.
 
 ## Then
 
@@ -40,21 +36,31 @@ bodies at the same time and to take the lock off them, and to run the checks of 
 * **Permanent dimensions.** Today measurements are temporary (the Measure tool). Permanent dimensions are built from the same elements
   (`MElem` in `app/measuretool.rs`), stored in the document and shown in the 3D view. See the design notes below.
 * **Units, inches included.** Lengths shown and typed in the chosen unit; the file stays in millimetres.
-* **Text on a body.** Letters engraved into or embossed on a flat face.
+* **Text and a logo on a body.** Letters engraved into or embossed on a flat face, also a logo from an SVG file.
 * **Sketch: corner fillet and trim.** Round the corner between two sketch lines with an arc of a given radius, and trim a line at another
   line or shape. General sketch tools, not only for sweep paths.
+* **Pulling cylindrical and conical faces, a draft of a face by an angle, and removing a face with healing.** Pull works on flat faces today; on a curved face it says
+  that it works only on flat ones. The next step is to pull a cylindrical or conical face, which changes the diameter of a hole or a shaft
+  (the radius grows or shrinks, a cone keeps its angle), to tilt a face by a given angle (draft), so that walls can be made sloping
+  for casting and printing, and to remove a face and let the neighbours close the gap. All of it reuses the dimension panel that already changes the diameter of a hole.
+* **A generator of gears.**
+* **An AI panel in the window**, with the user's own key for the API of an AI service: no server of ours and no credits. The MCP server stays for advanced use.
+  A later step lets it drive the document of a running window (a local socket, the same table of commands), so the user watches the model change live and can undo
+  what the assistant did. Needs the document to be shared with the window thread and a rule for who may change it at a given moment.
+* **More of the kernel on several cores.** Meshing and reading a file use several threads, but the facts about the faces (one native call per face) and the validity check of each body still
+  wait for one lock of the kernel, which is about 60 % of opening the router (D40, `docs/PERFORMANCE.md`). The next step is to find out which of those calls are safe to run for different
+  bodies at the same time and to take the lock off them, and to run the checks of touching and overlapping bodies on several threads.
+* **Distribution.** The Windows program through the Microsoft Store (an MSIX package; the signing and the updates are done by the Store, see D46), later a signed Windows zip, Linux packages from a repository and a
+  Flatpak, and a build for macOS. Today there are the zip, the tar.gz, the `.deb` and the `.AppImage`.
 
 ## Later
 
-* **Distribution.** A signed Windows program (a code-signing certificate, which also ends the warnings of SmartScreen and antivirus programs), an installer for Windows, Linux packages from a repository, a Flatpak, and a build for macOS. None of it exists yet; today there are the zip, the tar.gz, the `.deb` and the `.AppImage`.
-
-* **STL import with face recognition**, so that a mesh becomes an editable solid.
+* **A paid part for custom printing**: a price from the print time and the filament, an offer as a PDF, a record of the filament.
+* **Assemblies with joints**, a check of collisions and the range of movement.
+* **A puzzle made from a model.**
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.
-* **CAM** for CNC machines will come later: 2.5D toolpaths first, then 3D (see the CAM plan below).
-* **MCP connected to the running window.** The MCP server has its own document and works without a window. A later step lets it drive
-  the document of a running window (a local socket, the same table of commands), so the user watches the model change live and can undo
-  what the assistant did. Needs the document to be shared with the window thread and a rule for who may change it at a given moment.
+* **CAM for CNC machines**: 2.5D toolpaths first, then 3D (see the CAM plan below). The program has no CAM today.
 
 ## Smaller improvements
 

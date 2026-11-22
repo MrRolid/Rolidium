@@ -423,3 +423,12 @@ Privacy text: `docs/PRIVACY.md`.
 ## D43: 3D printing through other people's slicers
 Rolidium gets no slicer of its own. Mature slicers exist (PrusaSlicer, OrcaSlicer, Cura, Bambu Studio), and several of them are licensed under the AGPL, so taking their code into Rolidium would stand in the way of a
 commercial licence of Rolidium. Working with them through files (3MF) and the command line keeps the licences apart: the slicers run as separate programs and none of their code is in ours. The plan is in the roadmap ("3D printing"): the export of 3MF, opening the model in an installed slicer, and later calling the slicer with the user's profile and sending the G-code to OctoPrint, Moonraker or PrusaLink.
+
+## D44: No parametric history
+Rolidium does not get a parametric history (a timeline or a feature tree) and stays with direct modelling. The reason: direct modelling is what the program is for (push and pull faces, edit the result), a history needs stable references to faces and edges and a way to repair a broken one, and it would make every other feature (patterns, templates, import of a mesh) harder. Changes are made on the solid; Undo and the script of the headless tool give the repeatability that is needed.
+
+## D45: AI in the window only with the user's own key
+An AI panel in the window will work only with the key to the API of an AI service that the user enters; Rolidium has no server of its own for it and sells no credits. The reason: the program stays free of accounts and of a service that has to be paid for and kept running, the user decides who sees the prompts, and the privacy notice stays short (nothing leaves except what the user sends to the service they chose). The MCP server stays for advanced use.
+
+## D46: Windows distribution through the Microsoft Store
+The Windows program will be offered through the Microsoft Store as an MSIX package. The reason: the package is signed by the Store, so no code-signing certificate has to be bought and paid for every year, and the Store brings the updates and ends the warnings of SmartScreen and of antivirus programs for the people who install it from there. The plain zip stays; a signed zip may follow later.
