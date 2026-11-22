@@ -579,7 +579,8 @@ impl App {
         let aspect = rect.width() / rect.height().max(1.0);
         let ray = Some(self.camera.ray(Self::ndc(p, rect), aspect));
         // the axis, and what a round face gives: (diameter at the start, height, half angle of the cone)
-        let mut axis: Option<(DVec3, DVec3, Option<(f64, f64, f64)>)> = None;
+        type RoundFace = (f64, f64, f64);
+        let mut axis: Option<(DVec3, DVec3, Option<RoundFace>)> = None;
         if let Some(obj) = self.pick_object(p, rect, true, true) {
             match obj {
                 Obj::Edge(b, e) => {
