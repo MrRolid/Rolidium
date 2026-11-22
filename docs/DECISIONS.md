@@ -432,3 +432,6 @@ An AI panel in the window will work only with the key to the API of an AI servic
 
 ## D46: Windows distribution through the Microsoft Store
 The Windows program will be offered through the Microsoft Store as an MSIX package. The reason: the package is signed by the Store, so no code-signing certificate has to be bought and paid for every year, and the Store brings the updates and ends the warnings of SmartScreen and of antivirus programs for the people who install it from there. The plain zip stays; a signed zip may follow later.
+
+## D47: The parameters of fasteners are kept in the joint, not in a history
+The parameters of a screw and its hole (size, length, type of the hole, clearance) are stored in the joint, which is an object of the document next to the bodies, and not in a history of the model (see D44). The reason: they can be changed later, also after direct edits, and a change of the printer profile can recalculate every joint, while Rolidium stays a direct modeller. The joint stores the material it removed, so that a change gives it back and cuts the new hole; if the body was edited at that place meanwhile and the recalculation fails, the person gets the reason and can remove the joint and make it again.

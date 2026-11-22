@@ -12,7 +12,13 @@ The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
    about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
    centre of a body (found while building the demo models, see `examples/demos/README.md`).
 2. **Checks before printing.** Walls that are too thin for the nozzle diameter, overhangs, and a recommended orientation of the part.
-3. **Printer profile.** Nozzle, clearance and tolerance. A test part for measuring the clearance of the printer. Holes and threads M3 to M12 with clearance for screws and nuts, and pockets for nuts.
+3. **Printer profile and fasteners.** Nozzle, clearance and tolerance. A test part for measuring the clearance of the printer. Holes and threads M3 to M12 with clearance for screws and nuts, and pockets for nuts, as fasteners:
+   * A library of standard screws and nuts (M3 to M12); a screw is placed into a body along its axis.
+   * A screw and its hole make a *joint* that remembers its parameters: the size, the length, the type of the hole and the clearance. The joint is listed among the bodies, and its parameters can be changed after
+     it was made; the hole is recalculated. A change of the printer profile recalculates all joints of the document.
+   * Types of the hole: a modelled thread with clearance, a hole for a self-tapping screw, a hole for a heat-set insert, a pocket for a nut with a through hole, and a through hole with a countersink.
+   * Recalculation: when a joint is made, the removed material is stored; when the joint changes, it is given back and the new hole is cut. If the body was changed by hand at the place of the hole in the meantime and the
+     recalculation does not work, a message says why and offers to remove the joint and make it again.
 4. **Printing through slicers.** Rolidium does not get a slicer of its own (D43).
    * *Export 3MF*: with units, several bodies at once, their names, and later colours.
    * *Open in a slicer*: the program finds an installed PrusaSlicer, OrcaSlicer, Cura or Bambu Studio and hands the model over as a 3MF placed on the bed, and reads the print time
