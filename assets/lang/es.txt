@@ -852,3 +852,9 @@ Mirror line through => Línea de simetría por
 Round a point => Alrededor de un punto
 The copies are ordinary shapes of the sketch; Undo takes them back. => Las copias son formas normales del boceto; Deshacer las quita.
 The selected shape => La forma seleccionada
+
+# ---- Sizes of sketch shapes ----
+Bodies already made from this sketch do not change; change them with Pull. => Los cuerpos ya creados a partir de este boceto no cambian; se cambian con Estirar.
+Centre X => Centro X
+Centre Y => Centro Y
+Diameter: {} mm => Diámetro: {} mm

@@ -852,3 +852,9 @@ Mirror line through => ミラー線の通過点
 Round a point => 点の周り
 The copies are ordinary shapes of the sketch; Undo takes them back. => コピーは通常のスケッチ図形です。元に戻すで取り消せます。
 The selected shape => 選択した図形
+
+# ---- Sizes of sketch shapes ----
+Bodies already made from this sketch do not change; change them with Pull. => このスケッチから作成済みの本体は変わりません。プルで変更してください。
+Centre X => 中心 X
+Centre Y => 中心 Y
+Diameter: {} mm => 直径: {} mm

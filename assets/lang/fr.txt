@@ -852,3 +852,9 @@ Mirror line through => Ligne de symétrie par
 Round a point => Autour d'un point
 The copies are ordinary shapes of the sketch; Undo takes them back. => Les copies sont des formes ordinaires de l'esquisse ; Annuler les retire.
 The selected shape => La forme sélectionnée
+
+# ---- Sizes of sketch shapes ----
+Bodies already made from this sketch do not change; change them with Pull. => Les corps déjà créés à partir de cette esquisse ne changent pas ; modifiez-les avec Tirer.
+Centre X => Centre X
+Centre Y => Centre Y
+Diameter: {} mm => Diamètre : {} mm

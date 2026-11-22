@@ -852,3 +852,9 @@ Mirror line through => Spiegellinie durch
 Round a point => Um einen Punkt
 The copies are ordinary shapes of the sketch; Undo takes them back. => Die Kopien sind gewöhnliche Formen der Skizze; Rückgängig nimmt sie zurück.
 The selected shape => Die ausgewählte Form
+
+# ---- Sizes of sketch shapes ----
+Bodies already made from this sketch do not change; change them with Pull. => Körper, die schon aus dieser Skizze entstanden sind, ändern sich nicht; sie werden mit Ziehen geändert.
+Centre X => Mittelpunkt X
+Centre Y => Mittelpunkt Y
+Diameter: {} mm => Durchmesser: {} mm

@@ -18,6 +18,7 @@ pub struct SelfTest {
     /// When the preparation of the diagnostics of the report panel was started (steps 70 and later).
     t_prep: Option<std::time::Instant>,
     children0: usize,
+    step_sketch: Option<SketchId>,
 }
 
 impl SelfTest {
@@ -33,6 +34,7 @@ impl SelfTest {
             layout_i: 0,
             t_prep: None,
             children0: 0,
+            step_sketch: None,
         }
     }
 }
@@ -1658,6 +1660,62 @@ impl App {
                 st.wait_frames = 2;
             }
             81 => {
+                // a sketch shape: the first click selects it and the panel shows its sizes, a second click on it puts the cursor into the field next to it
+                let c = self.doc.apply(Command::AddEntity {
+                    target: rolidium_doc::SketchTarget::New {
+                        plane: rolidium_doc::rolidium_sketch::PlaneDef::base(),
+                        body: None,
+                    },
+                    entity: Entity::Circle {
+                        center: DVec2::new(-300.0, -300.0),
+                        radius: 5.0,
+                    },
+                });
+                if let Ok(c) = c {
+                    if let Some(sk) = c.created_sketch {
+                        let e = self.doc.sketch(sk).map(|s| s.sketch.entities()[0].0);
+                        if let Some(e) = e {
+                            self.clear_selection();
+                            self.pick_entity(sk, e);
+                            st.children0 = e as usize;
+                            st.step_sketch = Some(sk);
+                        }
+                    }
+                }
+                st.wait_frames = 5;
+            }
+            82 => {
+                let rows = self.panel_rows();
+                check(
+                    &mut st,
+                    "a selected circle shows the diameter and the centre as fields",
+                    rows.len() == 3 && rows[0] == "Diameter",
+                );
+                if let Some(sk) = st.step_sketch {
+                    self.pick_entity(sk, st.children0 as u32);
+                }
+                check(
+                    &mut st,
+                    "a second click on the selected circle asks for the field",
+                    self.dim.refocus,
+                );
+                st.wait_frames = 5;
+            }
+            83 => {
+                #[allow(deprecated)]
+                let focused = ctx.memory(|m| m.has_focus(egui::Id::new(("dim_field", 0usize))));
+                check(
+                    &mut st,
+                    "the field next to the circle has the cursor after the second click",
+                    focused,
+                );
+                if let Some(sk) = st.step_sketch.take() {
+                    self.clear_selection();
+                    let _ = self.doc.apply(Command::DeleteSketch { sketch: sk });
+                }
+                st.wait_frames = 2;
+            }
+            84 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

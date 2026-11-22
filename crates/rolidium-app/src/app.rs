@@ -2702,10 +2702,7 @@ impl App {
         let hovered_obj = self.hover_obj;
         let select = |app: &mut App, add: bool| {
             match (hovered_obj, hovered_region, hovered_face) {
-                (Some(Obj::Entity(s, e)), _, _) => {
-                    app.clear_selection();
-                    app.entity_sel = Some((s, e));
-                }
+                (Some(Obj::Entity(s, e)), _, _) => app.pick_entity(s, e),
                 (Some(Obj::Curve(c)), _, _) => {
                     app.clear_selection();
                     app.curve_sel = Some(c);
@@ -2974,10 +2971,7 @@ impl App {
         if resp.clicked_by(PointerButton::Primary) && self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None)
         {
             match self.hover_obj {
-                Some(Obj::Entity(s, e)) => {
-                    self.clear_selection();
-                    self.entity_sel = Some((s, e));
-                }
+                Some(Obj::Entity(s, e)) => self.pick_entity(s, e),
                 _ => self.clear_selection(),
             }
             self.layers_changed = true;
@@ -4173,6 +4167,7 @@ impl eframe::App for App {
                                 }
                                 if self.entity_sel.is_some() {
                                     ui.label(tr("Sketch shape (Delete removes it)"));
+                                    self.selection_dims_ui(ui);
                                 }
                                 if let Some(c) = self.curve_sel.and_then(|c| self.doc.curve(c)) {
                                     ui.label(trf(
@@ -4210,6 +4205,10 @@ impl eframe::App for App {
                                             "Face #{}: {}",
                                             &[f.to_string(), tr(&format!("{:?}", meta.kind))],
                                         ));
+                                        // a hole, a pin or a round face of a body: the diameter for information (a hole or pin is changed in the panel next to it)
+                                        if let Some(d) = meta.cyl_diameter.or(meta.disc.map(|(_, d)| d)) {
+                                            ui.label(trf("Diameter: {} mm", &[fmt_num(d)]));
+                                        }
                                         if meta.kind == FaceKind::Plane {
                                             ui.label(trf(
                                                 "Normal: {}, {}, {}",

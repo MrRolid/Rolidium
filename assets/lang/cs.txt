@@ -852,3 +852,9 @@ Mirror line through => Přímka zrcadlení bodem
 Round a point => Kolem bodu
 The copies are ordinary shapes of the sketch; Undo takes them back. => Kopie jsou obyčejné tvary skici; Zpět je vrátí.
 The selected shape => Vybraný tvar
+
+# ---- Sizes of sketch shapes ----
+Bodies already made from this sketch do not change; change them with Pull. => Tělesa, která už z této skici vznikla, se nemění; měň je nástrojem Tažení.
+Centre X => Střed X
+Centre Y => Střed Y
+Diameter: {} mm => Průměr: {} mm

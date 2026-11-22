@@ -260,3 +260,92 @@ pub(crate) fn mirror(
     }
     Ok(added)
 }
+
+/// The numbers a person can change for a shape of a sketch, in this order: circle (diameter, centre x, centre y), arc (radius, angle of the
+/// arc in degrees), rectangle (width, height), line (length, angle from the x axis in degrees).
+pub fn entity_dims(e: &Entity) -> Vec<f64> {
+    match *e {
+        Entity::Circle { center, radius } => vec![radius * 2.0, center.x, center.y],
+        Entity::Arc { radius, sweep, .. } => vec![radius, sweep.abs().to_degrees()],
+        Entity::Rect { a, b } => vec![(b.x - a.x).abs(), (b.y - a.y).abs()],
+        Entity::Line { a, b } => {
+            let d = b - a;
+            vec![d.length(), d.y.atan2(d.x).to_degrees()]
+        }
+    }
+}
+
+/// The shape with some of its numbers changed (`None`: unchanged), in the order of [`entity_dims`]. `None` for numbers that make no shape.
+pub fn entity_with_dims(old: &Entity, v: &[Option<f64>]) -> Option<Entity> {
+    let get = |i: usize, current: f64| -> Option<f64> {
+        match v.get(i) {
+            Some(Some(x)) if x.is_finite() => Some(*x),
+            Some(Some(_)) => None,
+            _ => Some(current),
+        }
+    };
+    let cur = entity_dims(old);
+    match *old {
+        Entity::Circle { .. } => {
+            let d = get(0, cur[0])?;
+            let (cx, cy) = (get(1, cur[1])?, get(2, cur[2])?);
+            (d.abs() > 1e-9).then(|| Entity::Circle {
+                center: DVec2::new(cx, cy),
+                radius: d.abs() / 2.0,
+            })
+        }
+        Entity::Arc {
+            center,
+            radius,
+            start,
+            sweep,
+        } => {
+            let r = get(0, cur[0])?.abs();
+            let ang = get(1, cur[1])?.abs();
+            if r <= 1e-9 || ang <= 1e-6 || ang > 359.999 {
+                return None;
+            }
+            if (ang - cur[1]).abs() > 1e-9 {
+                // a new angle: the centre and the start stay, the arc is as long as the angle says (on the same side)
+                let sign = if sweep < 0.0 { -1.0 } else { 1.0 };
+                return Some(Entity::Arc {
+                    center,
+                    radius: r,
+                    start,
+                    sweep: sign * ang.to_radians(),
+                });
+            }
+            // only the radius: the ends and the side stay
+            let seg = Segment::Arc {
+                center,
+                radius,
+                start,
+                sweep,
+            };
+            Entity::arc_chord_radius(seg.start_point(), seg.end_point(), r, seg.mid_point())
+        }
+        Entity::Rect { a, b } => {
+            let (w, h) = (get(0, cur[0])?.abs(), get(1, cur[1])?.abs());
+            if w <= 1e-9 || h <= 1e-9 {
+                return None;
+            }
+            let sx = if b.x >= a.x { 1.0 } else { -1.0 };
+            let sy = if b.y >= a.y { 1.0 } else { -1.0 };
+            Some(Entity::Rect {
+                a,
+                b: a + DVec2::new(sx * w, sy * h),
+            })
+        }
+        Entity::Line { a, .. } => {
+            let l = get(0, cur[0])?.abs();
+            let ang = get(1, cur[1])?.to_radians();
+            if l <= 1e-9 {
+                return None;
+            }
+            Some(Entity::Line {
+                a,
+                b: a + DVec2::new(ang.cos(), ang.sin()) * l,
+            })
+        }
+    }
+}

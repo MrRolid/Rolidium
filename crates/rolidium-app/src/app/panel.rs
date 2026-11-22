@@ -16,6 +16,11 @@ pub struct DimPanel {
     fields: Vec<String>,
     dismissed: String,
     focus: bool,
+    /// A second click on the selected shape: the field next to it takes the keyboard again.
+    pub(super) refocus: bool,
+    /// The fields of the right column for the selected shape, and what they belong to.
+    sel_key: String,
+    sel_fields: Vec<String>,
 }
 
 enum Target {
@@ -79,10 +84,14 @@ impl Target {
     fn rows(&self) -> Vec<(Row, String)> {
         match self {
             Target::Entity { e, .. } => match e {
-                Entity::Circle { .. } => vec![(Row::Entity(0), tr("Diameter"))],
-                Entity::Arc { .. } => vec![(Row::Entity(0), tr("Radius"))],
+                Entity::Circle { .. } => vec![
+                    (Row::Entity(0), tr("Diameter")),
+                    (Row::Entity(1), tr("Centre X")),
+                    (Row::Entity(2), tr("Centre Y")),
+                ],
+                Entity::Arc { .. } => vec![(Row::Entity(0), tr("Radius")), (Row::Entity(1), tr("Angle"))],
                 Entity::Rect { .. } => vec![(Row::Entity(0), tr("Width")), (Row::Entity(1), tr("Height"))],
-                Entity::Line { .. } => vec![(Row::Entity(0), tr("Length"))],
+                Entity::Line { .. } => vec![(Row::Entity(0), tr("Length")), (Row::Entity(1), tr("Angle"))],
             },
             Target::Edges { .. } => vec![(Row::EdgeSize, tr("Size"))],
             Target::Face {
@@ -153,13 +162,9 @@ impl Target {
 
     fn initial(&self, row: Row, edge_text: &str) -> String {
         match (self, row) {
-            (Target::Entity { e, .. }, Row::Entity(i)) => match (*e, i) {
-                (Entity::Circle { radius, .. }, _) => fmt(radius * 2.0),
-                (Entity::Arc { radius, .. }, _) => fmt(radius),
-                (Entity::Rect { a, b }, 0) => fmt((b.x - a.x).abs()),
-                (Entity::Rect { a, b }, _) => fmt((b.y - a.y).abs()),
-                (Entity::Line { a, b }, _) => fmt(a.distance(b)),
-            },
+            (Target::Entity { e, .. }, Row::Entity(i)) => rolidium_doc::entity_dims(e)
+                .get(i)
+                .map_or(String::new(), |v| fmt(*v)),
             (_, Row::EdgeSize) => edge_text.to_string(),
             (
                 Target::Face {
@@ -319,45 +324,17 @@ impl App {
     }
 
     pub(super) fn apply_entity(&mut self, sketch: SketchId, entity: EntityId, old: Entity, f: &[String]) {
-        let num = |i: usize| f.get(i).and_then(|s| parse_num(s));
-        let new = match old {
-            Entity::Arc {
-                center,
-                radius,
-                start,
-                sweep,
-            } => num(0).and_then(|r| {
-                // the ends and the side stay, only the radius changes
-                let seg = rolidium_doc::rolidium_sketch::Segment::Arc {
-                    center,
-                    radius,
-                    start,
-                    sweep,
-                };
-                Entity::arc_chord_radius(seg.start_point(), seg.end_point(), r.abs(), seg.mid_point())
-            }),
-            Entity::Circle { center, .. } => num(0).map(|d| Entity::Circle {
-                center,
-                radius: d.abs() / 2.0,
-            }),
-            Entity::Rect { a, b } => match (num(0), num(1)) {
-                (Some(w), Some(h)) => {
-                    let sx = if b.x >= a.x { 1.0 } else { -1.0 };
-                    let sy = if b.y >= a.y { 1.0 } else { -1.0 };
-                    Some(Entity::Rect {
-                        a,
-                        b: a + DVec2::new(sx * w.abs(), sy * h.abs()),
-                    })
-                }
-                _ => None,
-            },
-            Entity::Line { a, b } => num(0).map(|l| {
-                let dir = (b - a).normalize_or_zero();
-                Entity::Line {
-                    a,
-                    b: a + dir * l.abs(),
-                }
-            }),
+        let v: Vec<Option<f64>> = f.iter().map(|s| parse_num(s)).collect();
+        // an empty or unreadable field is not a number (the first one must be); the others keep the value they have
+        let new = if v.first().is_some_and(Option::is_some) {
+            let unreadable = f.iter().zip(&v).any(|(t, n)| !t.trim().is_empty() && n.is_none());
+            if unreadable {
+                None
+            } else {
+                rolidium_doc::entity_with_dims(&old, &v)
+            }
+        } else {
+            None
         };
         let Some(new) = new else {
             self.set_status(tr("Please enter a number"), true);
@@ -372,6 +349,83 @@ impl App {
                 trf("{}. The sketch was not changed.", &[tr(&e.to_string())]),
                 true,
             ),
+        }
+    }
+
+    /// A click on a shape of a sketch: the first click selects it, a second click on the selected shape (or a double click) puts the cursor into the
+    /// field of its size next to it (a closed panel opens again).
+    pub(super) fn pick_entity(&mut self, s: SketchId, e: EntityId) {
+        if self.entity_sel == Some((s, e)) {
+            self.dim.refocus = true;
+            self.dim.dismissed.clear();
+        } else {
+            self.clear_selection();
+            self.entity_sel = Some((s, e));
+        }
+    }
+
+    /// Whether a body has a flat face on the plane of the sketch: the body was probably made from the sketch (or stands on it).
+    fn sketch_has_body(&self, s: SketchId) -> bool {
+        let Some(sk) = self.doc.sketch(s) else {
+            return false;
+        };
+        let n = sk.plane.normal.normalize();
+        self.meshes.iter().any(|m| {
+            m.faces.iter().any(|f| {
+                f.kind == FaceKind::Plane
+                    && f.normal.normalize_or_zero().dot(n).abs() > 0.9999
+                    && (f.origin - sk.plane.origin).dot(n).abs() < 1e-6
+            })
+        })
+    }
+
+    /// The sizes of the selected shape of a sketch as fields in the right column (Enter applies, like the panel next to the shape).
+    pub(super) fn selection_dims_ui(&mut self, ui: &mut egui::Ui) {
+        let Some((key, target, _)) = self.dim_target() else {
+            return;
+        };
+        let Target::Entity { sketch, .. } = &target else {
+            return;
+        };
+        let sketch = *sketch;
+        let rows = target.rows();
+        if self.dim.sel_key != key || self.dim.sel_fields.len() != rows.len() {
+            self.dim.sel_key = key;
+            self.dim.sel_fields = rows
+                .iter()
+                .map(|(r, _)| target.initial(*r, &self.edge_size_text))
+                .collect();
+        }
+        let mut apply = false;
+        for (i, (row, label)) in rows.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(label.as_str());
+                let unit = if *label == tr("Angle") { "°" } else { "mm" };
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut self.dim.sel_fields[i])
+                        .id(egui::Id::new(("sel_dim", i)))
+                        .desired_width(60.0),
+                );
+                ui.label(unit);
+                let _ = row;
+                if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                    apply = true;
+                }
+            });
+        }
+        if self.sketch_has_body(sketch) {
+            ui.weak(tr(
+                "Bodies already made from this sketch do not change; change them with Pull.",
+            ));
+        }
+        if apply {
+            let f = self.dim.sel_fields.clone();
+            let act = if f.first().is_some_and(|t| parse_num(t).is_some()) {
+                Act::Entity(f)
+            } else {
+                Act::Entity(vec![String::new()])
+            };
+            self.apply_panel_act(&target, act);
         }
     }
 
@@ -483,10 +537,19 @@ impl App {
                             .id(id)
                             .desired_width(60.0),
                     );
-                    if first && i == 0 && self.dim.focus {
+                    if (first && i == 0 && self.dim.focus) || (i == 0 && self.dim.refocus) {
                         ctx.memory_mut(|m| m.request_focus(id));
+                        // the text is selected, so a number typed at once replaces it
+                        if let Some(mut st) = egui::TextEdit::load_state(ctx, id) {
+                            let n = self.dim.fields[i].chars().count();
+                            st.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                                egui::text::CCursor::new(0),
+                                egui::text::CCursor::new(n),
+                            )));
+                            st.store(ctx, id);
+                        }
                     }
-                    ui.label("mm");
+                    ui.label(if *label == tr("Angle") { "°" } else { "mm" });
                     if r.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
                         dismiss = true;
                     }
@@ -559,6 +622,7 @@ impl App {
             }
         });
         self.docks = docks;
+        self.dim.refocus = false;
         if dock.dismiss {
             dismiss = true;
         }
