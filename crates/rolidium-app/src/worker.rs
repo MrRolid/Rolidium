@@ -98,6 +98,7 @@ pub struct StlParams {
 /// The solids of a STEP file with their names, and the reasons why some were skipped.
 pub type StepSolids = (Vec<(Solid, String)>, Vec<String>);
 
+#[allow(clippy::large_enum_variant)]
 pub enum Done {
     /// Saved: the path, the state that was written and whether it was an autosave.
     Saved(Result<(PathBuf, Arc<State>, bool), String>),

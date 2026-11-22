@@ -133,13 +133,13 @@ fn step_of(count: u32, spacing: f64, by_total: bool) -> f64 {
 fn chosen(sk: &SketchDoc, ids: &[EntityId]) -> Result<Vec<Entity>, DocError> {
     let all = sk.sketch.entities();
     let list: Vec<Entity> = if ids.is_empty() {
-        all.iter().map(|(_, e)| e.clone()).collect()
+        all.iter().map(|(_, e)| *e).collect()
     } else {
         ids.iter()
             .map(|i| {
                 all.iter()
                     .find(|(x, _)| x == i)
-                    .map(|(_, e)| e.clone())
+                    .map(|(_, e)| *e)
                     .ok_or_else(|| KernelError::Invalid("a shape of the sketch no longer exists".into()))
                     .map_err(DocError::from)
             })

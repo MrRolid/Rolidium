@@ -587,7 +587,7 @@ impl App {
             let f = &transforms[*ti];
             let dst = if bad[k] { &mut badv } else { &mut ok };
             let flip = mirror;
-            for t in m.mesh.indices.chunks_exact(3) {
+            for t in m.mesh.indices.as_chunks::<3>().0.iter().map(|c| c.as_slice()) {
                 let p: Vec<Vec3> = t
                     .iter()
                     .map(|i| f(dv(m.mesh.positions[*i as usize])).as_vec3())

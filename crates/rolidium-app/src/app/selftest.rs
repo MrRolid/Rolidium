@@ -1574,6 +1574,90 @@ impl App {
                 );
             }
             76 => {
+                // links: a pattern of four pieces of a new box (the same path as the Pattern tool), edited afterwards, one step of Undo each
+                let _ = self.doc.apply(Command::AddBox {
+                    name: "Pattern source".into(),
+                    min: DVec3::new(500.0, 500.0, 0.0),
+                    max: DVec3::new(510.0, 510.0, 10.0),
+                });
+                self.request_meshes();
+                st.children0 = self.doc.bodies().len();
+                st.wait_frames = 30;
+            }
+            77 => {
+                let src = self.doc.bodies().last().map(|b| b.id);
+                self.move_sel = src.into_iter().collect();
+                self.activate_link_tool(linktool::LinkMode::Linear);
+                self.link_ui.p.count = 4;
+                self.link_ui.p.spacing = 20.0;
+                self.apply_link();
+                st.wait_frames = 40;
+            }
+            78 => {
+                let n = self.doc.bodies().len();
+                let n0 = st.children0;
+                check(
+                    &mut st,
+                    "Pattern tool: a row of 4 makes 3 new bodies and one link",
+                    n == n0 + 3 && self.doc.state().links.len() == 1 && self.idle(),
+                );
+                // the panel of the link changes the number of pieces
+                if let Some(l) = self.doc.state().links.first().map(|l| l.id) {
+                    self.open_link(l);
+                    self.link_ui.p.count = 2;
+                    self.apply_link();
+                }
+                st.wait_frames = 40;
+            }
+            79 => {
+                let n = self.doc.bodies().len();
+                let n0 = st.children0;
+                check(
+                    &mut st,
+                    "Link panel: 2 pieces leave 1 copy",
+                    n == n0 + 1 && self.doc.state().links.len() == 1,
+                );
+                // one step of Undo brings the 4 pieces back
+                self.undo();
+                st.wait_frames = 20;
+            }
+            80 => {
+                let n0 = st.children0;
+                check(
+                    &mut st,
+                    "one Undo undoes the whole change of the link",
+                    self.doc.bodies().len() == n0 + 3,
+                );
+                // a group of the bodies marked, named and dissolved again
+                self.move_sel = self.doc.bodies().iter().rev().take(2).map(|b| b.id).collect();
+                self.group_marked();
+                check(
+                    &mut st,
+                    "Ctrl+G makes a group of the marked bodies",
+                    self.doc.state().groups.len() == 1,
+                );
+                if let Some(g) = self.doc.state().groups.first().map(|g| g.id) {
+                    let _ = self.doc.apply(Command::Ungroup { group: g });
+                }
+                check(
+                    &mut st,
+                    "a group can be dissolved",
+                    self.doc.state().groups.is_empty(),
+                );
+                // the link is removed: the bodies stay
+                if let Some(l) = self.doc.state().links.first().map(|l| l.id) {
+                    let n = self.doc.bodies().len();
+                    let _ = self.doc.apply(Command::Unlink { link: l });
+                    check(
+                        &mut st,
+                        "Remove the link keeps the bodies",
+                        self.doc.state().links.is_empty() && self.doc.bodies().len() == n,
+                    );
+                }
+                self.close_link_tool();
+                st.wait_frames = 2;
+            }
+            81 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

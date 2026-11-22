@@ -3914,7 +3914,7 @@ impl eframe::App for App {
                                                         let r = match rolidium_doc::link_of_result(self.doc.state(), b.id) {
                                                             Some(l) => r.on_hover_text(trf(
                                                                 "Made by the link '{}'. Click the link in the list of links to change it.",
-                                                                &[l.name.clone()],
+                                                                std::slice::from_ref(&l.name),
                                                             )),
                                                             None => r,
                                                         };
