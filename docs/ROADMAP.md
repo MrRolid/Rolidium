@@ -11,6 +11,11 @@ The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
    around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
    about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
    centre of a body (found while building the demo models, see `examples/demos/README.md`).
+   Also **mirroring**:
+   * Mirror a body by a base plane, the plane of a sketch or a chosen flat face, with a choice to keep the original and to merge the mirror image with it.
+   * Mirror in a sketch by a line.
+   * *Live mirror*: the mirror remembers the plane and the pair of bodies, and an edit of one side is carried over to the other. The principle is the same as for the joints with a screw (D47), without a history of the
+     model. When the carrying over does not work, a message says why and offers to remove the mirror.
 2. **Checks before printing.** Walls that are too thin for the nozzle diameter, overhangs, and a recommended orientation of the part.
 3. **Printer profile and fasteners.** Nozzle, clearance and tolerance. A test part for measuring the clearance of the printer. Holes and threads M3 to M12 with clearance for screws and nuts, and pockets for nuts, as fasteners:
    * A library of standard screws and nuts (M3 to M12); a screw is placed into a body along its axis.

@@ -435,3 +435,6 @@ The Windows program will be offered through the Microsoft Store as an MSIX packa
 
 ## D47: The parameters of fasteners are kept in the joint, not in a history
 The parameters of a screw and its hole (size, length, type of the hole, clearance) are stored in the joint, which is an object of the document next to the bodies, and not in a history of the model (see D44). The reason: they can be changed later, also after direct edits, and a change of the printer profile can recalculate every joint, while Rolidium stays a direct modeller. The joint stores the material it removed, so that a change gives it back and cuts the new hole; if the body was edited at that place meanwhile and the recalculation fails, the person gets the reason and can remove the joint and make it again.
+
+## D48: A live mirror is an object of the document, not a history
+A live mirror stores the plane and the pair of bodies, and an edit of one side is carried over to the other, like a joint with a screw (D47): the object is in the document next to the bodies and there is no history of the model (D44). If the carrying over fails, the person gets the reason and an offer to remove the mirror.
