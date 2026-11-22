@@ -39,10 +39,14 @@ pub const SOURCE_URL: &str = "https://github.com/MrRolid/Rolidium";
 pub fn third_party_licenses_path() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    [dir.to_path_buf(), dir.join(".."), dir.join("../share/doc/rolidium")]
-        .iter()
-        .map(|d| d.join("THIRD-PARTY-LICENSES.txt"))
-        .find(|p| p.is_file())
+    [
+        dir.to_path_buf(),
+        dir.join(".."),
+        dir.join("../share/doc/rolidium"),
+    ]
+    .iter()
+    .map(|d| d.join("THIRD-PARTY-LICENSES.txt"))
+    .find(|p| p.is_file())
 }
 
 /// "0.1.1 a1b2c3d": version and build hash.
