@@ -34,11 +34,12 @@ pub const ISSUES_URL: &str = "https://github.com/MrRolid/Rolidium/issues";
 /// Where the source code (and so the licences of the parts) can be found.
 pub const SOURCE_URL: &str = "https://github.com/MrRolid/Rolidium";
 
-/// The file with the licences of the libraries, the geometry kernel and the fonts, shipped next to the program.
+/// The file with the licences of the libraries, the geometry kernel and the fonts: next to the program (the tar.gz and the Windows zip) or
+/// in `../share/doc/rolidium` (the .deb installs it to `/usr/share/doc/rolidium`, the AppImage has the same folders under `usr/`).
 pub fn third_party_licenses_path() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    [dir.to_path_buf(), dir.join("..")]
+    [dir.to_path_buf(), dir.join(".."), dir.join("../share/doc/rolidium")]
         .iter()
         .map(|d| d.join("THIRD-PARTY-LICENSES.txt"))
         .find(|p| p.is_file())
