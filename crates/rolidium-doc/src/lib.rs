@@ -16,6 +16,8 @@ pub use rolidium_sketch;
 
 pub mod display;
 pub mod file;
+mod links;
+pub use links::{link_of_result, Axis, CircularParams, Direction2, Group, GroupId, Link, LinkId, LinkKind, LinearParams, MirrorParams, PatternMode, MAX_PIECES};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DocError {
@@ -33,6 +35,17 @@ pub enum DocError {
     NoSuchRegion,
     #[error("The body this sketch was drawn on no longer exists")]
     TargetGone,
+    #[error("The link no longer exists")]
+    NoSuchLink,
+    #[error("The group no longer exists")]
+    NoSuchGroup,
+    #[error("The body '{body_name}' is made by the link '{link_name}', so editing it by hand would break the link. Remove the link first (it keeps the bodies as they are), or leave the body alone")]
+    Derived {
+        link: LinkId,
+        link_name: String,
+        body: BodyId,
+        body_name: String,
+    },
     #[error("The model was changed while the operation was running, so the result was discarded")]
     Stale,
     #[error("Internal error while computing the operation; the model was not changed ({0})")]
@@ -155,10 +168,15 @@ pub struct State {
     pub bodies: Vec<Body>,
     pub sketches: Vec<SketchDoc>,
     pub curves: Vec<CurveDoc>,
+    /// Links (patterns, mirrors) and groups of bodies.
+    pub links: Vec<Link>,
+    pub groups: Vec<Group>,
     /// Numbering of new bodies, sketches and curves, each with its own series.
     pub body_counter: u32,
     pub sketch_counter: u32,
     pub curve_counter: u32,
+    pub link_counter: u32,
+    pub group_counter: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,6 +217,8 @@ pub enum ItemId {
     Body(BodyId),
     Sketch(SketchId),
     Curve(CurveId),
+    Link(LinkId),
+    Group(GroupId),
 }
 
 /// The path of a sweep.
@@ -418,6 +438,46 @@ pub enum Command {
     AddNamedSolids {
         solids: Vec<(Solid, String)>,
     },
+    /// A link: a pattern along a line or around a circle, or a mirror, of `sources` (an empty name gets "Linear pattern 1" and so on).
+    AddLink {
+        kind: LinkKind,
+        sources: Vec<BodyId>,
+        name: String,
+    },
+    /// New parameters (the kind of link and the body it works on stay) and/or a new name of a link; the result is calculated again.
+    EditLink {
+        link: LinkId,
+        kind: Option<LinkKind>,
+        name: Option<String>,
+    },
+    /// Remove the link; the bodies it made stay as ordinary bodies.
+    Unlink {
+        link: LinkId,
+    },
+    /// Remove the link and what it made (the copies, or the cuts and additions in the body).
+    DeleteLink {
+        link: LinkId,
+    },
+    /// A group of the bodies (taken out of their other groups), inside `parent` or at the top.
+    CreateGroup {
+        bodies: Vec<BodyId>,
+        name: String,
+        parent: Option<GroupId>,
+    },
+    /// Move bodies into a group (`None`: out of every group).
+    MoveToGroup {
+        bodies: Vec<BodyId>,
+        group: Option<GroupId>,
+    },
+    /// Move a group into another group (`None`: to the top).
+    MoveGroup {
+        group: GroupId,
+        parent: Option<GroupId>,
+    },
+    /// Dissolve a group: its bodies and groups go one level up.
+    Ungroup {
+        group: GroupId,
+    },
 }
 
 /// Result of computing a command against a snapshot.
@@ -443,6 +503,22 @@ pub struct Job {
     base: Arc<State>,
     base_revision: u64,
     next_id: u64,
+}
+
+/// The bodies of a group and of the groups inside it.
+fn group_bodies(st: &State, group: GroupId) -> Result<Vec<BodyId>, DocError> {
+    if !st.groups.iter().any(|g| g.id == group) {
+        return Err(DocError::NoSuchGroup);
+    }
+    let mut out = Vec::new();
+    let mut todo = vec![group];
+    while let Some(g) = todo.pop() {
+        if let Some(gr) = st.groups.iter().find(|x| x.id == g) {
+            out.extend(gr.bodies.iter().copied());
+            todo.extend(st.groups.iter().filter(|x| x.parent == Some(g)).map(|x| x.id));
+        }
+    }
+    Ok(out)
 }
 
 /// Converts a closed sketch contour into a kernel profile loop.
@@ -597,7 +673,32 @@ impl Job {
         }
     }
 
+    /// Computes the command; then the links whose sources changed are calculated again. A command that changes a body made by a link
+    /// (a hand edit) is refused (see [`DocError::Derived`]) unless it is a command of the links themselves.
     fn compute(&self) -> Result<Computed, DocError> {
+        let mut c = self.compute_command()?;
+        let link_command = matches!(
+            self.command,
+            Command::AddLink { .. } | Command::EditLink { .. } | Command::Unlink { .. } | Command::DeleteLink { .. }
+        );
+        if !link_command {
+            if let Some((link, link_name, body, body_name)) = links::derived_edit(&self.base, &c.state) {
+                return Err(DocError::Derived { link, link_name, body, body_name });
+            }
+        }
+        let mut next = self.next_id.max(c.state.bodies.iter().map(|b| b.id).chain(c.state.sketches.iter().map(|s| s.id)).chain(c.state.curves.iter().map(|s| s.id)).chain(c.state.links.iter().map(|l| l.id)).chain(c.state.groups.iter().map(|g| g.id)).max().unwrap_or(0) + 1);
+        let notes = links::refresh(&mut c.state, &mut next);
+        if !notes.is_empty() {
+            let text = notes.join("; ");
+            c.notice = Some(match c.notice.take() {
+                Some(n) => format!("{n}; {text}"),
+                None => text,
+            });
+        }
+        Ok(c)
+    }
+
+    fn compute_command(&self) -> Result<Computed, DocError> {
         let mut st: State = (*self.base).clone();
         match &self.command {
             Command::AddBox { name, min, max } => {
@@ -1639,6 +1740,22 @@ impl Job {
                             .ok_or(DocError::NoSuchCurve)?
                             .visible = *visible
                     }
+                    ItemId::Link(id) => {
+                        // the bodies of a link are shown or hidden together
+                        let results = st.links.iter().find(|l| l.id == *id).ok_or(DocError::NoSuchLink)?.results.clone();
+                        for b in st.bodies.iter_mut().filter(|b| results.contains(&b.id)) {
+                            b.visible = *visible;
+                        }
+                    }
+                    ItemId::Group(id) => {
+                        let ids = group_bodies(&st, *id)?;
+                        for g in st.groups.iter_mut().filter(|g| g.id == *id) {
+                            g.visible = *visible;
+                        }
+                        for b in st.bodies.iter_mut().filter(|b| ids.contains(&b.id)) {
+                            b.visible = *visible;
+                        }
+                    }
                 }
                 Ok(self.done(st, if *visible { "Show" } else { "Hide" }))
             }
@@ -1667,6 +1784,20 @@ impl Job {
                             .iter_mut()
                             .find(|c| c.id == *id)
                             .ok_or(DocError::NoSuchCurve)?
+                            .name = name.to_string()
+                    }
+                    ItemId::Link(id) => {
+                        st.links
+                            .iter_mut()
+                            .find(|l| l.id == *id)
+                            .ok_or(DocError::NoSuchLink)?
+                            .name = name.to_string()
+                    }
+                    ItemId::Group(id) => {
+                        st.groups
+                            .iter_mut()
+                            .find(|g| g.id == *id)
+                            .ok_or(DocError::NoSuchGroup)?
                             .name = name.to_string()
                     }
                 }
@@ -2237,6 +2368,111 @@ impl Job {
                     .material = material.clone();
                 Ok(self.done(st, "Material"))
             }
+            Command::AddLink { kind, sources, name } => {
+                let mut next = self.next_id;
+                let id = links::create(&mut st, kind.clone(), sources.clone(), name, &mut next)?;
+                let results = st.links.iter().find(|l| l.id == id).map(|l| l.results.clone()).unwrap_or_default();
+                let warnings = st.links.iter().find(|l| l.id == id).map(|l| l.warnings.join("; ")).unwrap_or_default();
+                let mut c = self.done(st, "Add link");
+                c.touched_body = results.first().copied();
+                if !warnings.is_empty() {
+                    c.notice = Some(warnings);
+                }
+                Ok(c)
+            }
+            Command::EditLink { link, kind, name } => {
+                let mut next = self.next_id;
+                links::edit(&mut st, *link, kind.clone(), name.as_deref(), &mut next)?;
+                let results = st.links.iter().find(|l| l.id == *link).map(|l| l.results.clone()).unwrap_or_default();
+                let warnings = st.links.iter().find(|l| l.id == *link).map(|l| l.warnings.join("; ")).unwrap_or_default();
+                let mut c = self.done(st, "Edit link");
+                c.touched_body = results.first().copied();
+                if !warnings.is_empty() {
+                    c.notice = Some(warnings);
+                }
+                Ok(c)
+            }
+            Command::Unlink { link } => {
+                links::unlink(&mut st, *link)?;
+                Ok(self.done(st, "Remove link"))
+            }
+            Command::DeleteLink { link } => {
+                links::delete(&mut st, *link)?;
+                Ok(self.done(st, "Delete link"))
+            }
+            Command::CreateGroup { bodies, name, parent } => {
+                if bodies.is_empty() {
+                    return Err(KernelError::Invalid("select at least one body".into()).into());
+                }
+                for b in bodies {
+                    if !st.bodies.iter().any(|x| x.id == *b) {
+                        return Err(DocError::NoSuchBody);
+                    }
+                }
+                if let Some(p) = parent {
+                    if !st.groups.iter().any(|g| g.id == *p) {
+                        return Err(DocError::NoSuchGroup);
+                    }
+                }
+                st.group_counter += 1;
+                let name = if name.trim().is_empty() { format!("Group {}", st.group_counter) } else { name.trim().to_string() };
+                for b in bodies {
+                    links::remove_from_groups(&mut st, *b);
+                }
+                st.groups.push(Group {
+                    id: self.next_id,
+                    name,
+                    parent: *parent,
+                    visible: true,
+                    bodies: bodies.clone(),
+                });
+                Ok(self.done(st, "Group"))
+            }
+            Command::MoveToGroup { bodies, group } => {
+                if let Some(g) = group {
+                    if !st.groups.iter().any(|x| x.id == *g) {
+                        return Err(DocError::NoSuchGroup);
+                    }
+                }
+                for b in bodies {
+                    if !st.bodies.iter().any(|x| x.id == *b) {
+                        return Err(DocError::NoSuchBody);
+                    }
+                    links::remove_from_groups(&mut st, *b);
+                    if let Some(g) = group {
+                        st.groups.iter_mut().find(|x| x.id == *g).unwrap().bodies.push(*b);
+                    }
+                }
+                Ok(self.done(st, "Move to group"))
+            }
+            Command::MoveGroup { group, parent } => {
+                if !st.groups.iter().any(|g| g.id == *group) {
+                    return Err(DocError::NoSuchGroup);
+                }
+                // not into itself or into one of its own groups
+                let mut up = *parent;
+                while let Some(p) = up {
+                    if p == *group {
+                        return Err(KernelError::Invalid("a group cannot be moved into itself".into()).into());
+                    }
+                    up = st.groups.iter().find(|g| g.id == p).ok_or(DocError::NoSuchGroup)?.parent;
+                }
+                st.groups.iter_mut().find(|g| g.id == *group).unwrap().parent = *parent;
+                Ok(self.done(st, "Move group"))
+            }
+            Command::Ungroup { group } => {
+                let g = st.groups.iter().find(|g| g.id == *group).cloned().ok_or(DocError::NoSuchGroup)?;
+                for x in st.groups.iter_mut().filter(|x| x.parent == Some(g.id)) {
+                    x.parent = g.parent;
+                }
+                if let Some(pg) = g.parent {
+                    if let Some(p) = st.groups.iter_mut().find(|x| x.id == pg) {
+                        p.bodies.extend(g.bodies.iter().copied());
+                    }
+                }
+                st.groups.retain(|x| x.id != g.id);
+                Ok(self.done(st, "Ungroup"))
+            }
             Command::DeleteBody { body } => {
                 let n = st.bodies.len();
                 st.bodies.retain(|b| b.id != *body);
@@ -2357,6 +2593,8 @@ impl Document {
             .map(|b| b.id)
             .chain(c.state.sketches.iter().map(|s| s.id))
             .chain(c.state.curves.iter().map(|s| s.id))
+            .chain(c.state.links.iter().map(|l| l.id))
+            .chain(c.state.groups.iter().map(|g| g.id))
             .max()
             .unwrap_or(0);
         self.undo

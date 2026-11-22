@@ -159,6 +159,15 @@ impl Solid {
         )?)
     }
 
+    /// The mirror image about the plane through `point` with the normal `normal`. The result is checked like every other result (a valid closed solid
+    /// with a positive volume), so a mirroring that turned the solid inside out is refused.
+    pub fn mirrored(&self, point: DVec3, normal: DVec3) -> Result<OpResult> {
+        if !point.is_finite() || !normal.is_finite() || normal.length() < 1e-9 {
+            return Err(KernelError::Invalid("the mirror plane must be made of finite numbers and have a normal".into()));
+        }
+        finish(native::mirror_shape(self.raw(), point.to_array(), normal.normalize().to_array())?)
+    }
+
     pub fn boolean(&self, other: &Solid, op: BooleanOp) -> Result<OpResult> {
         let code = match op {
             BooleanOp::Fuse => 0,

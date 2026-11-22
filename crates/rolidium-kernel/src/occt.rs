@@ -92,6 +92,7 @@ pub mod ffi {
             angle: f64,
             t: [f64; 3],
         ) -> Result<OpResult>;
+        fn mirror_shape(shape: &Shape, point: [f64; 3], normal: [f64; 3]) -> Result<OpResult>;
         fn prism(shape: &Shape, v: [f64; 3]) -> Result<SharedPtr<Shape>>;
 
         fn point_in_solid(shape: &Shape, p: [f64; 3]) -> bool;

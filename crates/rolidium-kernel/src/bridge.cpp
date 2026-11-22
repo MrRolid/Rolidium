@@ -428,6 +428,28 @@ OpResult transform_shape(const Shape& sh, std::array<double, 3> pivot, std::arra
     });
 }
 
+/// Mirror image about the plane through `point` with the normal `normal` (a new shape; the faces of the result keep the order of the faces of the original).
+OpResult mirror_shape(const Shape& sh, std::array<double, 3> point, std::array<double, 3> normal) {
+    return guarded("mirror", [&] {
+        gp_Vec nv(normal[0], normal[1], normal[2]);
+        if (nv.Magnitude() < 1e-9) fail("the mirror plane has no normal");
+        gp_Trsf tr;
+        tr.SetMirror(gp_Ax2(gp_Pnt(point[0], point[1], point[2]), gp_Dir(nv)));
+        BRepBuilderAPI_Transform mk(sh.s, tr, true);
+        if (!mk.IsDone()) fail("the mirroring failed");
+        OpResult r;
+        r.shape = wrap(mk.Shape());
+        for (int i = 1; i <= sh.faces.Extent(); ++i) {
+            const TopoDS_Shape& f = sh.faces.FindKey(i);
+            for (const TopoDS_Shape& g : mk.Modified(f)) {
+                int idx = r.shape->faces.FindIndex(g);
+                if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+            }
+        }
+        return r;
+    });
+}
+
 uint32_t solid_count(const Shape& s) {
     uint32_t n = 0;
     for (TopExp_Explorer ex(s.s, TopAbs_SOLID); ex.More(); ex.Next()) ++n;
