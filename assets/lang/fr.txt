@@ -382,7 +382,7 @@ Click the target body, then one or more other bodies. Choose Merge, Cut (subtrac
 Click the target body, then the bodies to combine with it => Cliquez sur le corps cible, puis sur les corps à combiner avec lui
 Combine => Combiner
 Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter. => Combiner : cliquez sur le corps cible, puis sur les corps à combiner avec lui ; choisissez Fusionner, Couper ou Intersecter et appuyez sur Appliquer ou Entrée.
-Direct modeling CAD/CAM (Alpha - developer version) => CAO/FAO à modélisation directe (Alpha - version de développement)
+Direct modeling CAD (Alpha - developer version) => CAO à modélisation directe (Alpha - version de développement)
 Flip => Inverser
 If the start lies at the end of a line or an arc, the arc can continue it tangentially (marked on screen). => Si le départ se trouve à l'extrémité d'une ligne ou d'un arc, l'arc peut la prolonger tangentiellement (indiqué à l'écran).
 Keep tools => Conserver les outils

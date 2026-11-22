@@ -144,7 +144,7 @@ fn main() -> eframe::Result {
     }
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "rolidium - direct modeling CAD/CAM (Alpha - developer version)\n\n\
+            "rolidium - direct modeling CAD (Alpha - developer version)\n\n\
              USAGE: rolidium [file.rolidium] [--demo] [--version] [--selftest <dir>] [--measure-start] [--bench-viewport]\n\
              rolidium cli ...       the command-line tool (rolidium cli help)\n\
              rolidium mcp --root <dir>   the MCP server for AI assistants (docs/MCP.md)\n\
@@ -269,7 +269,7 @@ fn main() -> eframe::Result {
     }
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("Rolidium - direct modeling CAD/CAM (Alpha - developer version)")
+            .with_title("Rolidium - direct modeling CAD (Alpha - developer version)")
             .with_app_id("rolidium")
             .with_icon(std::sync::Arc::new(eframe::egui::IconData {
                 rgba: include_bytes!("../../../assets/appicon/rolidium-128.rgba").to_vec(),

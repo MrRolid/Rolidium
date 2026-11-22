@@ -6,7 +6,7 @@ authors.workspace = true
 license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-description = "Milling toolpaths and post-processors"
+description = "Placeholder for milling toolpaths (not implemented yet)"
 
 [dependencies]
 rolidium-kernel = { path = "../rolidium-kernel" }

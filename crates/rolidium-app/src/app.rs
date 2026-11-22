@@ -2119,7 +2119,7 @@ impl App {
             .show(ctx, |ui| {
                 ui.set_min_width(360.0);
                 ui.label(egui::RichText::new("Rolidium").strong().size(20.0));
-                ui.label(tr("Direct modeling CAD/CAM (Alpha - developer version)"));
+                ui.label(tr("Direct modeling CAD (Alpha - developer version)"));
                 ui.label(trf("Version {}", &[crate::version_string()]));
                 ui.label(trf("Developed by {}", &["Martin Vorel".to_string()]));
                 ui.label(trf("Published by {}", &["Rolid spol. s r.o. (connect@rolid.com)".to_string()]));

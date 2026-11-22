@@ -2,12 +2,12 @@
 Type=Application
 Name=Rolidium
 GenericName=Direct modeling CAD
-Comment=Direct modeling CAD/CAM (Alpha)
+Comment=Direct modeling CAD (Alpha)
 Exec=@EXEC@ %f
 Icon=rolidium
 Terminal=false
 Categories=Graphics;Engineering;
 MimeType=application/x-rolidium;
 StartupWMClass=rolidium
-Keywords=CAD;CAM;3D;modeling;CNC;STEP;STL;
+Keywords=CAD;3D;modeling;CNC;STEP;STL;
 Version=1.5

@@ -61,7 +61,7 @@ Recommends: libvulkan1, mesa-vulkan-drivers | libegl1, libxcursor1, libxi6, libx
 Section: graphics
 Priority: optional
 Homepage: https://rolidium.com
-Description: Direct modeling CAD/CAM (Alpha)
+Description: Direct modeling CAD (Alpha)
  Rolidium is a free, open source direct-modeling CAD program: sketch on a plane, then push and pull faces. There is no feature tree. It reads
  and writes STEP and STL, has a command-line mode (rolidium-cli) and an MCP server (rolidium-mcp) for AI assistants.
  .

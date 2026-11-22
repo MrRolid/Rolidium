@@ -4,7 +4,7 @@
 
 **Direct-modeling CAD for mechanical parts.**
 Push and pull faces instead of editing a feature tree, in the spirit of DesignSpark Mechanical and SpaceClaim. Today Rolidium models parts
-and exports STL and STEP (3D printing, input for manufacturing); toolpaths for milling and output for laser cutting are planned.
+and exports STL and STEP (3D printing, input for manufacturing); CAM for CNC machines (toolpaths for milling) and output for laser cutting will come later.
 Written in Rust on the Open CASCADE geometry kernel, with an egui/wgpu interface. Free and open source under the AGPL-3.0.
 
 Web: [rolidium.com](https://rolidium.com) · Support forum: [rolidium.com/forum](https://rolidium.com/forum) · Download: [rolidium.com/download](https://rolidium.com/download)
@@ -24,7 +24,7 @@ Check the download against the checksums: `sha256sum -c SHA256SUMS` (Linux), `ce
     sudo apt install ./rolidium_0.2.0_amd64.deb
 
 This puts `rolidium` (and the links `rolidium-cli` and `rolidium-mcp`) into `/usr/bin`, adds a menu entry with its icons and makes `.rolidium`
-files open in Rolidium. Remove it with `sudo apt remove rolidium`.
+files open in Rolidium. Remove it with `sudo apt remove rolidium`. In Cinnamon (Linux Mint) the icon in the menu may appear only after the panel is restarted (Alt+F2, `r`, Enter) or after you log in again.
 
 **Any Linux (the `.AppImage`)**
 

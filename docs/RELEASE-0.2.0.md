@@ -2,7 +2,7 @@
 
 Rolidium is a free, open-source **direct-modeling CAD program** for mechanical parts. Instead of editing a feature tree you draw a sketch, pull it into a
 solid, push and pull faces, round edges and combine bodies, in the spirit of DesignSpark Mechanical and SpaceClaim. Today it models parts and exports STL
-and STEP (3D printing, input for manufacturing); toolpaths for milling and output for laser cutting are planned, not part of this version. It is written in
+and STEP (3D printing, input for manufacturing); CAM for CNC machines (toolpaths for milling) and output for laser cutting will come later and are not part of this version. It is written in
 Rust on the Open CASCADE geometry kernel and runs on Linux and Windows.
 
 > **This is an alpha version.** It is useful for experiments and for simple parts, but it is not ready for production work. Features are missing, there are

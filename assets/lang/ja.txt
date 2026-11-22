@@ -382,7 +382,7 @@ Click the target body, then one or more other bodies. Choose Merge, Cut (subtrac
 Click the target body, then the bodies to combine with it => ターゲットボディをクリックし、続けて結合するボディをクリックします
 Combine => 結合演算
 Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter. => 結合演算: ターゲットボディをクリックし、続けて結合するボディをクリックします。結合、カット、交差のいずれかを選び、適用または Enter を押します。
-Direct modeling CAD/CAM (Alpha - developer version) => ダイレクトモデリングCAD/CAM (アルファ版 - 開発者向け)
+Direct modeling CAD (Alpha - developer version) => ダイレクトモデリングCAD (アルファ版 - 開発者向け)
 Flip => 反転
 If the start lies at the end of a line or an arc, the arc can continue it tangentially (marked on screen). => 始点が直線または円弧の終点にある場合、円弧はそれに接線方向で続けられます (画面上に表示されます)。
 Keep tools => ツールを残す

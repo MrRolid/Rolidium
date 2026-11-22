@@ -43,7 +43,7 @@ bodies at the same time and to take the lock off them, and to run the checks of 
 * **STL import with face recognition**, so that a mesh becomes an editable solid.
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.
-* **CAM**: 2.5D toolpaths first, then 3D (see the CAM plan below).
+* **CAM** for CNC machines will come later: 2.5D toolpaths first, then 3D (see the CAM plan below).
 * **MCP connected to the running window.** The MCP server has its own document and works without a window. A later step lets it drive
   the document of a running window (a local socket, the same table of commands), so the user watches the model change live and can undo
   what the assistant did. Needs the document to be shared with the window thread and a rule for who may change it at a given moment.
