@@ -411,6 +411,53 @@ pub fn times(what: Option<&str>) -> i32 {
         }));
     }
 
+    // links (patterns and mirrors): the pieces are made once and recomputed after a change of the source
+    {
+        let mut r = crate::Runner::new();
+        r.quiet = true;
+        r.run_script("box 100 100 10\nbox 6 6 30\nmove 70 47 -10 body 2\n")
+            .unwrap();
+        rows.push(measure_row(
+            "circular pattern: 12 holes in a plate (cut)",
+            7,
+            || {
+                r.run_line("circular-pattern 12 full 0 0 1 through 50 50 0 from 2 cut 1")
+                    .unwrap();
+                let s = r.doc.bodies().first().map(|b| b.solid.clone());
+                r.run_line("undo").unwrap();
+                s
+            },
+        ));
+        let mut r = crate::Runner::new();
+        r.quiet = true;
+        r.run_script("box 10 10 10\nlinear-pattern 50 15 1 0 0\n")
+            .unwrap();
+        rows.push(measure_row(
+            "pull the source of a 50-piece pattern (recomputes 49)",
+            5,
+            || {
+                r.run_line("pull top 1 body 1").unwrap();
+                r.doc.bodies().last().map(|b| b.solid.clone())
+            },
+        ));
+        let mut r = crate::Runner::new();
+        r.quiet = true;
+        r.run_script("box 10 10 10\n").unwrap();
+        rows.push(measure_row("the same pull of a box without a pattern", 5, || {
+            r.run_line("pull top 1 body 1").unwrap();
+            r.doc.bodies().last().map(|b| b.solid.clone())
+        }));
+        let mut r = crate::Runner::new();
+        r.quiet = true;
+        r.run_script("box 40 30 20\n").unwrap();
+        rows.push(measure_row("mirror with merge (box on the plane)", 7, || {
+            r.run_line("mirror x merge").unwrap();
+            let s = r.doc.bodies().first().map(|b| b.solid.clone());
+            r.run_line("undo").unwrap();
+            s
+        }));
+    }
+
     println!("{:<40} {:>10}   stages (ms)", "operation", "total ms");
     for r in &rows {
         println!(

@@ -112,3 +112,37 @@ Curves (3D lines and helices) are stored next to the sketches. The addition is p
 
 STL has no units. Rolidium always writes it in **millimetres** (the units of the document), binary or ASCII; slicers read it as millimetres. A test
 (`crates/rolidium-cli/tests/stl_scale.rs`) builds a cube of 20 mm, exports it, reads the file back and checks that its bounding box is 20 x 20 x 20 mm to 0.001 mm.
+
+## Links and groups (added in program version 0.3.0, still format version 1)
+
+A *link* is a pattern or a live mirror: an object of the document that remembers its source bodies, its parameters and the bodies it made. A *group* is a
+list of bodies in the right column. Both are additive: a file without them opens in every version, and a program that does not know them keeps the entries as they are (see "Unknown content").
+
+Manifest keys (all optional): `link_counter`, `group_counter` (numbering of new "Linear pattern 3", "Group 2"), and
+
+```json
+"links":  [ { "id": 9, "file": "links/9.json", "base": "links/9.base.brep" } ],
+"groups": [ { "id": 3, "name": "Frame", "parent": null, "visible": true, "bodies": [1, 2, 4] } ]
+```
+
+`links/<id>.json`:
+
+```json
+{
+  "type": "linear",            // "linear", "circular" or "mirror"; a link of another type is kept without being used
+  "name": "Linear pattern 1",
+  "sources": [1],              // ids of the bodies the pieces are made of
+  "results": [5, 6, 7],        // ids of the bodies the link made (the copies, or the one target body of "add" and "cut")
+  "error": null,               // why the last calculation failed (the bodies then keep the last good result)
+  "mode": "new",               // linear and circular: "new", "add" or "cut"
+  "target": null,              // linear and circular: the body of "add" and "cut"
+  "axis": { "origin": [0,0,0], "dir": [1,0,0] },   // linear: the direction; circular: the axis
+  "count": 4, "spacing": 20.0, "by_total": false, // linear: the spacing is the distance of two pieces, or the whole length
+  "second": null,              // linear: { "axis", "count", "spacing", "by_total" } of the second direction of a grid
+  "angle_deg": 60.0, "full": true,                // circular: angle between pieces, or the whole circle divided evenly
+  "origin": [0,0,0], "normal": [1,0,0]            // mirror: the plane
+}
+```
+
+`links/<id>.base.brep` (only for "add" and "cut"): the solid of the target body before the pattern; every recalculation starts from it. Units are millimetres, angles degrees.
+Opening a file recalculates nothing: the bodies are stored as they were, and the link recalculates when its source changes.

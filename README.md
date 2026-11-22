@@ -94,6 +94,7 @@ Everything listed here works today.
 **Modelling**
 * Pull and push faces and sketch regions with the mouse or a typed distance; add, cut or automatic mode; pull *up to* a vertex, edge or face.
 * Move and rotate bodies, also as a copy.
+* Patterns along a line or around an axis, mirror, and groups of bodies. A pattern or a live mirror is a *link*: change the source and the pieces follow, change the numbers of the link at any time.
 * Combine bodies: merge, cut, intersect. Every result is checked against an independent volume calculation, and a result that does not add up is refused.
 * A new volume that touches or overlaps a body joins it (a body of its own only when it touches nothing); cut mode takes it out of the bodies it overlaps.
 * **Fill** (`F`): the closed flat loop an edge belongs to (the edge of a hole, the inner circle of a pipe), or sketch lines or a 3D line, becomes
@@ -225,6 +226,7 @@ the network, and `ROLIDIUM_OFFLINE=1` switches all of it off. Details: [docs/PRI
 | Key | Action |
 | --- | --- |
 | `S` `P` `M` `I` `L` `W` | Select, Pull, Move, Combine, Loft, Sweep |
+| `T` `B` `Ctrl+G` | Pattern, Mirror, group the marked bodies |
 | `H` | Helix |
 | `E` | Measure |
 | `F` | Fill (a closed loop of edges or lines becomes a region) |

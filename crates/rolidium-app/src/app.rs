@@ -4262,6 +4262,7 @@ impl eframe::App for App {
         self.move_panel(&ctx, vr);
         self.combine_panel(&ctx, vr);
         self.link_panel(&ctx, vr);
+        self.sketch_pattern_panel(&ctx, vr);
         self.busy_overlay(&ctx, vr);
         self.measure_panel(&ctx, vr);
         self.loft_panel(&ctx, vr);

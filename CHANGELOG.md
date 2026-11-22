@@ -6,6 +6,19 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
+## [Unreleased] - 0.3.0 (Rolidium for 3D printing), in development
+
+### Added
+- Patterns (`T`, `rolidium cli linear-pattern` and `circular-pattern`, MCP the same): a body repeated along a line (a direction from an axis, an edge or a face, count and spacing or count and total length, an optional second direction for a grid) or around an axis (an axis, an edge or the axis of a round face; count and angle, or a full circle). The result is new bodies, an addition to a body or a cut out of a body. A translucent preview with the number of pieces, a handle in the view for the spacing, and pieces that overlap or lie outside are shown in red with a message.
+- Mirror (`B`, `mirror`): a body by a base plane, the plane of a sketch or a flat face (with an offset), the body itself or with the original kept, merged with the original into one body, or as a live mirror. Mirror and patterns of the shapes of a sketch (`sketch-pattern`, `sketch-mirror`).
+- Links: a pattern or a live mirror is an object of the document that remembers its source, parameters and bodies. It is listed in the right column and its numbers can be changed (a live preview, one step of Undo). Editing the source recalculates the pieces (only the pieces that depend on it); a hand edit of a derived body asks whether to remove the link first; "Remove the link" keeps the bodies, "Delete with its bodies" removes them; a failed recalculation keeps the last good result and says why. Links are saved in the `.rolidium` file (`docs/FILE-FORMAT.md`; older files open unchanged).
+- Groups of bodies in the right column: made from the marked bodies (Ctrl+G), nested, renamed (F2 or a double click), moved by dragging, shown and hidden together, a click marks all their bodies; saved in the file. In `rolidium cli` and MCP: `group`, `ungroup`, `move-to-group`.
+- Builds that are not exactly a tagged release say `-dev` in the version; `scripts/package.sh dev` makes packages for testing into `dist/dev/`.
+- `rolidium cli times`: rows for a circular pattern of 12 holes, for the recalculation of a pattern of 50 pieces after the source changed, and for a mirror with merge.
+
+### Not yet
+- STEP export of groups as an assembly structure: the prebuilt OpenCascade of the packages has no XCAF libraries, so groups are not written to STEP files (the bodies are).
+
 ## [0.2.0] - 2026-11-22
 
 ### Added

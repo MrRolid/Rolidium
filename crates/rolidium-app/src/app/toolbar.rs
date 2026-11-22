@@ -512,11 +512,13 @@ impl App {
                 } else {
                     Tool::Pattern
                 };
-                let why = busy.or(if self.doc.bodies().is_empty() {
-                    Some("There is no body to repeat or mirror")
-                } else {
-                    None
-                });
+                let why = busy.or(
+                    if self.doc.bodies().is_empty() && !self.sk.as_ref().is_some_and(|m| m.sketch.is_some()) {
+                        Some("There is no body to repeat or mirror")
+                    } else {
+                        None
+                    },
+                );
                 let r = icons::icon_button_why(
                     ui,
                     &self.help,

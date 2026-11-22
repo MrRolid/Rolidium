@@ -113,3 +113,12 @@ interrupts the animation. Settings > "Turn the view square to the sketch automat
 ## Presentation mode (a help for pictures of the window)
 
 With `ROLIDIUM_PRESENTATION=1` the status bar leaves out the label of software drawing and the name of the graphics card, so that pictures of the window for the web show nothing about how they were drawn; nothing else changes (behaviour, calculations, the diagnostics and the log still say how the picture is really drawn), and there is no switch in Settings.
+
+## Links, patterns, mirrors and groups
+
+* Pattern (`T`) and Mirror (`B`) are icon buttons next to Fill and Join ends; their panel floats over the view like the others (`docks.panel`, kind `link`). Source bodies are outlined in magenta,
+  the target body of "add" and "cut" in cyan; the preview is translucent blue, pieces that overlap each other or lie outside the target are red, with a message in the panel.
+* The handle of the spacing is an orange disc at the first copy; dragging snaps to whole millimetres, Shift is free.
+* In the right column, **Links** come between Bodies and Sketches (an eye shows or hides the bodies of the link, a warning sign marks a failed recalculation, a click opens the panel);
+  bodies made by a link have a chain mark in the list. **Groups** are a tree with collapse arrows; bodies and groups are dragged onto a group (while dragging, a row "Out of every group" appears).
+* A hand edit of a body made by a link opens a question (remove the link and edit / cancel). Every change of a link is one step of Undo.

@@ -109,6 +109,18 @@ pub struct LinkUi {
     pub plane_sketch: usize,
     /// The mouse handle of the spacing is being dragged.
     pub handle_drag: bool,
+    /// The panel of patterns and mirrors of the shapes of the sketch that is open (`Linear`, `Circular` or `Mirror`).
+    pub sk_open: Option<LinkMode>,
+    pub sk_count: u32,
+    pub sk_spacing: f64,
+    pub sk_by_total: bool,
+    /// Direction of a row, or of the mirror line, in degrees from the X axis of the sketch.
+    pub sk_angle: f64,
+    pub sk_cx: f64,
+    pub sk_cy: f64,
+    pub sk_step_angle: f64,
+    pub sk_full: bool,
+    pub sk_keep: bool,
 }
 
 fn dv(v: Vec3) -> DVec3 {
@@ -241,6 +253,16 @@ impl App {
     }
 
     pub(super) fn activate_link_tool(&mut self, mode: LinkMode) {
+        if self.sk.as_ref().is_some_and(|s| s.sketch.is_some()) {
+            // in a sketch the same buttons repeat and mirror the shapes of the sketch
+            let u = &mut self.link_ui;
+            if u.sk_count == 0 {
+                (u.sk_count, u.sk_spacing, u.sk_step_angle, u.sk_full, u.sk_keep) =
+                    (3, 20.0, 60.0, true, true);
+            }
+            u.sk_open = Some(mode);
+            return;
+        }
         if self.doc.bodies().is_empty() {
             self.set_status("There is no body to repeat or mirror", true);
             return;
@@ -1418,5 +1440,156 @@ impl App {
             return true;
         }
         false
+    }
+}
+
+impl App {
+    /// The panel of patterns and mirrors of the shapes of the sketch (all the shapes, or the one that is selected).
+    #[allow(deprecated)]
+    pub(super) fn sketch_pattern_panel(&mut self, ctx: &egui::Context, rect: Rect) {
+        let Some(mode) = self.link_ui.sk_open else { return };
+        let Some(sk) = self.sk.as_ref().and_then(|s| s.sketch) else {
+            self.link_ui.sk_open = None;
+            return;
+        };
+        let one = self.entity_sel.filter(|(s, _)| *s == sk).map(|(_, e)| e);
+        let mut u = std::mem::take(&mut self.link_ui);
+        let mut docks = std::mem::take(&mut self.docks);
+        let mut apply = false;
+        let mut close = false;
+        let title = if mode == LinkMode::Mirror {
+            tr("Mirror")
+        } else {
+            tr("Pattern")
+        };
+        docks.panel(
+            ctx,
+            "skpattern",
+            Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0),
+            None,
+            250.0,
+            &title,
+            false,
+            |ui| {
+                ui.label(if one.is_some() {
+                    tr("The selected shape")
+                } else {
+                    tr("All the shapes of the sketch")
+                });
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Linear), tr("Along a line"));
+                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Circular), tr("Round a point"));
+                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Mirror), tr("Mirror"));
+                });
+                match u.sk_open {
+                    Some(LinkMode::Linear) => {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Direction"));
+                            ui.add(egui::DragValue::new(&mut u.sk_angle).speed(1.0).suffix("°"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Pieces"));
+                            ui.add(egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2));
+                            ui.label(if u.sk_by_total {
+                                tr("Length")
+                            } else {
+                                tr("Spacing")
+                            });
+                            ui.add(egui::DragValue::new(&mut u.sk_spacing).speed(0.5).suffix(" mm"));
+                        });
+                        ui.checkbox(&mut u.sk_by_total, tr("The spacing is the whole length"));
+                    }
+                    Some(LinkMode::Circular) => {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Centre"));
+                            ui.add(egui::DragValue::new(&mut u.sk_cx).speed(0.5));
+                            ui.add(egui::DragValue::new(&mut u.sk_cy).speed(0.5));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Pieces"));
+                            ui.add(egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2));
+                            ui.checkbox(&mut u.sk_full, tr("Round the whole circle"));
+                        });
+                        ui.add_enabled_ui(!u.sk_full, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(tr("Angle between pieces"));
+                                ui.add(egui::DragValue::new(&mut u.sk_step_angle).speed(0.5).suffix("°"));
+                            });
+                        });
+                    }
+                    _ => {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Mirror line through"));
+                            ui.add(egui::DragValue::new(&mut u.sk_cx).speed(0.5));
+                            ui.add(egui::DragValue::new(&mut u.sk_cy).speed(0.5));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Direction"));
+                            ui.add(egui::DragValue::new(&mut u.sk_angle).speed(1.0).suffix("°"));
+                        });
+                        ui.checkbox(&mut u.sk_keep, tr("Keep the original"));
+                    }
+                }
+                ui.weak(tr(
+                    "The copies are ordinary shapes of the sketch; Undo takes them back.",
+                ));
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Apply")).clicked() {
+                        apply = true;
+                    }
+                    if ui.button(tr("Cancel")).clicked() {
+                        close = true;
+                    }
+                });
+            },
+        );
+        self.docks = docks;
+        let mode = u.sk_open.unwrap_or(mode);
+        let cmd = if apply {
+            let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
+            let entities: Vec<_> = one.into_iter().collect();
+            Some(match mode {
+                LinkMode::Linear => Command::SketchPattern {
+                    sketch: sk,
+                    entities,
+                    pattern: rolidium_doc::SketchPattern::Linear {
+                        dir,
+                        count: u.sk_count,
+                        spacing: u.sk_spacing,
+                        by_total: u.sk_by_total,
+                        second: None,
+                    },
+                },
+                LinkMode::Circular => Command::SketchPattern {
+                    sketch: sk,
+                    entities,
+                    pattern: rolidium_doc::SketchPattern::Circular {
+                        center: glam::DVec2::new(u.sk_cx, u.sk_cy),
+                        count: u.sk_count,
+                        angle_deg: u.sk_step_angle,
+                        full: u.sk_full,
+                    },
+                },
+                LinkMode::Mirror => {
+                    let a = glam::DVec2::new(u.sk_cx, u.sk_cy);
+                    Command::SketchMirror {
+                        sketch: sk,
+                        entities,
+                        a,
+                        b: a + dir,
+                        keep: u.sk_keep,
+                    }
+                }
+            })
+        } else {
+            None
+        };
+        if close {
+            u.sk_open = None;
+        }
+        self.link_ui = u;
+        if let Some(c) = cmd {
+            self.submit(c);
+        }
     }
 }
