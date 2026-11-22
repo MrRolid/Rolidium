@@ -288,9 +288,21 @@ fn main() -> eframe::Result {
     };
     let mut options = options;
     options.wgpu_options.wgpu_setup = graphics::wgpu_setup(step);
-    if bench_viewport {
-        options.wgpu_options.surface.present_mode = eframe::wgpu::PresentMode::AutoNoVsync;
-    }
+    let cap = settings::Settings::load().fps_cap;
+    let sync = settings::synchronised(&cap) && !bench_viewport;
+    options.wgpu_options.surface.present_mode = if sync {
+        eframe::wgpu::PresentMode::AutoVsync
+    } else {
+        eframe::wgpu::PresentMode::AutoNoVsync
+    };
+    let _ = settings::PRESENT.set(
+        if sync {
+            "AutoVsync (frames wait for the monitor)"
+        } else {
+            "AutoNoVsync (frames do not wait for the monitor)"
+        }
+        .to_string(),
+    );
     let result = eframe::run_native(
         "rolidium",
         options,

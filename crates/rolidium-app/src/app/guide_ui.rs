@@ -81,7 +81,8 @@ impl App {
                 Stroke::new(2.0, col),
                 egui::StrokeKind::Outside,
             );
-            ctx.request_repaint();
+            // a quiet animation: 20 frames a second are enough
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
         let mut close = false;
         let mut off = false;

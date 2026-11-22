@@ -260,6 +260,10 @@ pub struct App {
     last_op_ms: Option<f32>,
     frame_ms: f32,
     fps_smooth: f32,
+    /// A pick read-back is due (the pointer or the picture changed since the last one).
+    pick_dirty: bool,
+    /// The size of the diagnostic panel in the last frame (to put it into the corner).
+    diag_size: Vec2,
     last_frame: Instant,
     backend: String,
     bench: Option<Bench>,
@@ -467,6 +471,8 @@ impl App {
             last_op_ms: None,
             frame_ms: 0.0,
             fps_smooth: 0.0,
+            pick_dirty: true,
+            diag_size: Vec2::new(300.0, 90.0),
             last_frame: Instant::now(),
             backend: format!("{:?}", info.backend),
             bench: None,
@@ -2549,11 +2555,13 @@ impl App {
                 None => false,
             }
         };
-        if self.last_pointer != pointer || busy_pick || self.pull.is_some() || self.sk.is_some() {
+        // nothing moves and nothing is computed: no frame is drawn (a finished calculation and every input wake the window by themselves)
+        let pointer_moved = self.last_pointer != pointer;
+        if pointer_moved || busy_pick {
             ctx.request_repaint();
         }
         self.last_pointer = pointer;
-        if pick_at.is_none() {
+        if pick_at.is_none() && !pointer.is_some_and(|p| rect.contains(p) && resp.hovered()) {
             self.hover_id = ID_NONE;
         }
 
@@ -2570,6 +2578,15 @@ impl App {
         self.pump_edge_preview();
         let scene_sent = self.meshes_changed;
         let render_ids = scene_sent || self.camera != self.last_cam || size_px != self.last_size;
+        // the pick read-back (what is under the pointer) is asked for when the pointer or the picture changed, not every frame: a
+        // pick in flight keeps the window repainting, so a pick on every frame would draw frames for ever
+        if pointer_moved || render_ids {
+            self.pick_dirty = true;
+        }
+        let pick_at = if self.pick_dirty { pick_at } else { None };
+        if self.pick_dirty && !busy_pick {
+            self.pick_dirty = false;
+        }
         self.last_cam = self.camera;
         self.last_size = size_px;
         let scene_radius = self.scene_radius();
@@ -3419,6 +3436,30 @@ impl App {
                         changed = true;
                     }
                 });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Frame rate ceiling"));
+                    let label = |c: &str| match c {
+                        "monitor" => tr("By the monitor"),
+                        "none" => tr("Unlimited"),
+                        n => n.to_string(),
+                    };
+                    let before = self.settings.fps_cap.clone();
+                    egui::ComboBox::from_id_salt("fps_cap")
+                        .selected_text(label(&self.settings.fps_cap))
+                        .show_ui(ui, |ui| {
+                            for c in crate::settings::FPS_CAPS {
+                                ui.selectable_value(&mut self.settings.fps_cap, c.to_string(), label(c));
+                            }
+                        });
+                    if self.settings.fps_cap != before {
+                        changed = true;
+                    }
+                });
+                if crate::settings::synchronised(&self.settings.fps_cap)
+                    != crate::settings::PRESENT.get().is_none_or(|p| p.starts_with("AutoVsync"))
+                {
+                    ui.label(tr("The change between synchronised and unsynchronised frames takes effect after a restart."));
+                }
                 if ui
                     .checkbox(
                         &mut self.settings.auto_turn_view,
@@ -3707,6 +3748,15 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         crate::startup::frame_drawn();
         self.startup_notice_window(&ctx);
+        // the ceiling of the frame rate: a frame that comes sooner than the interval waits for the rest of it
+        if self.selftest.is_none() && self.bench.is_none() {
+            if let Some(iv) = crate::settings::fps_interval(&self.settings.fps_cap) {
+                let since = self.last_frame.elapsed();
+                if since < iv {
+                    std::thread::sleep(iv - since);
+                }
+            }
+        }
         let now = Instant::now();
         self.frame_ms = (now - self.last_frame).as_secs_f32() * 1000.0;
         self.last_frame = now;
@@ -4316,9 +4366,41 @@ impl eframe::App for App {
                 self.last_op_ms
                     .map_or("-".to_string(), |v| format!("{v:.1} ms (incl. meshing)"))
             );
+            let text = format!(
+                "{text}\nframe rate ceiling: {}\nframe hand-over: {}\nframes drawn: {}",
+                match self.settings.fps_cap.as_str() {
+                    "monitor" => "by the monitor".to_string(),
+                    "none" => "none".to_string(),
+                    n => format!("{n} fps"),
+                },
+                crate::settings::PRESENT
+                    .get()
+                    .map_or("-", |s| s.as_str()),
+                crate::startup::frame_count()
+            );
+            // who asked for the last frame (a frame without a reason is a bug: nothing should draw at rest)
+            let causes: Vec<String> = ctx
+                .repaint_causes()
+                .iter()
+                .take(3)
+                .map(|c| format!("{}:{}", c.file.rsplit(['/', '\\']).next().unwrap_or(c.file), c.line))
+                .collect();
+            let text = format!("{text}\nlast frame asked for by: {}", if causes.is_empty() { "-".into() } else { causes.join(", ") });
+            // inside the model area (never over the bars or the columns): default in the lower left corner, dragged by the mouse
+            let vr = self.viewport_rect;
+            let [ox, oy] = self.settings.diag_pos.unwrap_or([8.0, 8.0]);
+            let size = self.diag_size;
+            let max_x = (vr.width() - size.x).max(0.0);
+            let max_y = (vr.height() - size.y).max(0.0);
+            let pos = Pos2::new(
+                vr.left() + ox.clamp(0.0, max_x),
+                vr.bottom() - size.y - oy.clamp(0.0, max_y),
+            );
             #[allow(deprecated)]
-            egui::Area::new(egui::Id::new("debug_overlay"))
-                .fixed_pos(Pos2::new(116.0, 10.0))
+            let area = egui::Area::new(egui::Id::new("debug_overlay"))
+                .fixed_pos(pos)
+                .constrain_to(vr)
+                .sense(egui::Sense::drag())
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
                         .fill(Color32::from_black_alpha(190))
@@ -4331,6 +4413,21 @@ impl eframe::App for App {
                             );
                         });
                 });
+            self.diag_size = area.response.rect.size();
+            if area.response.dragged() {
+                let d = area.response.drag_delta();
+                let [x, y] = self.settings.diag_pos.unwrap_or([8.0, 8.0]);
+                self.settings.diag_pos = Some([
+                    (x + d.x).clamp(0.0, max_x),
+                    (y - d.y).clamp(0.0, max_y),
+                ]);
+            }
+            if area.response.drag_stopped() {
+                self.settings.save();
+            }
+            if area.response.hovered() {
+                ctx.set_cursor_icon(egui::CursorIcon::Grab);
+            }
         }
 
         if !self.first_frame_done && !self.meshes.is_empty() {

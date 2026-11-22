@@ -141,6 +141,11 @@ pub fn finish() {
     }
 }
 
+/// The number of frames drawn since the start.
+pub fn frame_count() -> u32 {
+    FRAMES.load(Ordering::Relaxed)
+}
+
 pub fn frames_drawn() -> bool {
     FRAMES.load(Ordering::Relaxed) > 0
 }

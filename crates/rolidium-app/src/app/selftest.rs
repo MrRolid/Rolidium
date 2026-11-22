@@ -1811,6 +1811,52 @@ impl App {
                 st.wait_frames = 3;
             }
             87 => {
+                // zoom into a circle swept along a helix (9 turns): no face may be lost on the way to 10x and 100x
+                self.replace_document(Document::new(), None);
+                let _ = self.doc.apply(Command::AddSolids {
+                    solids: vec![selftest_spring(9.0)],
+                });
+                self.request_meshes();
+                st.wait_frames = 2;
+            }
+            88 => {
+                if self.meshes.is_empty() {
+                    self.selftest = Some(st);
+                    return;
+                }
+                use rolidium_render::StandardView;
+                let faces = self.meshes[0].mesh.face_deflection.len().max(self.meshes[0].faces.len());
+                let area0 = self.meshes[0].mesh.area_per_face(faces);
+                let fit = 90.0;
+                let mut lost = Vec::new();
+                for (zoom, view) in [
+                    (1.0_f32, StandardView::Isometric),
+                    (10.0, StandardView::Top),
+                    (10.0, StandardView::Front),
+                    (100.0, StandardView::Isometric),
+                    (100.0, StandardView::Right),
+                ] {
+                    self.view_anim = None;
+                    self.camera.set_view(view);
+                    self.camera.target = Vec3::new(10.0, 0.0, 18.0);
+                    self.camera.distance = fit / zoom;
+                    self.remesh_now();
+                    let m = &self.meshes[0].mesh;
+                    let tris = m.triangles_per_face(faces);
+                    let area = m.area_per_face(faces);
+                    for f in 0..faces {
+                        if tris[f] == 0 || area[f] < area0[f] * 0.97 {
+                            lost.push(format!("{zoom}x face {f}: {:.2} -> {:.2}", area0[f], area[f]));
+                        }
+                    }
+                }
+                println!("selftest: spring: {faces} faces, lost: {lost:?}");
+                check(&mut st, "no face of the swept helix is lost or cut when zooming in", lost.is_empty() && faces > 8);
+                self.layers_changed = true;
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "zoomed-spring");
+            }
+            89 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
@@ -1827,4 +1873,36 @@ impl App {
         st.step += 1;
         self.selftest = Some(st);
     }
+}
+
+/// A circle of radius 1 swept along a helix (radius 10, pitch 4) with `turns` turns.
+fn selftest_spring(turns: f64) -> rolidium_kernel::Solid {
+    use rolidium_kernel::*;
+    let h = HelixDef {
+        origin: DVec3::ZERO,
+        axis: DVec3::Z,
+        x_dir: DVec3::X,
+        radius: 10.0,
+        pitch: 4.0,
+        turns,
+        right: true,
+        start_deg: 0.0,
+        cone_deg: 0.0,
+    };
+    let path = Path::build(PathSource::Helix(h)).unwrap();
+    let t = path.start_tangent;
+    let x = t.cross(DVec3::Z).normalize();
+    let disc = Profile {
+        loops: vec![vec![ProfileSegment::Circle {
+            center: [0.0, 0.0],
+            radius: 1.0,
+        }]],
+    };
+    let input = LoftInput::Profile {
+        profile: &disc,
+        origin: path.start,
+        normal: t,
+        x_dir: x,
+    };
+    Solid::sweep(&input, &path, &SweepOptions::default()).unwrap().solid
 }

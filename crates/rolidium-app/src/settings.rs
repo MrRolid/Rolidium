@@ -102,7 +102,32 @@ pub struct Settings {
     pub join_gap: f64,
     /// Files of the diagnostics the person switched off in "What is sent" (`summary.txt` cannot be switched off).
     pub report_skip: Vec<String>,
+    /// The diagnostic panel (F12): its distance from the left and from the bottom edge of the model area (None = default corner).
+    pub diag_pos: Option<[f32; 2]>,
+    /// Ceiling of the frame rate: `monitor` (default), `30`, `60`, `120` or `none`. Between the monitor-synchronised group and the
+    /// unsynchronised one (120, none) it takes effect after a restart.
+    pub fps_cap: String,
 }
+
+/// The values of the frame rate ceiling.
+pub const FPS_CAPS: [&str; 5] = ["monitor", "30", "60", "120", "none"];
+
+/// The ceiling as a minimum time between two frames (None = no ceiling by the program).
+pub fn fps_interval(cap: &str) -> Option<std::time::Duration> {
+    cap.parse::<f64>()
+        .ok()
+        .filter(|f| *f > 0.0)
+        .map(|f| std::time::Duration::from_secs_f64(1.0 / f))
+}
+
+/// Whether the frames are handed to the monitor (synchronised with its refresh) for this ceiling: "monitor", 30 and 60 are, 120 and
+/// "none" are not (a ceiling above the usual 60 Hz needs frames that do not wait for it).
+pub fn synchronised(cap: &str) -> bool {
+    !matches!(cap, "120" | "none")
+}
+
+/// The way the frames reach the screen, as started (set once in `main`).
+pub static PRESENT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 impl Default for Settings {
     fn default() -> Self {
@@ -138,6 +163,8 @@ impl Default for Settings {
             guide_mask: 0,
             join_gap: 1.0,
             report_skip: Vec::new(),
+            diag_pos: None,
+            fps_cap: "monitor".into(),
         }
     }
 }
@@ -206,6 +233,17 @@ impl Settings {
                         .ok()
                         .filter(|g: &f64| g.is_finite() && *g > 0.0)
                         .unwrap_or(1.0)
+                }
+                "fps_cap" => {
+                    s.fps_cap = if FPS_CAPS.contains(&v) { v.to_string() } else { "monitor".into() }
+                }
+                "diag_pos" => {
+                    let mut it = v.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
+                    if let (Some(x), Some(y)) = (it.next(), it.next()) {
+                        if x.is_finite() && y.is_finite() {
+                            s.diag_pos = Some([x, y]);
+                        }
+                    }
                 }
                 "report_skip" => {
                     s.report_skip = v
@@ -277,6 +315,10 @@ impl Settings {
             "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
             self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
         ));
+        text.push_str(&format!("fps_cap={}\n", self.fps_cap));
+        if let Some([x, y]) = self.diag_pos {
+            text.push_str(&format!("diag_pos={x},{y}\n"));
+        }
         if let Some(i) = self.donate_index {
             text.push_str(&format!("donate_index={i}\n"));
         }
@@ -345,6 +387,8 @@ mod tests {
             guide_mask: 5,
             join_gap: 0.25,
             report_skip: vec!["log.txt".into()],
+            diag_pos: Some([12.0, 34.5]),
+            fps_cap: "120".into(),
         };
         s.save();
         assert_eq!(Settings::load(), s);
