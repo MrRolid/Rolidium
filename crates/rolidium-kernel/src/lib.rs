@@ -591,6 +591,7 @@ impl Solid {
             return Ok(base.clone());
         }
         let mut angle = VIEW_ANGLE;
+        let base_area = base.area_per_face(n);
         let mut out = base.clone();
         for attempt in 0..4 {
             let part = Mesh::from_native(native::mesh_shape_regions(
@@ -600,10 +601,21 @@ impl Solid {
                 linear,
                 &mask,
             )?);
-            out = base.merged_with(&part, &mask);
+            // A finer mesh replaces the coarse one of a face only when it is complete: the face has triangles and covers
+            // (nearly) the area the coarse mesh covers. A face the mesher failed on, or only did in part, stays as it was.
+            let got = part.triangles_per_face(n);
+            let area = part.area_per_face(n);
+            let accepted: Vec<u8> = (0..n)
+                .map(|i| (mask[i] == 1 && got[i] > 0 && area[i] >= base_area[i] * 0.97) as u8)
+                .collect();
+            out = if accepted.contains(&1) {
+                base.merged_with(&part, &accepted)
+            } else {
+                base.clone()
+            };
             out.deflection = linear;
             out.face_deflection = (0..n)
-                .map(|i| if is_fine(i) { requested } else { defl(i) })
+                .map(|i| if accepted[i] == 1 { requested } else { defl(i) })
                 .collect();
             if out.triangle_count() as f64 <= max_triangles as f64 * 1.25 || attempt == 3 {
                 break;
@@ -612,6 +624,12 @@ impl Solid {
             let ratio = (out.triangle_count() as f64 / max_triangles as f64).max(1.5);
             linear *= ratio;
             angle = (angle * ratio.sqrt()).min(0.8);
+        }
+        // over the budget in the end: the coarse mesh stays (the faces are never dropped to fit)
+        if out.triangle_count() as f64 > max_triangles as f64 * 1.25
+            && base.triangle_count() <= out.triangle_count()
+        {
+            return Ok(base.clone());
         }
         Ok(out)
     }

@@ -72,6 +72,19 @@ impl Mesh {
         n
     }
 
+    /// The area of the triangles of every face (`faces` entries).
+    pub fn area_per_face(&self, faces: usize) -> Vec<f64> {
+        let mut a = vec![0.0f64; faces];
+        for (t, tri) in self.indices.as_chunks::<3>().0.iter().enumerate() {
+            let Some(slot) = a.get_mut(self.tri_face[t] as usize) else {
+                continue;
+            };
+            let p = |i: u32| self.positions[i as usize].as_dvec3();
+            *slot += 0.5 * (p(tri[1]) - p(tri[0])).cross(p(tri[2]) - p(tri[0])).length();
+        }
+        a
+    }
+
     /// This mesh with the faces marked in `mask` (and the edges in `part`) taken from `part`, a mesh of those faces only.
     pub fn merged_with(&self, part: &Mesh, mask: &[u8]) -> Mesh {
         let mut out = Mesh {
