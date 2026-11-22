@@ -44,7 +44,7 @@ pub fn cli(mut args: Vec<String>) -> i32 {
         Some("--version") | Some("-V") => {
             println!(
                 "rolidium-cli {} {}",
-                env!("CARGO_PKG_VERSION"),
+                env!("ROLIDIUM_VERSION_LABEL"),
                 env!("ROLIDIUM_BUILD_HASH")
             );
             0
@@ -126,7 +126,7 @@ pub fn mcp(mut args: Vec<String>) -> i32 {
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!(
             "rolidium-mcp {} {}",
-            env!("CARGO_PKG_VERSION"),
+            env!("ROLIDIUM_VERSION_LABEL"),
             env!("ROLIDIUM_BUILD_HASH")
         );
         return 0;

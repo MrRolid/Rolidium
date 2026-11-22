@@ -2,11 +2,11 @@
 # Copyright (c) 2026 Rolid spol. s r.o.
 # SPDX-License-Identifier: AGPL-3.0-only
 # Makes rolidium_<version>_amd64.deb and Rolidium-<version>-x86_64.AppImage from the staged Linux tree of package.sh.
-# Usage: scripts/package-linux.sh <stage dir of the Linux package> <version> <out dir>
+# Usage: scripts/package-linux.sh <stage dir of the Linux package> <version> <out dir> [<version for the AppImage name>]
 # Needs dpkg-deb and fakeroot (the .deb) and appimagetool (the AppImage; a copy in ~/.local/bin, see BUILDING.md). No root is needed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-STAGE=${1:?stage dir}; VERSION=${2:?version}; OUT=${3:?out dir}
+STAGE=${1:?stage dir}; VERSION=${2:?version of the deb}; OUT=${3:?out dir}; FVER=${4:-$VERSION}   # FVER: the version in the name of the AppImage
 mkdir -p "$OUT"
 SIZES="16 24 32 48 64 128 256 512"
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
@@ -84,7 +84,7 @@ cp assets/appicon/png/rolidium-256.png "$APP/rolidium.png"; cp "$APP/rolidium.pn
 TOOL=${APPIMAGETOOL:-$(command -v appimagetool || echo "$HOME/.local/bin/appimagetool")}
 RUNTIME=${APPIMAGE_RUNTIME:-$HOME/.local/share/appimage-runtime-x86_64}
 if [ -x "$TOOL" ] && [ -f "$RUNTIME" ]; then
-    IMG="$OUT/Rolidium-${VERSION}-x86_64.AppImage"
+    IMG="$OUT/Rolidium-${FVER}-x86_64.AppImage"
     # --appimage-extract-and-run: the tool itself is an AppImage and needs no FUSE this way
     ARCH=x86_64 "$TOOL" --appimage-extract-and-run --runtime-file "$RUNTIME" "$APP" "$IMG" >/dev/null 2>&1
     echo "$IMG"

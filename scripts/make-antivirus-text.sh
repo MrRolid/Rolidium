@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Copyright (c) 2026 Rolid spol. s r.o.
 # SPDX-License-Identifier: AGPL-3.0-only
-# Writes dist/release/antivirus/false-positive-report.txt: an English text for reporting a false alarm to an antivirus vendor, with the SHA-256 checksums
+# Writes <out dir>/antivirus/false-positive-report.txt: an English text for reporting a false alarm to an antivirus vendor, with the SHA-256 checksums
 # of the Windows zip and of rolidium.exe inside it. Called by package.sh after the packages are made.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 hash=$(git rev-parse --short=7 HEAD)
-zip="dist/release/rolidium-$version-windows-x86_64.zip"
-out=dist/release/antivirus; mkdir -p "$out"
+OUT=${PACKAGE_OUT:-dist/dev}; fver=${PACKAGE_FVER:-$version}
+zip="$OUT/rolidium-$fver-windows-x86_64.zip"
+out=$OUT/antivirus; mkdir -p "$out"
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 unzip -q "$zip" "rolidium-$version/rolidium.exe" -d "$tmp"
 zsum=$(sha256sum "$zip" | cut -d' ' -f1); esum=$(sha256sum "$tmp/rolidium-$version/rolidium.exe" | cut -d' ' -f1)

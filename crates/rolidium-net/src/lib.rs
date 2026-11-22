@@ -233,8 +233,10 @@ pub fn parse_version(v: &str) -> Option<Vec<u64>> {
         .collect()
 }
 
-/// Whether version `latest` is higher than `current` (both must be valid versions; missing parts count as 0).
+/// Whether version `latest` is higher than `current` (both must be valid versions; missing parts count as 0). A development build
+/// (`0.2.0-dev`) counts as its number, so it is never offered an older or the same version, only a higher one.
 pub fn is_newer(latest: &str, current: &str) -> bool {
+    let current = current.strip_suffix("-dev").unwrap_or(current);
     let (Some(mut a), Some(mut b)) = (parse_version(latest), parse_version(current)) else {
         return false;
     };
@@ -518,6 +520,11 @@ mod tests {
         assert!(!is_newer("0.2.0.0", "0.2.0"));
         assert!(!is_newer("abc", "0.2.0"));
         assert!(!is_newer("1.2.3-beta", "0.2.0"));
+        // a development build: never an older or the same version, a higher one yes
+        assert!(!is_newer("0.2.0", "0.2.0-dev"));
+        assert!(!is_newer("0.1.9", "0.2.0-dev"));
+        assert!(is_newer("0.2.1", "0.2.0-dev"));
+        assert!(is_newer("0.3.0", "0.2.0-dev"));
     }
 
     #[test]

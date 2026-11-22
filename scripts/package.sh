@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Copyright (c) 2026 Rolid spol. s r.o.
 # SPDX-License-Identifier: AGPL-3.0-only
-# Builds all packages of a release from a clean committed state, into dist/release/: rolidium-<version>-linux-x86_64.tar.gz,
-# rolidium_<version>_amd64.deb, Rolidium-<version>-x86_64.AppImage, rolidium-<version>-windows-x86_64.zip, rolidium-demos-<version>.zip and SHA256SUMS
-# for all of them. One command: scripts/package.sh
+# Builds all packages from a clean committed state: rolidium-<version>-linux-x86_64.tar.gz, rolidium_<version>_amd64.deb,
+# Rolidium-<version>-x86_64.AppImage, rolidium-<version>-windows-x86_64.zip, rolidium-demos-<version>.zip and SHA256SUMS for all of them.
+# One command: scripts/package.sh [release|dev]
+#   release  into dist/release/, only from a clean checkout of exactly the tag v<version> (the program then reports "<version>"); it refuses otherwise.
+#   dev      into dist/dev/, any commit; the files are named <version>-dev.<commit> and the program reports "<version>-dev <commit>".
+#   (no argument: release when HEAD is exactly the tag, dev otherwise.) dist/release/ is never touched by a dev build.
 # Needs the Linux build tools, the Windows cross-build tools (docs/WINDOWS.md), dpkg-deb + fakeroot and appimagetool (BUILDING.md), and the demos
 # built by examples/demos/build-all.sh (target/demos). Set ALLOW_DIRTY=1 to package an uncommitted tree.
 set -euo pipefail
@@ -13,7 +16,18 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ] && [ "${ALLOW_DIRTY:-
 fi
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 hash=$(git rev-parse --short=7 HEAD)
-echo "packaging $version $hash"
+clean=yes; [ -n "$(git status --porcelain --untracked-files=no)" ] && clean=no
+exact=no; [ "$(git describe --exact-match --tags HEAD 2>/dev/null || true)" = "v$version" ] && [ $clean = yes ] && exact=yes
+mode=${1:-auto}
+[ "$mode" = auto ] && { [ $exact = yes ] && mode=release || mode=dev; }
+case "$mode" in
+  release) [ $exact = yes ] || { echo "release packages are made only from a clean checkout of exactly the tag v$version" >&2; exit 1; }
+           OUT=dist/release; fver=$version; debver=$version ;;
+  dev)     OUT=dist/dev; fver="$version-dev.$hash"; debver="$version+dev.$hash" ;;
+  *)       echo "usage: scripts/package.sh [release|dev]" >&2; exit 1 ;;
+esac
+echo "packaging $version $hash into $OUT (mode $mode)"
+export PACKAGE_OUT=$OUT PACKAGE_FVER=$fver
 cargo build --release -p rolidium-app
 cargo build --release --target x86_64-pc-windows-gnu -p rolidium-app
 rm -rf dist/stage && mkdir -p dist/stage
@@ -58,15 +72,15 @@ Settings: %APPDATA%\\rolidium, autosave and log: %LOCALAPPDATA%\\rolidium. The e
 Bug reports and ideas: https://github.com/MrRolid/Rolidium/issues
 EOF
 # ---- archives (python: symlinks in the tar, plain files in the zip)
-rm -rf dist/release && mkdir -p dist/release
-python3 - "$version" <<'PY'
+rm -rf "$OUT" && mkdir -p "$OUT"
+python3 - "$version" "$fver" "${OUT#dist/}" <<'PY'
 import sys, os, tarfile, zipfile
-v = sys.argv[1]
+v, fv, out = sys.argv[1], sys.argv[2], sys.argv[3]
 os.chdir("dist")
-lin = f"release/rolidium-{v}-linux-x86_64.tar.gz"
+lin = f"{out}/rolidium-{fv}-linux-x86_64.tar.gz"
 with tarfile.open(lin, "w:gz", compresslevel=9) as t:
     t.add(f"stage/rolidium-{v}", arcname=f"rolidium-{v}")
-win = f"release/rolidium-{v}-windows-x86_64.zip"
+win = f"{out}/rolidium-{fv}-windows-x86_64.zip"
 with zipfile.ZipFile(win, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     root = f"stage/rolidium-{v}-windows"
     for d, _, fs in os.walk(root):
@@ -77,11 +91,11 @@ for f in (lin, win):
     print(f, os.path.getsize(f))
 PY
 # ---- the .deb and the AppImage
-scripts/package-linux.sh "$L" "$version" dist/release
+scripts/package-linux.sh "$L" "$debver" "$OUT" "$fver"
 # ---- the demos
 scripts/package-demos.sh
 # ---- the text for reporting a false alarm to antivirus vendors
 scripts/make-antivirus-text.sh
 # ---- checksums of everything
-(cd dist/release && rm -f SHA256SUMS && sha256sum rolidium-"$version"-linux-x86_64.tar.gz rolidium_"$version"_amd64.deb Rolidium-"$version"-x86_64.AppImage \
-    rolidium-"$version"-windows-x86_64.zip rolidium-demos-"$version".zip | tee SHA256SUMS)
+(cd "$OUT" && rm -f SHA256SUMS && sha256sum rolidium-"$fver"-linux-x86_64.tar.gz rolidium_"$debver"_amd64.deb Rolidium-"$fver"-x86_64.AppImage \
+    rolidium-"$fver"-windows-x86_64.zip rolidium-demos-"$fver".zip | tee SHA256SUMS)

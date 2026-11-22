@@ -124,7 +124,7 @@ Everything listed here works today.
 **Files**
 * Native `.rolidium` documents (a zip archive; format described in [`docs/FILE-FORMAT.md`](docs/FILE-FORMAT.md)) with atomic saving,
   automatic recovery after a crash and recent files.
-* STEP import and export, binary or ASCII STL export with fineness presets and a live size estimate.
+* STEP import and export, binary or ASCII STL export with fineness presets and a live size estimate. STL has no units: Rolidium always writes it in millimetres (a test checks that a cube of 20 mm is 20 mm in the file).
 * A built-in file dialog with places, mounted disks, a folder tree, sortable columns, a typed path with completion and a filter.
 
 **Interface**

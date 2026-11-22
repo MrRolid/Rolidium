@@ -107,3 +107,8 @@ Curves (3D lines and helices) are stored next to the sketches. The addition is p
   (see "unknown content" above) and writes them back; a curve of a type this program does not know is left in the file as it is.
 * Ids of curves come from the same counter as the ids of bodies and sketches (`next_id`).
 
+
+## STL export
+
+STL has no units. Rolidium always writes it in **millimetres** (the units of the document), binary or ASCII; slicers read it as millimetres. A test
+(`crates/rolidium-cli/tests/stl_scale.rs`) builds a cube of 20 mm, exports it, reads the file back and checks that its bounding box is 20 x 20 x 20 mm to 0.001 mm.
