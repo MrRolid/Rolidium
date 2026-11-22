@@ -141,6 +141,31 @@ MSVC is not set up. Details and the test procedure are in [docs/WINDOWS.md](docs
 * The C++ runtime is linked statically; the `.exe` files need only the DLLs every Windows has. `rolidium.exe` gets its icon through
   `x86_64-w64-mingw32-windres` (part of the mingw-w64 packages).
 
+## Making the release packages
+
+One command makes everything that a release has, from a clean committed state, into `dist/release/`: the Linux tar.gz, the `.deb`, the
+`.AppImage`, the Windows zip, the zip of the demos and `SHA256SUMS` for all of them:
+
+    examples/demos/build-all.sh target/release/rolidium     # once: the demos that go into the demos zip (target/demos)
+    scripts/package.sh
+
+What it needs, besides the Linux and Windows build tools above:
+
+* `dpkg-deb` and `fakeroot` (`sudo apt install dpkg-dev fakeroot`) for the `.deb`. `lintian` is run on it when it is installed.
+* `appimagetool` for the `.AppImage`. It is itself an AppImage; put a copy into `~/.local/bin/appimagetool` (no root needed) and the runtime file
+  it embeds into `~/.local/share/appimage-runtime-x86_64` (the file names can be changed with `APPIMAGETOOL` and `APPIMAGE_RUNTIME`). Both come from
+  the releases of [AppImage/appimagetool](https://github.com/AppImage/appimagetool) and [AppImage/type2-runtime](https://github.com/AppImage/type2-runtime).
+  The script starts the tool with `--appimage-extract-and-run`, so FUSE is not needed.
+* Python 3 and zip.
+
+The `.deb` has `/usr/bin/rolidium` and links `rolidium-cli` and `rolidium-mcp`, the menu entry, the icons of the sizes 16 to 512 and the scalable one, the
+type `application/x-rolidium` (`*.rolidium`, with the same icons), a Debian `copyright` file and the licences of the third-party components in
+`/usr/share/doc/rolidium/`. It depends on `libc6 (>= 2.35)`, `libstdc++6 (>= 12)`, `libgcc-s1`, `libxkbcommon0` and `libx11-6` or `libwayland-client0`;
+the graphics driver (`libvulkan1`, Mesa) and the other window libraries that the program opens when it starts are recommended. The highest
+glibc symbol the program needs is `GLIBC_2.35`; `pidfd_spawnp` and `pidfd_getpid` of glibc 2.39 are optional (a weak version dependency of the Rust
+standard library), so the programs of a build on a newer system still start on glibc 2.35. This was checked by reading the version tables
+(`objdump -T`, `readelf -V`), and not by running it on an older system.
+
 ## Troubleshooting
 
 * **`curl` is required to download Open CASCADE**: install curl, or put the archive into `~/rolidium-vendor/`.

@@ -14,12 +14,50 @@ Web: [rolidium.com](https://rolidium.com) · Support forum: [rolidium.com/forum]
 
 ![A flange modelled in Rolidium](docs/images/02-flange.png)
 
-## Download
+## Download and install
 
-Packages for Linux and Windows are on the [releases page](https://github.com/MrRolid/Rolidium/releases) and on [rolidium.com/download](https://rolidium.com/download).
+Packages for Linux and Windows and their SHA-256 checksums (`SHA256SUMS`) are on the [releases page](https://github.com/MrRolid/Rolidium/releases) and on [rolidium.com/download](https://rolidium.com/download).
+Check the download against the checksums: `sha256sum -c SHA256SUMS` (Linux), `certutil -hashfile <file> SHA256` (Windows).
 
-* Linux: x86-64, glibc 2.35 or newer, a graphics driver with Vulkan.
-* Windows: 64-bit, a graphics driver with Vulkan or DirectX 12.
+**Debian, Ubuntu, Linux Mint (the `.deb`)**
+
+    sudo apt install ./rolidium_0.2.0_amd64.deb
+
+This puts `rolidium` (and the links `rolidium-cli` and `rolidium-mcp`) into `/usr/bin`, adds a menu entry with its icons and makes `.rolidium`
+files open in Rolidium. Remove it with `sudo apt remove rolidium`.
+
+**Any Linux (the `.AppImage`)**
+
+    chmod +x Rolidium-0.2.0-x86_64.AppImage
+    ./Rolidium-0.2.0-x86_64.AppImage
+
+Without FUSE (some containers and minimal systems): `./Rolidium-0.2.0-x86_64.AppImage --appimage-extract-and-run`. The AppImage uses the libraries
+of the system like the other Linux packages; nothing is installed.
+
+**Any Linux (the `.tar.gz`)**
+
+    tar xzf rolidium-0.2.0-linux-x86_64.tar.gz
+    cd rolidium-0.2.0
+    ./rolidium
+    ./install-desktop-entry.sh      # optional: a menu entry and the icon for the current user, no root needed
+
+**Windows**
+
+Unpack `rolidium-0.2.0-windows-x86_64.zip` into a folder you choose and start `rolidium.exe`. There is no installer and nothing is written
+outside the folder, except the settings (`%APPDATA%\rolidium`) and the log and autosave (`%LOCALAPPDATA%\rolidium`).
+
+**Minimum requirements**
+
+* Windows 10 or 11, 64-bit.
+* Linux x86-64 with **glibc 2.35 or newer** and libstdc++ 12 or newer: Ubuntu 22.04 and later, Debian 12 and later, Linux Mint 21 and later, Fedora 36 and later. Older systems (Debian 11, Ubuntu 20.04, RHEL 9) do not run it.
+* A graphics card with DirectX 12 (Windows), Vulkan or OpenGL 3.3 (Linux), and its driver. Without one, Rolidium draws by software, which works but is slow.
+* Memory: a small model needs little; a document with hundreds of bodies needs hundreds of MB (the router demo: about 400 MB).
+
+**A new, unsigned program.** Rolidium is new and its Windows program is not signed with a certificate. Windows SmartScreen may say "Windows protected your PC"
+(choose *More info*, then *Run anyway*), and some antivirus programs may block or quarantine `rolidium.exe` as unknown. It is a false alarm: the
+program is open source, you can check the download against the SHA-256 checksums, and you can build it yourself ([BUILDING.md](BUILDING.md)). Add the folder of
+Rolidium (or the file) to the exceptions of your antivirus (in Windows Security: *Virus & threat protection* > *Manage settings* > *Exclusions* > *Add or remove exclusions*).
+If your antivirus vendor lets you report a false positive, please do; the details for that are in the release.
 
 To build the program yourself, see [BUILDING.md](BUILDING.md).
 
@@ -35,7 +73,7 @@ To build the program yourself, see [BUILDING.md](BUILDING.md).
 
 ## Example parts
 
-Ten bigger models, from an electronics box to a gantry CNC router with 340 bodies, are in [`examples/demos`](examples/demos/) (public domain, CC0 1.0, while the rest of the repository is AGPL-3.0-only).
+Ten bigger models, from an electronics box to a gantry CNC router with 338 bodies, are in [`examples/demos`](examples/demos/) (public domain, CC0 1.0, while the rest of the repository is AGPL-3.0-only).
 
 Every part below is built by a short script for the headless tool, see [`examples/`](examples). The scripts run in the test suite
 and check the volume of the result, so they stay correct.
@@ -93,7 +131,7 @@ Everything listed here works today.
 * The Selection panel shows volume, surface area, mass and size of a body, area and diameter of faces, length and radius of edges (sums for several); a click copies a value.
 * Undo and redo of everything, a document tree, hide and show, rename, delete. **Every body has a name** (free text, shown in the list and in the Selection panel; rename it with `F2` or a double click, one step of Undo). The name is saved in the file, kept by operations (a copy has the same name, a merged body keeps the name of its target), given with `name "..."` in `rolidium cli` and MCP, and written to and read from STEP files. The list of bodies scrolls, and follows what you pick in the model.
 * **Smooth display.** A circle or a hole stays round when you zoom in: the faces in view are meshed again in the background for the pixel at their own distance, with a budget of triangles shared by the bodies in view (a hole of 6 mm in a plate of a document of 300 bodies is within half a pixel of the exact circle).
-* **Fast in big documents.** An operation, Undo or Redo costs what the changed bodies cost, not what the document costs: the router demo (340 bodies) moves a screw in about 25 ms and pulls a face of a small body in about 60 ms (measured under load, see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)). The meshes of the bodies, the reading of a file and the booleans use several cores (below).
+* **Fast in big documents.** An operation, Undo or Redo costs what the changed bodies cost, not what the document costs: the router demo (338 bodies) moves a screw in about 25 ms and pulls a face of a small body in about 60 ms (measured under load, see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)). The meshes of the bodies, the reading of a file and the booleans use several cores (below).
 * **Demo models:** ten models from an electronics box to a CNC router with 338 bodies in [`examples/demos`](examples/demos/) (public domain, CC0 1.0).
 * Buttons show with a traffic light whether they can be used now and why not; Sketch is the main button (it becomes "Finish sketch").
 * Dark (default) or light appearance, or follow the system; a toolbar above the view and floating panels you can drag away from the model.

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-rolidium">
+    <comment>Rolidium model</comment>
+    <comment xml:lang="cs">Model Rolidia</comment>
+    <sub-class-of type="application/zip"/>
+    <generic-icon name="application-x-rolidium"/>
+    <glob pattern="*.rolidium"/>
+  </mime-type>
+</mime-info>

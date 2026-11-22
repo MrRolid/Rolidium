@@ -38,6 +38,8 @@ bodies at the same time and to take the lock off them, and to run the checks of 
 
 ## Later
 
+* **Distribution.** A signed Windows program (a code-signing certificate, which also ends the warnings of SmartScreen and antivirus programs), an installer for Windows, Linux packages from a repository, a Flatpak, and a build for macOS. None of it exists yet; today there are the zip, the tar.gz, the `.deb` and the `.AppImage`.
+
 * **STL import with face recognition**, so that a mesh becomes an editable solid.
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.
@@ -149,4 +151,5 @@ What is finished is listed in the [changelog](../CHANGELOG.md). Items that were 
 * **Notice of a new version** (0.2.0). With the consent of the person (a small card at the first start, a switch in Settings), the program asks rolidium.com at most once a day, in the background, whether a newer
   version exists. The question carries the version of the program, the name and main number of the system and the architecture, and nothing else. The notice offers *Download* (the fixed download page, opened in the
   browser: the program downloads and starts nothing) and *Skip this version*. `rolidium cli`, `rolidium mcp`, `--selftest`, `--bench`, `--diagnose` and `ROLIDIUM_OFFLINE=1` never do it. See [PRIVACY.md](PRIVACY.md).
-* **Sending diagnostics** (0.2.0), only when the person asks: they see what is sent, can add a note and an e-mail, and nothing leaves before they confirm.
+* **Sending diagnostics** (0.2.0), only when the person asks: they see what is sent (every file with a check box, the picture of the window first), can add a note and an e-mail, and nothing leaves before they confirm.
+* **Packages for Linux** (0.2.0): a `.deb`, an `.AppImage` and the tar.gz, made by `scripts/package.sh` together with the Windows zip.

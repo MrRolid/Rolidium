@@ -15,7 +15,7 @@ around it (see the list at the end), and the pictures are what the program draws
 | 07 | [Linear guide with a carriage](07-linear-guide/) | 5 | a drawn profile, 0.1 mm clearances |
 | 08 | [Machine vise](08-machine-vise/) | 14 | a real thread by sweep along a helix |
 | 09 | [Spindle with a clamp mount](09-spindle-mount/) | 8 | a clamp with a slit and screws |
-| 10 | [Gantry CNC router](10-cnc-router/) | 340 | everything above, 340 named bodies; the base is built by the script, the model is then worked on by hand in the window |
+| 10 | [Gantry CNC router](10-cnc-router/) | 338 | everything above, 338 named bodies (the base that the script builds has 340); the base is built by the script, the model is then worked on by hand in the window |
 
 ![overview](../../docs/images/demos-overview.png)
 

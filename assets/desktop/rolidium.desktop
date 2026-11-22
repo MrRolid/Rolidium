@@ -9,3 +9,5 @@ Terminal=false
 Categories=Graphics;Engineering;
 MimeType=application/x-rolidium;
 StartupWMClass=rolidium
+Keywords=CAD;CAM;3D;modeling;CNC;STEP;STL;
+Version=1.5

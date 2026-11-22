@@ -6,10 +6,12 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [0.2.0] - unreleased
+## [0.2.0] - 2026-11-22
 
 ### Added
-- Demo models (`examples/demos`, CC0): ten models from an electronics box to a CNC router with 340 bodies, built by scripts for `rolidium cli`, with a test that checks their bodies, volumes, that no two bodies overlap and that an assembly is one connected piece.
+- Packages: a `.deb` for Debian, Ubuntu and Linux Mint (the program in `/usr/bin`, menu entry, icons, the type `application/x-rolidium`, Debian copyright file, the licences of the components in `/usr/share/doc/rolidium`) and an `.AppImage` (also starts without FUSE with `--appimage-extract-and-run`), next to the tar.gz and the Windows zip. `scripts/package.sh` makes all of them, the demos zip and the checksums with one command into `dist/release/`.
+- `ROLIDIUM_PRESENTATION=1` leaves the label of software drawing and the name of the graphics card out of the status bar (for pictures of the window; see `docs/UI-STYLE.md`).
+- Demo models (`examples/demos`, CC0): ten models from an electronics box to a CNC router with 338 bodies, built by scripts for `rolidium cli`, with a test that checks their bodies, volumes, that no two bodies overlap and that an assembly is one connected piece.
 - Names of bodies: free text that is saved in the file, kept by operations (a copy has the same name, a merged body keeps the name of its target), renamed with F2 or a double click in the list (one step of Undo), given with `name "..."` when a body is made in `rolidium cli` and MCP, changed with the `rename` command and written to and read from STEP files.
 - `rolidium --bench file.rolidium`: opens the file, times the first frame, turns the view for 5 seconds, prints the time of a frame (median and worst) with the graphics adapter and interface, writes it to the log and exits.
 - Pull from a sketch and Revolve have the mode `new` (a body of its own, even where it touches another body) in `rolidium cli` and MCP; `export-step` and `export-stl` write all bodies unless `body N` is given.

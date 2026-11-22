@@ -1,0 +1,4 @@
+#!/bin/sh
+# AppRun of the Rolidium AppImage: starts the program inside the image (the window, or "cli" / "mcp" as the first argument).
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/rolidium" "$@"

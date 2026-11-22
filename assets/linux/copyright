@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Rolidium
+Upstream-Contact: Rolid spol. s r.o. <connect@rolid.com>
+Source: https://github.com/MrRolid/Rolidium
+
+Files: *
+Copyright: 2026 Rolid spol. s r.o.
+License: AGPL-3
+ Rolidium is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by
+ the Free Software Foundation, version 3 of the License only.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+ .
+ On Debian systems the full text of the GNU Affero General Public License version 3 is in /usr/share/common-licenses/AGPL-3.
+
+Files: usr/share/doc/rolidium/examples/*
+Copyright: 2026 Rolid spol. s r.o.
+License: CC0-1.0
+ The example models and their scripts are dedicated to the public domain (Creative Commons Zero 1.0). See usr/share/doc/rolidium/examples/demos/LICENSE.
+
+Files: usr/bin/rolidium
+Copyright: 2026 Rolid spol. s r.o. and the authors of the components built into the program
+License: AGPL-3
+Comment: The program is one statically linked file. It contains Open CASCADE Technology (LGPL-2.1 with the Open CASCADE exception), the Rust
+ libraries it was built with and the font Noto Sans JP (SIL Open Font License 1.1). Their licences, copyright notices and the list of
+ versions are in /usr/share/doc/rolidium/THIRD-PARTY-LICENSES.txt (also reachable from About > Third-party licences).
