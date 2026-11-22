@@ -578,7 +578,8 @@ impl App {
         let Some(p) = pointer else { return };
         let aspect = rect.width() / rect.height().max(1.0);
         let ray = Some(self.camera.ray(Self::ndc(p, rect), aspect));
-        let mut axis: Option<(DVec3, DVec3, Option<f64>)> = None;
+        // the axis, and what a round face gives: (diameter at the start, height, half angle of the cone)
+        let mut axis: Option<(DVec3, DVec3, Option<(f64, f64, f64)>)> = None;
         if let Some(obj) = self.pick_object(p, rect, true, true) {
             match obj {
                 Obj::Edge(b, e) => {
@@ -615,7 +616,18 @@ impl App {
                     .body(b)
                     .and_then(|bd| bd.solid.cylinder_info(FaceId(f)).ok().flatten())
                 {
-                    axis = Some((info.base, info.axis, Some(info.radius * 2.0)));
+                    axis = Some((info.base, info.axis, Some((info.radius * 2.0, info.height, 0.0))));
+                } else if let Some(info) = self
+                    .doc
+                    .body(b)
+                    .and_then(|bd| bd.solid.cone_info(FaceId(f)).ok().flatten())
+                {
+                    // a conical face: the axis of the cone, the start at its lower rim, the height of the face, the diameter and the angle of the cone there
+                    axis = Some((
+                        info.base,
+                        info.axis,
+                        Some((info.r_base * 2.0, info.height, info.half_angle_deg)),
+                    ));
                 }
             }
         }
@@ -638,8 +650,15 @@ impl App {
         self.helix.axis = Some((origin, dir));
         let any = if dir.x.abs() < 0.9 { DVec3::X } else { DVec3::Y };
         self.helix.x_dir = dir.cross(any.cross(dir)).normalize();
-        if let Some(d) = diameter {
+        if let Some((d, height, cone)) = diameter {
             self.helix.diameter = fmt_num(d);
+            self.helix.cone = fmt_num(cone);
+            self.helix.start = "0".into();
+            // the helix runs along the whole face: the height of the face, and the turns that fit it
+            self.helix.height = fmt_num(height);
+            if let Some(p) = parse_num(&self.helix.pitch).filter(|p| p.abs() > 1e-9) {
+                self.helix.turns = fmt_num(height / p.abs());
+            }
         }
         self.helix.preview_key.clear();
         self.layers_changed = true;

@@ -1009,7 +1009,64 @@ pub struct CylinderInfo {
     pub is_hole: bool,
 }
 
+/// A conical face: where the helix on it starts and how it opens.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ConeInfo {
+    /// Unit axis, turned so that it points up (+Z) when it is not horizontal.
+    pub axis: DVec3,
+    /// Point on the axis at the lower end of the face (along `axis`).
+    pub base: DVec3,
+    pub height: f64,
+    /// Radius at the lower end and at the upper end.
+    pub r_base: f64,
+    pub r_top: f64,
+    /// Half angle in degrees, positive when the radius grows along `axis`, negative when it shrinks.
+    pub half_angle_deg: f64,
+}
+
 impl Solid {
+    /// Describes a conical face (the whole of it or a part): the axis, the lower end, the height and the radii at the ends.
+    pub fn cone_info(&self, face: FaceId) -> Result<Option<ConeInfo>> {
+        let info = self.face_info(face)?;
+        if info.kind != FaceKind::Cone {
+            return Ok(None);
+        }
+        let mut axis = info.normal.normalize();
+        if axis.z < -1e-9
+            || (axis.z.abs() <= 1e-9 && (axis.x < -1e-9 || (axis.x.abs() <= 1e-9 && axis.y < 0.0)))
+        {
+            axis = -axis;
+        }
+        let pts = self.face_outline(face, 0.05)?;
+        // the radius at each height from the outline points; the ends are the lowest and the highest points
+        let mut lo = (f64::MAX, 0.0);
+        let mut hi = (f64::MIN, 0.0);
+        for p in pts.iter().flatten() {
+            let v = p.as_dvec3() - info.origin;
+            let t = v.dot(axis);
+            let r = (v - axis * t).length();
+            if t < lo.0 {
+                lo = (t, r);
+            }
+            if t > hi.0 {
+                hi = (t, r);
+            }
+        }
+        if lo.0 >= hi.0 {
+            return Ok(None);
+        }
+        let height = hi.0 - lo.0;
+        let slope = (hi.1 - lo.1) / height;
+        Ok(Some(ConeInfo {
+            axis,
+            base: info.origin + axis * lo.0,
+            height,
+            r_base: lo.1,
+            r_top: hi.1,
+            half_angle_deg: slope.atan().to_degrees(),
+        }))
+    }
+
     /// Describes a full cylindrical face; `None` for partial cylinders (fillets) and other faces.
     pub fn cylinder_info(&self, face: FaceId) -> Result<Option<CylinderInfo>> {
         let info = self.face_info(face)?;

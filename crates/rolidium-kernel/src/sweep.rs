@@ -141,6 +141,9 @@ impl Path {
                     d[4] = -axis.x;
                     d[5] = -axis.y;
                     d[6] = -axis.z;
+                    // the cone opens along the axis that was given: along the turned axis it opens the other way
+                    let n = d.len();
+                    d[n - 1] = -d[n - 1];
                     helix_axis = Some(-axis);
                 }
                 native::make_path(&d)?

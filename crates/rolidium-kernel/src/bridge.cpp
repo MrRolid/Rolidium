@@ -996,8 +996,9 @@ std::shared_ptr<Shape> make_path(rust::Slice<const double> d) {
                 double dv = pitch;
                 if (std::fabs(cone) > 1e-9) {
                     // a conical surface: v runs along the generatrix, the axial advance is v * cos(cone)
-                    surf = new Geom_ConicalSurface(ax, std::fabs(cone), radius);
-                    dv = pitch / std::cos(std::fabs(cone));
+                    // a positive angle opens along the axis, a negative one narrows along it
+                    surf = new Geom_ConicalSurface(ax, cone, radius);
+                    dv = pitch / std::cos(cone);
                 } else {
                     surf = new Geom_CylindricalSurface(ax, radius);
                 }
