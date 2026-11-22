@@ -278,3 +278,55 @@ fn groups_nest_hide_and_dissolve() {
     let _ = BooleanOp::Fuse;
     assert!(d.undo() && d.undo() || true);
 }
+
+#[test]
+fn links_and_groups_are_saved_and_opened() {
+    let mut d = Document::new();
+    let flange = add_solid(&mut d, "Flange", Solid::cylinder(50.0, 10.0, DVec3::ZERO, DVec3::Z).unwrap());
+    let pin = add_solid(&mut d, "Hole", Solid::cylinder(4.0, 20.0, DVec3::new(35.0, 0.0, -5.0), DVec3::Z).unwrap());
+    d.apply(Command::AddLink {
+        kind: LinkKind::Circular(CircularParams { axis: Axis { origin: DVec3::ZERO, dir: DVec3::Z }, count: 6, angle_deg: 0.0, full: true }, PatternMode::Cut(flange)),
+        sources: vec![pin],
+        name: "Bolt circle".into(),
+    })
+    .unwrap();
+    let rod = add_solid(&mut d, "Rod", Solid::cylinder(5.0, 10.0, DVec3::new(0.0, 100.0, 0.0), DVec3::Z).unwrap());
+    d.apply(Command::AddLink { kind: linear(4, 20.0, DVec3::X), sources: vec![rod], name: String::new() }).unwrap();
+    d.apply(Command::AddLink {
+        kind: LinkKind::Mirror(MirrorParams { origin: DVec3::new(0.0, 0.0, 0.0), normal: DVec3::Y }),
+        sources: vec![rod],
+        name: String::new(),
+    })
+    .unwrap_or_else(|e| panic!("{e}"));
+    d.apply(Command::CreateGroup { bodies: vec![flange, pin], name: "Flange group".into(), parent: None }).unwrap();
+    let before: Vec<(String, f64)> = d.bodies().iter().map(|b| (b.name.clone(), b.solid.volume().unwrap())).collect();
+    let bytes = rolidium_doc::file::save_to_bytes(&d, None, "test").unwrap();
+    let mut d2 = Document::from_loaded(rolidium_doc::file::load_from_bytes(&bytes).unwrap());
+    let after: Vec<(String, f64)> = d2.bodies().iter().map(|b| (b.name.clone(), b.solid.volume().unwrap())).collect();
+    assert_eq!(before.len(), after.len());
+    for (a, b) in before.iter().zip(&after) {
+        assert!(a.0 == b.0 && (a.1 - b.1).abs() < 1e-6, "{a:?} {b:?}");
+    }
+    assert_eq!(d2.state().links.len(), 3);
+    assert_eq!(d2.state().links[0].name, "Bolt circle");
+    assert_eq!(d2.state().links[0].kind, d.state().links[0].kind);
+    assert_eq!(d2.state().links[0].results, d.state().links[0].results);
+    assert!(d2.state().links[0].base.is_some());
+    assert_eq!(d2.state().groups.len(), 1);
+    assert_eq!(d2.state().groups[0].name, "Flange group");
+    assert_eq!(d2.state().groups[0].bodies, vec![flange, pin]);
+    // the opened links work: pulling the source of the row changes its copies
+    let f = top_face(&d2.body(rod).unwrap().solid);
+    d2.apply(Command::PullFace { body: rod, face: f, distance: 5.0, mode: PullMode::Auto }).unwrap();
+    let copies: Vec<f64> = d2.state().links[1].results.iter().map(|r| volume(&d2, *r)).collect();
+    assert!(copies.iter().all(|v| (v - PI * 25.0 * 15.0).abs() < 1e-6), "{copies:?}");
+    // the bolt circle recalculated from the stored base: change the tool
+    let tf = top_face(&d2.body(pin).unwrap().solid);
+    d2.apply(Command::PullFace { body: pin, face: tf, distance: 1.0, mode: PullMode::Auto }).unwrap();
+    assert!((volume(&d2, flange) - (PI * 2500.0 * 10.0 - 6.0 * PI * 16.0 * 10.0)).abs() < 1e-5);
+    // a file of an older program (no links, no groups) opens as before
+    let mut plain = Document::new();
+    add_solid(&mut plain, "A", Solid::cuboid(DVec3::ZERO, DVec3::splat(5.0)).unwrap());
+    let loaded = rolidium_doc::file::load_from_bytes(&rolidium_doc::file::save_to_bytes(&plain, None, "0.2.0").unwrap()).unwrap();
+    assert!(loaded.state.links.is_empty() && loaded.state.groups.is_empty());
+}

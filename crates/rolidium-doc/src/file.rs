@@ -185,6 +185,130 @@ fn curve_from(j: &Map<String, Value>) -> Result<Option<CurveDef>, FileError> {
     })
 }
 
+fn axis_json(a: &crate::Axis) -> Value {
+    json!({"origin": arr3(a.origin), "dir": arr3(a.dir)})
+}
+
+fn axis_from(v: &Value) -> Result<crate::Axis, FileError> {
+    Ok(crate::Axis { origin: get3(&v["origin"])?, dir: get3(&v["dir"])? })
+}
+
+/// The JSON of a link (without the solid it started from, which is a BREP entry of its own).
+fn link_json(l: &crate::Link) -> Value {
+    use crate::{LinkKind, PatternMode};
+    let mut j = Map::new();
+    j.insert("name".into(), json!(l.name));
+    j.insert("sources".into(), json!(l.sources));
+    j.insert("results".into(), json!(l.results));
+    j.insert("error".into(), json!(l.error));
+    let mode = |m: &PatternMode, j: &mut Map<String, Value>| {
+        let (name, target) = match m {
+            PatternMode::New => ("new", None),
+            PatternMode::Add(t) => ("add", Some(*t)),
+            PatternMode::Cut(t) => ("cut", Some(*t)),
+        };
+        j.insert("mode".into(), json!(name));
+        j.insert("target".into(), json!(target));
+    };
+    match &l.kind {
+        LinkKind::Linear(p, m) => {
+            j.insert("type".into(), json!("linear"));
+            mode(m, &mut j);
+            j.insert("axis".into(), axis_json(&p.axis));
+            j.insert("count".into(), json!(p.count));
+            j.insert("spacing".into(), json!(p.spacing));
+            j.insert("by_total".into(), json!(p.by_total));
+            j.insert(
+                "second".into(),
+                match &p.second {
+                    Some(s) => json!({"axis": axis_json(&s.axis), "count": s.count, "spacing": s.spacing, "by_total": s.by_total}),
+                    None => Value::Null,
+                },
+            );
+        }
+        LinkKind::Circular(p, m) => {
+            j.insert("type".into(), json!("circular"));
+            mode(m, &mut j);
+            j.insert("axis".into(), axis_json(&p.axis));
+            j.insert("count".into(), json!(p.count));
+            j.insert("angle_deg".into(), json!(p.angle_deg));
+            j.insert("full".into(), json!(p.full));
+        }
+        LinkKind::Mirror(m) => {
+            j.insert("type".into(), json!("mirror"));
+            j.insert("origin".into(), arr3(m.origin));
+            j.insert("normal".into(), arr3(m.normal));
+        }
+    }
+    Value::Object(j)
+}
+
+/// A link from its JSON; `None` when its kind is not known to this program (the entry is then kept as it is).
+fn link_from(id: u64, j: &Value, base: Option<Solid>, bodies: &[crate::Body]) -> Result<Option<crate::Link>, FileError> {
+    use crate::{CircularParams, LinearParams, LinkKind, MirrorParams, PatternMode};
+    let ids = |k: &str| -> Vec<u64> { j[k].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect()).unwrap_or_default() };
+    let mode = || -> Result<PatternMode, FileError> {
+        let t = j["target"].as_u64();
+        Ok(match (j["mode"].as_str().unwrap_or("new"), t) {
+            ("add", Some(t)) => PatternMode::Add(t),
+            ("cut", Some(t)) => PatternMode::Cut(t),
+            _ => PatternMode::New,
+        })
+    };
+    let kind = match j["type"].as_str() {
+        Some("linear") => LinkKind::Linear(
+            LinearParams {
+                axis: axis_from(&j["axis"])?,
+                count: j["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                spacing: get_f(&j["spacing"])?,
+                by_total: j["by_total"].as_bool().unwrap_or(false),
+                second: match &j["second"] {
+                    Value::Object(_) => Some(crate::Direction2 {
+                        axis: axis_from(&j["second"]["axis"])?,
+                        count: j["second"]["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                        spacing: get_f(&j["second"]["spacing"])?,
+                        by_total: j["second"]["by_total"].as_bool().unwrap_or(false),
+                    }),
+                    _ => None,
+                },
+            },
+            mode()?,
+        ),
+        Some("circular") => LinkKind::Circular(
+            CircularParams {
+                axis: axis_from(&j["axis"])?,
+                count: j["count"].as_u64().ok_or_else(|| corrupt("a link without a count"))? as u32,
+                angle_deg: get_f(&j["angle_deg"])?,
+                full: j["full"].as_bool().unwrap_or(true),
+            },
+            mode()?,
+        ),
+        Some("mirror") => LinkKind::Mirror(MirrorParams { origin: get3(&j["origin"])?, normal: get3(&j["normal"])? }),
+        _ => return Ok(None),
+    };
+    let sources = ids("sources");
+    let results = ids("results");
+    // a link that points to bodies that are not in the file is dropped (its bodies stay as ordinary bodies)
+    if sources.iter().chain(results.iter()).any(|b| !bodies.iter().any(|x| x.id == *b)) {
+        return Ok(None);
+    }
+    if kind.mode().target().is_some() && base.is_none() {
+        return Ok(None);
+    }
+    let seen = sources.iter().filter_map(|s| bodies.iter().find(|b| b.id == *s)).map(|b| b.solid.clone()).collect();
+    Ok(Some(crate::Link {
+        id,
+        name: j["name"].as_str().unwrap_or("Link").to_string(),
+        kind,
+        sources,
+        results,
+        base,
+        seen,
+        error: j["error"].as_str().map(str::to_string),
+        warnings: Vec::new(),
+    }))
+}
+
 pub fn save_to_bytes(
     doc: &Document,
     preview: Option<&[u8]>,
@@ -212,6 +336,8 @@ pub fn save_to_bytes(
         manifest.insert("body_counter".into(), json!(st.body_counter));
         manifest.insert("sketch_counter".into(), json!(st.sketch_counter));
         manifest.insert("curve_counter".into(), json!(st.curve_counter));
+        manifest.insert("link_counter".into(), json!(st.link_counter));
+        manifest.insert("group_counter".into(), json!(st.group_counter));
         let mut bodies = Vec::new();
         for b in &st.bodies {
             let brep = b.solid.write_brep().map_err(|e| FileError::Io(e.to_string()))?;
@@ -303,6 +429,36 @@ pub fn save_to_bytes(
         } else {
             manifest.remove("curves");
         }
+        // links (patterns, mirrors) and groups of bodies
+        if !st.links.is_empty() {
+            let mut links = Vec::new();
+            for l in &st.links {
+                put(&mut zip, &format!("links/{}.json", l.id), &serde_json::to_vec_pretty(&link_json(l)).map_err(corrupt)?)?;
+                let mut entry = json!({"id": l.id, "file": format!("links/{}.json", l.id)});
+                if let Some(b) = &l.base {
+                    let brep = b.write_brep().map_err(|e| FileError::Io(e.to_string()))?;
+                    put(&mut zip, &format!("links/{}.base.brep", l.id), &brep)?;
+                    entry["base"] = json!(format!("links/{}.base.brep", l.id));
+                }
+                links.push(entry);
+            }
+            manifest.insert("links".into(), Value::Array(links));
+        } else {
+            manifest.remove("links");
+        }
+        if !st.groups.is_empty() {
+            manifest.insert(
+                "groups".into(),
+                Value::Array(
+                    st.groups
+                        .iter()
+                        .map(|g| json!({"id": g.id, "name": g.name, "parent": g.parent, "visible": g.visible, "bodies": g.bodies}))
+                        .collect(),
+                ),
+            );
+        } else {
+            manifest.remove("groups");
+        }
         put(
             &mut zip,
             "manifest.json",
@@ -368,6 +524,8 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             .and_then(Value::as_u64)
             .unwrap_or(0) as u32,
         curve_counter: manifest.get("curve_counter").and_then(Value::as_u64).unwrap_or(0) as u32,
+        link_counter: manifest.get("link_counter").and_then(Value::as_u64).unwrap_or(0) as u32,
+        group_counter: manifest.get("group_counter").and_then(Value::as_u64).unwrap_or(0) as u32,
         ..Default::default()
     };
     let mut max_id = 0u64;
@@ -617,6 +775,41 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         }
         max_id = max_id.max(id);
     }
+    // links and groups (files of an older program have none)
+    for l in manifest.get("links").and_then(Value::as_array).cloned().unwrap_or_default() {
+        let (Some(id), Some(file)) = (l["id"].as_u64(), l["file"].as_str()) else { continue };
+        let j: Value = serde_json::from_slice(&read_entry(&mut zip, file)?).map_err(corrupt)?;
+        let base = match l["base"].as_str() {
+            Some(n) => read_entry(&mut zip, n).ok().and_then(|d| Solid::read_brep(&d).ok()),
+            None => None,
+        };
+        if let Some(link) = link_from(id, &j, base, &state.bodies)? {
+            known.push(file.to_string());
+            if let Some(n) = l["base"].as_str() {
+                known.push(n.to_string());
+            }
+            max_id = max_id.max(id);
+            state.links.push(link);
+        }
+    }
+    for g in manifest.get("groups").and_then(Value::as_array).cloned().unwrap_or_default() {
+        let Some(id) = g["id"].as_u64() else { continue };
+        state.groups.push(crate::Group {
+            id,
+            name: g["name"].as_str().unwrap_or("Group").to_string(),
+            parent: g["parent"].as_u64(),
+            visible: g["visible"].as_bool().unwrap_or(true),
+            bodies: g["bodies"].as_array().map(|a| a.iter().filter_map(Value::as_u64).filter(|b| state.bodies.iter().any(|x| x.id == *b)).collect()).unwrap_or_default(),
+        });
+        max_id = max_id.max(id);
+    }
+    // a group whose parent is missing goes to the top
+    let ids: Vec<u64> = state.groups.iter().map(|g| g.id).collect();
+    for g in state.groups.iter_mut() {
+        if g.parent.is_some_and(|p| !ids.contains(&p) || p == g.id) {
+            g.parent = None;
+        }
+    }
     for i in 0..zip.len() {
         let name = zip
             .by_index(i)
@@ -644,9 +837,13 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             "body_counter",
             "sketch_counter",
             "curve_counter",
+            "link_counter",
+            "group_counter",
             "bodies",
             "sketches",
             "curves",
+            "links",
+            "groups",
         ],
     );
     extras.manifest = manifest;
