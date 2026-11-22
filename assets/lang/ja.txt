@@ -858,3 +858,9 @@ Bodies already made from this sketch do not change; change them with Pull. => �
 Centre X => 中心 X
 Centre Y => 中心 Y
 Diameter: {} mm => 直径: {} mm
+
+# ---- Appearance ----
+Brightness => 明るさ
+Default => 既定
+Moves the grey of the panels and of the model area; the text and the icons keep their contrast => パネルとモデル領域のグレーを動かします。文字とアイコンのコントラストは保たれます
+there is nothing to put together => まとめるものがありません

@@ -82,7 +82,7 @@ impl App {
     /// The name of the sketch plane at the edge of its sheet, and the preview of the plane under the cursor.
     pub(super) fn paint_plane_labels(&self, ui: &egui::Ui, rect: Rect) {
         let painter = ui.painter().with_clip_rect(rect);
-        let col = Color32::from_rgb(150, 200, 255);
+        let col = crate::theme::rgb(150, 200, 255);
         let font = egui::FontId::proportional(14.0);
         let sheet = |centre: DVec3, u: DVec3, v: DVec3, half: f64| -> Option<[Pos2; 4]> {
             let c = |a: f64, b: f64| self.project((centre + u * a * half + v * b * half).as_vec3(), rect);

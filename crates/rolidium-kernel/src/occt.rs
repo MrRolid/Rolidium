@@ -92,6 +92,8 @@ pub mod ffi {
             angle: f64,
             t: [f64; 3],
         ) -> Result<OpResult>;
+        /// A compound of the solids of `acc` (none when `first`) and the solids of `s` (used as one tool of a boolean).
+        fn compound_append(acc: &Shape, s: &Shape, first: bool) -> Result<SharedPtr<Shape>>;
         fn mirror_shape(shape: &Shape, point: [f64; 3], normal: [f64; 3]) -> Result<OpResult>;
         fn prism(shape: &Shape, v: [f64; 3]) -> Result<SharedPtr<Shape>>;
 

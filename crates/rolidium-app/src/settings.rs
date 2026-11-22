@@ -79,6 +79,8 @@ pub struct Settings {
     pub recent_dirs: Vec<String>,
     /// `dark` (default), `light` or `system`.
     pub theme: String,
+    /// The slider "Brightness" of the appearance, -100 to 100 (0 is the default).
+    pub brightness: i32,
     /// Graphics backend: `auto`, `dx12`, `vulkan` or `gl` (takes effect after a restart).
     pub backend: String,
     /// Backends that did not get through the start (a crash or an error) and are skipped by `auto`. Choosing `auto` in the
@@ -124,6 +126,7 @@ impl Default for Settings {
             recent: Vec::new(),
             recent_dirs: Vec::new(),
             theme: "dark".into(),
+            brightness: 0,
             backend: "auto".into(),
             backend_blocked: Vec::new(),
             dialog_w: 0.0,
@@ -187,6 +190,7 @@ impl Settings {
                 "recent" if !v.is_empty() => s.recent.push(v.to_string()),
                 "recent_dir" if !v.is_empty() => s.recent_dirs.push(v.to_string()),
                 "theme" if matches!(v, "dark" | "light" | "system") => s.theme = v.to_string(),
+                "brightness" => s.brightness = v.parse::<i32>().unwrap_or(0).clamp(-100, 100),
                 "backend" if matches!(v, "auto" | "dx12" | "vulkan" | "gl") => s.backend = v.to_string(),
                 "backend_blocked" => s.backend_blocked.extend(BlockedBackend::parse(v)),
                 "dialog_w" => s.dialog_w = v.parse().unwrap_or(0.0),
@@ -270,8 +274,8 @@ impl Settings {
         );
         let mut text = text;
         text.push_str(&format!(
-            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\n",
-            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(",")
+            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
+            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
         ));
         if let Some(i) = self.donate_index {
             text.push_str(&format!("donate_index={i}\n"));
@@ -324,6 +328,7 @@ mod tests {
             recent: vec!["/a/b.rolidium".into(), "/c.rolidium".into()],
             recent_dirs: vec!["/d".into(), "/e".into()],
             theme: "light".into(),
+            brightness: -35,
             backend: "vulkan".into(),
             backend_blocked: vec![BlockedBackend {
                 backend: "vulkan".into(),

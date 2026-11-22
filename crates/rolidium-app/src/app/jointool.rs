@@ -222,7 +222,7 @@ impl App {
                     ui.label("mm");
                 });
                 if self.join_gap().is_none() {
-                    ui.colored_label(Color32::from_rgb(255, 120, 110), tr("The largest gap must be a positive number"));
+                    ui.colored_label(crate::theme::rgb(255, 120, 110), tr("The largest gap must be a positive number"));
                 }
                 match &plan {
                     Some((_, p)) => {
@@ -269,7 +269,7 @@ impl App {
         let Some(sk) = self.doc.sketch(id) else { return };
         let painter = ui.painter().with_clip_rect(rect);
         let to_screen = |p: DVec2| self.project(sk.plane.to_3d(p).as_vec3(), rect);
-        let green = Color32::from_rgb(120, 255, 160);
+        let green = crate::theme::rgb(120, 255, 160);
         for (a, b) in &plan.connections {
             if let (Some(pa), Some(pb)) = (to_screen(*a), to_screen(*b)) {
                 let len = (pb - pa).length().max(1.0);
@@ -286,7 +286,7 @@ impl App {
         }
         for f in &plan.free {
             if let Some(p) = to_screen(*f) {
-                painter.circle_stroke(p, 6.0, egui::Stroke::new(2.0, Color32::from_rgb(255, 110, 100)));
+                painter.circle_stroke(p, 6.0, egui::Stroke::new(2.0, crate::theme::rgb(255, 110, 100)));
             }
         }
     }

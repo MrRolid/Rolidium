@@ -19,8 +19,8 @@ pub use diag::{
     is_software, render_test_scene, run_adapter, AdapterRun, BackendChoice, SceneCheck, Step,
 };
 pub use gpu::{
-    decode_pick, encode_pick, encode_png, BodyDraw, Frame, GridPlane, PreviewDraw, RenderTarget, Renderer,
-    ID_FACE_BITS, ID_NONE,
+    background_color, background_lightness, decode_pick, encode_pick, encode_png, grid_colors,
+    set_background, BodyDraw, Frame, GridPlane, PreviewDraw, RenderTarget, Renderer, ID_FACE_BITS, ID_NONE,
 };
 pub use preview::{face_boundary, pull_preview};
 pub use rolidium_sketch;

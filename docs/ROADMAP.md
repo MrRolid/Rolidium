@@ -5,9 +5,9 @@ reasons are in [DECISIONS.md](DECISIONS.md).
 
 ## Next
 
-The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
+The theme of the next releases (0.2.1 and following, numbered in small steps): **Rolidium for 3D printing.** In rough order:
 
-1. **Repeat along a line and around a circle, and groups of bodies.** *(Done in the 0.3.0 development, see the changelog. Left over: groups in STEP files as an assembly structure, because the prebuilt OpenCascade has no XCAF libraries; a live mirror is only for a separate mirror image, a merged mirror is made once; patterns and mirrors of sketch shapes are copies, not links.)* A pattern of a body or a feature (holes, screws, carriages) along a line or
+1. **Repeat along a line and around a circle, and groups of bodies.** *(Done in the 0.2.1 development, see the changelog. Left over: groups in STEP files as an assembly structure, because the prebuilt OpenCascade has no XCAF libraries; a live mirror is only for a separate mirror image, a merged mirror is made once; patterns and mirrors of sketch shapes are copies, not links.)* A pattern of a body or a feature (holes, screws, carriages) along a line or
    around a circle with a count and a distance or an angle, in the window and in the command-line and MCP modes. Groups of bodies that move, rotate
    about a chosen point, copy and hide together, and that can be listed in the document tree. Today the demos copy every body one by one and rotate only about the
    centre of a body (found while building the demo models, see `examples/demos/README.md`).
@@ -34,6 +34,8 @@ The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
 5. **Templates.** An electronics box, Gridfinity (boxes and a baseplate for the size of a drawer), tube elbows and couplings, hinges, clips.
 6. **STL import and editing.** Select a part of a mesh with a brush, delete it, separate it, fill holes, and turn simple shapes (a cylinder, a box, a cone) into a real solid. The plan for recognising faces is in
    the design notes below (*STL import*).
+   * **An image as a backdrop in a sketch**: a photo or a scanned drawing placed on a plane, its scale set from a known dimension (two points and the length between them), with transparency, and tracing over it with the sketch tools.
+   * **A section of an STL mesh or of a scan on a plane as a sketch**: the cut of the mesh by a plane becomes lines in a sketch that can be pulled or measured.
 7. **A check of the STL scale.** STL has no units and is always taken as millimetres; an automatic test exports a cube of 20 mm and checks that it is 20 mm.
 
 ## Then
@@ -42,7 +44,7 @@ The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
   combining them with a cylinder can be refused by the volume check in some cases (typically when a spring sticks out through the end
   faces of the cylinder, see D30). The plan is to build springs and threads from exact surfaces so that they combine reliably and the
   display mesh is fast, and to keep rounds and chamfers in the history after a fallback combine. Then a Thread tool: metric ISO threads
-  (M3 to M24) on a cylindrical face, external and internal, with clearance for 3D printing, modelled and cosmetic. The test matrix is
+  (M3 to M24) on a cylindrical face, external and internal, with clearance for 3D printing, modelled and cosmetic. Also **tapered pipe threads** (R according to ISO 7 and NPT) with the taper 1:16 (half angle about 1.79 degrees), external on a cone and internal in a conical hole; the helix on a conical face (it follows the cone) is the base of it. The test matrix is
   `crates/rolidium-kernel/tests/helix_matrix.rs` (ignored by default, run it with `--ignored`).
 * **Permanent dimensions.** Today measurements are temporary (the Measure tool). Permanent dimensions are built from the same elements
   (`MElem` in `app/measuretool.rs`), stored in the document and shown in the 3D view. See the design notes below.
@@ -68,6 +70,7 @@ The theme of version 0.3.0: **Rolidium for 3D printing.** In rough order:
 
 * **A paid part for custom printing**: a price from the print time and the filament, an offer as a PDF, a record of the filament.
 * **Assemblies with joints**, a check of collisions and the range of movement.
+* **Digitising a physical part with a touch probe on the CNC machine** (with the CAM): the points the probe touches are read from the machine and turned into a sketch (or a point cloud) in the model.
 * **A puzzle made from a model.**
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.

@@ -113,7 +113,7 @@ Curves (3D lines and helices) are stored next to the sketches. The addition is p
 STL has no units. Rolidium always writes it in **millimetres** (the units of the document), binary or ASCII; slicers read it as millimetres. A test
 (`crates/rolidium-cli/tests/stl_scale.rs`) builds a cube of 20 mm, exports it, reads the file back and checks that its bounding box is 20 x 20 x 20 mm to 0.001 mm.
 
-## Links and groups (added in program version 0.3.0, still format version 1)
+## Links and groups (added in program version 0.2.1, still format version 1)
 
 A *link* is a pattern or a live mirror: an object of the document that remembers its source bodies, its parameters and the bodies it made. A *group* is a
 list of bodies in the right column. Both are additive: a file without them opens in every version, and a program that does not know them keeps the entries as they are (see "Unknown content").

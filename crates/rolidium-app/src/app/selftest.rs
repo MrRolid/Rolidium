@@ -19,6 +19,10 @@ pub struct SelfTest {
     t_prep: Option<std::time::Instant>,
     children0: usize,
     step_sketch: Option<SketchId>,
+    /// The looks of the appearance check (the dark and the light one at the two ends of the slider and at the default) and what was measured in the last picture.
+    look_i: usize,
+    look_sample: Option<(f32, f32)>,
+    look_applied: bool,
 }
 
 impl SelfTest {
@@ -35,6 +39,9 @@ impl SelfTest {
             t_prep: None,
             children0: 0,
             step_sketch: None,
+            look_i: 0,
+            look_sample: None,
+            look_applied: false,
         }
     }
 }
@@ -87,6 +94,22 @@ impl App {
                 let mut rgba = Vec::with_capacity(w * h * 4);
                 for p in &img.pixels {
                     rgba.extend_from_slice(&p.to_array());
+                }
+                // the grey of the panels (a strip at the left edge of the right column) and of the model area (the upper part of the view)
+                if name.starts_with("look-") && w > 400 && h > 300 {
+                    let grey = |x: usize, y: usize| {
+                        let p = img.pixels[y * w + x];
+                        (p.r() as f32 + p.g() as f32 + p.b() as f32) / (3.0 * 255.0)
+                    };
+                    let panel = grey(w - 8, h / 2 + 40);
+                    let mut v: Vec<f32> = Vec::new();
+                    for y in (h / 10..h / 4).step_by(3) {
+                        for x in (w / 3..w * 2 / 3).step_by(5) {
+                            v.push(grey(x, y));
+                        }
+                    }
+                    v.sort_by(|a, b| a.total_cmp(b));
+                    st.look_sample = Some((panel, v[v.len() / 2]));
                 }
                 match rolidium_render::encode_png(&rgba, w as u32, h as u32) {
                     Ok(png) => {
@@ -1716,6 +1739,78 @@ impl App {
                 st.wait_frames = 2;
             }
             84 => {
+                // the appearance: pictures of the dark and the light look at both ends of the slider and at the default
+                let looks = [
+                    ("dark", -100),
+                    ("dark", 0),
+                    ("dark", 100),
+                    ("light", -100),
+                    ("light", 0),
+                    ("light", 100),
+                ];
+                if st.look_i < looks.len() {
+                    let (th, level) = looks[st.look_i];
+                    if !st.look_applied {
+                        // the look is set now and drawn for a few frames, then the picture is taken
+                        self.settings.brightness = level;
+                        self.settings.theme = th.to_string();
+                        crate::theme::apply(ctx, th, level);
+                        st.look_applied = true;
+                        st.wait_frames = 8;
+                        st.step = 83; // this step again
+                    } else {
+                        st.look_applied = false;
+                        st.look_sample = None;
+                        let name = format!(
+                            "look-{th}-{}",
+                            if level < 0 {
+                                "min"
+                            } else if level > 0 {
+                                "max"
+                            } else {
+                                "default"
+                            }
+                        );
+                        shot(&mut st, ctx, &name);
+                        st.step = 85;
+                        self.selftest = Some(st);
+                        return;
+                    }
+                    st.step += 1;
+                    self.selftest = Some(st);
+                    return;
+                }
+                st.step = 86;
+                self.selftest = Some(st);
+                return;
+            }
+            85 => {
+                let looks = [
+                    ("dark", -100),
+                    ("dark", 0),
+                    ("dark", 100),
+                    ("light", -100),
+                    ("light", 0),
+                    ("light", 100),
+                ];
+                let (th, level) = looks[st.look_i];
+                let light = th == "light";
+                let sample = st.look_sample;
+                let want_panel = crate::theme::panel_lightness(light, level);
+                let want_view = crate::theme::viewport_lightness(light, level);
+                let ok = sample
+                    .is_some_and(|(p, v)| (p - want_panel).abs() < 0.05 && (v - want_view).abs() < 0.08);
+                check(&mut st, &format!("picture of the {th} look at brightness {level}: the grey of the panels and of the model area is as set {sample:?} (wanted {want_panel:.2}, {want_view:.2})"), ok);
+                st.look_i += 1;
+                st.step = 83; // the next step is 84 again
+            }
+            86 => {
+                self.settings.theme = "dark".into();
+                self.settings.brightness = 0;
+                crate::theme::apply(ctx, "dark", 0);
+                st.wait_frames = 3;
+            }
+            87 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

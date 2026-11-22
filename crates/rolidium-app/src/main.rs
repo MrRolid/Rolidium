@@ -23,6 +23,7 @@ mod sketchmode;
 mod sound;
 mod startup;
 mod support;
+mod theme;
 mod viewport;
 mod winconsole;
 #[cfg(windows)]

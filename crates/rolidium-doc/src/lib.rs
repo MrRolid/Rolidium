@@ -22,7 +22,7 @@ pub use links::{
     link_of_result, placements_of, Axis, CircularParams, Direction2, Group, GroupId, LinearParams, Link,
     LinkId, LinkKind, MirrorParams, PatternMode, MAX_PIECES,
 };
-pub use sketchops::{entity_dims, entity_with_dims, SketchPattern};
+pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DocError {

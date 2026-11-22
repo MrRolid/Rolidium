@@ -122,3 +122,11 @@ With `ROLIDIUM_PRESENTATION=1` the status bar leaves out the label of software d
 * In the right column, **Links** come between Bodies and Sketches (an eye shows or hides the bodies of the link, a warning sign marks a failed recalculation, a click opens the panel);
   bodies made by a link have a chain mark in the list. **Groups** are a tree with collapse arrows; bodies and groups are dragged onto a group (while dragging, a row "Out of every group" appears).
 * A hand edit of a body made by a link opens a question (remove the link and edit / cancel). Every change of a link is one step of Undo.
+
+## Appearance and the Brightness slider
+
+* The light appearance is a **light grey**, not white: panels `#d6d6d6`, model area about `#c2c3c6` at the default. The model area (`rolidium_render::set_background`) follows the appearance; the grid, the axes and the lines drawn over the view are drawn for its lightness (dark lines on a light background; a bright colour is darkened by `theme::rgb` / `ink`, keeping its hue).
+* Settings has a slider **Brightness** (-100 to 100, 0 is the default, a button returns to it). It moves the grey of the panels and of the model area in both appearances within a range (`theme.rs`: dark panels 0.07 to 0.20, light panels 0.76 to 0.94 of white); the change is drawn at once and remembered (`brightness=` in the settings).
+* The ranges are chosen so that **WCAG AA** holds over the whole slider: 4.5:1 for text, 3:1 for icons, the traffic light and lines, and visible grid and axes. The tests in `theme.rs` check it at -100, -50, 0, 50 and 100 in both appearances (text, strong text on hovered and pressed buttons, both icon colours, green and red, the grid, the axes and the overlay colours).
+* `--selftest` takes a picture of the window for the dark and the light look at both ends of the slider and at the default (`look-dark-min.png` ... `look-light-max.png`) and checks the grey of the panels and of the model area in it.
+* Colours in code: use `theme::rgb(r, g, b)` instead of `Color32::from_rgb` for text and lines drawn over panels and the view, so that they follow the appearance.

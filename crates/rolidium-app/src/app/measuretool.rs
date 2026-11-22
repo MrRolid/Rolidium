@@ -38,7 +38,7 @@ pub struct MeasureUi {
 const PICK_RADIUS: f32 = 9.0;
 
 fn color_line() -> Color32 {
-    Color32::from_rgb(255, 214, 90)
+    crate::theme::rgb(255, 214, 90)
 }
 
 impl App {
@@ -438,7 +438,7 @@ impl App {
             ring(p, col);
         }
         if let Some(MElem::Point(p)) = self.measure.hover {
-            ring(p, Color32::from_rgb(120, 255, 160));
+            ring(p, crate::theme::rgb(120, 255, 160));
         }
         for r in &self.measure.results {
             let m = &r.m;
@@ -461,7 +461,7 @@ impl App {
                     if let (Some(a), Some(b)) =
                         (self.project(p.as_vec3(), rect), self.project(q.as_vec3(), rect))
                     {
-                        let c2 = Color32::from_rgb(150, 210, 255);
+                        let c2 = crate::theme::rgb(150, 210, 255);
                         painter.extend(egui::Shape::dashed_line(&[a, b], Stroke::new(1.8, c2), 7.0, 4.0));
                         Self::label_at(&painter, a.lerp(b, 0.5) + Vec2::new(0.0, 12.0), fmt_length(d), c2);
                     }
@@ -476,7 +476,7 @@ impl App {
     }
 
     fn paint_angle(&self, painter: &egui::Painter, rect: Rect, an: &rolidium_kernel::Angle) {
-        let col = Color32::from_rgb(255, 160, 120);
+        let col = crate::theme::rgb(255, 160, 120);
         // an arc about 45 px in radius, drawn in the plane of the two arms
         let Some(c) = self.project(an.apex.as_vec3(), rect) else {
             return;

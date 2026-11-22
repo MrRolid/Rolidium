@@ -53,6 +53,9 @@ struct Globals {
     grid_u: [f32; 4],
     grid_v: [f32; 4],
     viewport: [f32; 4],
+    grid_col: [f32; 4],
+    x_col: [f32; 4],
+    y_col: [f32; 4],
 }
 
 pub struct BodyDraw<'a> {
@@ -83,6 +86,56 @@ pub struct GridPlane {
     pub origin: Vec3,
     pub u: Vec3,
     pub v: Vec3,
+}
+
+/// The lightness of the model area (the grey of its background), set by the window from its appearance and the slider; the dark default.
+static BACKGROUND: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3e2e147b); // 0.17
+
+pub fn set_background(lightness: f32) {
+    BACKGROUND.store(
+        lightness.clamp(0.0, 1.0).to_bits(),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+pub fn background_lightness() -> f32 {
+    f32::from_bits(BACKGROUND.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// The background colour for a lightness: a grey with a little blue, as the model area always had.
+pub fn background_color() -> [f32; 3] {
+    let l = background_lightness();
+    [(l - 0.01).max(0.0), l, (l + 0.03).min(1.0)]
+}
+
+/// The colours of the grid lines, of the X axis and of the Y axis over a background of that lightness (dark lines on a light background).
+pub fn grid_colors(lightness: f32) -> ([f32; 3], [f32; 3], [f32; 3]) {
+    if lightness > 0.5 {
+        ([0.12, 0.14, 0.18], [0.72, 0.08, 0.08], [0.05, 0.45, 0.10])
+    } else {
+        ([0.62, 0.64, 0.68], [0.98, 0.35, 0.35], [0.30, 0.78, 0.30])
+    }
+}
+
+/// A colour of a line over the model area: on a light background a bright colour is darkened (keeping its hue) so that it stays visible.
+fn ink(c: [f32; 4]) -> [f32; 4] {
+    if background_lightness() <= 0.5 {
+        return c;
+    }
+    let lin = |v: f32| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let y = 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+    let max = 0.06;
+    if y <= max {
+        return c;
+    }
+    let k = (max / y).powf(1.0 / 2.4);
+    [c[0] * k, c[1] * k, c[2] * k, c[3]]
 }
 
 pub struct Frame {
@@ -654,7 +707,7 @@ impl Renderer {
             line_buf: mk(&lin),
             line_count: lin.len() as u32,
             tri_bind: uniform_bind(device, &self.body_layout, p.color),
-            line_bind: uniform_bind(device, &self.body_layout, p.line_color),
+            line_bind: uniform_bind(device, &self.body_layout, ink(p.line_color)),
             thick_buf: {
                 let t: Vec<[f32; 3]> = p.thick.iter().map(|v| v.to_array()).collect();
                 device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -668,7 +721,7 @@ impl Renderer {
                 })
             },
             thick_count: (p.thick.len() / 2) as u32,
-            thick_bind: uniform_bind(device, &self.body_layout, p.thick_color),
+            thick_bind: uniform_bind(device, &self.body_layout, ink(p.thick_color)),
         }
     }
 
@@ -816,6 +869,18 @@ impl Renderer {
             grid_u: grid.u.extend(0.0).to_array(),
             grid_v: grid.v.extend(0.0).to_array(),
             viewport: [frame.size[0] as f32, frame.size[1] as f32, 3.0, 0.0],
+            grid_col: {
+                let c = grid_colors(background_lightness());
+                [c.0[0], c.0[1], c.0[2], 0.0]
+            },
+            x_col: {
+                let c = grid_colors(background_lightness());
+                [c.1[0], c.1[1], c.1[2], 0.0]
+            },
+            y_col: {
+                let c = grid_colors(background_lightness());
+                [c.2[0], c.2[1], c.2[2], 0.0]
+            },
         };
         queue.write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&g));
         let zlen = frame.camera.distance * 0.35;
@@ -836,11 +901,14 @@ impl Renderer {
                     depth_slice: None,
                     resolve_target: Some(&t.color_view),
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.16,
-                            g: 0.17,
-                            b: 0.20,
-                            a: 1.0,
+                        load: wgpu::LoadOp::Clear({
+                            let c = background_color();
+                            wgpu::Color {
+                                r: c[0] as f64,
+                                g: c[1] as f64,
+                                b: c[2] as f64,
+                                a: 1.0,
+                            }
                         }),
                         store: wgpu::StoreOp::Discard,
                     },

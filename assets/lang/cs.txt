@@ -858,3 +858,9 @@ Bodies already made from this sketch do not change; change them with Pull. => T�
 Centre X => Střed X
 Centre Y => Střed Y
 Diameter: {} mm => Průměr: {} mm
+
+# ---- Appearance ----
+Brightness => Světlost
+Default => Výchozí
+Moves the grey of the panels and of the model area; the text and the icons keep their contrast => Posouvá šedou panelů a plochy modelu; text a ikony si drží kontrast
+there is nothing to put together => není co dát dohromady

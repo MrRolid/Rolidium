@@ -538,13 +538,13 @@ impl App {
             return;
         };
         let painter = ui.painter().with_clip_rect(rect);
-        painter.circle_stroke(sp, 6.0, egui::Stroke::new(2.0, Color32::from_rgb(120, 255, 160)));
+        painter.circle_stroke(sp, 6.0, egui::Stroke::new(2.0, crate::theme::rgb(120, 255, 160)));
         painter.text(
             sp + Vec2::new(10.0, 8.0),
             egui::Align2::LEFT_TOP,
             tr(label),
             egui::FontId::proportional(12.0),
-            Color32::from_rgb(120, 255, 160),
+            crate::theme::rgb(120, 255, 160),
         );
         if let (Some(a), Some(l)) = (self.line3.lock, self.line3.pts.last()) {
             let name = ["X", "Y", "Z"][a];
@@ -554,7 +554,7 @@ impl App {
                     egui::Align2::LEFT_BOTTOM,
                     name,
                     egui::FontId::proportional(13.0),
-                    Color32::from_rgb(255, 220, 120),
+                    crate::theme::rgb(255, 220, 120),
                 );
             }
         }
@@ -748,7 +748,7 @@ impl App {
             field(ui, &tr("Start angle"), &mut h.start, "°");
             field(ui, &tr("Cone angle"), &mut h.cone, "°");
             if let Some(e) = &h.error {
-                ui.colored_label(Color32::from_rgb(255, 120, 110), tr(e));
+                ui.colored_label(crate::theme::rgb(255, 120, 110), tr(e));
             }
             ui.horizontal(|ui| {
                 if ui.add_enabled(h.axis.is_some() && h.error.is_none(), egui::Button::new(tr("Create"))).clicked() {
@@ -1065,7 +1065,7 @@ impl App {
                         .map_or("?".into(), |b| format!("{} ({})", b.name, tr("edge"))),
                 };
                 ui.horizontal(|ui| {
-                    ui.colored_label(Color32::from_rgb(255, 184, 64), tr("Profile"));
+                    ui.colored_label(crate::theme::rgb(255, 184, 64), tr("Profile"));
                     ui.label(profile);
                 });
                 let path = match &self.sweep.path {
@@ -1081,7 +1081,7 @@ impl App {
                     Some(SweepPath::Edges { edges, .. }) => trf("{} edges", &[edges.len().to_string()]),
                 };
                 ui.horizontal(|ui| {
-                    ui.colored_label(Color32::from_rgb(110, 220, 255), tr("Path"));
+                    ui.colored_label(crate::theme::rgb(110, 220, 255), tr("Path"));
                     ui.label(path);
                 });
                 ui.horizontal(|ui| {

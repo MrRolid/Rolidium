@@ -16,6 +16,10 @@ struct Globals {
     grid_u: vec4<f32>,
     grid_v: vec4<f32>,
     viewport: vec4<f32>,
+    // the colours of the grid lines and of the two axes (they follow the lightness of the model area)
+    grid_col: vec4<f32>,
+    x_col: vec4<f32>,
+    y_col: vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> g: Globals;
 
@@ -224,15 +228,15 @@ fn fs_grid(i: GOut) -> GridOut {
     let dist = length(pw - g.eye.xyz);
     let fade = 1.0 - smoothstep(g.grid_step.y * 0.5, g.grid_step.y, dist);
 
-    var col = vec3<f32>(0.62, 0.64, 0.68);
+    var col = g.grid_col.xyz;
     var alpha = strength * fade;
 
     let wy = max(fwidth(p.y), 1e-6);
     let wx = max(fwidth(p.x), 1e-6);
     let ax = 1.0 - min(abs(p.y) / wy, 1.0);   // X axis lies along y = 0
     let ay = 1.0 - min(abs(p.x) / wx, 1.0);   // Y axis lies along x = 0
-    if (ax > 0.0) { col = mix(col, vec3<f32>(0.90, 0.25, 0.25), ax); alpha = max(alpha, ax * 0.95); }
-    if (ay > 0.0) { col = mix(col, vec3<f32>(0.30, 0.78, 0.30), ay); alpha = max(alpha, ay * 0.95); }
+    if (ax > 0.0) { col = mix(col, g.x_col.xyz, ax); alpha = max(alpha, ax * 0.95); }
+    if (ay > 0.0) { col = mix(col, g.y_col.xyz, ay); alpha = max(alpha, ay * 0.95); }
     if (!visible) { alpha = 0.0; }
     out.color = vec4<f32>(col, alpha);
     return out;

@@ -121,6 +121,9 @@ pub struct LinkUi {
     pub sk_step_angle: f64,
     pub sk_full: bool,
     pub sk_keep: bool,
+    /// The preview of the copies in the model area (line pairs in 3D) and what it was made for.
+    pub sk_preview: Vec<Vec3>,
+    pub sk_key: String,
 }
 
 fn dv(v: Vec3) -> DVec3 {
@@ -626,6 +629,14 @@ impl App {
 
     pub(super) fn link_layers(&self) -> Vec<PreviewDraw> {
         let mut out = Vec::new();
+        if self.link_ui.sk_open.is_some() && !self.link_ui.sk_preview.is_empty() {
+            // the copies of the shapes of the sketch (with the mirror line drawn through the point)
+            out.push(PreviewDraw {
+                lines: self.link_ui.sk_preview.clone(),
+                line_color: [0.35, 0.65, 1.0, 1.0],
+                ..Default::default()
+            });
+        }
         if !matches!(self.tool, Tool::Pattern | Tool::Mirror) {
             return out;
         }
@@ -774,7 +785,7 @@ impl App {
         docks.panel(ctx, "link", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
             let p = &mut ui_state.p;
             ui.horizontal_wrapped(|ui| {
-                ui.colored_label(Color32::from_rgb(242, 89, 242), tr("Source"));
+                ui.colored_label(crate::theme::rgb(242, 89, 242), tr("Source"));
                 ui.label(if sources.is_empty() { tr("click the body in the view") } else { sources.join(", ") });
             });
             if editing.is_none() && p.mode != LinkMode::Mirror {
@@ -928,7 +939,7 @@ impl App {
             }
             if let Some(pk) = ui_state.pick {
                 ui.colored_label(
-                    Color32::from_rgb(255, 200, 100),
+                    crate::theme::rgb(255, 200, 100),
                     match pk {
                         LinkPick::Target => tr("Click the body in the view"),
                         LinkPick::Plane => tr("Click a flat face in the view"),
@@ -937,10 +948,10 @@ impl App {
                 );
             }
             if !ui_state.note.borrow().is_empty() {
-                ui.colored_label(Color32::from_rgb(255, 150, 120), ui_state.note.borrow().as_str());
+                ui.colored_label(crate::theme::rgb(255, 150, 120), ui_state.note.borrow().as_str());
             }
             if let Some(e) = &error {
-                ui.colored_label(Color32::from_rgb(255, 120, 110), format!("{}: {e}", tr("The last calculation failed; the link keeps its last result")));
+                ui.colored_label(crate::theme::rgb(255, 120, 110), format!("{}: {e}", tr("The last calculation failed; the link keeps its last result")));
             }
             ui.horizontal(|ui| {
                 if ui.button(tr("Apply")).clicked() {
@@ -1399,7 +1410,7 @@ impl App {
             egui::Id::new("link-handle"),
         ));
         let over = resp.hover_pos().is_some_and(|p| p.distance(b) < 11.0);
-        painter.line_segment([a, b], egui::Stroke::new(1.5, Color32::from_rgb(255, 200, 100)));
+        painter.line_segment([a, b], egui::Stroke::new(1.5, crate::theme::rgb(255, 200, 100)));
         painter.circle(
             b,
             if over || self.link_ui.handle_drag {
@@ -1407,7 +1418,7 @@ impl App {
             } else {
                 6.0
             },
-            Color32::from_rgb(255, 200, 100),
+            crate::theme::rgb(255, 200, 100),
             egui::Stroke::new(1.5, Color32::BLACK),
         );
         if resp.drag_started_by(PointerButton::Primary) && over {
@@ -1545,6 +1556,25 @@ impl App {
         );
         self.docks = docks;
         let mode = u.sk_open.unwrap_or(mode);
+        // the preview in the model area follows the numbers
+        let key = format!(
+            "{mode:?}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{one:?}|{}",
+            u.sk_count,
+            u.sk_spacing,
+            u.sk_by_total,
+            u.sk_angle,
+            u.sk_cx,
+            u.sk_cy,
+            u.sk_step_angle,
+            u.sk_full,
+            u.sk_keep,
+            self.doc.revision()
+        );
+        if key != u.sk_key {
+            u.sk_key = key;
+            u.sk_preview = self.sketch_pattern_preview(&u, sk, mode, one);
+            self.layers_changed = true;
+        }
         let cmd = if apply {
             let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
             let entities: Vec<_> = one.into_iter().collect();
@@ -1586,10 +1616,71 @@ impl App {
         };
         if close {
             u.sk_open = None;
+            u.sk_preview.clear();
+            u.sk_key.clear();
+            self.layers_changed = true;
+        }
+        if cmd.is_some() {
+            u.sk_preview.clear();
+            u.sk_key.clear();
         }
         self.link_ui = u;
         if let Some(c) = cmd {
             self.submit(c);
         }
+    }
+}
+
+impl App {
+    /// The copies that the numbers of the panel would make, as pairs of points in 3D for the preview.
+    fn sketch_pattern_preview(
+        &self,
+        u: &LinkUi,
+        sk: SketchId,
+        mode: LinkMode,
+        one: Option<rolidium_doc::rolidium_sketch::EntityId>,
+    ) -> Vec<Vec3> {
+        let Some(sd) = self.doc.sketch(sk) else {
+            return Vec::new();
+        };
+        let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
+        let ids: Vec<_> = one.into_iter().collect();
+        let made = match mode {
+            LinkMode::Linear => rolidium_doc::preview_pattern(
+                sd,
+                &ids,
+                &rolidium_doc::SketchPattern::Linear {
+                    dir,
+                    count: u.sk_count,
+                    spacing: u.sk_spacing,
+                    by_total: u.sk_by_total,
+                    second: None,
+                },
+            ),
+            LinkMode::Circular => rolidium_doc::preview_pattern(
+                sd,
+                &ids,
+                &rolidium_doc::SketchPattern::Circular {
+                    center: glam::DVec2::new(u.sk_cx, u.sk_cy),
+                    count: u.sk_count,
+                    angle_deg: u.sk_step_angle,
+                    full: u.sk_full,
+                },
+            ),
+            LinkMode::Mirror => {
+                let a = glam::DVec2::new(u.sk_cx, u.sk_cy);
+                rolidium_doc::preview_mirror(sd, &ids, a, a + dir, true)
+            }
+        };
+        let mut out = Vec::new();
+        for e in made.unwrap_or_default() {
+            for pl in e.polylines() {
+                for w in pl.windows(2) {
+                    out.push(sd.plane.to_3d(w[0]).as_vec3());
+                    out.push(sd.plane.to_3d(w[1]).as_vec3());
+                }
+            }
+        }
+        out
     }
 }

@@ -349,3 +349,38 @@ pub fn entity_with_dims(old: &Entity, v: &[Option<f64>]) -> Option<Entity> {
         }
     }
 }
+
+/// The shapes a pattern of the shapes `ids` (empty: all) would add to the sketch, without changing it (for the preview in the model area).
+pub fn preview_pattern(sk: &SketchDoc, ids: &[EntityId], p: &SketchPattern) -> Result<Vec<Entity>, String> {
+    let mut copy = sk.clone();
+    let before: Vec<EntityId> = copy.sketch.entities().iter().map(|(i, _)| *i).collect();
+    pattern(&mut copy, ids, p).map_err(|e| e.to_string())?;
+    Ok(copy
+        .sketch
+        .entities()
+        .iter()
+        .filter(|(i, _)| !before.contains(i))
+        .map(|(_, e)| *e)
+        .collect())
+}
+
+/// The shapes a mirror in the line through `a` and `b` would add (with `keep`; without it the image replaces the originals, so all of the
+/// shapes of the result are returned), without changing the sketch.
+pub fn preview_mirror(
+    sk: &SketchDoc,
+    ids: &[EntityId],
+    a: DVec2,
+    b: DVec2,
+    keep: bool,
+) -> Result<Vec<Entity>, String> {
+    let mut copy = sk.clone();
+    let before: Vec<EntityId> = copy.sketch.entities().iter().map(|(i, _)| *i).collect();
+    mirror(&mut copy, ids, a, b, keep).map_err(|e| e.to_string())?;
+    Ok(copy
+        .sketch
+        .entities()
+        .iter()
+        .filter(|(i, _)| !before.contains(i))
+        .map(|(_, e)| *e)
+        .collect())
+}

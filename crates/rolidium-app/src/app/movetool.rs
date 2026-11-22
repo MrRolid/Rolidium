@@ -380,7 +380,7 @@ impl App {
         for i in 0..3 {
             let on = active == Some(Handle::Arrow(i));
             let col = if on {
-                Color32::from_rgb(255, 235, 120)
+                crate::theme::rgb(255, 235, 120)
             } else {
                 COLORS[i]
             };
@@ -400,7 +400,7 @@ impl App {
             }
             let on = active == Some(Handle::Ring(i));
             let col = if on {
-                Color32::from_rgb(255, 235, 120)
+                crate::theme::rgb(255, 235, 120)
             } else {
                 COLORS[i].gamma_multiply(0.85)
             };
@@ -436,7 +436,7 @@ impl App {
                 egui::Align2::LEFT_BOTTOM,
                 text,
                 egui::FontId::proportional(16.0),
-                Color32::from_rgb(255, 230, 140),
+                crate::theme::rgb(255, 230, 140),
             );
         }
     }

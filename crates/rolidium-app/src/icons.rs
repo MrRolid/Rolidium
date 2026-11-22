@@ -8,11 +8,6 @@ use eframe::egui::{self, load::Bytes, Color32, ImageSource};
 use serde::Deserialize;
 use std::borrow::Cow;
 
-pub const NEUTRAL_DARK: &str = "#d6dae0";
-pub const ACCENT_DARK: &str = "#ffb347";
-pub const NEUTRAL_LIGHT: &str = "#3b424c";
-pub const ACCENT_LIGHT: &str = "#c46a00";
-
 static LIGHT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Tells the icon loader which colours to use (set whenever the theme of the window changes).
@@ -25,11 +20,7 @@ fn light() -> bool {
 }
 
 fn themed(svg: &str) -> String {
-    let (n, a) = if light() {
-        (NEUTRAL_LIGHT, ACCENT_LIGHT)
-    } else {
-        (NEUTRAL_DARK, ACCENT_DARK)
-    };
+    let (n, a) = crate::theme::icon_colors(light());
     svg.replace("#NEUTRAL", n).replace("#ACCENT", a)
 }
 
@@ -129,10 +120,10 @@ pub fn stateful() {
 /// The colour of a shortcut letter or dot: muted green when available, muted red when not. They differ in brightness too.
 pub fn avail_color(dark: bool, available: bool) -> Color32 {
     match (dark, available) {
-        (true, true) => Color32::from_rgb(130, 205, 150),
-        (true, false) => Color32::from_rgb(205, 100, 100),
-        (false, true) => Color32::from_rgb(60, 150, 85),
-        (false, false) => Color32::from_rgb(170, 45, 45),
+        (true, true) => Color32::from_rgb(140, 225, 160),
+        (true, false) => Color32::from_rgb(235, 130, 130),
+        (false, true) => Color32::from_rgb(0, 100, 40),
+        (false, false) => Color32::from_rgb(120, 10, 10),
     }
 }
 

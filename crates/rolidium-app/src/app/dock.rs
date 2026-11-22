@@ -7,7 +7,7 @@
 
 #![allow(deprecated)]
 
-use eframe::egui::{self, Color32, CursorIcon, Id, Order, Pos2, Rect, Sense, Stroke, Vec2};
+use eframe::egui::{self, CursorIcon, Id, Order, Pos2, Rect, Sense, Stroke, Vec2};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -85,11 +85,11 @@ impl Docks {
                 );
                 let painter =
                     ctx.layer_painter(egui::LayerId::new(Order::Middle, Id::new(("dock_leader", kind))));
-                let stroke = Stroke::new(1.5, Color32::from_rgb(255, 200, 100));
+                let stroke = Stroke::new(1.5, crate::theme::rgb(255, 200, 100));
                 for s in egui::Shape::dashed_line(&[from, a], stroke, 8.0, 4.0) {
                     painter.add(s);
                 }
-                painter.circle_filled(a, 3.5, Color32::from_rgb(255, 200, 100));
+                painter.circle_filled(a, 3.5, crate::theme::rgb(255, 200, 100));
             }
         }
         let mut drag = Vec2::ZERO;

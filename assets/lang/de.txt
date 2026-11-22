@@ -858,3 +858,9 @@ Bodies already made from this sketch do not change; change them with Pull. => KÃ
 Centre X => Mittelpunkt X
 Centre Y => Mittelpunkt Y
 Diameter: {} mm => Durchmesser: {} mm
+
+# ---- Appearance ----
+Brightness => Helligkeit
+Default => Standard
+Moves the grey of the panels and of the model area; the text and the icons keep their contrast => Verschiebt das Grau der Leisten und des Modellbereichs; Text und Symbole behalten ihren Kontrast
+there is nothing to put together => es gibt nichts zusammenzusetzen

@@ -507,14 +507,14 @@ impl App {
         let dock = docks.panel(ctx, "dim", pos, Some(anchor_screen), 250.0, &title, true, |ui| {
             if let Target::Edges { joint: true, .. } = &target {
                 ui.colored_label(
-                    egui::Color32::from_rgb(255, 190, 90),
+                    crate::theme::rgb(255, 190, 90),
                     tr("These edges lie where two separate bodies meet. The bodies are not joined, so a round or chamfer would not add material across the joint. Combine the bodies first."),
                 );
             }
             if let Target::Edges { extra, .. } = &target {
                 if *extra > 0 {
                     ui.colored_label(
-                        egui::Color32::from_rgb(217, 128, 255),
+                        crate::theme::rgb(217, 128, 255),
                         trf(
                             "{} more edge(s) continue them tangentially and are treated too",
                             &[extra.to_string()],

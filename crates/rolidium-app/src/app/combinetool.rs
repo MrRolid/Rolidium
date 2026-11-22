@@ -147,7 +147,7 @@ impl App {
                     None => tr("click the target body"),
                 };
                 ui.horizontal(|ui| {
-                    ui.colored_label(Color32::from_rgb(64, 217, 255), tr("Target"));
+                    ui.colored_label(crate::theme::rgb(64, 217, 255), tr("Target"));
                     ui.label(t);
                 });
                 let names: Vec<String> = self
@@ -157,7 +157,7 @@ impl App {
                     .filter_map(|b| self.doc.body(*b).map(|b| b.name.clone()))
                     .collect();
                 ui.horizontal_wrapped(|ui| {
-                    ui.colored_label(Color32::from_rgb(242, 89, 242), tr("Tools"));
+                    ui.colored_label(crate::theme::rgb(242, 89, 242), tr("Tools"));
                     ui.label(if names.is_empty() {
                         tr("click the other bodies")
                     } else {

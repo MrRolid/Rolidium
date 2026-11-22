@@ -346,6 +346,32 @@ fn calculate(st: &State, link: &Link) -> Result<Outcome, DocError> {
                 .map(|b| &b.solid)
                 .chain(copies.iter().map(|c| &c.1))
                 .collect();
+            // pieces that cut (or join) without touching each other go in one boolean operation with one tool, not one after the other
+            let relevant: Vec<&Solid> = pieces.iter().copied().filter(|p| boxes_meet(&cur, p)).collect();
+            let apart = relevant
+                .iter()
+                .enumerate()
+                .all(|(i, a)| relevant[i + 1..].iter().all(|b| !boxes_meet(a, b)));
+            if cut && relevant.len() > 1 && apart {
+                let tools = Solid::compound(&relevant)?;
+                outside += pieces.len() - relevant.len();
+                match cur.boolean_checked(&tools, BooleanOp::Cut) {
+                    Ok(r) => {
+                        cur = r.solid;
+                        if outside > 0 {
+                            warnings.push(format!("{outside} piece(s) do not cut into the body"));
+                        }
+                        target = Some(cur);
+                        return Ok(Outcome {
+                            copies,
+                            target,
+                            warnings,
+                        });
+                    }
+                    // one operation did not work: the pieces are tried one after the other below
+                    Err(_) => outside = 0,
+                }
+            }
             for p in pieces {
                 let meets = if cut {
                     common_volume(&cur, p) > 1e-9

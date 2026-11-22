@@ -167,7 +167,7 @@ impl App {
             return;
         };
         let painter = ui.painter().with_clip_rect(rect);
-        let col = Color32::from_rgb(255, 200, 80);
+        let col = crate::theme::rgb(255, 200, 80);
         painter.line_segment([a, b], Stroke::new(4.0, col));
         let dir = (b - a).normalized();
         let n = Vec2::new(-dir.y, dir.x);

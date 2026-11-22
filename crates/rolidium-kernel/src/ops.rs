@@ -174,6 +174,20 @@ impl Solid {
         )?)
     }
 
+    /// Several solids as one tool for a boolean (a compound). The solids must not overlap each other: the result of a boolean with a tool that overlaps
+    /// itself is not reliable (the caller checks that, and uses one tool after the other when they do).
+    pub fn compound(parts: &[&Solid]) -> Result<Solid> {
+        let mut it = parts.iter();
+        let Some(first) = it.next() else {
+            return Err(KernelError::Invalid("there is nothing to put together".into()));
+        };
+        let mut acc = native::compound_append(first.raw(), first.raw(), true)?;
+        for p in it {
+            acc = native::compound_append(&acc, p.raw(), false)?;
+        }
+        Ok(Solid::from_shape(acc))
+    }
+
     pub fn boolean(&self, other: &Solid, op: BooleanOp) -> Result<OpResult> {
         let code = match op {
             BooleanOp::Fuse => 0,

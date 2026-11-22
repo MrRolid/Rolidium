@@ -318,7 +318,7 @@ impl App {
             }
             let c = o.iter().copied().sum::<Vec3>() / o.len() as f32;
             if let Some(sp) = self.project(c, rect) {
-                painter.circle_filled(sp, 10.0, Color32::from_rgb(255, 180, 60));
+                painter.circle_filled(sp, 10.0, crate::theme::rgb(255, 180, 60));
                 painter.text(
                     sp,
                     egui::Align2::CENTER_CENTER,

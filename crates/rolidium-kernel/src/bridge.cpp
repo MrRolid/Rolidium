@@ -429,6 +429,19 @@ OpResult transform_shape(const Shape& sh, std::array<double, 3> pivot, std::arra
 }
 
 /// Mirror image about the plane through `point` with the normal `normal` (a new shape; the faces of the result keep the order of the faces of the original).
+std::shared_ptr<Shape> compound_append(const Shape& acc, const Shape& s, bool first) {
+    return guarded("compound", [&] {
+        BRep_Builder bb;
+        TopoDS_Compound comp;
+        bb.MakeCompound(comp);
+        if (!first) {
+            for (TopExp_Explorer ex(acc.s, TopAbs_SOLID); ex.More(); ex.Next()) bb.Add(comp, ex.Current());
+        }
+        for (TopExp_Explorer ex(s.s, TopAbs_SOLID); ex.More(); ex.Next()) bb.Add(comp, ex.Current());
+        return wrap(comp);
+    });
+}
+
 OpResult mirror_shape(const Shape& sh, std::array<double, 3> point, std::array<double, 3> normal) {
     return guarded("mirror", [&] {
         gp_Vec nv(normal[0], normal[1], normal[2]);

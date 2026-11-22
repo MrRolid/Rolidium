@@ -7,6 +7,7 @@ use crate::icons::{self, Help};
 use crate::logging::{self, log};
 use crate::settings::Settings;
 use crate::sketchmode::{SkTool, SketchMode, Snap, SnapLabel};
+use crate::theme;
 use crate::viewport::{Resources, ViewportCb};
 use crate::worker::{Done, MeshEntry, StlParams, Work, Worker};
 use eframe::egui::{self, Color32, Key, PointerButton, Pos2, Rect, Sense, Stroke, Vec2};
@@ -408,7 +409,7 @@ impl App {
         rolidium_kernel::par::configure(settings.threads as usize);
         let guide = crate::guide::Guide::new(settings.guide_mask, settings.guide_enabled);
         i18n::set_language(&settings.language);
-        apply_theme(&cc.egui_ctx, &settings.theme);
+        theme::apply(&cc.egui_ctx, &settings.theme, settings.brightness);
         install_fallback_fonts(&cc.egui_ctx);
         let mut settings = settings;
         let (donate_idx, new_choice) = crate::support::chosen_index(&settings);
@@ -2227,7 +2228,7 @@ impl App {
                     }
                 }
                 if let Some(e) = &self.diagnostics_error {
-                    ui.colored_label(Color32::from_rgb(255, 120, 110), trf("Cannot save the diagnostics: {}", std::slice::from_ref(e)));
+                    ui.colored_label(crate::theme::rgb(255, 120, 110), trf("Cannot save the diagnostics: {}", std::slice::from_ref(e)));
                 }
                 ui.separator();
                 let head = ui.label(egui::RichText::new(tr("Support development")).strong());
@@ -2633,11 +2634,11 @@ impl App {
                 egui::Align2::LEFT_BOTTOM,
                 text,
                 egui::FontId::proportional(16.0),
-                Color32::from_rgb(255, 230, 140),
+                crate::theme::rgb(255, 230, 140),
             );
             // What the distance is attached to: a marker at the cursor and, for a vertex, a ring on it.
             if let Some(t) = &p.snap {
-                let green = Color32::from_rgb(120, 255, 160);
+                let green = crate::theme::rgb(120, 255, 160);
                 let label = match t {
                     SnapTarget::Face { .. } => tr("snap: face"),
                     SnapTarget::Vertex(_) => tr("snap: vertex"),
@@ -3016,7 +3017,7 @@ impl App {
                 if pts.len() > 1 {
                     painter.add(egui::Shape::line(
                         pts,
-                        Stroke::new(2.0, Color32::from_rgb(255, 235, 120)),
+                        Stroke::new(2.0, crate::theme::rgb(255, 235, 120)),
                     ));
                 }
             }
@@ -3056,13 +3057,13 @@ impl App {
                 .ref_point
                 .and_then(|r| self.project(plane.to_3d(r).as_vec3(), rect))
             {
-                painter.circle_stroke(rp, 8.0, Stroke::new(2.0, Color32::from_rgb(255, 150, 60)));
+                painter.circle_stroke(rp, 8.0, Stroke::new(2.0, crate::theme::rgb(255, 150, 60)));
                 painter.text(
                     rp + Vec2::new(10.0, -16.0),
                     egui::Align2::LEFT_BOTTOM,
                     tr("reference"),
                     egui::FontId::proportional(12.0),
-                    Color32::from_rgb(255, 150, 60),
+                    crate::theme::rgb(255, 150, 60),
                 );
             }
         }
@@ -3074,7 +3075,7 @@ impl App {
             ) {
                 painter.extend(egui::Shape::dashed_line(
                     &[pa, pb],
-                    Stroke::new(1.2, Color32::from_rgb(120, 220, 255)),
+                    Stroke::new(1.2, crate::theme::rgb(120, 220, 255)),
                     4.0,
                     4.0,
                 ));
@@ -3090,14 +3091,14 @@ impl App {
                     [pr, pp],
                     Stroke::new(1.0, Color32::from_rgba_unmultiplied(120, 255, 160, 170)),
                 );
-                painter.circle_filled(pr, 3.5, Color32::from_rgb(120, 255, 160));
+                painter.circle_filled(pr, 3.5, crate::theme::rgb(120, 255, 160));
             }
         }
         // snap marker
         let Some(c) = self.project(plane.to_3d(snap.pos).as_vec3(), rect) else {
             return;
         };
-        let col = Color32::from_rgb(120, 255, 160);
+        let col = crate::theme::rgb(120, 255, 160);
         let stroke = Stroke::new(2.0, col);
         match snap.label {
             SnapLabel::Endpoint | SnapLabel::FaceVertex => drop(painter.rect_stroke(
@@ -3196,7 +3197,7 @@ impl App {
                         Stroke::new(
                             1.5,
                             if active {
-                                Color32::from_rgb(255, 215, 90)
+                                crate::theme::rgb(255, 215, 90)
                             } else {
                                 Color32::from_gray(90)
                             },
@@ -3208,7 +3209,7 @@ impl App {
                         egui::Align2::LEFT_CENTER,
                         *label,
                         font.clone(),
-                        Color32::from_rgb(255, 150, 60),
+                        crate::theme::rgb(255, 150, 60),
                     );
                     let txt = match typed.map(|p| p.fields[i].as_str()) {
                         Some(t) if !t.is_empty() => t.to_string(),
@@ -3232,7 +3233,7 @@ impl App {
             let r = Rect::from_min_size(pos, Vec2::new(150.0, 19.0));
             painter.rect_filled(r, 3.0, Color32::from_black_alpha(205));
             let border = if Some(i) == active {
-                Color32::from_rgb(255, 215, 90)
+                crate::theme::rgb(255, 215, 90)
             } else {
                 Color32::from_gray(90)
             };
@@ -3245,7 +3246,7 @@ impl App {
                 Color32::from_gray(170),
             );
             let vc = if *typed {
-                Color32::from_rgb(255, 235, 120)
+                crate::theme::rgb(255, 235, 120)
             } else {
                 Color32::from_gray(225)
             };
@@ -3396,7 +3397,25 @@ impl App {
                             }
                         });
                     if self.settings.theme != before {
-                        apply_theme(ctx, &self.settings.theme);
+                        theme::apply(ctx, &self.settings.theme, self.settings.brightness);
+                        changed = true;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Brightness"));
+                    let r = ui
+                        .add(egui::Slider::new(&mut self.settings.brightness, theme::MIN..=theme::MAX).show_value(false))
+                        .on_hover_text(tr("Moves the grey of the panels and of the model area; the text and the icons keep their contrast"));
+                    if r.changed() {
+                        theme::apply(ctx, &self.settings.theme, self.settings.brightness);
+                        changed = true;
+                    }
+                    if ui
+                        .add_enabled(self.settings.brightness != 0, egui::Button::new(tr("Default")))
+                        .clicked()
+                    {
+                        self.settings.brightness = 0;
+                        theme::apply(ctx, &self.settings.theme, 0);
                         changed = true;
                     }
                 });
@@ -3703,6 +3722,7 @@ impl eframe::App for App {
             self.show_debug = !self.show_debug;
         }
         // icons follow the theme, also when "follow the system" changes it while the program runs
+        theme::set(!ctx.global_style().visuals.dark_mode, self.settings.brightness);
         icons::set_light(!ctx.global_style().visuals.dark_mode);
         self.refresh_curve_cache();
         self.busy_tick();
@@ -3729,7 +3749,7 @@ impl eframe::App for App {
                     egui::Layout::left_to_right(egui::Align::Center),
                     |ui| {
                         let c = if self.status.error {
-                            Color32::from_rgb(255, 120, 110)
+                            crate::theme::rgb(255, 120, 110)
                         } else {
                             Color32::from_gray(200)
                         };
@@ -3743,7 +3763,7 @@ impl eframe::App for App {
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
-                        egui::RichText::new(crate::version_string()).color(Color32::from_rgb(150, 200, 255)),
+                        egui::RichText::new(crate::version_string()).color(crate::theme::rgb(150, 200, 255)),
                     );
                     ui.separator();
                     let labels = status_labels(self.presentation(), self.adapter_software);
@@ -3755,7 +3775,7 @@ impl eframe::App for App {
                         });
                     }
                     if labels.1 {
-                        ui.label(egui::RichText::new(tr("software drawing")).small().color(Color32::from_rgb(220, 160, 80)))
+                        ui.label(egui::RichText::new(tr("software drawing")).small().color(crate::theme::rgb(220, 160, 80)))
                             .on_hover_text(tr("The picture is drawn by the processor, not by a graphics card, so it can be slow and may look different. Try another graphics backend in Settings, or update the graphics driver."));
                     }
                     ui.separator();
@@ -4190,7 +4210,7 @@ impl eframe::App for App {
                                     let n = self.chain_extra(b, &sel).len();
                                     if n > 0 {
                                         ui.colored_label(
-                                    Color32::from_rgb(217, 128, 255),
+                                    crate::theme::rgb(217, 128, 255),
                                     trf(
                                         "{} more edge(s) continue them tangentially and are treated too",
                                         &[n.to_string()],
@@ -4307,7 +4327,7 @@ impl eframe::App for App {
                             ui.label(
                                 egui::RichText::new(text)
                                     .monospace()
-                                    .color(Color32::from_rgb(140, 255, 140)),
+                                    .color(crate::theme::rgb(140, 255, 140)),
                             );
                         });
                 });
@@ -4390,18 +4410,6 @@ impl eframe::App for App {
 
 /// Set by `rolidium --bench file`: after the first frame the view turns for 5 seconds and the frame times are reported.
 pub static BENCH_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Applies the chosen appearance (`dark`, `light` or `system`) to the window.
-pub fn apply_theme(ctx: &egui::Context, theme: &str) {
-    ctx.set_visuals_of(egui::Theme::Dark, egui::Visuals::dark());
-    ctx.set_visuals_of(egui::Theme::Light, egui::Visuals::light());
-    ctx.set_theme(match theme {
-        "light" => egui::ThemePreference::Light,
-        "system" => egui::ThemePreference::System,
-        _ => egui::ThemePreference::Dark,
-    });
-    icons::set_light(ctx.theme() == egui::Theme::Light);
-}
 
 /// Japanese (and other CJK) characters come from Noto Sans JP (SIL Open Font License 1.1), used only for the characters
 /// the built-in fonts do not have, so that file names in the file dialog are shown correctly in every language.

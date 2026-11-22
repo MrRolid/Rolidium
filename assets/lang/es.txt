@@ -858,3 +858,9 @@ Bodies already made from this sketch do not change; change them with Pull. => Lo
 Centre X => Centro X
 Centre Y => Centro Y
 Diameter: {} mm => Diámetro: {} mm
+
+# ---- Appearance ----
+Brightness => Brillo
+Default => Predeterminado
+Moves the grey of the panels and of the model area; the text and the icons keep their contrast => Mueve el gris de los paneles y del área del modelo; el texto y los iconos mantienen su contraste
+there is nothing to put together => no hay nada que juntar

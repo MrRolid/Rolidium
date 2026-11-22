@@ -16,7 +16,7 @@ fn main() {
     if git(&["status", "--porcelain", "--untracked-files=no"]).is_some_and(|s| !s.is_empty()) {
         hash.push('+');
     }
-    // "0.2.0" only for a clean build of exactly the tag v<version>; every other build is "0.2.0-dev" (development version)
+    // "0.2.1" only for a clean build of exactly the tag v<version>; every other build is "0.2.1-dev" (development version)
     let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
     let exact_tag =
         git(&["describe", "--exact-match", "--tags", "HEAD"]).is_some_and(|t| t == format!("v{version}"));

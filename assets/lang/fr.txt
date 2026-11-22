@@ -858,3 +858,9 @@ Bodies already made from this sketch do not change; change them with Pull. => Le
 Centre X => Centre X
 Centre Y => Centre Y
 Diameter: {} mm => Diamètre : {} mm
+
+# ---- Appearance ----
+Brightness => Luminosité
+Default => Par défaut
+Moves the grey of the panels and of the model area; the text and the icons keep their contrast => Déplace le gris des panneaux et de la zone du modèle ; le texte et les icônes gardent leur contraste
+there is nothing to put together => il n'y a rien à assembler

@@ -1,12 +1,12 @@
 # Changelog
 
 All notable changes to Rolidium are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
-version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor version may break things).
+version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor version may break things). From 0.2.0 on, releases are numbered in small steps: 0.2.1, 0.2.2 and so on. A build that is not exactly a tagged release says `-dev` (`0.2.1-dev`), and the check for a new version counts `0.2.1-dev` as lower than `0.2.1`.
 
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [Unreleased] - 0.3.0 (Rolidium for 3D printing), in development
+## [Unreleased] - 0.2.1, in development (Rolidium for 3D printing)
 
 ### Added
 - Patterns (`T`, `rolidium cli linear-pattern` and `circular-pattern`, MCP the same): a body repeated along a line (a direction from an axis, an edge or a face, count and spacing or count and total length, an optional second direction for a grid) or around an axis (an axis, an edge or the axis of a round face; count and angle, or a full circle). The result is new bodies, an addition to a body or a cut out of a body. A translucent preview with the number of pieces, a handle in the view for the spacing, and pieces that overlap or lie outside are shown in red with a message.
@@ -14,6 +14,10 @@ features is visible. 0.2.0 is the first public release.
 - Links: a pattern or a live mirror is an object of the document that remembers its source, parameters and bodies. It is listed in the right column and its numbers can be changed (a live preview, one step of Undo). Editing the source recalculates the pieces (only the pieces that depend on it); a hand edit of a derived body asks whether to remove the link first; "Remove the link" keeps the bodies, "Delete with its bodies" removes them; a failed recalculation keeps the last good result and says why. Links are saved in the `.rolidium` file (`docs/FILE-FORMAT.md`; older files open unchanged).
 - Groups of bodies in the right column: made from the marked bodies (Ctrl+G), nested, renamed (F2 or a double click), moved by dragging, shown and hidden together, a click marks all their bodies; saved in the file. In `rolidium cli` and MCP: `group`, `ungroup`, `move-to-group`.
 - Builds that are not exactly a tagged release say `-dev` in the version; `scripts/package.sh dev` makes packages for testing into `dist/dev/`.
+- The helix tool follows a click on a conical face: the axis of the cone, the start on the lower rim of the face, the height of the face, the diameter of the cone there and its angle (a cone narrowing up or down); on a cylindrical face the height of the face as well. The cone angle of a helix may be negative (the cone narrows along the axis).
+- Sizes of a selected sketch shape as fields in the right column and in the panel next to the shape: circle (diameter, centre), rectangle (width, height), line (length, angle), arc (radius, angle). A second click on the selected shape (or a double click) puts the cursor into the field next to it; the right column says that a body made from the sketch does not change. The diameter of a hole, a pin or a round face is shown in the Selection panel.
+- Settings: a slider "Brightness" moves the grey of the panels and of the model area in both appearances (a button returns it to the default); the light appearance is a light grey and not white, and the model area follows it. Text, icons and the traffic light keep their contrast (WCAG AA) over the whole slider, the grid and the axes are drawn for the lightness of the background.
+- A pattern that cuts out of a body takes out all its pieces in one operation (12 holes round a plate: from 1090 ms to a fraction of it, see the table in the report of the development).
 - `rolidium cli times`: rows for a circular pattern of 12 holes, for the recalculation of a pattern of 50 pieces after the source changed, and for a mirror with merge.
 
 ### Not yet
