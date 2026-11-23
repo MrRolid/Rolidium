@@ -3612,7 +3612,7 @@ impl App {
                     );
                     ui.label(
                         egui::RichText::new(rolidium_net::describe_version_request(
-                            env!("CARGO_PKG_VERSION"),
+                            env!("ROLIDIUM_VERSION_LABEL"),
                             &rolidium_net::system_info(),
                         ))
                         .monospace()

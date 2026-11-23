@@ -54,7 +54,7 @@ impl App {
                 self.update.rx = None;
                 match r {
                     Ok(latest) => {
-                        if rolidium_net::is_newer(&latest.latest, env!("CARGO_PKG_VERSION"))
+                        if rolidium_net::is_newer(&latest.latest, env!("ROLIDIUM_VERSION_LABEL"))
                             && latest.latest != self.settings.skip_version
                         {
                             self.update.available = Some(latest.latest);
@@ -87,7 +87,7 @@ impl App {
         let (tx, rx) = channel();
         let c = ctx.clone();
         std::thread::spawn(move || {
-            let _ = tx.send(rolidium_net::fetch_latest(env!("CARGO_PKG_VERSION")));
+            let _ = tx.send(rolidium_net::fetch_latest(env!("ROLIDIUM_VERSION_LABEL")));
             c.request_repaint();
         });
         self.update.rx = Some(rx);

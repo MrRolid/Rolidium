@@ -233,20 +233,29 @@ pub fn parse_version(v: &str) -> Option<Vec<u64>> {
         .collect()
 }
 
-/// Whether version `latest` is higher than `current` (both must be valid versions; missing parts count as 0). A development build
-/// (`0.2.1-dev`) is lower than the same number without `-dev`: when `0.2.1` is released, the development build of `0.2.1` is offered it, and
-/// never an older version.
+/// A version split into its numbers and its development part: `None` for a release, `Some(n)` for `-dev.n` (a bare `-dev` is `-dev.0`).
+fn split_version(v: &str) -> Option<(Vec<u64>, Option<u64>)> {
+    let (nums, dev) = match v.split_once("-dev") {
+        None => (v, None),
+        Some((n, "")) => (n, Some(0)),
+        Some((n, rest)) => (n, Some(rest.strip_prefix('.')?.parse::<u64>().ok()?)),
+    };
+    Some((parse_version(nums)?, dev))
+}
+
+/// Whether version `latest` is higher than `current` (missing parts count as 0). The order is `0.2.0 < 0.2.1-dev.10 < 0.2.1-dev.11 < 0.2.1
+/// < 0.2.2-dev.5`: a development build is lower than the release with the same number, and each later build of it is higher than the one
+/// before (the number is the count of commits). The same order as `dpkg --compare-versions` gives for `0.2.1~dev.10.gabc` and so on.
 pub fn is_newer(latest: &str, current: &str) -> bool {
-    let dev = current.ends_with("-dev");
-    let current = current.strip_suffix("-dev").unwrap_or(current);
-    let (Some(mut a), Some(mut b)) = (parse_version(latest), parse_version(current)) else {
+    let (Some((mut a, da)), Some((mut b, db))) = (split_version(latest), split_version(current)) else {
         return false;
     };
     let n = a.len().max(b.len());
     a.resize(n, 0);
     b.resize(n, 0);
-    // a release is higher than the development build with the same number
-    (a.as_slice(), true) > (b.as_slice(), !dev)
+    // a release (no development part) is higher than any development build of the same number
+    let key = |d: Option<u64>| d.map_or((1, 0), |n| (0, n));
+    (a, key(da)) > (b, key(db))
 }
 
 /// Reads the answer strictly: at most [`MAX_VERSION_REPLY`] bytes, a JSON object, `latest` a valid version, `released` (if present) a short
@@ -535,6 +544,13 @@ mod tests {
         assert!(!is_newer("0.1.9", "0.2.0-dev"));
         assert!(is_newer("0.2.1", "0.2.0-dev"));
         assert!(is_newer("0.3.0", "0.2.0-dev"));
+        // the order of the numbered development builds
+        let order = ["0.2.0", "0.2.1-dev.10", "0.2.1-dev.11", "0.2.1", "0.2.2-dev.5"];
+        for (i, a) in order.iter().enumerate() {
+            for (j, b) in order.iter().enumerate() {
+                assert_eq!(is_newer(a, b), i > j, "{a} newer than {b}");
+            }
+        }
     }
 
     #[test]
@@ -606,5 +622,35 @@ mod tests {
         assert!(parse_report_id(br#"{"id":"a b"}"#).is_err());
         assert!(parse_report_id(br#"{"id":""}"#).is_err());
         assert!(parse_report_id(br#"{}"#).is_err());
+    }
+
+    /// The order of the versions is the one that dpkg gives to the versions of the .deb packages (`~dev.N.ghash` for the development builds).
+    #[test]
+    fn the_order_agrees_with_dpkg() {
+        let deb = ["0.2.0", "0.2.1~dev.10.gabc", "0.2.1~dev.11.g012", "0.2.1", "0.2.2~dev.5.gfff"];
+        let prog = ["0.2.0", "0.2.1-dev.10", "0.2.1-dev.11", "0.2.1", "0.2.2-dev.5"];
+        let Ok(probe) = std::process::Command::new("dpkg").arg("--version").output() else {
+            eprintln!("dpkg is not installed: the comparison with it is skipped");
+            return;
+        };
+        assert!(probe.status.success());
+        let dpkg_lt = |a: &str, b: &str| {
+            std::process::Command::new("dpkg")
+                .args(["--compare-versions", a, "lt", b])
+                .status()
+                .unwrap()
+                .success()
+        };
+        for i in 0..deb.len() {
+            for j in 0..deb.len() {
+                assert_eq!(dpkg_lt(deb[i], deb[j]), i < j, "dpkg: {} < {}", deb[i], deb[j]);
+                assert_eq!(is_newer(prog[j], prog[i]), i < j, "program: {} < {}", prog[i], prog[j]);
+            }
+        }
+        // the old numbering ("+dev.<hash>") is higher than the release, so the new packages are lower than an installed old one:
+        // that one has to be removed once (`sudo apt remove rolidium`); from then on every build is higher than the one before
+        assert!(dpkg_lt("0.2.1", "0.2.1+dev.52dd204"));
+        assert!(dpkg_lt("0.2.1~dev.1.gabc", "0.2.1+dev.52dd204"));
+        assert!(dpkg_lt("0.2.1~dev.1.gabc", "0.2.1"));
     }
 }

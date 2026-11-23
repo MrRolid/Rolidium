@@ -5,7 +5,7 @@
 # Rolidium-<version>-x86_64.AppImage, rolidium-<version>-windows-x86_64.zip, rolidium-demos-<version>.zip and SHA256SUMS for all of them.
 # One command: scripts/package.sh [release|dev]
 #   release  into dist/release/, only from a clean checkout of exactly the tag v<version> (the program then reports "<version>"); it refuses otherwise.
-#   dev      into dist/dev/, any commit; the files are named <version>-dev.<commit> and the program reports "<version>-dev <commit>".
+#   dev      into dist/dev/, any commit; the files are named <version>-dev.<N>.g<commit> (N = git rev-list --count HEAD; the .deb is <version>~dev.<N>.g<commit>, lower than the release and higher than the build before) and the program reports "<version>-dev.<N> <commit>".
 #   (no argument: release when HEAD is exactly the tag, dev otherwise.) dist/release/ is never touched by a dev build.
 # Needs the Linux build tools, the Windows cross-build tools (docs/WINDOWS.md), dpkg-deb + fakeroot and appimagetool (BUILDING.md), and the demos
 # built by examples/demos/build-all.sh (target/demos). Set ALLOW_DIRTY=1 to package an uncommitted tree.
@@ -16,6 +16,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ] && [ "${ALLOW_DIRTY:-
 fi
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 hash=$(git rev-parse --short=7 HEAD)
+count=$(git rev-list --count HEAD)
 clean=yes; [ -n "$(git status --porcelain --untracked-files=no)" ] && clean=no
 exact=no; [ "$(git describe --exact-match --tags HEAD 2>/dev/null || true)" = "v$version" ] && [ $clean = yes ] && exact=yes
 mode=${1:-auto}
@@ -23,7 +24,7 @@ mode=${1:-auto}
 case "$mode" in
   release) [ $exact = yes ] || { echo "release packages are made only from a clean checkout of exactly the tag v$version" >&2; exit 1; }
            OUT=dist/release; fver=$version; debver=$version ;;
-  dev)     OUT=dist/dev; fver="$version-dev.$hash"; debver="$version+dev.$hash" ;;
+  dev)     OUT=dist/dev; fver="$version-dev.$count.g$hash"; debver="$version~dev.$count.g$hash" ;;
   *)       echo "usage: scripts/package.sh [release|dev]" >&2; exit 1 ;;
 esac
 echo "packaging $version $hash into $OUT (mode $mode)"

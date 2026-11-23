@@ -565,7 +565,7 @@ impl App {
         let (kind, note, contact) = (fb.kind, fb.text.clone(), fb.contact.clone());
         std::thread::spawn(move || {
             let res =
-                rolidium_net::send_report(kind, zip.as_deref(), &note, &contact, env!("CARGO_PKG_VERSION"));
+                rolidium_net::send_report(kind, zip.as_deref(), &note, &contact, env!("ROLIDIUM_VERSION_LABEL"));
             if let Ok(mut s) = s2.lock() {
                 *s = Some(res);
             }
