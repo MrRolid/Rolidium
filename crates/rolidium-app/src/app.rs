@@ -357,6 +357,8 @@ pub struct App {
     blend_chain: bool,
     /// A new diameter of an end of a cone keeps the angle of the cone (the other end follows) instead of the diameter of the other end.
     cap_keep_angle: bool,
+    /// For the self-test: the state of the document before a heavy calculation.
+    state_before_heavy: Option<Arc<rolidium_doc::State>>,
     /// The Move tool moves the end face of a loft: the body and the sketch of its profile (the sketch moves).
     move_end: Option<(BodyId, SketchId)>,
     combine: combinetool::CombineUi,
@@ -574,6 +576,7 @@ impl App {
             chamfer_flip: false,
             blend_chain: false,
             cap_keep_angle: false,
+            state_before_heavy: None,
             move_end: None,
             combine: Default::default(),
             link_ui: Default::default(),
@@ -3885,14 +3888,14 @@ impl eframe::App for App {
         // icons follow the theme, also when "follow the system" changes it while the program runs
         theme::set(!ctx.global_style().visuals.dark_mode, self.settings.brightness);
         icons::set_light(!ctx.global_style().visuals.dark_mode);
-        self.refresh_curve_cache();
+        self.refresh_curve_cache(&ctx);
         self.busy_tick();
         self.view_tick(&ctx);
         self.bench_tick(&ctx);
         self.edit_bench_tick(&ctx);
         self.poll_worker();
         // a result of the worker or an Undo of this frame changed the document: the curves are drawn from it, not from the frame before
-        self.refresh_curve_cache();
+        self.refresh_curve_cache(&ctx);
         self.selftest_tick(&ctx);
         self.guide_tick();
         self.remesh_tick(&ctx);
@@ -4360,8 +4363,8 @@ impl eframe::App for App {
                                         "Curve: {} (Delete removes it)",
                                         std::slice::from_ref(&c.name),
                                     ));
-                                    if let Ok(p) = c.def.path() {
-                                        ui.label(trf("Length: {} mm", &[format!("{:.2}", p.length)]));
+                                    if let Some(l) = self.curve_length(c.id) {
+                                        ui.label(trf("Length: {} mm", &[format!("{l:.2}")]));
                                     }
                                     let cid = c.id;
                                     self.curve_edit_ui(ui, cid);

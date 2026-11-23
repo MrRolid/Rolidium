@@ -25,6 +25,11 @@ pub struct SelfTest {
     look_applied: bool,
     /// The step that is running, when it started, and when the whole test started (progress and the time limit of a step).
     seen_step: Option<u32>,
+    /// Work of the window per frame while a heavy calculation runs (the self-test of the window that stays responsive), and when to press Cancel.
+    samples: Vec<f32>,
+    sampling: bool,
+    cancel_at: Option<std::time::Instant>,
+    heavy: Option<Command>,
     step_started: std::time::Instant,
     test_started: std::time::Instant,
 }
@@ -34,6 +39,10 @@ impl SelfTest {
         let _ = std::fs::create_dir_all(&dir);
         SelfTest {
             seen_step: None,
+            samples: Vec::new(),
+            sampling: false,
+            cancel_at: None,
+            heavy: None,
             step_started: std::time::Instant::now(),
             test_started: std::time::Instant::now(),
             dir,
@@ -167,6 +176,13 @@ impl App {
                     }
                     Err(e) => st.failures.push(format!("png: {e}")),
                 }
+            }
+        }
+        if st.sampling && !self.idle() {
+            st.samples.push(self.last_ui_ms.get());
+            if st.cancel_at.is_some_and(|t| t.elapsed().as_secs_f32() > 0.0) && st.cancel_at.is_some_and(|t| std::time::Instant::now() >= t) {
+                st.cancel_at = None;
+                self.cancel_computation();
             }
         }
         // progress: the number and the time of every step, and a time limit for each (a step that hangs is named)
@@ -2626,6 +2642,97 @@ impl App {
                 st.wait_frames = 1;
             }
             118 => {
+                // a heavy sweep (a helix of 250 turns): the window keeps answering while it runs, and Cancel works
+                use rolidium_doc::rolidium_sketch::{DVec2, PlaneDef};
+                use rolidium_kernel::{HelixDef, Path, PathSource};
+                self.replace_document(Document::new(), None);
+                let h = HelixDef {
+                    origin: DVec3::ZERO,
+                    axis: DVec3::Z,
+                    x_dir: DVec3::X,
+                    radius: 5.0,
+                    pitch: 0.5,
+                    turns: 250.0,
+                    right: true,
+                    start_deg: 0.0,
+                    cone_deg: 0.0,
+                };
+                let curve = self
+                    .doc
+                    .apply(Command::AddCurve {
+                        def: rolidium_doc::CurveDef::Helix(h),
+                    })
+                    .ok()
+                    .and_then(|c| c.created_curve);
+                let path = Path::build(PathSource::Helix(h)).ok();
+                if let (Some(curve), Some(path)) = (curve, path) {
+                    let x = path.start_tangent.cross(DVec3::Z).normalize();
+                    let sk = self
+                        .doc
+                        .apply(Command::AddEntity {
+                            target: rolidium_doc::SketchTarget::New {
+                                plane: PlaneDef {
+                                    origin: path.start,
+                                    normal: path.start_tangent,
+                                    x_dir: x,
+                                },
+                                body: None,
+                            },
+                            entity: Entity::Circle {
+                                center: DVec2::ZERO,
+                                radius: 0.15,
+                            },
+                        })
+                        .ok()
+                        .and_then(|c| c.created_sketch);
+                    if let Some(sk) = sk {
+                        st.heavy = Some(Command::AddLink {
+                            kind: rolidium_doc::LinkKind::Sweep {
+                                profile: rolidium_doc::LoftRef::Region { sketch: sk, region: 0 },
+                                path: rolidium_doc::SweepPath::Curve(curve),
+                                rounded: false,
+                                mode: rolidium_doc::PatternMode::New,
+                            },
+                            sources: Vec::new(),
+                            name: String::new(),
+                        });
+                    }
+                }
+                st.wait_frames = 40; // the polyline of the helix is made on another thread
+            }
+            119 => {
+                if let Some(cmd) = st.heavy.take() {
+                    st.samples.clear();
+                    st.sampling = true;
+                    st.cancel_at = Some(std::time::Instant::now() + std::time::Duration::from_millis(1200));
+                    self.state_before_heavy = Some(self.doc.state().clone());
+                    self.submit(cmd);
+                } else {
+                    check(&mut st, "the heavy sweep was prepared", false);
+                }
+                st.wait_frames = 1;
+            }
+            120 => {
+                st.sampling = false;
+                let mut v = st.samples.clone();
+                v.sort_by(|a, b| a.total_cmp(b));
+                let n = v.len();
+                let max = v.last().copied().unwrap_or(0.0);
+                let p95 = v.get(n * 95 / 100).copied().unwrap_or(0.0);
+                println!("selftest: heavy sweep: {n} frames of the window while it ran, work per frame: 95 % under {p95:.1} ms, worst {max:.1} ms");
+                check(&mut st, "the window kept drawing while the heavy sweep ran", n >= 10);
+                check(&mut st, "the work of the window per frame stays under 20 ms during the heavy sweep", p95 < 20.0 && max < 60.0);
+                let unchanged = self
+                    .state_before_heavy
+                    .take()
+                    .is_some_and(|s| Arc::ptr_eq(&s, self.doc.state()));
+                check(&mut st, "Cancel stopped the sweep and the document is unchanged", unchanged && self.doc.bodies().is_empty());
+                st.wait_frames = 1;
+            }
+            121 => {
+                st.wait_frames = 1;
+            }
+            122 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

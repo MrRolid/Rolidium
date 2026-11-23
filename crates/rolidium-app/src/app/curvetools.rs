@@ -46,6 +46,8 @@ pub struct HelixUi {
     preview_key: String,
     pub preview: Vec<Vec3>,
     pub error: Option<String>,
+    /// The preview that is being made on another thread: the key it is made for, and the result (the polyline or the error).
+    pending: Option<(String, std::sync::mpsc::Receiver<Result<Vec<Vec3>, String>>)>,
 }
 
 impl Default for HelixUi {
@@ -66,6 +68,7 @@ impl Default for HelixUi {
             preview_key: String::new(),
             preview: Vec::new(),
             error: None,
+            pending: None,
         }
     }
 }
@@ -143,8 +146,20 @@ impl Default for SweepUi {
 pub struct CurveCache {
     pub(super) defs: Vec<(CurveId, CurveDef)>,
     pub lines: Vec<(CurveId, Vec<Vec3>)>,
+    /// Length of every curve (mm).
+    pub lengths: Vec<(CurveId, f64)>,
     /// The deflection (mm) the polylines were made with.
     pub tol: f64,
+    /// The polylines that are being made on another thread (the path of a long helix takes a second): what they are made for, and the result.
+    pending: Option<CurvePending>,
+}
+
+type CurveLines = Vec<(CurveId, Vec<Vec3>, f64)>;
+
+struct CurvePending {
+    defs: Vec<(CurveId, CurveDef)>,
+    tol: f64,
+    rx: std::sync::mpsc::Receiver<CurveLines>,
 }
 
 /// The deflection of the curve polylines for a pixel of `pixel_mm`: 0.4 of a pixel (like the edges of the bodies), rounded
@@ -157,11 +172,17 @@ pub(super) fn curve_tolerance(pixel_mm: f64) -> f64 {
     2f64.powf(t.log2().floor())
 }
 
-fn polyline_of(def: &CurveDef, tol: f64) -> Vec<Vec3> {
-    def.path()
-        .and_then(|p| p.polyline(tol))
-        .map(|v| v.iter().map(|p| p.as_vec3()).collect())
-        .unwrap_or_default()
+/// The polyline of a curve and its length (an empty polyline and 0 when the curve cannot be made).
+fn polyline_of(def: &CurveDef, tol: f64) -> (Vec<Vec3>, f64) {
+    match def.path() {
+        Ok(p) => (
+            p.polyline(tol)
+                .map(|v| v.iter().map(|p| p.as_vec3()).collect())
+                .unwrap_or_default(),
+            p.length,
+        ),
+        Err(_) => (Vec::new(), 0.0),
+    }
 }
 
 fn pairs(pts: &[Vec3]) -> Vec<Vec3> {
@@ -178,25 +199,76 @@ impl App {
         }
     }
 
-    pub(super) fn refresh_curve_cache(&mut self) {
-        let now: Vec<(CurveId, CurveDef)> = self.doc.curves().iter().map(|c| (c.id, c.def.clone())).collect();
-        let wanted = curve_tolerance(self.pixel_mm());
-        let tol = self.curve_cache.tol;
-        // finer when the view came closer, coarser (to save memory) only when it went much further away
-        let retol = tol <= 0.0 || wanted < tol * 0.99 || wanted > tol * 3.9;
-        if now != self.curve_cache.defs || retol {
-            let t = if retol { wanted } else { tol };
-            self.curve_cache.lines = now.iter().map(|(id, d)| (*id, polyline_of(d, t))).collect();
-            self.curve_cache.defs = now;
-            self.curve_cache.tol = t;
-            self.layers_changed = true;
-            if retol {
+    /// Keeps the polylines of the curves up to date. They are made on another thread (the path of a helix of many turns takes long, and the window
+    /// must not wait for it): the old ones are drawn until the new ones arrive.
+    pub(super) fn refresh_curve_cache(&mut self, ctx: &egui::Context) {
+        // a finished job
+        let finished = match &self.curve_cache.pending {
+            Some(p) => match p.rx.try_recv() {
+                Ok(lines) => Some(Some(lines)),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(_) => Some(None),
+            },
+            None => None,
+        };
+        if let Some(done) = finished {
+            let p = self.curve_cache.pending.take();
+            if let (Some(lines), Some(p)) = (done, p) {
+                self.curve_cache.lengths = lines.iter().map(|(id, _, l)| (*id, *l)).collect();
+                self.curve_cache.lines = lines.into_iter().map(|(id, v, _)| (id, v)).collect();
+                self.curve_cache.defs = p.defs;
+                self.curve_cache.tol = p.tol;
+                self.layers_changed = true;
                 self.helix.preview_key.clear();
                 if self.tool == Tool::Sweep {
                     self.sweep_refresh_preview();
                 }
             }
         }
+        let now: Vec<(CurveId, CurveDef)> = self.doc.curves().iter().map(|c| (c.id, c.def.clone())).collect();
+        let wanted = curve_tolerance(self.pixel_mm());
+        let tol = self.curve_cache.tol;
+        // finer when the view came closer, coarser (to save memory) only when it went much further away
+        let retol = tol <= 0.0 || wanted < tol * 0.99 || wanted > tol * 3.9;
+        if now == self.curve_cache.defs && !retol {
+            return;
+        }
+        if now.is_empty() {
+            // nothing to calculate
+            self.curve_cache.pending = None;
+            self.curve_cache.lines.clear();
+            self.curve_cache.lengths.clear();
+            self.curve_cache.defs.clear();
+            self.curve_cache.tol = if retol { wanted } else { tol };
+            self.layers_changed = true;
+            return;
+        }
+        // one job at a time; when it is done the next one starts with what is wanted then
+        if self.curve_cache.pending.is_some() {
+            return;
+        }
+        let t = if retol { wanted } else { tol };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (defs, c2) = (now.clone(), ctx.clone());
+        let spawned = std::thread::Builder::new().name("curves".into()).spawn(move || {
+            let lines: CurveLines = defs
+                .iter()
+                .map(|(id, d)| {
+                    let (v, l) = polyline_of(d, t);
+                    (*id, v, l)
+                })
+                .collect();
+            let _ = tx.send(lines);
+            c2.request_repaint();
+        });
+        if spawned.is_ok() {
+            self.curve_cache.pending = Some(CurvePending { defs: now, tol: t, rx });
+        }
+    }
+
+    /// The length of a curve (mm), when it is known.
+    pub(super) fn curve_length(&self, id: CurveId) -> Option<f64> {
+        self.curve_cache.lengths.iter().find(|(c, _)| *c == id).map(|(_, l)| *l)
     }
 
     pub(super) fn curve_points(&self, id: CurveId) -> &[Vec3] {
@@ -706,7 +778,7 @@ impl App {
         self.layers_changed = true;
     }
 
-    fn helix_refresh_preview(&mut self) {
+    fn helix_refresh_preview(&mut self, ctx: &egui::Context) {
         let key = format!(
             "{}|{:?}|{}|{}|{}|{}|{}|{}|{}",
             self.curve_cache.tol,
@@ -719,42 +791,84 @@ impl App {
             self.helix.right,
             self.helix.x_dir
         );
+        // a finished calculation
+        if let Some((k, rx)) = &self.helix.pending {
+            match rx.try_recv() {
+                Ok(r) => {
+                    let k = k.clone();
+                    self.helix.pending = None;
+                    self.helix.preview_key = k;
+                    match r {
+                        Ok(v) => {
+                            self.helix.preview = v;
+                            self.helix.error = None;
+                        }
+                        Err(e) => {
+                            self.helix.preview.clear();
+                            self.helix.error = Some(e);
+                        }
+                    }
+                    self.layers_changed = true;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => return,
+                Err(_) => self.helix.pending = None,
+            }
+        }
         if key == self.helix.preview_key {
             return;
         }
-        self.helix.preview_key = key;
-        self.helix.error = None;
-        self.helix.preview.clear();
-        match self.helix.def() {
-            Some(def) if self.helix.limit_height.is_some_and(|l| def.height() > l + 1e-6) => {
-                self.helix.error = Some(format!(
-                    "The helix would leave the face. The largest height is {} mm",
-                    fmt_num(self.helix.limit_height.unwrap_or(0.0))
-                ))
-            }
-            Some(def) => match CurveDef::Helix(def).path() {
-                Ok(p) => {
-                    self.helix.preview = p
-                        .polyline(self.curve_tol())
+        let Some(def) = self.helix.def() else {
+            self.helix.preview_key = key;
+            self.helix.preview.clear();
+            self.helix.error = Some(tr(
+                "Enter numbers for the diameter, the pitch and the height or the number of turns",
+            ));
+            self.layers_changed = true;
+            return;
+        };
+        // the checks that need no calculation are answered at once, the path of the helix is made on another thread
+        if let Some(l) = self.helix.limit_height.filter(|l| def.height() > l + 1e-6) {
+            self.helix.preview_key = key;
+            self.helix.preview.clear();
+            self.helix.error = Some(format!(
+                "The helix would leave the face. The largest height is {} mm",
+                fmt_num(l)
+            ));
+            self.layers_changed = true;
+            return;
+        }
+        if let Err(e) = def.check() {
+            self.helix.preview_key = key;
+            self.helix.preview.clear();
+            self.helix.error = Some(e.to_string());
+            self.layers_changed = true;
+            return;
+        }
+        let tol = self.curve_tol();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let c2 = ctx.clone();
+        let spawned = std::thread::Builder::new().name("helix preview".into()).spawn(move || {
+            let r = CurveDef::Helix(def)
+                .path()
+                .map_err(|e| e.to_string())
+                .map(|p| {
+                    p.polyline(tol)
                         .map(|v| v.iter().map(|p| p.as_vec3()).collect())
                         .unwrap_or_default()
-                }
-                Err(e) => self.helix.error = Some(e.to_string()),
-            },
-            None => {
-                self.helix.error = Some(tr(
-                    "Enter numbers for the diameter, the pitch and the height or the number of turns",
-                ))
-            }
+                });
+            let _ = tx.send(r);
+            c2.request_repaint();
+        });
+        if spawned.is_ok() {
+            self.helix.pending = Some((key, rx));
         }
-        self.layers_changed = true;
     }
 
     pub(super) fn helix_panel(&mut self, ctx: &egui::Context, rect: Rect) {
         if self.tool != Tool::Helix {
             return;
         }
-        self.helix_refresh_preview();
+        self.helix_refresh_preview(ctx);
         let mut create = false;
         let mut cancel = false;
         let mut docks = std::mem::take(&mut self.docks);
