@@ -457,8 +457,8 @@ impl Solid {
             self.raw(),
             &ids,
             &faces,
-            distance,
-            d2,
+            &vec![distance; faces.len()],
+            &vec![d2; faces.len()],
         )?)?;
         self.check_blend(&r.solid, distance.max(d2), self.edges_length(&ordered), "chamfer")?;
         Ok(r)
@@ -810,6 +810,18 @@ impl Solid {
     /// neighbouring faces that are not perpendicular to the pulled face are not extended or
     /// trimmed; a true face offset is planned.
     pub fn pull_face(&self, face: FaceId, distance: f64) -> Result<OpResult> {
+        let info = self.face_info(face)?;
+        if info.kind == FaceKind::Plane && distance.is_finite() && distance.abs() >= 1e-6 {
+            let touching = self.blend_map().touching(face);
+            if !touching.is_empty() {
+                return self.pull_face_with_blends(face, distance, &touching);
+            }
+        }
+        self.pull_face_plain(face, distance)
+    }
+
+    /// [`Self::pull_face`] without looking at rounds and chamfers next to the face.
+    pub(crate) fn pull_face_plain(&self, face: FaceId, distance: f64) -> Result<OpResult> {
         let info = self.face_info(face)?;
         if info.kind != FaceKind::Plane {
             return Err(KernelError::NotPlanar);

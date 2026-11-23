@@ -56,6 +56,7 @@
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
+#include <BRepGProp_Face.hxx>
 #include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -802,12 +803,15 @@ OpResult fillet_edges_radii(const Shape& sh, rust::Slice<const uint32_t> edges, 
 }
 
 OpResult chamfer_edges_asym(const Shape& sh, rust::Slice<const uint32_t> edges, rust::Slice<const uint32_t> faces,
-                            double d1, double d2) {
+                            rust::Slice<const double> d1, rust::Slice<const double> d2) {
     return guarded("chamfer", [&] {
-        if (!(d1 > 0) || !(d2 > 0)) fail("chamfer distances must be positive");
         if (edges.size() != faces.size() || edges.size() == 0) fail("chamfer needs a reference face per edge");
+        if (d1.size() != edges.size() || d2.size() != edges.size()) fail("chamfer needs two distances per edge");
         BRepFilletAPI_MakeChamfer mk(sh.s);
-        for (size_t i = 0; i < edges.size(); ++i) mk.Add(d1, d2, edge_at(sh, edges[i]), face_at(sh, faces[i]));
+        for (size_t i = 0; i < edges.size(); ++i) {
+            if (!(d1[i] > 0) || !(d2[i] > 0)) fail("chamfer distances must be positive");
+            mk.Add(d1[i], d2[i], edge_at(sh, edges[i]), face_at(sh, faces[i]));
+        }
         mk.Build(progress());
         check_cancelled();
         if (!mk.IsDone()) fail("chamfer failed (distance too large for the selected edges?)");
@@ -880,6 +884,84 @@ OpResult defeature_faces(const Shape& sh, rust::Slice<const uint32_t> faces) {
         TopoDS_Shape res = df.Shape();
         if (res.IsNull()) fail("removing the faces produced an empty result");
         return make_result(first_solid(res), df.History(), &sh, nullptr);
+    });
+}
+
+// Scan for the recognition of rounds and chamfers from the geometry. Result: nf, ne, then per face (kind, radius of a round: the
+// radius of a cylinder or sphere and the tube radius of a torus; 0 otherwise) and per edge (face a, face b, angle between the outward
+// normals at the middle of the edge, convexity +1/-1/0). The faces are -1 when the edge does not have exactly two faces.
+rust::Vec<double> blend_scan(const Shape& sh) {
+    return guarded("blend_scan", [&] {
+        rust::Vec<double> out;
+        int nf = sh.faces.Extent(), ne = sh.edges.Extent();
+        out.push_back(nf); out.push_back(ne);
+        for (int i = 1; i <= nf; ++i) {
+            BRepAdaptor_Surface sf(TopoDS::Face(sh.faces.FindKey(i)));
+            double kind = 5, r = 0;
+            switch (sf.GetType()) {
+                case GeomAbs_Plane: kind = 0; break;
+                case GeomAbs_Cylinder: kind = 1; r = sf.Cylinder().Radius(); break;
+                case GeomAbs_Cone: kind = 2; break;
+                case GeomAbs_Sphere: kind = 3; r = sf.Sphere().Radius(); break;
+                case GeomAbs_Torus: kind = 4; r = sf.Torus().MinorRadius(); break;
+                default: break;
+            }
+            out.push_back(kind); out.push_back(r);
+        }
+        TopTools_IndexedDataMapOfShapeListOfShape anc;
+        TopExp::MapShapesAndAncestors(sh.s, TopAbs_EDGE, TopAbs_FACE, anc);
+        for (int i = 1; i <= ne; ++i) {
+            const TopoDS_Edge& e = TopoDS::Edge(sh.edges.FindKey(i));
+            std::vector<TopoDS_Face> fs;
+            int k = anc.FindIndex(e);
+            if (k > 0) {
+                for (const TopoDS_Shape& f : anc.FindFromIndex(k)) {
+                    bool dup = false;
+                    for (auto& g : fs) if (g.IsSame(f)) dup = true;
+                    if (!dup) fs.push_back(TopoDS::Face(f));
+                }
+            }
+            if (fs.size() != 2 || BRep_Tool::Degenerated(e)) {
+                out.push_back(-1); out.push_back(-1); out.push_back(0); out.push_back(0);
+                continue;
+            }
+            gp_Vec n[2], d_in[2];
+            bool ok = true;
+            for (int j = 0; j < 2 && ok; ++j) {
+                TopoDS_Edge eo = e;
+                for (TopExp_Explorer ex(fs[j], TopAbs_EDGE); ex.More(); ex.Next())
+                    if (ex.Current().IsSame(e)) { eo = TopoDS::Edge(ex.Current()); break; }
+                double pf, pl;
+                Handle(Geom2d_Curve) c2 = BRep_Tool::CurveOnSurface(eo, fs[j], pf, pl);
+                if (c2.IsNull()) { ok = false; break; }
+                double t = 0.5 * (pf + pl);
+                gp_Pnt2d uv = c2->Value(t);
+                BRepGProp_Face gf(fs[j]);
+                gp_Pnt pnt; gp_Vec nn;
+                gf.Normal(uv.X(), uv.Y(), pnt, nn);
+                if (nn.Magnitude() < 1e-12) { ok = false; break; }
+                nn.Normalize();
+                BRepAdaptor_Curve c(eo);
+                gp_Pnt pp; gp_Vec tg;
+                c.D1(t, pp, tg);
+                if (tg.Magnitude() < 1e-12) { ok = false; break; }
+                tg.Normalize();
+                if (eo.Orientation() == TopAbs_REVERSED) tg.Reverse();
+                n[j] = nn;
+                d_in[j] = nn.Crossed(tg);
+            }
+            if (!ok) { out.push_back(-1); out.push_back(-1); out.push_back(0); out.push_back(0); continue; }
+            double cs = std::max(-1.0, std::min(1.0, n[0].Dot(n[1])));
+            double ang = std::acos(cs);
+            double s = d_in[1].Dot(n[0]);
+            double conv = 0;
+            if (ang > 1e-3) conv = s < 0 ? 1 : -1;
+            out.push_back(sh.faces.FindIndex(fs[0]) - 1);
+            out.push_back(sh.faces.FindIndex(fs[1]) - 1);
+            out.push_back(ang);
+            out.push_back(conv);
+        }
+        return out;
     });
 }
 

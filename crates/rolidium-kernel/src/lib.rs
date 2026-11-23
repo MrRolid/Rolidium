@@ -16,10 +16,12 @@ mod measure;
 mod mesh;
 mod occt;
 mod ops;
+mod rounds;
 mod sweep;
 pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
+pub use rounds::{BlendMap, RoundComponent, Rounding};
 pub use glam::{DVec3, Vec3};
 /// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
 /// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.
@@ -244,6 +246,8 @@ pub struct Solid {
     chain_index: std::sync::Arc<std::sync::OnceLock<blend::ChainIndex>>,
     /// The BRep bytes of the shape for the file (an unchanged body is not written again at every autosave).
     brep: std::sync::Arc<std::sync::OnceLock<std::sync::Arc<Vec<u8>>>>,
+    /// Rounds and chamfers recognised from the geometry (built when first needed).
+    blend_map: std::sync::Arc<std::sync::OnceLock<rounds::BlendMap>>,
 }
 
 impl std::fmt::Debug for Solid {
@@ -269,6 +273,7 @@ impl Solid {
             bbox: Default::default(),
             chain_index: Default::default(),
             brep: Default::default(),
+            blend_map: Default::default(),
         }
     }
     pub(crate) fn raw(&self) -> &native::Shape {
