@@ -80,3 +80,48 @@ fn groups_and_sketch_patterns_from_scripts() {
     let r = run("sketch xy\ncircle 20 0 4\nsketch-pattern circular 6 full 0 0\n");
     assert_eq!(r.doc.sketches()[0].sketch.regions().len(), 6);
 }
+
+/// A plate of 100 x 60 x 4 with a hole of 3 mm diameter 5 mm from two edges (a sketch circle pulled through in cut mode).
+const PLATE: &str = "box 100 60 4\nsketch xy -1\ncircle 5 5 3\npull-region 0 6 cut\n";
+
+fn hole_face(r: &Runner) -> String {
+    let s = &r.doc.bodies()[0].solid;
+    let f = s.faces().find(|f| s.cylinder_info(*f).unwrap().is_some_and(|c| c.is_hole)).unwrap();
+    format!("#{}", f.0)
+}
+
+#[test]
+fn a_hole_is_repeated_in_the_same_body_from_scripts() {
+    let mut r = run(PLATE);
+    let v0 = r.doc.bodies()[0].solid.volume().unwrap();
+    let hole = std::f64::consts::PI * 1.5 * 1.5 * 4.0;
+    // the four corners: three copies of the hole
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} corners top")).unwrap();
+    let v1 = r.doc.bodies()[0].solid.volume().unwrap();
+    assert!((v0 - v1 - 3.0 * hole).abs() < 1e-3, "{}", v0 - v1);
+    assert_eq!(r.doc.state().links.len(), 1);
+    // a row whose second piece lies at a point (the hole at (5, 5), the second at (35, 5))
+    let mut r = run(PLATE);
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} linear 3 0 1 0 0 to 35 5 4")).unwrap();
+    let v1 = r.doc.bodies()[0].solid.volume().unwrap();
+    assert!((v0 - v1 - 2.0 * hole).abs() < 1e-3, "{}", v0 - v1);
+    assert!(!r.doc.bodies()[0].solid.contains_point(rolidium_kernel::DVec3::new(65.0, 5.0, 2.0)).unwrap());
+    // round an axis, a grid and a mirror
+    let mut r = run(PLATE);
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} circular 4 full 0 0 1 through 30 30 0")).unwrap();
+    assert!((v0 - r.doc.bodies()[0].solid.volume().unwrap() - 3.0 * hole).abs() < 1e-3);
+    let mut r = run(PLATE);
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} grid 3 2 5 top")).unwrap();
+    assert!((v0 - r.doc.bodies()[0].solid.volume().unwrap() - 5.0 * hole).abs() < 1e-3);
+    let mut r = run(PLATE);
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} mirror x at 50")).unwrap();
+    assert!((v0 - r.doc.bodies()[0].solid.volume().unwrap() - hole).abs() < 1e-3);
+    // a face that is not round says what to click
+    let e = r.run_line("repeat-feature top linear 2 10 1 0 0").unwrap_err();
+    assert!(e.contains("whole round hole"), "{e}");
+}

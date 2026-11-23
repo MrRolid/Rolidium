@@ -191,6 +191,18 @@ impl Runner {
                     }
                     None => None,
                 };
+                let sources = self.sources_of(w)?;
+                // `to x y z`: the second piece lies at this point; the direction and the spacing are read from it
+                let (dir, spacing, by_total) = match w.iter().position(|t| *t == "to") {
+                    Some(i) => {
+                        let to = Cursor { w, i: i + 1 }.vec3("the point of the second piece")?;
+                        let b = self.doc.body(sources[0]).ok_or("the source body is missing")?;
+                        let (lo, hi) = b.solid.bounding_box().map_err(|e| e.to_string())?;
+                        let p = rolidium_doc::linear_through((lo + hi) * 0.5, to, count).map_err(err)?;
+                        (p.axis.dir, p.spacing, false)
+                    }
+                    None => (dir, spacing, by_total),
+                };
                 let kind = LinkKind::Linear(
                     LinearParams {
                         axis: Axis {
@@ -204,7 +216,6 @@ impl Runner {
                     },
                     self.mode_of(w)?,
                 );
-                let sources = self.sources_of(w)?;
                 self.doc
                     .apply(Command::AddLink {
                         kind,
@@ -246,6 +257,98 @@ impl Runner {
                     })
                     .map_err(err)?;
                 self.report_link("circular-pattern");
+            }
+            "repeat-feature" => {
+                // repeat-feature <face> linear|circular|mirror|corners|grid ...: a hole or a pin of the body, repeated in the same body
+                let sel = w.get(1).ok_or("repeat-feature needs the face of the hole or the pin (#N) and how to repeat it")?;
+                let how = *w.get(2).ok_or("repeat-feature needs: linear, circular, mirror, corners or grid")?;
+                let id = self.first_body()?;
+                let solid = self.doc.body(id).ok_or("the body is missing")?.solid.clone();
+                let face = crate::select_face(&solid, sel)?;
+                let rest: Vec<&str> = w[3..].to_vec();
+                let mut c = Cursor { w: &rest, i: 0 };
+                let mut rect = None;
+                let kind = match how {
+                    "linear" => {
+                        let (count, spacing) = (c.num("the number of pieces")? as u32, c.num("the spacing")?);
+                        let dir = c.vec3("the direction")?;
+                        let by_total = c.eat("total");
+                        let second = if c.eat("second") {
+                            let (n, sp) = (c.num("the second count")? as u32, c.num("the second spacing")?);
+                            let d = c.vec3("the second direction")?;
+                            Some(Direction2 { axis: Axis { origin: DVec3::ZERO, dir: d }, count: n, spacing: sp, by_total: c.eat("total") })
+                        } else {
+                            None
+                        };
+                        let (dir, spacing, by_total) = if c.eat("to") {
+                            let to = c.vec3("the point of the second piece")?;
+                            let at = solid.cylinder_info(face).map_err(|e| e.to_string())?.ok_or("click the cylindrical face of a hole or a pin")?.base;
+                            let p = rolidium_doc::linear_through(at, to, count).map_err(err)?;
+                            (p.axis.dir, p.spacing, false)
+                        } else {
+                            (dir, spacing, by_total)
+                        };
+                        LinkKind::Linear(
+                            LinearParams { axis: Axis { origin: DVec3::ZERO, dir }, count, spacing, by_total, second },
+                            PatternMode::New,
+                        )
+                    }
+                    "circular" => {
+                        let count = c.num("the number of pieces")? as u32;
+                        let (angle_deg, full) = if c.eat("full") { (0.0, true) } else { (c.num("the angle")?, false) };
+                        let dir = c.vec3("the axis")?;
+                        let origin = if c.eat("through") { c.vec3("the point of the axis")? } else { DVec3::ZERO };
+                        LinkKind::Circular(
+                            CircularParams { axis: Axis { origin, dir }, count, angle_deg, full, keep_orientation: rest.contains(&"keep") },
+                            PatternMode::New,
+                        )
+                    }
+                    "mirror" => {
+                        let normal = match c.peek() {
+                            Some("x") => DVec3::X,
+                            Some("y") => DVec3::Y,
+                            Some("z") => DVec3::Z,
+                            Some("normal") => {
+                                c.i += 1;
+                                c.vec3("the normal")?
+                            }
+                            _ => return Err("mirror needs the plane: x, y, z or normal <nx> <ny> <nz>".into()),
+                        };
+                        if matches!(c.peek(), Some("x" | "y" | "z")) {
+                            c.i += 1;
+                        }
+                        let origin = if c.eat("at") {
+                            normal.normalize() * c.num("the offset")?
+                        } else if c.eat("through") {
+                            c.vec3("the point of the plane")?
+                        } else {
+                            DVec3::ZERO
+                        };
+                        LinkKind::Mirror(MirrorParams { origin, normal, into: PatternMode::New })
+                    }
+                    "corners" | "grid" => {
+                        let fill = if how == "corners" {
+                            rolidium_doc::RectFill::Corners
+                        } else {
+                            rolidium_doc::RectFill::Grid {
+                                columns: c.num("the number of columns")? as u32,
+                                rows: c.num("the number of rows")? as u32,
+                                margin: c.num("the margin from the edges")?,
+                            }
+                        };
+                        let plate = crate::select_face(&solid, c.peek().ok_or("name the flat rectangular face of the body (top, #N)")?)?;
+                        rect = Some((plate, fill));
+                        LinkKind::Linear(
+                            LinearParams { axis: Axis { origin: DVec3::ZERO, dir: DVec3::X }, count: 1, spacing: 0.0, by_total: false, second: None },
+                            PatternMode::New,
+                        )
+                    }
+                    other => return Err(format!("repeat-feature: unknown way '{other}' (linear, circular, mirror, corners, grid)")),
+                };
+                self.doc
+                    .apply(Command::AddFeatureLink { body: id, face, kind, name: Self::name_of(w), rect })
+                    .map_err(err)?;
+                self.report_link("repeat-feature");
             }
             "mirror" => {
                 let mut c = Cursor { w, i: 1 };

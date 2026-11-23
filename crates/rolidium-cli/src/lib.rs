@@ -260,6 +260,7 @@ impl Runner {
                 | "select"
                 | "linear-pattern"
                 | "circular-pattern"
+                | "repeat-feature"
                 | "mirror"
                 | "group"
                 | "edit-link"
@@ -1501,7 +1502,7 @@ impl Runner {
                 }
                 self.render_png(Path::new(path), width, height, view)?;
             }
-            "linear-pattern" | "circular-pattern" | "mirror" | "links" => {
+            "linear-pattern" | "circular-pattern" | "mirror" | "links" | "repeat-feature" => {
                 self.run_links_command(&w)?;
             }
             "edit-link" | "unlink" | "delete-link" | "group" | "groups" => {

@@ -581,6 +581,7 @@ With `add` or `cut` (the number of another body) the pieces are fused into that 
             p("total", Kind::Flag, "The spacing is the whole length").opt().word("total"),
             p("from", Kind::Nums, "Numbers of the source bodies (default: the first body)").opt().word("from").items(1, 100),
             p("second", Kind::Words, "A second direction for a grid: count spacing dx dy dz [total]").opt().word("second"),
+            p("to", Kind::Nums, "The second piece lies at this point x y z: the spacing and the direction are read from it (type any spacing and direction, e.g. 0 1 0 0)").opt().word("to").items(3, 3),
             p("add", Kind::Int, "Number of the body the pieces are added to").opt().word("add").range(1.0, 100000.0),
             p("cut", Kind::Int, "Number of the body the pieces are cut out of").opt().word("cut").range(1.0, 100000.0),
             NAME,
@@ -600,6 +601,7 @@ The axis has a direction (ax ay az) and passes through the origin, or through th
             p("ay", Kind::Num, "Axis direction, Y part").range(-1.0e6, 1.0e6),
             p("az", Kind::Num, "Axis direction, Z part").range(-1.0e6, 1.0e6),
             p("through", Kind::Nums, "A point of the axis x y z (default: the origin)").opt().word("through").items(3, 3),
+            p("keep", Kind::Flag, "The pieces keep the orientation of the original (they are carried round the axis, not turned)").opt().word("keep"),
             p("from", Kind::Nums, "Numbers of the source bodies (default: the first body)").opt().word("from").items(1, 100),
             p("add", Kind::Int, "Number of the body the pieces are added to").opt().word("add").range(1.0, 100000.0),
             p("cut", Kind::Int, "Number of the body the pieces are cut out of").opt().word("cut").range(1.0, 100000.0),
@@ -607,6 +609,21 @@ The axis has a direction (ax ay az) and passes through the origin, or through th
         ],
         true,
         "box 10 10 10\ncircular-pattern 4 full 0 0 1 through 50 50 0",
+    ),
+    c(
+        "repeat-feature",
+        "repeat_feature",
+        "Repeat a hole or a pin of a body in the same body. `face` is the cylindrical face of the hole (#N, see describe_model); a counterbore, a countersink or a chamfer round the same axis belong to the hole. \
+`how` is one of: `linear count spacing dx dy dz [total] [second count spacing dx dy dz [total]] [to x y z]` (with `to` the second piece lies at that point), `circular count angle|full ax ay az [through x y z] [keep]`, `mirror x|y|z|normal nx ny nz [at d | through x y z]`, \
+`corners <face>` (a copy in each corner of that flat rectangular face, with the distances from the two nearest edges that the hole has), `grid columns rows margin <face>` (columns x rows pieces from the hole to the margin from the far edges). \
+A hole is cut out of the body again at every place, a pin is fused into it. The result is a link (edit_link, delete_link, unlink); a hidden tool body is made from the faces of the feature. If the feature cannot be read, the answer says what to click.",
+        &[
+            p("face", Kind::Text, "The face of the hole or the pin: #N (face id from describe_model)"),
+            p("how", Kind::Words, "linear ..., circular ..., mirror ..., corners <face> or grid columns rows margin <face>"),
+            BODY,
+        ],
+        true,
+        "",
     ),
     c(
         "mirror",
