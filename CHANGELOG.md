@@ -20,6 +20,14 @@ features is visible. 0.2.0 is the first public release.
 - A pattern that cuts out of a body takes out all its pieces in one operation (12 holes round a plate: from 1090 ms to a fraction of it, see the table in the report of the development).
 - `rolidium cli times`: rows for a circular pattern of 12 holes, for the recalculation of a pattern of 50 pieces after the source changed, and for a mirror with merge.
 
+- Loft (`L`) and Sweep (`W`) are links: the body remembers its profiles (regions of sketches, faces, edge loops) and its path (a curve, a chain of a sketch or edges) and is made again when a source changes: the diameter of a circle of a sketch, a move of a sketch (`MoveSketch`), another helix (`EditCurve`). The sketches the body was made from are kept and hidden (Delete link shows them again). The Selection panel of the body names the sources with buttons to select them and to edit a sketch in the sketch mode; a helix is changed by its numbers in the panel. A selected face of such a body says in one sentence why it has no size of its own and offers the source profile. A hand edit of the body asks as with the other links; saved in the file. `Command::Loft` and `Command::Sweep` of the scripts stay as they were (they consume the sketch).
+- The tool Move sketch plane turns the view smoothly into the isometric one while it works, and back square to the plane when it ends (a click or a drag interrupts the turn).
+- Settings: the ceiling of the frame rate (by the monitor, 30, 60, 120, unlimited); the diagnostic panel (F12) shows it, the way the frames are handed to the screen, the number of frames drawn and who asked for the last one. The panel lies inside the model area (lower left by default), can be dragged and remembers its place.
+
+### Fixed
+- Zooming into a body no longer takes faces away: a finer mesh replaces the coarse mesh of a face only when it is complete (it has triangles and covers the area of the coarse one); otherwise the face stays as it was. A circle swept along a helix lost parts of its faces when the zoom went to a coarser tolerance.
+- The window no longer draws frames at rest: the read-back of what is under the pointer was started again on every frame and kept the window repainting for as long as the pointer was over the model; the sketch mode and a running pull repainted for ever too.
+
 ### Not yet
 - STEP export of groups as an assembly structure: the prebuilt OpenCascade of the packages has no XCAF libraries, so groups are not written to STEP files (the bodies are).
 

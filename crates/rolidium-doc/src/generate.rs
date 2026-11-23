@@ -218,3 +218,76 @@ pub(crate) fn stamp(st: &State, kind: &LinkKind) -> u64 {
     }
     h.finish()
 }
+
+/// How the solid of a loft or a sweep joins the document: as a new body, added to the body a profile lies on, or cut from a body.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Way {
+    New,
+    Add,
+    Cut,
+}
+
+fn pattern_mode(st: &State, made: &Made, way: Way) -> Result<PatternMode, DocError> {
+    match way {
+        Way::New => Ok(PatternMode::New),
+        Way::Add => made.target.map(PatternMode::Add).ok_or_else(|| {
+            KernelError::Invalid("There is no body to add to: the profiles are not on a body".into()).into()
+        }),
+        Way::Cut => {
+            // the body the profile lies on first, then the others: the first one the tool cuts into
+            let ids: Vec<BodyId> = made.target.into_iter().chain(st.bodies.iter().map(|b| b.id)).collect();
+            let mut last = DocError::Kernel(KernelError::Invalid("There is no body to cut from".into()));
+            for id in ids {
+                let Some(b) = st.bodies.iter().find(|b| b.id == id) else { continue };
+                match b.solid.boolean_checked(&made.tool, BooleanOp::Cut) {
+                    Ok(r) => {
+                        let (v0, v1) = (b.solid.volume()?, r.solid.volume()?);
+                        if (v0 - v1).abs() > 1e-9 {
+                            return Ok(PatternMode::Cut(id));
+                        }
+                    }
+                    Err(e) => last = e.into(),
+                }
+            }
+            Err(last)
+        }
+    }
+}
+
+/// The kind of link for a loft through `profiles` that is added with `mode` (the body it works on is found as `Command::Loft` finds it).
+pub(crate) fn loft_kind(st: &State, profiles: &[LoftRef], ruled: bool, mode: LoftMode) -> Result<LinkKind, DocError> {
+    let made = loft(st, profiles, ruled)?;
+    let way = match mode {
+        LoftMode::NewBody => Way::New,
+        LoftMode::Add => Way::Add,
+        LoftMode::Cut => Way::Cut,
+    };
+    Ok(LinkKind::Loft {
+        profiles: profiles.to_vec(),
+        ruled,
+        mode: pattern_mode(st, &made, way)?,
+    })
+}
+
+/// The kind of link for a sweep of `profile` along `path`.
+pub(crate) fn sweep_kind(
+    st: &State,
+    profile: &LoftRef,
+    path: &SweepPath,
+    rounded: bool,
+    mode: SweepMode,
+) -> Result<LinkKind, DocError> {
+    let made = sweep(st, profile, path, rounded)?;
+    let way = match mode {
+        SweepMode::Auto if made.target.is_some() => Way::Add,
+        SweepMode::Auto | SweepMode::NewBody => Way::New,
+        SweepMode::Add => Way::Add,
+        SweepMode::Cut => Way::Cut,
+    };
+    Ok(LinkKind::Sweep {
+        profile: *profile,
+        path: path.clone(),
+        rounded,
+        mode: pattern_mode(st, &made, way)?,
+    })
+}

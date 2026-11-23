@@ -50,6 +50,7 @@ mod remesh;
 mod revolve;
 mod selftest;
 mod snap;
+mod sources;
 mod toolbar;
 mod updates;
 mod viewanim;
@@ -312,6 +313,8 @@ pub struct App {
     sweep: curvetools::SweepUi,
     curve_cache: curvetools::CurveCache,
     curve_sel: Option<rolidium_doc::CurveId>,
+    /// The fields of the helix in the Selection panel: the curve, the texts, and the numbers they were made from.
+    curve_edit: (Option<rolidium_doc::CurveId>, Vec<String>, [f64; 4]),
     measure: measuretool::MeasureUi,
     view_anim: Option<viewanim::ViewAnim>,
     view_before_sketch: Option<rolidium_render::Camera>,
@@ -517,6 +520,7 @@ impl App {
             sweep: Default::default(),
             curve_cache: Default::default(),
             curve_sel: None,
+            curve_edit: (None, Vec::new(), [0.0; 4]),
             measure: Default::default(),
             view_anim: None,
             view_before_sketch: None,
@@ -4235,6 +4239,9 @@ impl eframe::App for App {
                                     ));
                                     ui.weak(tr("F2 or a double click on the name renames it"));
                                 }
+                                if let Some(b) = self.body_sel {
+                                    self.link_sources_ui(ui, b, false);
+                                }
                                 if self.entity_sel.is_some() {
                                     ui.label(tr("Sketch shape (Delete removes it)"));
                                     self.selection_dims_ui(ui);
@@ -4247,6 +4254,8 @@ impl eframe::App for App {
                                     if let Ok(p) = c.def.path() {
                                         ui.label(trf("Length: {} mm", &[format!("{:.2}", p.length)]));
                                     }
+                                    let cid = c.id;
+                                    self.curve_edit_ui(ui, cid);
                                 }
                                 if !self.edge_sel.is_empty() {
                                     ui.label(trf("{} edge(s)", &[self.edge_sel.len().to_string()]));
@@ -4300,6 +4309,10 @@ impl eframe::App for App {
                                             ui.label(trf("{}: {} mm", &[name, fmt_num(ft.size)]));
                                         }
                                     }
+                                }
+                                let face_body = self.selection.first().map(|s| s.0);
+                                if let Some(b) = face_body.filter(|b| self.made_by_profiles(*b)) {
+                                    self.link_sources_ui(ui, b, true);
                                 }
                                 self.properties_ui(ui);
                                 if let Some((s, i)) = self.region_sel {

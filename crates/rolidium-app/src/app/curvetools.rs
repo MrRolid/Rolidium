@@ -1024,11 +1024,18 @@ impl App {
             return;
         }
         self.pending = None;
-        self.submit(Command::Sweep {
-            profile,
-            path,
-            mode: self.sweep.mode,
-            rounded: self.sweep.rounded,
+        // a sweep is a link: it remembers its profile and its path and follows them
+        let kind = match self.doc.sweep_link(&profile, &path, self.sweep.rounded, self.sweep.mode) {
+            Ok(k) => k,
+            Err(e) => {
+                self.set_status(e.to_string(), true);
+                return;
+            }
+        };
+        self.submit(Command::AddLink {
+            kind,
+            sources: Vec::new(),
+            name: String::new(),
         });
         self.sweep.preview.clear();
         self.layers_changed = true;

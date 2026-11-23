@@ -241,6 +241,8 @@ impl LinkParams {
                 p.plane_label = tr("as made");
                 p.how = MirrorHow::Live;
             }
+            // a loft and a sweep have no panel of parameters: their profiles and path are edited where they are
+            LinkKind::Loft { .. } | LinkKind::Sweep { .. } => {}
         }
         p
     }
@@ -327,6 +329,14 @@ impl App {
         let Some(l) = self.doc.state().links.iter().find(|l| l.id == id).cloned() else {
             return;
         };
+        if l.kind.generates() {
+            // a loft or a sweep has no panel of numbers: its body is selected, and the Selection panel names its sources
+            self.clear_selection();
+            self.body_sel = l.results.first().copied();
+            self.link_sel = Some(id);
+            self.layers_changed = true;
+            return;
+        }
         self.leave_sketch();
         self.link_ui.p = LinkParams::from_link(&l);
         self.link_ui.editing = Some(id);

@@ -129,7 +129,7 @@ Manifest keys (all optional): `link_counter`, `group_counter` (numbering of new 
 
 ```json
 {
-  "type": "linear",            // "linear", "circular" or "mirror"; a link of another type is kept without being used
+  "type": "linear",            // "linear", "circular", "mirror", "loft" or "sweep"; a link of another type is kept without being used
   "name": "Linear pattern 1",
   "sources": [1],              // ids of the bodies the pieces are made of
   "results": [5, 6, 7],        // ids of the bodies the link made (the copies, or the one target body of "add" and "cut")
@@ -143,6 +143,18 @@ Manifest keys (all optional): `link_counter`, `group_counter` (numbering of new 
   "origin": [0,0,0], "normal": [1,0,0]            // mirror: the plane
 }
 ```
+
+A loft and a sweep (`"type": "loft"` and `"sweep"`) have `"mode"` and `"target"` as above (a new body, or added to / cut from the target) and
+
+```json
+{ "type": "loft",  "profiles": [ {"kind": "region", "sketch": 3, "region": 0}, {"kind": "face", "body": 2, "face": 5},
+                                 {"kind": "edge_loop", "body": 2, "edge": 7} ], "ruled": false }
+{ "type": "sweep", "profile": {"kind": "region", "sketch": 4, "region": 0}, "rounded": false,
+  "path": {"kind": "curve", "curve": 8}            // or {"kind": "sketch", "sketch": 5, "entities": [1,2]} or {"kind": "edges", "body": 2, "edges": [4,5]}
+}
+```
+
+`sources` lists the bodies they name (not the target); the sketches and curves are the ones of the file with those ids. A link whose sketch, curve or body is not in the file is dropped (its body stays as an ordinary body). The sketches the body was made from stay in the file with `visible: false`.
 
 `links/<id>.base.brep` (only for "add" and "cut"): the solid of the target body before the pattern; every recalculation starts from it. Units are millimetres, angles degrees.
 Opening a file recalculates nothing: the bodies are stored as they were, and the link recalculates when its source changes.

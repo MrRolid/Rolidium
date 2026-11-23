@@ -444,3 +444,10 @@ D48 left open how an edit of one half of a merged symmetric body is carried to t
 
 ## D50: Releases are numbered in small steps
 From 0.2.0 on a release is 0.2.1, 0.2.2 and so on, not a bigger number for each theme. The version in `Cargo.toml` is the number of the *next* release; a build that is not exactly the tag of that number says `-dev` in the About window and in `--version`, with the commit. The check for a new version treats `0.2.1-dev` as lower than `0.2.1` (a release is higher than its own development build) and never offers an older number.
+
+## D51: A loft and a sweep are links that keep their sketches
+A loft or a sweep made in the window is a link (D49): it stores its profiles and its path and is calculated again when a sketch, a curve or a body it depends on changes. For that the sketches of the profiles must stay in the document, so they are hidden and not consumed (the commands `Loft` and `Sweep` of the scripts still consume them, so older scripts and tests behave as before). The sketches are identified by their id and the profile by the index of its region, so a change that makes the sketch have fewer regions makes the link fail with a reason and keep its last body. Changes are detected by a fingerprint of the sketch (plane and shapes) and of the curve. A face of the body that a profile names refers to the body *before* the link (an added loft works on the solid saved in the link), so the link does not depend on its own result.
+
+## D52: The window draws only what changes
+The frame rate has a ceiling that the person can set (by the monitor, 30, 60, 120, unlimited); the first three give the frames to the monitor (vsync), the last two do not wait for it, which takes effect after a restart. A window that nothing moves in and that computes nothing draws no frame: every request for a frame has a reason (an input, a finished calculation, a running animation or a pointer that moved), and the diagnostic panel (F12) names who asked for the last one. A read-back of the pick under the pointer is asked for again only when the pointer or the picture changed.
+

@@ -1895,6 +1895,76 @@ impl App {
                 self.sk = None;
             }
             92 => {
+                // a loft as a link: the body follows its circles, the Selection panel names the sources, a face has an explanation
+                use rolidium_doc::rolidium_sketch::PlaneDef as Pd;
+                self.replace_document(Document::new(), None);
+                let mut ids = Vec::new();
+                for (z, r) in [(0.0, 10.0), (30.0, 5.0)] {
+                    let plane = Pd {
+                        origin: DVec3::new(0.0, 0.0, z),
+                        normal: DVec3::Z,
+                        x_dir: DVec3::X,
+                    };
+                    let c = self.doc.apply(Command::AddEntity {
+                        target: rolidium_doc::SketchTarget::New { plane, body: None },
+                        entity: Entity::Circle {
+                            center: DVec2::ZERO,
+                            radius: r,
+                        },
+                    });
+                    ids.push(c.ok().and_then(|c| c.created_sketch));
+                }
+                if let [Some(a), Some(b)] = ids[..] {
+                    let profiles = [
+                        rolidium_doc::LoftRef::Region { sketch: a, region: 0 },
+                        rolidium_doc::LoftRef::Region { sketch: b, region: 0 },
+                    ];
+                    let kind = self.doc.loft_link(&profiles, true, rolidium_doc::LoftMode::NewBody);
+                    check(&mut st, "the kind of a loft link can be made", kind.is_ok());
+                    if let Ok(kind) = kind {
+                        let _ = self.doc.apply(Command::AddLink {
+                            kind,
+                            sources: Vec::new(),
+                            name: String::new(),
+                        });
+                    }
+                    st.step_sketch = Some(a);
+                }
+                self.request_meshes();
+                st.wait_frames = 4;
+            }
+            93 => {
+                let Some(body) = self.doc.bodies().first().map(|b| b.id) else {
+                    check(&mut st, "the loft link made a body", false);
+                    st.step += 1;
+                    self.selftest = Some(st);
+                    return;
+                };
+                check(&mut st, "the body of a loft is made by profiles", self.made_by_profiles(body));
+                let v0 = self.doc.body(body).and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
+                if let Some(a) = st.step_sketch.take() {
+                    let e = self.doc.sketch(a).map(|s| s.sketch.entities()[0].0);
+                    if let Some(e) = e {
+                        let _ = self.doc.apply(Command::ReplaceEntity {
+                            sketch: a,
+                            entity: e,
+                            new: Entity::Circle {
+                                center: DVec2::ZERO,
+                                radius: 20.0,
+                            },
+                        });
+                    }
+                }
+                let v1 = self.doc.body(body).and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
+                check(&mut st, "the loft follows a change of the circle of its sketch", v1 > v0 * 2.0);
+                self.clear_selection();
+                self.request_meshes();
+                self.body_sel = Some(body);
+                self.camera.set_view(StandardView::Isometric);
+                st.wait_frames = 6;
+                shot(&mut st, ctx, "loft-link-selection");
+            }
+            94 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

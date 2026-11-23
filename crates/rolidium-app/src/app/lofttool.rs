@@ -272,10 +272,18 @@ impl App {
             return;
         }
         self.pending = None;
-        self.submit(Command::Loft {
-            profiles: self.loft.profiles.clone(),
-            ruled: self.loft.ruled,
-            mode: self.loft.mode,
+        // a loft is a link: it remembers its profiles and follows them when a sketch changes
+        let kind = match self.doc.loft_link(&self.loft.profiles, self.loft.ruled, self.loft.mode) {
+            Ok(k) => k,
+            Err(e) => {
+                self.set_status(e.to_string(), true);
+                return;
+            }
+        };
+        self.submit(Command::AddLink {
+            kind,
+            sources: Vec::new(),
+            name: String::new(),
         });
         self.loft.profiles.clear();
         self.clear_preview();

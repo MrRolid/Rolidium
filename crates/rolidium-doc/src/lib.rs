@@ -2563,6 +2563,23 @@ impl Document {
         self.saved = None;
     }
 
+    /// The kind of link for a loft through `profiles` (what `Command::Loft` would make, but following its sources); the result is calculated
+    /// once to find the body it works on. Use it with `Command::AddLink`.
+    pub fn loft_link(&self, profiles: &[LoftRef], ruled: bool, mode: LoftMode) -> Result<LinkKind, DocError> {
+        generate::loft_kind(self.state(), profiles, ruled, mode)
+    }
+
+    /// The same for a sweep of `profile` along `path`.
+    pub fn sweep_link(
+        &self,
+        profile: &LoftRef,
+        path: &SweepPath,
+        rounded: bool,
+        mode: SweepMode,
+    ) -> Result<LinkKind, DocError> {
+        generate::sweep_kind(self.state(), profile, path, rounded, mode)
+    }
+
     pub fn state(&self) -> &Arc<State> {
         &self.current
     }

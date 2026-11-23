@@ -321,6 +321,8 @@ impl Runner {
                             }
                         ),
                         LinkKind::Mirror(_) => "mirror".to_string(),
+                        LinkKind::Loft { profiles, .. } => format!("loft through {} profiles", profiles.len()),
+                        LinkKind::Sweep { .. } => "sweep along a path".to_string(),
                     };
                     self.say(format!(
                         "link {}: '{}' {what}; from body {}; made body {}{}{}",
@@ -399,6 +401,8 @@ impl Runner {
                         }
                         Some(LinkKind::Mirror(m))
                     }
+                    // the profiles and the path are changed where they are (the sketch, the curve), not here
+                    LinkKind::Loft { .. } | LinkKind::Sweep { .. } => None,
                 };
                 self.doc
                     .apply(Command::EditLink { link: id, kind, name })

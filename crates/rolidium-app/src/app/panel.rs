@@ -413,7 +413,12 @@ impl App {
                 }
             });
         }
-        if self.sketch_has_body(sketch) {
+        if let Some(body) = self.body_following_sketch(sketch) {
+            ui.weak(trf(
+                "The body '{}' follows this sketch and is made again with every change.",
+                &[body],
+            ));
+        } else if self.sketch_has_body(sketch) {
             ui.weak(tr(
                 "Bodies already made from this sketch do not change; change them with Pull.",
             ));
