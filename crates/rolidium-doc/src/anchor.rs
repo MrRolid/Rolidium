@@ -26,7 +26,10 @@ pub enum PlaneKind {
     ParallelXZ,
     ParallelYZ,
     /// A plane turned freely: the direction stays, the point follows the end.
-    Free { normal: DVec3, x_dir: DVec3 },
+    Free {
+        normal: DVec3,
+        x_dir: DVec3,
+    },
 }
 
 impl PlaneKind {
@@ -145,9 +148,18 @@ impl EndFrame {
                 let (_, d) = self.axis?;
                 along(d, self.radial())
             }
-            PlaneKind::ParallelXY => Some(PlaneDef { origin: p, ..PlaneDef::base() }),
-            PlaneKind::ParallelXZ => Some(PlaneDef { origin: p, ..PlaneDef::xz() }),
-            PlaneKind::ParallelYZ => Some(PlaneDef { origin: p, ..PlaneDef::yz() }),
+            PlaneKind::ParallelXY => Some(PlaneDef {
+                origin: p,
+                ..PlaneDef::base()
+            }),
+            PlaneKind::ParallelXZ => Some(PlaneDef {
+                origin: p,
+                ..PlaneDef::xz()
+            }),
+            PlaneKind::ParallelYZ => Some(PlaneDef {
+                origin: p,
+                ..PlaneDef::yz()
+            }),
             PlaneKind::Free { normal, x_dir } => along(*normal, Some(*x_dir)),
         }
     }
@@ -194,11 +206,15 @@ pub fn with_angle_to_base(plane: &PlaneDef, which: usize, deg: f64) -> PlaneDef 
 /// Puts the plane of every anchored sketch where its curve end is now (the sketch moves with the end).
 pub(crate) fn refresh(st: &mut State) {
     for i in 0..st.sketches.len() {
-        let Some(a) = st.sketches[i].anchor.clone() else { continue };
+        let Some(a) = st.sketches[i].anchor.clone() else {
+            continue;
+        };
         let Some(def) = st.curves.iter().find(|c| c.id == a.curve).map(|c| c.def.clone()) else {
             continue;
         };
-        let Ok(frame) = EndFrame::of(&def, a.end) else { continue };
+        let Ok(frame) = EndFrame::of(&def, a.end) else {
+            continue;
+        };
         if let Some(plane) = frame.plane(&a.plane) {
             if plane != st.sketches[i].plane {
                 st.sketches[i].plane = plane;

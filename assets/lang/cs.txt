@@ -879,3 +879,26 @@ This face has no size of its own: it comes from the {} '{}', so its size follows
 Type numbers into the fields => Zadejte do polí čísla
 Unlimited => Bez omezení
 the shift must be a number => posun musí být číslo
+# ---- Sketch plane tool ----
+Plane square to the edge => Rovina kolmá k hraně
+Plane of the round edge => Rovina kruhové hrany
+Plane through the axis of the helix and the point => Rovina osou šroubovice a bodem
+Plane square to the curve => Rovina kolmá ke křivce
+Plane square to the axis of the helix => Rovina kolmá k ose šroubovice
+Plane parallel to XY => Rovina rovnoběžná s XY
+Plane parallel to XZ => Rovina rovnoběžná s XZ
+Plane parallel to YZ => Rovina rovnoběžná s YZ
+Free plane => Volná rovina
+Angle to {} => Úhel k {}
+Choose => Vybrat
+Step => Krok
+start => začátek
+end => konec
+Sketch on the chosen plane => Skica na vybrané rovině
+That plane does not exist at this end of the curve => Taková rovina na tomto konci křivky neexistuje
+Sketch plane: {} (the wheel changes it, a click chooses it) => Rovina náčrtu: {} (kolečko ji mění, klik ji vybere)
+Sketch plane: point at the end of a curve, a vertex, the centre of a round edge or a point of an edge; the wheel changes the plane, a click chooses it => Rovina náčrtu: ukažte na konec křivky, vrchol, střed kruhové hrany nebo bod hrany; kolečko mění rovinu, klik ji vybere
+Free plane: drag a ring to turn the plane (the step is in the panel), type the angles, Enter chooses it, Esc cancels => Volná rovina: tažením kruhu otáčejte rovinu (krok je v panelu), napište úhly, Enter ji vybere, Esc zruší
+Chooses the plane of a new sketch with the mouse. Point at the end of a curve, a vertex of a body, the centre of a round edge or a point of an edge: the plane that would be chosen is shown. The mouse wheel goes through the proposals (at the end of a helix: the plane through its axis, the plane square to the curve, the plane square to the axis; then planes parallel to XY, XZ and YZ and a free plane), the status line names the one shown, and a click starts a sketch on it. The free plane has three rings round the point: drag one to turn the plane in steps (1, 5, 10 or 15 degrees), or type the angles to XY, XZ and YZ; Enter chooses, Esc cancels. => Vybere rovinu nového náčrtu myší. Ukažte na konec křivky, vrchol tělesa, střed kruhové hrany nebo bod hrany: zobrazí se rovina, která by se vybrala. Kolečko myši prochází návrhy (na konci šroubovice: rovina osou šroubovice, rovina kolmá ke křivce, rovina kolmá k ose; potom roviny rovnoběžné s XY, XZ a YZ a volná rovina), stavový řádek jmenuje zobrazenou a klik na ní začne skicu. Volná rovina má kolem bodu tři kruhy: tažením jednoho se rovina otáčí po krocích (1, 5, 10 nebo 15 stupňů), nebo napište úhly k XY, XZ a YZ; Enter vybere, Esc zruší.
+A sketch laid on the end of a curve remembers the end: when the curve changes (the pitch or the turns of a helix) the sketch moves with it and what was made from it is made again. => Skica položená na konec křivky si ten konec pamatuje: když se křivka změní (stoupání nebo počet závitů šroubovice), skica se posune s ním a to, co z ní vzniklo, se vytvoří znovu.
+The ends of the curves are marked while the tool is active: the start green, the end orange. => Konce křivek jsou při aktivním nástroji označené: začátek zeleně, konec oranžově.

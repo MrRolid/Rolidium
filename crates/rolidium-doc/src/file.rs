@@ -282,7 +282,9 @@ fn anchor_json(a: &crate::SketchAnchor) -> Value {
 /// The anchor of a sketch from its JSON; none when it names a curve that is not in the file or a kind this program does not know (the sketch stays).
 fn anchor_from(a: &Value, curves: &[crate::CurveDoc]) -> Option<crate::SketchAnchor> {
     use crate::PlaneKind;
-    let curve = a["curve"].as_u64().filter(|c| curves.iter().any(|x| x.id == *c))?;
+    let curve = a["curve"]
+        .as_u64()
+        .filter(|c| curves.iter().any(|x| x.id == *c))?;
     let end = match a["end"].as_str()? {
         "start" => crate::CurveEnd::Start,
         "end" => crate::CurveEnd::End,
@@ -926,7 +928,15 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         }
         take_keys(
             &mut j,
-            &["name", "plane", "target_body", "entities", "visible", "fill", "anchor"],
+            &[
+                "name",
+                "plane",
+                "target_body",
+                "entities",
+                "visible",
+                "fill",
+                "anchor",
+            ],
         );
         if !unknown.is_empty() {
             j.insert("entities_unknown".into(), Value::Array(unknown));

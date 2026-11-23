@@ -449,6 +449,18 @@
     "animation": null
   },
   {
+    "id": "sketch_plane_at",
+    "title": "Sketch plane",
+    "shortcut": "N",
+    "text": "Chooses the plane of a new sketch with the mouse. Point at the end of a curve, a vertex of a body, the centre of a round edge or a point of an edge: the plane that would be chosen is shown. The mouse wheel goes through the proposals (at the end of a helix: the plane through its axis, the plane square to the curve, the plane square to the axis; then planes parallel to XY, XZ and YZ and a free plane), the status line names the one shown, and a click starts a sketch on it. The free plane has three rings round the point: drag one to turn the plane in steps (1, 5, 10 or 15 degrees), or type the angles to XY, XZ and YZ; Enter chooses, Esc cancels.",
+    "tips": [
+      "A sketch laid on the end of a curve remembers the end: when the curve changes (the pitch or the turns of a helix) the sketch moves with it and what was made from it is made again.",
+      "The ends of the curves are marked while the tool is active: the start green, the end orange."
+    ],
+    "illustration": "sketch_plane_at.svg",
+    "animation": null
+  },
+  {
     "id": "sketch_plane",
     "title": "Move sketch plane",
     "shortcut": "",

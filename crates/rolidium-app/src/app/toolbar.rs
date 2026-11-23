@@ -12,6 +12,7 @@ enum Tb {
     Sketch,
     Draw(SkTool),
     MovePlane,
+    PlaneAt,
     PlanView,
     Mode3d,
     Helix,
@@ -113,6 +114,19 @@ impl App {
             }
         }
         items.push(Item {
+            act: Tb::PlaneAt,
+            id: "sketch_plane_at",
+            label: "Sketch plane",
+            key: "N",
+            group: 2,
+            selected: self.plane_at.is_some(),
+            why: if drawing {
+                Some("Not available while a shape is being drawn: finish it first")
+            } else {
+                None
+            },
+        });
+        items.push(Item {
             act: Tb::MovePlane,
             id: "sketch_plane",
             label: "Move sketch plane",
@@ -170,6 +184,7 @@ impl App {
                 }
             }
             Tb::MovePlane => self.begin_plane_move(),
+            Tb::PlaneAt => self.begin_plane_at(),
             Tb::PlanView => self.view_normal_to_sketch(),
             Tb::Mode3d => self.leave_sketch(),
             Tb::Helix => self.activate_helix(),

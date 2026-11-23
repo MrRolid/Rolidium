@@ -113,6 +113,8 @@ pub struct SketchMode {
     pub arc_end: Option<DVec2>,
     /// Point the camera centres on when the view is turned to the sketch.
     pub focus: glam::Vec3,
+    /// The end of a curve the sketch is laid on (the sketch made from it remembers it).
+    pub anchor: Option<rolidium_doc::SketchAnchor>,
 }
 
 fn closest_on_segment(a: DVec2, b: DVec2, p: DVec2) -> DVec2 {
@@ -149,6 +151,7 @@ impl SketchMode {
             place: None,
             arc_end: None,
             focus: plane.origin.as_vec3(),
+            anchor: None,
         }
     }
 

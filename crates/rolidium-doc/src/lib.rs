@@ -9,7 +9,9 @@ use rolidium_kernel::{BooleanOp, DVec3, FaceId, History, KernelError, Profile, P
 
 mod anchor;
 mod curves;
-pub use anchor::{angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor};
+pub use anchor::{
+    angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor,
+};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};
 use std::sync::Arc;
@@ -259,9 +261,14 @@ pub enum SweepMode {
 #[derive(Debug, Clone)]
 pub enum SketchTarget {
     Existing(SketchId),
-    New { plane: PlaneDef, body: Option<BodyId> },
+    New {
+        plane: PlaneDef,
+        body: Option<BodyId>,
+    },
     /// A new sketch laid on the end of a curve (its plane is the one `anchor` gives there).
-    Anchored { anchor: SketchAnchor },
+    Anchored {
+        anchor: SketchAnchor,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -1095,9 +1102,14 @@ impl Job {
                             .ok_or(DocError::NoSuchCurve)?
                             .def
                             .clone();
-                        let plane = EndFrame::of(&def, anchor.end)?
-                            .plane(&anchor.plane)
-                            .ok_or_else(|| KernelError::Invalid("That plane does not exist at this end of the curve".into()))?;
+                        let plane =
+                            EndFrame::of(&def, anchor.end)?
+                                .plane(&anchor.plane)
+                                .ok_or_else(|| {
+                                    KernelError::Invalid(
+                                        "That plane does not exist at this end of the curve".into(),
+                                    )
+                                })?;
                         st.sketch_counter += 1;
                         st.sketches.push(SketchDoc {
                             id: self.next_id,

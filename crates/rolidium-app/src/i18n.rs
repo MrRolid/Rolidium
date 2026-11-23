@@ -442,6 +442,8 @@ mod coverage {
 
     /// Texts that reach the screen through tables or `format!`, so the scan cannot see them.
     const EXTRA: &[&str] = &[
+        "Plane through the axis of the helix and the point", "Plane square to the curve", "Plane square to the axis of the helix",
+        "Plane square to the edge", "Plane of the round edge", "Plane parallel to XY", "Plane parallel to XZ", "Plane parallel to YZ", "Free plane",
         "Mirror the body itself", "The body is mirrored where it is.", "Keep the original", "The mirror image is a new body.",
         "Merge into one body", "The image is fused with the original into one symmetric body (the body must touch the plane).",
         "Live mirror", "The mirror image follows when you change the original. A merged body cannot be live: an edit of one half could not be carried to the other reliably.",

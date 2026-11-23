@@ -879,3 +879,26 @@ This face has no size of its own: it comes from the {} '{}', so its size follows
 Type numbers into the fields => Escriba números en los campos
 Unlimited => Sin límite
 the shift must be a number => el desplazamiento debe ser un número
+# ---- Sketch plane tool ----
+Plane square to the edge => Plano perpendicular a la arista
+Plane of the round edge => Plano de la arista circular
+Plane through the axis of the helix and the point => Plano por el eje de la hélice y el punto
+Plane square to the curve => Plano perpendicular a la curva
+Plane square to the axis of the helix => Plano perpendicular al eje de la hélice
+Plane parallel to XY => Plano paralelo a XY
+Plane parallel to XZ => Plano paralelo a XZ
+Plane parallel to YZ => Plano paralelo a YZ
+Free plane => Plano libre
+Angle to {} => Ángulo con {}
+Choose => Elegir
+Step => Paso
+start => inicio
+end => fin
+Sketch on the chosen plane => Boceto en el plano elegido
+That plane does not exist at this end of the curve => Ese plano no existe en este extremo de la curva
+Sketch plane: {} (the wheel changes it, a click chooses it) => Plano del boceto: {} (la rueda lo cambia, un clic lo elige)
+Sketch plane: point at the end of a curve, a vertex, the centre of a round edge or a point of an edge; the wheel changes the plane, a click chooses it => Plano del boceto: señale el extremo de una curva, un vértice, el centro de una arista circular o un punto de arista; la rueda cambia el plano, un clic lo elige
+Free plane: drag a ring to turn the plane (the step is in the panel), type the angles, Enter chooses it, Esc cancels => Plano libre: arrastre un anillo para girar el plano (el paso está en el panel), escriba los ángulos, Intro lo elige, Esc cancela
+Chooses the plane of a new sketch with the mouse. Point at the end of a curve, a vertex of a body, the centre of a round edge or a point of an edge: the plane that would be chosen is shown. The mouse wheel goes through the proposals (at the end of a helix: the plane through its axis, the plane square to the curve, the plane square to the axis; then planes parallel to XY, XZ and YZ and a free plane), the status line names the one shown, and a click starts a sketch on it. The free plane has three rings round the point: drag one to turn the plane in steps (1, 5, 10 or 15 degrees), or type the angles to XY, XZ and YZ; Enter chooses, Esc cancels. => Elige el plano de un boceto nuevo con el ratón. Señale el extremo de una curva, un vértice de un cuerpo, el centro de una arista circular o un punto de una arista: se muestra el plano que se elegiría. La rueda del ratón recorre las propuestas (en el extremo de una hélice: el plano por su eje, el plano perpendicular a la curva, el plano perpendicular al eje; después planos paralelos a XY, XZ y YZ y un plano libre), la línea de estado nombra el mostrado y un clic inicia un boceto sobre él. El plano libre tiene tres anillos alrededor del punto: arrastre uno para girar el plano por pasos (1, 5, 10 o 15 grados), o escriba los ángulos con XY, XZ y YZ; Intro elige, Esc cancela.
+A sketch laid on the end of a curve remembers the end: when the curve changes (the pitch or the turns of a helix) the sketch moves with it and what was made from it is made again. => Un boceto colocado en el extremo de una curva recuerda ese extremo: cuando la curva cambia (paso o vueltas de una hélice), el boceto se mueve con él y lo que se hizo con él se rehace.
+The ends of the curves are marked while the tool is active: the start green, the end orange. => Los extremos de las curvas se marcan mientras la herramienta está activa: el inicio en verde, el fin en naranja.

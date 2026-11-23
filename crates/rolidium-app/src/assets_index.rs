@@ -58,6 +58,10 @@ pub static ICONS: &[(&str, &str)] = &[
         "sketch_plane",
         include_str!("../../../assets/icons/sketch_plane.svg"),
     ),
+    (
+        "sketch_plane_at",
+        include_str!("../../../assets/icons/sketch_plane_at.svg"),
+    ),
     ("settings", include_str!("../../../assets/icons/settings.svg")),
 ];
 
@@ -115,6 +119,10 @@ pub static HELP_ART: &[(&str, &str)] = &[
     (
         "sketch_plane",
         include_str!("../../../assets/help/sketch_plane.svg"),
+    ),
+    (
+        "sketch_plane_at",
+        include_str!("../../../assets/help/sketch_plane_at.svg"),
     ),
     ("settings", include_str!("../../../assets/help/settings.svg")),
     ("round", include_str!("../../../assets/help/round.svg")),

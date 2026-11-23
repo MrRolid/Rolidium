@@ -2014,6 +2014,98 @@ impl App {
                 shot(&mut st, ctx, "loft-link-selection");
             }
             94 => {
+                // the tool Sketch plane at the end of a helix that is off the base planes
+                use rolidium_doc::{CurveDef, CurveEnd};
+                self.replace_document(Document::new(), None);
+                let def = CurveDef::Helix(rolidium_kernel::HelixDef {
+                    origin: DVec3::new(30.0, 20.0, 10.0),
+                    axis: DVec3::new(0.2, 0.1, 1.0).normalize(),
+                    x_dir: DVec3::X,
+                    radius: 10.0,
+                    pitch: 4.0,
+                    turns: 5.0,
+                    right: true,
+                    start_deg: 0.0,
+                    cone_deg: 0.0,
+                });
+                let _ = self.doc.apply(Command::AddCurve { def: def.clone() });
+                if let Ok(f) = rolidium_doc::EndFrame::of(&def, CurveEnd::End) {
+                    self.camera.set_view(StandardView::Isometric);
+                    self.camera.target = f.point.as_vec3();
+                    self.camera.distance = 90.0;
+                }
+                self.view_anim = None;
+                self.sk = None;
+                self.begin_plane_at();
+                self.show_debug = true;
+                st.wait_frames = 4;
+            }
+            95 => {
+                use rolidium_doc::{CurveDef, CurveEnd, EndFrame};
+                let rect = self.viewport_rect;
+                let def = self.doc.curves().first().map(|c| c.def.clone());
+                let end = def.as_ref().and_then(|d| EndFrame::of(d, CurveEnd::End).ok());
+                let at = end.and_then(|f| self.project(f.point.as_vec3(), rect));
+                let hover = at.and_then(|p| self.plane_hover_at(p, rect));
+                let names: Vec<&str> = hover
+                    .iter()
+                    .flat_map(|h| h.props.iter().map(|p| p.name))
+                    .collect();
+                println!("selftest: planes at the end of the helix: {names:?}");
+                check(
+                    &mut st,
+                    "the end of a helix proposes the plane through the axis first, then the plane square to the curve",
+                    names.first() == Some(&"Plane through the axis of the helix and the point")
+                        && names.get(1) == Some(&"Plane square to the curve")
+                        && names.last() == Some(&"Free plane"),
+                );
+                check(
+                    &mut st,
+                    "the diagnostic panel has its fixed width",
+                    (self.diag_size.x - 360.0).abs() < 1.0,
+                );
+                // the plane square to the curve: a sketch on it remembers the end, and moves with it when the helix changes
+                if let (Some(h), Some(def)) = (hover, def) {
+                    let prop = h.props[1].clone();
+                    self.start_sketch_on(prop.plane, h.anchor.map(|(c, e)| (c, e, prop.kind.clone())));
+                    check(
+                        &mut st,
+                        "a sketch started at the end of the curve has the anchor",
+                        self.sk.as_ref().is_some_and(|s| s.anchor.is_some()),
+                    );
+                    let made = self.add_entity(Entity::Circle {
+                        center: DVec2::ZERO,
+                        radius: 1.0,
+                    });
+                    let sk = self.doc.sketches().first().map(|s| (s.id, s.anchor.is_some()));
+                    check(
+                        &mut st,
+                        "the sketch of the circle is anchored",
+                        made && sk.is_some_and(|s| s.1),
+                    );
+                    if let (Some((sid, _)), CurveDef::Helix(hx)) = (sk, def) {
+                        let curve = self.doc.curves()[0].id;
+                        let moved = CurveDef::Helix(rolidium_kernel::HelixDef { pitch: 7.0, ..hx });
+                        let _ = self.doc.apply(Command::EditCurve {
+                            curve,
+                            def: moved.clone(),
+                        });
+                        let want = EndFrame::of(&moved, CurveEnd::End)
+                            .map(|f| f.point)
+                            .unwrap_or_default();
+                        let got = self.doc.sketch(sid).map(|s| s.plane.origin).unwrap_or_default();
+                        check(
+                            &mut st,
+                            "the sketch moved with the end of the helix",
+                            (want - got).length() < 1e-6,
+                        );
+                    }
+                }
+                self.show_debug = false;
+                self.sk = None;
+                st.wait_frames = 2;
+            }
+            96 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

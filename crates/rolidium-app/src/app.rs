@@ -43,6 +43,7 @@ mod measuretool;
 mod movetool;
 mod panel;
 mod pick;
+mod planeat;
 mod planemove;
 mod planepick;
 mod properties;
@@ -308,6 +309,8 @@ pub struct App {
     region_multi: Vec<(SketchId, usize)>,
     sel_order: Vec<rolidium_doc::LoftRef>,
     plane_move: Option<planemove::PlaneMove>,
+    /// The tool Sketch plane (key N).
+    plane_at: Option<planeat::PlaneAt>,
     docks: dock::Docks,
     loft: lofttool::LoftUi,
     line3: curvetools::Line3,
@@ -516,6 +519,7 @@ impl App {
             region_multi: Vec::new(),
             sel_order: Vec::new(),
             plane_move: None,
+            plane_at: None,
             docks: Default::default(),
             loft: Default::default(),
             line3: Default::default(),
@@ -1676,9 +1680,14 @@ impl App {
         let Some(sm) = &self.sk else { return false };
         let target = match sm.sketch {
             Some(id) if self.doc.sketch(id).is_some() => SketchTarget::Existing(id),
-            _ => SketchTarget::New {
-                plane: sm.plane,
-                body: sm.body,
+            _ => match &sm.anchor {
+                Some(anchor) => SketchTarget::Anchored {
+                    anchor: anchor.clone(),
+                },
+                None => SketchTarget::New {
+                    plane: sm.plane,
+                    body: sm.body,
+                },
             },
         };
         match self.doc.apply(Command::AddEntity { target, entity: e }) {
@@ -1873,6 +1882,10 @@ impl App {
             }
             return;
         }
+        // while the tool Sketch plane is active, Esc and Enter belong to it (see `planeat.rs`) and no other key works
+        if self.plane_at.is_some() {
+            return;
+        }
         if self.sk.is_some() && self.line3_key(key) {
             return;
         }
@@ -1902,6 +1915,7 @@ impl App {
                 Key::C => self.sk.as_mut().unwrap().set_tool(SkTool::Circle),
                 Key::A => self.sk.as_mut().unwrap().set_tool(SkTool::Arc),
                 Key::V => self.view_normal_to_sketch(),
+                Key::N => self.begin_plane_at(),
                 // K finishes the sketch (as the main button does); D and P still work
                 Key::K => self.leave_sketch(),
                 Key::D | Key::S => {
@@ -1993,6 +2007,7 @@ impl App {
             Key::W => self.activate_sweep(),
             Key::H => self.activate_helix(),
             Key::K => self.enter_sketch(),
+            Key::N => self.begin_plane_at(),
             Key::U => self.begin_up_to(),
             Key::E => self.activate_measure(),
             Key::F => self.activate_fill(),
@@ -2458,7 +2473,12 @@ impl App {
         // Camera control
         let (shift, scroll) = ctx.input(|i| (i.modifiers.shift, i.smooth_scroll_delta.y));
         let pointer = resp.hover_pos().or_else(|| ctx.input(|i| i.pointer.latest_pos()));
-        if resp.hovered() && scroll.abs() > 0.0 {
+        // the wheel goes through the planes proposed at a point while the tool Sketch plane points at one
+        let wheel_taken = self
+            .plane_at
+            .as_ref()
+            .is_some_and(|p| p.hover.is_some() && p.free.is_none());
+        if resp.hovered() && scroll.abs() > 0.0 && !wheel_taken {
             if let Some(p) = pointer {
                 self.camera
                     .zoom_at(Self::ndc(p, rect), aspect, (scroll * 0.0025).exp());
@@ -2513,7 +2533,10 @@ impl App {
             self.layers_changed = true;
         }
         // choosing the sketch plane with the mouse also works before any sketch exists
-        if self.sk.is_some() || self.plane_pick {
+        if self.plane_at.is_some() {
+            self.hover_region = None;
+            self.plane_at_input(&resp, pointer, rect, scroll);
+        } else if self.sk.is_some() || self.plane_pick {
             self.hover_region = None;
             self.sketch_input(&resp, pointer, ray, rect);
         } else {
@@ -2705,6 +2728,8 @@ impl App {
         self.paint_sketch_overlay(ui, rect);
         self.empty_hint_paint(ui, rect);
         self.plane_move_paint(ui, rect);
+        self.plane_at_paint(ui, rect);
+        self.paint_curve_ends(ui, rect);
         self.move_paint(ui, rect);
         self.loft_paint(ui, rect);
         self.line3_paint(ui, rect);
@@ -4359,6 +4384,7 @@ impl eframe::App for App {
         self.loft_panel(&ctx, vr);
         self.helix_panel(&ctx, vr);
         self.sweep_panel(&ctx, vr);
+        self.plane_free_panel(&ctx, vr);
         self.line3_panel(&ctx, vr);
         self.join_panel(&ctx, vr);
         self.revolve_panel(&ctx, vr);

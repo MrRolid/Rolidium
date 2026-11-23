@@ -879,3 +879,26 @@ This face has no size of its own: it comes from the {} '{}', so its size follows
 Type numbers into the fields => 欄に数値を入力してください
 Unlimited => 無制限
 the shift must be a number => 移動量は数値でなければなりません
+# ---- Sketch plane tool ----
+Plane square to the edge => 辺に垂直な平面
+Plane of the round edge => 円形エッジの平面
+Plane through the axis of the helix and the point => らせんの軸と点を通る平面
+Plane square to the curve => 曲線に垂直な平面
+Plane square to the axis of the helix => らせんの軸に垂直な平面
+Plane parallel to XY => XYに平行な平面
+Plane parallel to XZ => XZに平行な平面
+Plane parallel to YZ => YZに平行な平面
+Free plane => 自由な平面
+Angle to {} => {}との角度
+Choose => 選択
+Step => ステップ
+start => 始点
+end => 終点
+Sketch on the chosen plane => 選んだ平面上のスケッチ
+That plane does not exist at this end of the curve => この曲線の端にはその平面はありません
+Sketch plane: {} (the wheel changes it, a click chooses it) => スケッチ平面：{}（ホイールで切替、クリックで決定）
+Sketch plane: point at the end of a curve, a vertex, the centre of a round edge or a point of an edge; the wheel changes the plane, a click chooses it => スケッチ平面：曲線の端、頂点、円形エッジの中心、エッジ上の点を指します。ホイールで平面を切替、クリックで決定
+Free plane: drag a ring to turn the plane (the step is in the panel), type the angles, Enter chooses it, Esc cancels => 自由な平面：リングをドラッグして平面を回転（ステップはパネル内）、角度を入力、Enterで決定、Escでキャンセル
+Chooses the plane of a new sketch with the mouse. Point at the end of a curve, a vertex of a body, the centre of a round edge or a point of an edge: the plane that would be chosen is shown. The mouse wheel goes through the proposals (at the end of a helix: the plane through its axis, the plane square to the curve, the plane square to the axis; then planes parallel to XY, XZ and YZ and a free plane), the status line names the one shown, and a click starts a sketch on it. The free plane has three rings round the point: drag one to turn the plane in steps (1, 5, 10 or 15 degrees), or type the angles to XY, XZ and YZ; Enter chooses, Esc cancels. => マウスで新しいスケッチの平面を選びます。曲線の端、本体の頂点、円形エッジの中心、エッジ上の点を指すと、選ばれる平面が表示されます。マウスホイールで候補を切り替えます（らせんの端：軸を通る平面、曲線に垂直な平面、軸に垂直な平面。続いてXY・XZ・YZに平行な平面と自由な平面）。ステータス行に表示中の候補名が出て、クリックでその平面にスケッチを開始します。自由な平面には点の周りに3つのリングがあり、ドラッグして段階的（1・5・10・15度）に回転するか、XY・XZ・YZとの角度を入力します。Enterで決定、Escでキャンセルします。
+A sketch laid on the end of a curve remembers the end: when the curve changes (the pitch or the turns of a helix) the sketch moves with it and what was made from it is made again. => 曲線の端に置いたスケッチはその端を記憶します。曲線が変わる（らせんのピッチや巻き数）と、スケッチも一緒に動き、それから作ったものが作り直されます。
+The ends of the curves are marked while the tool is active: the start green, the end orange. => ツールが有効な間、曲線の端が表示されます。始点は緑、終点はオレンジです。
