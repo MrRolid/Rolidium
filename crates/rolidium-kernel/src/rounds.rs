@@ -665,7 +665,8 @@ impl Solid {
         if map.components.is_empty() || !size.is_finite() || size <= 0.0 {
             return Ok(None);
         }
-        let chain = self.blend_chain(edges, chamfer)?;
+        // the selected edges only: the tangent chain that the kernel would add runs along the existing rounds, which are made again as a whole
+        let chain: Vec<EdgeId> = edges.to_vec();
         // the ends of the new edges
         let mut ends: Vec<DVec3> = Vec::new();
         for e in &chain {
@@ -699,6 +700,7 @@ impl Solid {
         }
         // the pair of faces every new edge separates
         let mut new_roundings: Vec<Rounding> = Vec::new();
+        let taken_out = |f: &FaceId| touching.iter().any(|ci| map.components[*ci].faces.contains(f));
         for e in &chain {
             let owners: Vec<FaceId> = self
                 .faces()
@@ -706,6 +708,10 @@ impl Solid {
                 .collect();
             if owners.len() != 2 {
                 return Err(KernelError::Invalid("an edge does not have two faces".into()));
+            }
+            // an edge of an existing round (the tangent chain runs along it) is not a sharp edge: the round is made again as a whole
+            if owners.iter().any(taken_out) {
+                continue;
             }
             let (a, b) = ordered(self, owners[0], owners[1]);
             new_roundings.push(Rounding {
@@ -717,6 +723,9 @@ impl Solid {
                 pairs: vec![(a, b)],
                 legs: if chamfer { vec![(size, size)] } else { Vec::new() },
             });
+        }
+        if new_roundings.is_empty() {
+            return Ok(None);
         }
         let mut ids: Vec<u32> = Vec::new();
         let mut items: Vec<Item> = Vec::new();

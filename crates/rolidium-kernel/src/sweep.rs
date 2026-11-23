@@ -371,9 +371,11 @@ impl Solid {
             _ => sweep_message(),
         })?;
         let t1 = std::time::Instant::now();
-        let solid = Solid::from_shape(shape)
-            .validated_body()
-            .map_err(|_| sweep_message())?;
+        let solid = Solid::from_shape(shape).validated_body().map_err(|e| match e {
+            // a stop by the person is not a failure of the sweep
+            KernelError::Cancelled => KernelError::Cancelled,
+            _ => sweep_message(),
+        })?;
         let t2 = std::time::Instant::now();
         // Along a helix the turns cannot touch each other as long as the profile is narrower than the pitch (measured along
         // the axis); that is checked directly, because the general check takes many seconds on a long thread.

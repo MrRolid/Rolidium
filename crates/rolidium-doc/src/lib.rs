@@ -2489,7 +2489,10 @@ impl Job {
                         .ok_or(DocError::NoSuchBody)?;
                     let r = st.bodies[pos].solid.mirrored(*origin, *normal)?;
                     if *merge {
-                        let fused = st.bodies[pos].solid.boolean_checked(&r.solid, BooleanOp::Fuse).map_err(|_| {
+                        let fused = st.bodies[pos].solid.boolean_checked(&r.solid, BooleanOp::Fuse).map_err(|e| {
+                            if matches!(e, KernelError::Cancelled) {
+                                return DocError::from(e);
+                            }
                             DocError::from(KernelError::Invalid("The body does not touch its mirror image, so they cannot be merged into one body. Move it to the plane or use a mirror without merging".into()))
                         })?;
                         let b = &mut st.bodies[pos];
@@ -3559,9 +3562,14 @@ mod neighbour_blend_tests {
                 chamfer: false,
             })
             .unwrap();
-        assert!(c.notice.is_none());
+        assert!(c.notice.is_none(), "{:?}", c.notice);
         let b = d.body(id).unwrap();
-        assert!((b.solid.volume().unwrap() - want).abs() < 1e-3);
+        assert!(
+            (b.solid.volume().unwrap() - want).abs() < 1e-3,
+            "{} vs {want}; faces {}",
+            b.solid.volume().unwrap(),
+            b.solid.face_count()
+        );
         assert_eq!(
             b.features.len(),
             3,
@@ -4749,7 +4757,7 @@ mod loft_edge_tests {
         pull_square(&mut d, 0.0, 0.0, 10.0, 10.0).unwrap();
         let c = pull_square(&mut d, 12.0, 0.0, 10.0, 10.0).unwrap();
         assert_eq!(d.bodies().len(), 2);
-        assert!(c.notice.is_none());
+        assert!(c.notice.is_none(), "{:?}", c.notice);
     }
 
     #[test]

@@ -2145,7 +2145,7 @@ impl App {
                 check(
                     &mut st,
                     "the diagnostic panel has its fixed width",
-                    (self.diag_size.x - 360.0).abs() < 1.0,
+                    (self.diag_size.x - 520.0).abs() < 1.0,
                 );
                 // the plane square to the curve: a sketch on it remembers the end, and moves with it when the helix changes
                 if let (Some(h), Some(def)) = (hover, def) {

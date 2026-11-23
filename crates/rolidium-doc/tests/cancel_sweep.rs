@@ -7,6 +7,9 @@ use rolidium_doc::*;
 use rolidium_kernel::{request_cancel, reset_cancel, DVec3, HelixDef, KernelError, Path, PathSource};
 use std::time::{Duration, Instant};
 
+/// The cancel flag is global: the tests of this file run one after the other.
+static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn helix(turns: f64, pitch: f64, radius: f64, cone_deg: f64) -> HelixDef {
     HelixDef {
         origin: DVec3::ZERO,
@@ -24,7 +27,7 @@ fn helix(turns: f64, pitch: f64, radius: f64, cone_deg: f64) -> HelixDef {
 /// The document of a heavy sweep that has not been calculated yet: a cylinder, a helix of 250 turns and a small circle across its start.
 fn heavy_doc() -> (Document, Command) {
     let mut d = Document::new();
-    let h = helix(250.0, 0.3, 5.0, 0.0);
+    let h = helix(250.0, 0.5, 5.0, 0.0);
     let curve = d
         .apply(Command::AddCurve {
             def: CurveDef::Helix(h),
@@ -46,7 +49,7 @@ fn heavy_doc() -> (Document, Command) {
             },
             entity: Entity::Circle {
                 center: DVec2::ZERO,
-                radius: 0.1,
+                radius: 0.15,
             },
         })
         .unwrap()
@@ -69,7 +72,23 @@ fn heavy_doc() -> (Document, Command) {
 }
 
 #[test]
+fn the_heavy_sweep_works_when_nobody_cancels_it() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+    reset_cancel();
+    let (mut d, cmd) = heavy_doc();
+    let t = Instant::now();
+    let r = d.apply(cmd);
+    eprintln!(
+        "the heavy sweep takes {:?}: {:?}",
+        t.elapsed(),
+        r.as_ref().err().map(|e| e.to_string())
+    );
+    r.expect("the sweep itself is good");
+}
+
+#[test]
 fn a_cancelled_heavy_sweep_leaves_the_document_as_it_was() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     reset_cancel();
     let (d, cmd) = heavy_doc();
     let before_bytes = file::save_to_bytes(&d, None, "t").unwrap();
@@ -116,6 +135,7 @@ fn a_cancelled_heavy_sweep_leaves_the_document_as_it_was() {
 
 #[test]
 fn a_helix_of_1000_turns_on_a_cone_is_refused_not_calculated() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let mut d = Document::new();
     let half = -(20.0f64 / 30.0).atan().to_degrees();
     let started = Instant::now();
