@@ -95,7 +95,13 @@ fn rounding_edges_one_by_one_the_size_can_be_changed_and_set_to_zero_for_two_thr
                         })
                         .collect()
                 };
-                d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer }).unwrap();
+                d.apply(Command::FilletEdges {
+                    body: id,
+                    edges: ids,
+                    size,
+                    chamfer,
+                })
+                .unwrap();
             } else {
                 round_one_by_one(&mut d, id, &edges, size, chamfer);
             }
@@ -114,7 +120,11 @@ fn rounding_edges_one_by_one_the_size_can_be_changed_and_set_to_zero_for_two_thr
             let s = &d.body(id).unwrap().solid;
             assert!(s.is_valid(), "{name}");
             for f in &d.body(id).unwrap().features {
-                assert!((f.size - new).abs() < 1e-6, "{name} chamfer={chamfer}: {} != {new}", f.size);
+                assert!(
+                    (f.size - new).abs() < 1e-6,
+                    "{name} chamfer={chamfer}: {} != {new}",
+                    f.size
+                );
             }
             // zero: sharp edges and the six faces of the box
             let face = any_round_face(&d, id);
@@ -147,8 +157,16 @@ fn a_round_of_three_edges_at_a_corner_can_be_changed_alone_without_the_chain() {
     })
     .unwrap();
     let sizes: Vec<f64> = d.body(id).unwrap().features.iter().map(|f| f.size).collect();
-    assert_eq!(sizes.iter().filter(|s| (**s - 2.0).abs() < 1e-6).count(), 1, "{sizes:?}");
-    assert_eq!(sizes.iter().filter(|s| (**s - 3.0).abs() < 1e-6).count(), 2, "{sizes:?}");
+    assert_eq!(
+        sizes.iter().filter(|s| (**s - 2.0).abs() < 1e-6).count(),
+        1,
+        "{sizes:?}"
+    );
+    assert_eq!(
+        sizes.iter().filter(|s| (**s - 3.0).abs() < 1e-6).count(),
+        2,
+        "{sizes:?}"
+    );
 }
 
 #[test]

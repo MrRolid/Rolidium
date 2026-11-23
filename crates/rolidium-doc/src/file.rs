@@ -1411,7 +1411,8 @@ mod tests {
         e.apply(Command::EditBlend {
             body: id,
             face,
-            size: 8.0, chain: true,
+            size: 8.0,
+            chain: true,
         })
         .unwrap();
         assert!(e.body(id).unwrap().solid.volume().unwrap() < before);
@@ -1419,7 +1420,8 @@ mod tests {
         e.apply(Command::EditBlend {
             body: id,
             face,
-            size: 0.0, chain: true,
+            size: 0.0,
+            chain: true,
         })
         .unwrap();
         assert!(e.body(id).unwrap().features.is_empty());

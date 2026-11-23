@@ -902,3 +902,11 @@ Free plane: drag a ring to turn the plane (the step is in the panel), type the a
 Chooses the plane of a new sketch with the mouse. Point at the end of a curve, a vertex of a body, the centre of a round edge or a point of an edge: the plane that would be chosen is shown. The mouse wheel goes through the proposals (at the end of a helix: the plane through its axis, the plane square to the curve, the plane square to the axis; then planes parallel to XY, XZ and YZ and a free plane), the status line names the one shown, and a click starts a sketch on it. The free plane has three rings round the point: drag one to turn the plane in steps (1, 5, 10 or 15 degrees), or type the angles to XY, XZ and YZ; Enter chooses, Esc cancels. => マウスで新しいスケッチの平面を選びます。曲線の端、本体の頂点、円形エッジの中心、エッジ上の点を指すと、選ばれる平面が表示されます。マウスホイールで候補を切り替えます（らせんの端：軸を通る平面、曲線に垂直な平面、軸に垂直な平面。続いてXY・XZ・YZに平行な平面と自由な平面）。ステータス行に表示中の候補名が出て、クリックでその平面にスケッチを開始します。自由な平面には点の周りに3つのリングがあり、ドラッグして段階的（1・5・10・15度）に回転するか、XY・XZ・YZとの角度を入力します。Enterで決定、Escでキャンセルします。
 A sketch laid on the end of a curve remembers the end: when the curve changes (the pitch or the turns of a helix) the sketch moves with it and what was made from it is made again. => 曲線の端に置いたスケッチはその端を記憶します。曲線が変わる（らせんのピッチや巻き数）と、スケッチも一緒に動き、それから作ったものが作り直されます。
 The ends of the curves are marked while the tool is active: the start green, the end orange. => ツールが有効な間、曲線の端が表示されます。始点は緑、終点はオレンジです。
+Whole chain => チェーン全体
+Change all rounds of the same size that touch this one, not only the selected one => 選択したものだけでなく、接している同じ大きさのフィレットをすべて変更する
+Rounds and chamfers that touch each other cannot be changed together => 接しているフィレットと面取りは一緒には変更できません
+The face of the chamfer could not be found again => 面取りの面を再び見つけられませんでした
+The moved face was lost when the rounds were removed => フィレットを取り除く際に、移動する面が失われました
+The round or chamfer does not fit the new shape (its edge disappeared), so nothing was changed => フィレットまたは面取りが新しい形状に合わない(辺がなくなった)ため、何も変更しませんでした
+The rounds next to the face cannot be moved with it: {} => 面の隣のフィレットは面と一緒には移動できません: {}
+The rounds next to the face could not be removed cleanly, so nothing was changed => 面の隣のフィレットをきれいに取り除けなかったため、何も変更しませんでした

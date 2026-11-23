@@ -56,6 +56,7 @@ pub mod mcp;
 pub mod phases;
 pub mod soft;
 pub mod spec;
+pub mod stl_scale;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
@@ -1004,7 +1005,12 @@ impl Runner {
                     .ok_or_else(|| format!("there is no round or chamfer number {idx}"))?;
                 let t = std::time::Instant::now();
                 self.doc
-                    .apply(Command::EditBlend { body: id, face, size, chain: true })
+                    .apply(Command::EditBlend {
+                        body: id,
+                        face,
+                        size,
+                        chain: true,
+                    })
                     .map_err(|e| e.to_string())?;
                 let ms = t.elapsed().as_secs_f64() * 1e3;
                 let s = &self.doc.body(id).unwrap().solid;

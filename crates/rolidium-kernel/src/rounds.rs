@@ -83,7 +83,10 @@ impl BlendMap {
         if let Some(ri) = c.roundings.iter().position(|r| r.faces.contains(&face)) {
             return Some((ci, ri));
         }
-        c.roundings.iter().position(|r| r.corners.contains(&face)).map(|ri| (ci, ri))
+        c.roundings
+            .iter()
+            .position(|r| r.corners.contains(&face))
+            .map(|ri| (ci, ri))
     }
 }
 
@@ -125,7 +128,8 @@ fn find(parent: &mut [usize], mut x: usize) -> usize {
 impl Solid {
     /// The rounds and chamfers of this solid (built when first needed).
     pub fn blend_map(&self) -> &BlendMap {
-        self.blend_map.get_or_init(|| self.build_blend_map().unwrap_or_default())
+        self.blend_map
+            .get_or_init(|| self.build_blend_map().unwrap_or_default())
     }
 
     fn build_blend_map(&self) -> Result<BlendMap> {
@@ -146,7 +150,8 @@ impl Solid {
         let base = 2 + 2 * nf;
         for i in 0..ne {
             let o = base + 4 * i;
-            sc.edges.push((raw[o] as i64, raw[o + 1] as i64, raw[o + 2], raw[o + 3]));
+            sc.edges
+                .push((raw[o] as i64, raw[o + 1] as i64, raw[o + 2], raw[o + 3]));
         }
         // neighbours of every face: (edge, other face, angle, convexity)
         let mut nb: Vec<Vec<(usize, u32, f64, f64)>> = vec![Vec::new(); nf];
@@ -168,9 +173,16 @@ impl Solid {
                 continue;
             }
             // two planes that are parallel (the end of a slot) are not a round of an edge
-            let planes: Vec<u32> = tangent.iter().copied().filter(|g| sc.kind[*g as usize] == 0).collect();
+            let planes: Vec<u32> = tangent
+                .iter()
+                .copied()
+                .filter(|g| sc.kind[*g as usize] == 0)
+                .collect();
             if planes.len() == 2 {
-                if let (Ok(a), Ok(b)) = (self.face_info(FaceId(planes[0])), self.face_info(FaceId(planes[1]))) {
+                if let (Ok(a), Ok(b)) = (
+                    self.face_info(FaceId(planes[0])),
+                    self.face_info(FaceId(planes[1])),
+                ) {
                     if a.normal.dot(b.normal).abs() > 0.996 {
                         continue;
                     }
@@ -191,7 +203,11 @@ impl Solid {
         loop {
             let mut changed = false;
             for f in 0..nf {
-                if cand[f] && !nb[f].iter().all(|x| role[x.1 as usize] == 1 || cand[x.1 as usize]) {
+                if cand[f]
+                    && !nb[f]
+                        .iter()
+                        .all(|x| role[x.1 as usize] == 1 || cand[x.1 as usize])
+                {
                     cand[f] = false;
                     changed = true;
                 }
@@ -223,7 +239,9 @@ impl Solid {
             if good.iter().any(|x| x.3 != sign) {
                 continue;
             }
-            let Ok(fi) = self.face_info(FaceId(f as u32)) else { continue };
+            let Ok(fi) = self.face_info(FaceId(f as u32)) else {
+                continue;
+            };
             let mut long: Vec<(f64, &(usize, u32, f64, f64))> = good
                 .iter()
                 .filter_map(|x| self.edge_info(EdgeId(x.0 as u32)).ok().map(|i| (i.length, *x)))
@@ -266,7 +284,11 @@ impl Solid {
         }
         // chamfer corner: a small plane whose every neighbour is a chamfer strip (a big face with chamfers all round is not one)
         for f in 0..nf {
-            if role[f] == 0 && sc.kind[f] == 0 && nb[f].len() >= 3 && nb[f].iter().all(|x| role[x.1 as usize] == 3) {
+            if role[f] == 0
+                && sc.kind[f] == 0
+                && nb[f].len() >= 3
+                && nb[f].iter().all(|x| role[x.1 as usize] == 3)
+            {
                 let wmax = nb[f]
                     .iter()
                     .filter_map(|x| width_of.get(&(x.1 as usize)))
@@ -411,7 +433,11 @@ impl Solid {
             comp.faces.sort();
         }
         Ok(BlendMap {
-            components: comps.into_iter().map(|c| c.1).filter(|c| !c.roundings.is_empty()).collect(),
+            components: comps
+                .into_iter()
+                .map(|c| c.1)
+                .filter(|c| !c.roundings.is_empty())
+                .collect(),
             adj,
         })
     }
@@ -467,7 +493,11 @@ impl Solid {
                 ));
             }
             // a pair without an edge means the shape no longer has the corner the round was made on
-            if r.pairs.iter().enumerate().any(|(k, _)| !edges.iter().any(|(_, j)| *j == k)) {
+            if r.pairs
+                .iter()
+                .enumerate()
+                .any(|(k, _)| !edges.iter().any(|(_, j)| *j == k))
+            {
                 return Err(KernelError::Invalid(
                     "The round or chamfer does not fit the new shape (its edge disappeared), so nothing was changed".into(),
                 ));
@@ -513,12 +543,25 @@ impl Solid {
             let d2: Vec<f64> = chamfers.iter().map(|c| c.3).collect();
             let ids: Vec<u32> = chamfers.iter().map(|c| c.0 .0).collect();
             let faces: Vec<u32> = chamfers.iter().map(|c| c.1 .0).collect();
-            let r = crate::finish(native::chamfer_edges_asym(self.raw(), &ids, &faces, &d1, &d2)?).map_err(|e| match e {
+            let too_large = |e: KernelError| {
+                match e {
                 KernelError::Native(_) => KernelError::Invalid(format!(
                     "The chamfer of {largest} mm does not fit here (it is too large for the neighbouring faces)"
                 )),
                 e => e,
-            })?;
+            }
+            };
+            // equal symmetric chamfers are made with the symmetric operation, as the user made them
+            let symmetric =
+                d1.iter().zip(&d2).all(|(a, b)| same_size(*a, *b)) && d1.iter().all(|a| same_size(*a, d1[0]));
+            if symmetric {
+                let edges: Vec<EdgeId> = chamfers.iter().map(|c| c.0).collect();
+                return self.chamfer(&edges, d1[0]).map(Some).map_err(too_large);
+            }
+            let r = native::chamfer_edges_asym(self.raw(), &ids, &faces, &d1, &d2)
+                .map_err(KernelError::from)
+                .and_then(crate::finish)
+                .map_err(too_large)?;
             self.check_blend(&r.solid, largest, length, what)?;
             r
         } else {
@@ -538,7 +581,9 @@ impl Solid {
         chamfer: Option<(f64, bool)>,
     ) -> Result<OpResult> {
         if !size.is_finite() || size < 0.0 {
-            return Err(KernelError::Invalid("the size must be zero or a positive number".into()));
+            return Err(KernelError::Invalid(
+                "the size must be zero or a positive number".into(),
+            ));
         }
         let map = self.blend_map();
         let (ci, ri) = map
@@ -547,7 +592,10 @@ impl Solid {
         let comp = &map.components[ci];
         let target = &comp.roundings[ri];
         let selected = |i: usize| {
-            i == ri || (whole_chain && comp.roundings[i].chamfer == target.chamfer && same_size(comp.roundings[i].size, target.size))
+            i == ri
+                || (whole_chain
+                    && comp.roundings[i].chamfer == target.chamfer
+                    && same_size(comp.roundings[i].size, target.size))
         };
         let before = self.volume()?;
         let ids: Vec<u32> = comp.faces.iter().map(|f| f.0).collect();
@@ -593,7 +641,12 @@ impl Solid {
     /// Moves the planar `face` by `distance` along its outward normal and keeps the rounds and chamfers around it: they are
     /// removed, the face is moved and they are made again on the corresponding edges with the same sizes. Nothing is
     /// changed (an error tells why) when they do not fit the new shape.
-    pub(crate) fn pull_face_with_blends(&self, face: FaceId, distance: f64, touching: &[usize]) -> Result<OpResult> {
+    pub(crate) fn pull_face_with_blends(
+        &self,
+        face: FaceId,
+        distance: f64,
+        touching: &[usize],
+    ) -> Result<OpResult> {
         let map = self.blend_map();
         let info = self.face_info(face)?;
         let n = info.normal.normalize();
@@ -630,7 +683,9 @@ impl Solid {
                     .map(|i| i.kind == FaceKind::Plane && i.normal.dot(n) > 0.9999)
                     .unwrap_or(false)
             })
-            .ok_or_else(|| KernelError::Invalid("The moved face was lost when the rounds were removed".into()))?;
+            .ok_or_else(|| {
+                KernelError::Invalid("The moved face was lost when the rounds were removed".into())
+            })?;
         let p0_info = open.solid.face_info(p0)?;
         let offset0 = n.dot(p0_info.origin);
         let moved = open.solid.pull_face_plain(p0, distance)?;
@@ -663,7 +718,10 @@ impl Solid {
                 .collect();
             if let Ok(i) = self.face_info(f) {
                 if i.kind == FaceKind::Plane {
-                    v.extend(plane_faces(i.normal.normalize(), i.normal.normalize().dot(i.origin)));
+                    v.extend(plane_faces(
+                        i.normal.normalize(),
+                        i.normal.normalize().dot(i.origin),
+                    ));
                 }
             }
             v.sort();
@@ -691,6 +749,9 @@ impl Solid {
             }
         }
         let _ = before_faces;
-        Ok(OpResult { solid: result, history: hist })
+        Ok(OpResult {
+            solid: result,
+            history: hist,
+        })
     }
 }

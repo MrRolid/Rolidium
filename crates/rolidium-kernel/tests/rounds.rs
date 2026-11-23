@@ -123,7 +123,11 @@ fn all_twelve_edges_rounded_a_face_can_be_pulled_or_moved_in_every_direction() {
                 close(x, want[0], 1e-6);
                 close(y, want[1], 1e-6);
                 close(z, want[2], 1e-6);
-                assert_eq!(p.solid.face_count(), faces, "{what} {dist} chamfer={chamfer}: same number of faces");
+                assert_eq!(
+                    p.solid.face_count(),
+                    faces,
+                    "{what} {dist} chamfer={chamfer}: same number of faces"
+                );
                 assert_eq!(sizes(&p.solid, chamfer).len(), 12, "{what} {dist}");
                 assert!(sizes(&p.solid, chamfer).iter().all(|v| (v - 2.0).abs() < 1e-6));
                 let nb = cuboid(1.0);
@@ -189,7 +193,12 @@ fn the_size_of_rounds_changes_for_any_number_of_edges_and_zero_makes_the_edges_s
                     continue;
                 }
                 let e = start
-                    .resize_blend(any, new, want_chain, if chamfer { Some((45.0, false)) } else { None })
+                    .resize_blend(
+                        any,
+                        new,
+                        want_chain,
+                        if chamfer { Some((45.0, false)) } else { None },
+                    )
                     .unwrap_or_else(|e| panic!("{name} chamfer={chamfer} -> {new}: {e}"));
                 assert!(e.solid.is_valid(), "{name}");
                 if want_chain {
@@ -225,11 +234,93 @@ fn a_single_round_among_equal_ones_changes_alone_and_the_chain_option_changes_al
         Ok(e) => {
             let sz = sizes(&e.solid, false);
             assert_eq!(sz.len(), 4);
-            assert_eq!(sz.iter().filter(|v| (**v - 2.0).abs() < 1e-6).count(), 1, "{sz:?}");
-            assert_eq!(sz.iter().filter(|v| (**v - 3.0).abs() < 1e-6).count(), 3, "{sz:?}");
+            assert_eq!(
+                sz.iter().filter(|v| (**v - 2.0).abs() < 1e-6).count(),
+                1,
+                "{sz:?}"
+            );
+            assert_eq!(
+                sz.iter().filter(|v| (**v - 3.0).abs() < 1e-6).count(),
+                3,
+                "{sz:?}"
+            );
         }
         Err(e) => panic!("one round of four: {e}"),
     }
     let all = r.resize_blend(f, 2.0, true, None).unwrap();
     assert_eq!(sizes(&all.solid, false), vec![2.0; 4]);
+}
+
+fn polygon(points: &[[f64; 2]], h: f64) -> Solid {
+    let n = points.len();
+    let seg: Vec<ProfileSegment> = (0..n)
+        .map(|i| ProfileSegment::Line {
+            a: points[i],
+            b: points[(i + 1) % n],
+        })
+        .collect();
+    Solid::extrude_profile(&Profile { loops: vec![seg] }, DVec3::ZERO, DVec3::Z, DVec3::X, h).unwrap()
+}
+
+#[test]
+fn faces_that_only_look_like_rounds_or_chamfers_are_not_taken_for_them() {
+    // a hexagonal prism: its sides are planar strips between two faces at 60 degrees, but as wide as their neighbours
+    let hex: Vec<[f64; 2]> = (0..6)
+        .map(|i| {
+            let a = std::f64::consts::TAU * i as f64 / 6.0;
+            [10.0 * a.cos(), 10.0 * a.sin()]
+        })
+        .collect();
+    assert!(
+        polygon(&hex, 30.0).blend_map().components.is_empty(),
+        "hexagonal prism"
+    );
+    // a thin plate: its sides are narrow, but they meet the big faces at 90 degrees
+    assert!(cuboid(1.0).blend_map().components.is_empty(), "plate");
+    // a hole and a pin are cylinders without tangent neighbours
+    let pin = Solid::cylinder(5.0, 20.0, DVec3::ZERO, DVec3::Z).unwrap();
+    assert!(pin.blend_map().components.is_empty(), "pin");
+    // the end of a slot is a half cylinder between two parallel planes: not a round of an edge
+    let slot: Vec<[f64; 2]> = vec![[0.0, 0.0], [30.0, 0.0], [30.0, 10.0], [0.0, 10.0]];
+    assert!(polygon(&slot, 5.0).blend_map().components.is_empty(), "block");
+}
+
+#[test]
+fn a_chamfer_is_moved_with_its_face_and_a_chamfer_from_a_step_file_is_found() {
+    let s = bx();
+    let c = s.chamfer(&top_edges(&s), 3.0).unwrap().solid;
+    let back = Solid::read_step(&c.write_step().unwrap()).unwrap();
+    assert_eq!(sizes(&back, true).len(), 4);
+    let p = back.pull_face(top(&back), 5.0).unwrap().solid;
+    assert!(p.is_valid());
+    close(dims(&p).2, H + 5.0, 1e-6);
+    assert_eq!(p.face_count(), back.face_count());
+    let tall = cuboid(H + 5.0);
+    let reference = tall.chamfer(&top_edges(&tall), 3.0).unwrap().solid;
+    close(p.volume().unwrap(), reference.volume().unwrap(), 1e-6);
+    // too large for the chamfer: nothing changes, the message says why
+    let e = back.pull_face(top(&back), -19.0).err().expect("too far");
+    eprintln!("{e}");
+    assert!(!e.to_string().is_empty());
+}
+
+#[test]
+fn the_time_of_a_pull_with_rounds_is_reported() {
+    let s = bx();
+    let r = s.fillet(&top_edges(&s), 3.0).unwrap().solid;
+    let t = std::time::Instant::now();
+    let n = 10;
+    for _ in 0..n {
+        let _ = r.pull_face(top(&r), 5.0).unwrap();
+    }
+    let per = t.elapsed().as_secs_f64() * 1e3 / n as f64;
+    let plain = {
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            let _ = s.pull_face(top(&s), 5.0).unwrap();
+        }
+        t.elapsed().as_secs_f64() * 1e3 / n as f64
+    };
+    println!("pull of the top face of a box with four rounds: {per:.1} ms (the same box without rounds: {plain:.1} ms)");
+    assert!(per < 2000.0);
 }

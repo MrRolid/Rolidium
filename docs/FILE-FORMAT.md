@@ -32,7 +32,7 @@ preview.png                 optional, 320 x 240 isometric picture (only when a G
 {
   "name": "Plate", "color": [0.72, 0.76, 0.82], "visible": true,   // hidden bodies stay hidden after opening
   "face_count": 8,                       // check: the BREP must have this many faces
-  "features": [                          // rounds and chamfers, so they stay editable
+  "features": [                          // rounds and chamfers (a hint only: they are recognised from the geometry when the file is opened)
     { "kind": "round", "size": 5.0, "faces": [3] }   // chamfers also have "angle" (degrees, 45 = symmetric) and "flip"   // kind: "round" | "chamfer"; faces: face indices in the BREP
   ]
 }

@@ -21,8 +21,8 @@ mod sweep;
 pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
-pub use rounds::{BlendMap, RoundComponent, Rounding};
 pub use glam::{DVec3, Vec3};
+pub use rounds::{BlendMap, RoundComponent, Rounding};
 /// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
 /// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.
 pub const VIEW_ANGLE: f64 = 0.5;

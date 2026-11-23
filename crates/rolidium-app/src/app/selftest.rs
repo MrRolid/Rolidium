@@ -532,7 +532,8 @@ impl App {
                     self.submit(Command::EditBlend {
                         body: b,
                         face: FaceId(f),
-                        size: 4.0, chain: true,
+                        size: 4.0,
+                        chain: true,
                     });
                 }
                 st.wait_frames = 2;
@@ -553,7 +554,8 @@ impl App {
                 self.submit(Command::EditBlend {
                     body: b,
                     face: FaceId(f),
-                    size: 0.0, chain: true,
+                    size: 0.0,
+                    chain: true,
                 });
                 st.wait_frames = 2;
             }
@@ -2201,6 +2203,91 @@ impl App {
                 shot(&mut st, ctx, "thread-on-cone");
             }
             98 => {
+                // the scale of the STL export: a cube of 20 mm is 20 mm in the file (read back by a parser of its own)
+                let dir = std::env::temp_dir().join(format!("rolidium-selftest-stl-{}", std::process::id()));
+                match rolidium_cli::stl_scale::run_cube_check(&dir) {
+                    Ok((report, ok)) => {
+                        println!("{report}");
+                        check(
+                            &mut st,
+                            "a cube of 20 mm is 20 x 20 x 20 mm in the STL files (binary and ASCII)",
+                            ok,
+                        );
+                    }
+                    Err(e) => check(&mut st, &format!("the STL scale check ran ({e})"), false),
+                }
+                let _ = std::fs::remove_dir_all(&dir);
+                st.wait_frames = 1;
+            }
+            99 => {
+                // a box with the four edges of the top face rounded: before the pull
+                self.replace_document(Document::new(), None);
+                let _ = self.doc.apply(Command::AddBox {
+                    name: "Box".into(),
+                    min: DVec3::ZERO,
+                    max: DVec3::new(40.0, 30.0, 20.0),
+                });
+                if let Some(b) = self.doc.bodies().first().map(|b| b.id) {
+                    let edges: Vec<u32> = {
+                        let s = &self.doc.body(b).unwrap().solid;
+                        s.edges()
+                            .filter(|e| {
+                                let i = s.edge_info(*e).unwrap();
+                                i.start.z > 19.99 && i.end.z > 19.99
+                            })
+                            .map(|e| e.0)
+                            .collect()
+                    };
+                    let _ = self.doc.apply(Command::FilletEdges {
+                        body: b,
+                        edges,
+                        size: 3.0,
+                        chamfer: false,
+                    });
+                }
+                self.camera.set_view(rolidium_render::StandardView::Isometric);
+                self.request_meshes();
+                self.fit_all();
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "rounds-before-pull");
+            }
+            100 => {
+                // the top face pulled up by 5 mm: the rounds move with it
+                use rolidium_kernel::FaceKind;
+                if let Some(b) = self.doc.bodies().first().map(|b| b.id) {
+                    let top = {
+                        let s = &self.doc.body(b).unwrap().solid;
+                        s.faces().find(|f| {
+                            let i = s.face_info(*f).unwrap();
+                            i.kind == FaceKind::Plane && i.normal.z > 0.99
+                        })
+                    };
+                    if let Some(top) = top {
+                        let r = self.doc.apply(Command::PullFace {
+                            body: b,
+                            face: top,
+                            distance: 5.0,
+                            mode: PullMode::Auto,
+                        });
+                        check(&mut st, "the top face with rounds can be pulled", r.is_ok());
+                        let bd = self.doc.body(b).unwrap();
+                        let (lo, hi) = bd.solid.bounding_box().unwrap_or_default();
+                        check(
+                            &mut st,
+                            "the box is 40 x 30 x 25 mm and the rounds moved with the face (radius 3, no extra faces)",
+                            ((hi - lo) - DVec3::new(40.0, 30.0, 25.0)).length() < 1e-6
+                                && bd.solid.face_count() == 10
+                                && bd.features.len() >= 4
+                                && bd.features.iter().all(|f| (f.size - 3.0).abs() < 1e-9),
+                        );
+                    }
+                }
+                self.request_meshes();
+                self.fit_all();
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "rounds-after-pull");
+            }
+            101 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

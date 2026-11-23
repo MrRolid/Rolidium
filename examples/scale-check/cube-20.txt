@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: CC0-1.0
+# A cube of 20 mm, exported to STL twice (binary and ASCII). STL has no units; Rolidium writes millimetres.
+# The test `stl_scale` (scripts/stl-scale-check.sh, and rolidium --selftest) reads both files back with its own parser
+# and measures the bounding box of the triangles: it must be 20.000 x 20.000 x 20.000 mm (tolerance 0.001 mm).
+# Run it by hand:  rolidium cli run examples/scale-check/cube-20.txt   (writes cube-20.stl and cube-20-ascii.stl)
+box 20 20 20
+export-stl cube-20.stl
+export-stl cube-20-ascii.stl --ascii

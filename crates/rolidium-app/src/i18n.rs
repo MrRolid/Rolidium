@@ -486,6 +486,7 @@ mod coverage {
         "There is nothing to fill yet: draw lines or open a model",
         "There are no open lines to join yet: draw lines or a 3D line first",
         "The round or chamfer cannot be changed here: {}",
+        "The rounds next to the face cannot be moved with it: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];
 

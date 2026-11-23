@@ -616,7 +616,11 @@ fn features_of(solid: &Solid) -> Vec<Feature> {
             let mut faces = r.faces.clone();
             faces.extend(r.corners.iter().copied());
             out.push(Feature {
-                kind: if r.chamfer { BlendKind::Chamfer } else { BlendKind::Round },
+                kind: if r.chamfer {
+                    BlendKind::Chamfer
+                } else {
+                    BlendKind::Round
+                },
                 size: r.size,
                 faces,
                 angle: r.angle_deg,
@@ -1589,7 +1593,10 @@ impl Job {
                     return Err(KernelError::Invalid("this face is not a chamfer".into()).into());
                 }
                 if !angle_deg.is_finite() || *angle_deg <= 0.5 || *angle_deg >= 89.5 {
-                    return Err(KernelError::Invalid("the chamfer angle must be between 1 and 89 degrees".into()).into());
+                    return Err(KernelError::Invalid(
+                        "the chamfer angle must be between 1 and 89 degrees".into(),
+                    )
+                    .into());
                 }
                 let r = b
                     .solid
@@ -1740,17 +1747,21 @@ impl Job {
                 c.touched_body = Some(first);
                 Ok(c)
             }
-            Command::EditBlend { body, face, size, chain } => {
+            Command::EditBlend {
+                body,
+                face,
+                size,
+                chain,
+            } => {
                 let b = st
                     .bodies
                     .iter_mut()
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let (ci, ri) = b
-                    .solid
-                    .blend_map()
-                    .rounding_of(*face)
-                    .ok_or_else(|| KernelError::Invalid("this face is not a round or a chamfer".into()))?;
+                let (ci, ri) =
+                    b.solid.blend_map().rounding_of(*face).ok_or_else(|| {
+                        KernelError::Invalid("this face is not a round or a chamfer".into())
+                    })?;
                 let chamfer = b.solid.blend_map().components[ci].roundings[ri].chamfer;
                 let angle = b.solid.blend_map().components[ci].roundings[ri].angle_deg;
                 let r = b
@@ -3373,7 +3384,12 @@ mod blend_tests {
 
     fn edit(d: &mut Document, id: BodyId, size: f64) -> Result<Computed, DocError> {
         let face = d.body(id).unwrap().features[0].faces[0];
-        d.apply(Command::EditBlend { body: id, face, size, chain: true })
+        d.apply(Command::EditBlend {
+            body: id,
+            face,
+            size,
+            chain: true,
+        })
     }
 
     #[test]
@@ -3431,7 +3447,8 @@ mod blend_tests {
             .apply(Command::EditBlend {
                 body: id,
                 face: f,
-                size: 2.0, chain: true
+                size: 2.0,
+                chain: true
             })
             .is_err());
     }
@@ -3611,7 +3628,8 @@ mod neighbour_blend_tests {
         d.apply(Command::EditBlend {
             body: id,
             face: new_face,
-            size: 0.0, chain: false,
+            size: 0.0,
+            chain: false,
         })
         .unwrap();
         assert!(d.body(id).unwrap().solid.volume().unwrap() > before);
@@ -3757,7 +3775,8 @@ mod phase1g_tests {
         d.apply(Command::EditBlend {
             body: id,
             face,
-            size: 8.0, chain: true,
+            size: 8.0,
+            chain: true,
         })
         .unwrap();
         assert!((vol(&d, id) - 23725.31).abs() < 0.01);
@@ -4204,7 +4223,8 @@ mod phase1h_tests {
         d.apply(Command::EditBlend {
             body: a,
             face,
-            size: 5.0, chain: true,
+            size: 5.0,
+            chain: true,
         })
         .unwrap();
     }
@@ -4255,7 +4275,8 @@ mod phase1h_tests {
             face,
             distance: 5.0,
             angle_deg: 30.0,
-            flip: true, chain: true,
+            flip: true,
+            chain: true,
         })
         .unwrap();
         assert!((v(&d) - 23855.66).abs() < 0.01);
@@ -4267,17 +4288,23 @@ mod phase1h_tests {
         d.apply(Command::EditBlend {
             body: id,
             face,
-            size: 4.0, chain: true,
+            size: 4.0,
+            chain: true,
         })
         .unwrap();
-        assert_eq!(d.body(id).unwrap().features[0].angle, 60.0, "a size change keeps the shape of the chamfer");
+        assert_eq!(
+            d.body(id).unwrap().features[0].angle,
+            60.0,
+            "a size change keeps the shape of the chamfer"
+        );
         let face = d.body(id).unwrap().features[0].faces[0];
         d.apply(Command::EditChamfer {
             body: id,
             face,
             distance: 5.0,
             angle_deg: 60.0,
-            flip: false, chain: true,
+            flip: false,
+            chain: true,
         })
         .unwrap();
         assert!((v(&d) - 23566.99).abs() < 0.01);
@@ -4287,7 +4314,8 @@ mod phase1h_tests {
             face,
             distance: 0.0,
             angle_deg: 60.0,
-            flip: false, chain: true,
+            flip: false,
+            chain: true,
         })
         .unwrap();
         assert!((v(&d) - 24000.0).abs() < 1e-6);
