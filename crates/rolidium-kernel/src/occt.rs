@@ -82,6 +82,7 @@ pub mod ffi {
             origin: [f64; 3],
             axis: [f64; 3],
         ) -> Result<SharedPtr<Shape>>;
+        fn make_cone(r1: f64, r2: f64, height: f64, origin: [f64; 3], axis: [f64; 3]) -> Result<SharedPtr<Shape>>;
         /// `plane` = origin, normal, x direction (9 numbers). See `Profile` encoding in lib.rs.
         fn make_planar_face(plane: [f64; 9], profile: &[f64]) -> Result<SharedPtr<Shape>>;
         fn revolve(shape: &Shape, point: [f64; 3], dir: [f64; 3], angle: f64) -> Result<SharedPtr<Shape>>;

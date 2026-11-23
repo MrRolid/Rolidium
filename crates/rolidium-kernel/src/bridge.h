@@ -33,6 +33,7 @@ public:
 
 std::shared_ptr<Shape> make_box(double x0, double y0, double z0, double x1, double y1, double z1);
 std::shared_ptr<Shape> make_cylinder(double radius, double height, std::array<double, 3> origin, std::array<double, 3> axis);
+std::shared_ptr<Shape> make_cone(double r1, double r2, double height, std::array<double, 3> origin, std::array<double, 3> axis);
 std::shared_ptr<Shape> make_planar_face(std::array<double, 9> plane, rust::Slice<const double> profile);
 std::shared_ptr<Shape> prism(const Shape& shape, std::array<double, 3> v);
 

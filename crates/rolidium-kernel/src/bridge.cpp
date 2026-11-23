@@ -61,6 +61,7 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeCone.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <TopoDS_Wire.hxx>
@@ -321,6 +322,17 @@ std::shared_ptr<Shape> make_cylinder(double radius, double height, std::array<do
         BRepPrimAPI_MakeCylinder mk(gp_Ax2(gp_Pnt(o[0], o[1], o[2]), dir), radius, height);
         mk.Build();
         if (!mk.IsDone()) fail("cylinder construction failed");
+        return wrap(mk.Shape());
+    });
+}
+
+std::shared_ptr<Shape> make_cone(double r1, double r2, double height, std::array<double, 3> o, std::array<double, 3> a) {
+    return guarded("make_cone", [&] {
+        if (!(r1 >= 0 && r2 >= 0 && r1 + r2 > 0 && height > 0)) fail("cone must have positive size");
+        gp_Dir dir(a[0], a[1], a[2]);
+        BRepPrimAPI_MakeCone mk(gp_Ax2(gp_Pnt(o[0], o[1], o[2]), dir), r1, r2, height);
+        mk.Build();
+        if (!mk.IsDone()) fail("cone construction failed");
         return wrap(mk.Shape());
     });
 }

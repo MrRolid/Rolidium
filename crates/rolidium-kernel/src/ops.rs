@@ -961,11 +961,133 @@ impl Solid {
         })
     }
 
+    /// The frame of a profile given by a plane: origin, unit normal, unit x and y directions.
+    fn profile_frame<'a>(i: &'a LoftInput<'a>) -> Option<(DVec3, DVec3, DVec3, DVec3, &'a Profile)> {
+        let LoftInput::Profile {
+            profile,
+            origin,
+            normal,
+            x_dir,
+        } = i
+        else {
+            return None;
+        };
+        if normal.length() < 1e-9 || x_dir.length() < 1e-9 {
+            return None;
+        }
+        let n = normal.normalize();
+        let x = (*x_dir - n * x_dir.dot(n)).normalize_or_zero();
+        if x.length() < 0.5 {
+            return None;
+        }
+        Some((*origin, n, x, n.cross(x), profile))
+    }
+
+    /// Two coaxial circles in parallel planes are a cone or a cylinder; two polygons whose sides are parallel in pairs (similar and equally
+    /// turned) have flat sides. `None` for anything else (the general loft is used).
+    fn loft_analytic(a: &LoftInput, b: &LoftInput) -> Option<Solid> {
+        let (oa, na, xa, ya, pa) = Solid::profile_frame(a)?;
+        let (ob, nb, xb, yb, pb) = Solid::profile_frame(b)?;
+        if pa.loops.len() != 1 || pb.loops.len() != 1 || na.cross(nb).length() > 1e-9 {
+            return None;
+        }
+        let (la, lb) = (&pa.loops[0], &pb.loops[0]);
+        let at = |o: DVec3, x: DVec3, y: DVec3, p: [f64; 2]| o + x * p[0] + y * p[1];
+        if let ([ProfileSegment::Circle { center: ca, radius: ra }], [ProfileSegment::Circle { center: cb, radius: rb }]) =
+            (la.as_slice(), lb.as_slice())
+        {
+            let (ca, cb, ra, rb) = (*ca, *cb, *ra, *rb);
+            let (c1, c2) = (at(oa, xa, ya, ca), at(ob, xb, yb, cb));
+            let d = c2 - c1;
+            let h = d.dot(na);
+            if h.abs() < 1e-9 || d.cross(na).length() > 1e-9 * (1.0 + d.length()) || ra <= 0.0 || rb <= 0.0 {
+                return None;
+            }
+            let axis = na * h.signum();
+            let solid = if (ra - rb).abs() <= 1e-12 * ra.max(rb) {
+                Solid::cylinder(ra, h.abs(), c1, axis)
+            } else {
+                native::make_cone(ra, rb, h.abs(), c1.to_array(), axis.to_array())
+                    .map_err(KernelError::from)
+                    .and_then(|s| Solid::from_shape(s).validated_body())
+            };
+            return solid.ok();
+        }
+        // polygons
+        let corners = |l: &Vec<ProfileSegment>, o: DVec3, x: DVec3, y: DVec3| -> Option<Vec<DVec3>> {
+            let mut v = Vec::new();
+            for s in l {
+                match s {
+                    ProfileSegment::Line { a, .. } => v.push(at(o, x, y, *a)),
+                    _ => return None,
+                }
+            }
+            (v.len() >= 3).then_some(v)
+        };
+        let pts_a = corners(la, oa, xa, ya)?;
+        let pts_b = corners(lb, ob, xb, yb)?;
+        if pts_a.len() != pts_b.len() {
+            return None;
+        }
+        let n = pts_a.len();
+        // the sides run the same way (parallel, not opposite) and every side face is flat
+        let len: f64 = pts_a.iter().zip(&pts_b).map(|(p, q)| (*p - *q).length()).fold(0.0, f64::max).max(1.0);
+        for i in 0..n {
+            let (ea, eb) = (pts_a[(i + 1) % n] - pts_a[i], pts_b[(i + 1) % n] - pts_b[i]);
+            if ea.length() < 1e-9 || eb.length() < 1e-9 || ea.cross(eb).length() > 1e-9 * ea.length() * eb.length() || ea.dot(eb) <= 0.0 {
+                return None;
+            }
+            // the four corners lie in one plane
+            let q = [pts_a[i], pts_a[(i + 1) % n], pts_b[(i + 1) % n], pts_b[i]];
+            let nrm = ea.cross(pts_b[i] - pts_a[i]);
+            if nrm.length() < 1e-9 || (q[2] - q[0]).dot(nrm.normalize()).abs() > 1e-9 * len {
+                return None;
+            }
+        }
+        let face = |q: &[DVec3]| -> Option<cxx::SharedPtr<native::Shape>> {
+            let nrm = (q[1] - q[0]).cross(q[q.len() - 1] - q[0]);
+            let nrm = if nrm.length() < 1e-12 { (q[1] - q[0]).cross(q[2] - q[0]) } else { nrm };
+            if nrm.length() < 1e-12 {
+                return None;
+            }
+            let nn = nrm.normalize();
+            let x = (q[1] - q[0]).normalize();
+            let y = nn.cross(x);
+            let two = |p: DVec3| [(p - q[0]).dot(x), (p - q[0]).dot(y)];
+            let segs: Vec<ProfileSegment> = (0..q.len())
+                .map(|k| ProfileSegment::Line {
+                    a: two(q[k]),
+                    b: two(q[(k + 1) % q.len()]),
+                })
+                .collect();
+            let plane = [q[0].x, q[0].y, q[0].z, nn.x, nn.y, nn.z, x.x, x.y, x.z];
+            native::make_planar_face(plane, &Profile { loops: vec![segs] }.encode()).ok()
+        };
+        let mut sewer = native::new_sewer(1e-7);
+        let mut add = |f: Option<cxx::SharedPtr<native::Shape>>| -> Option<()> {
+            native::sewer_add(sewer.pin_mut(), &*f?).ok()
+        };
+        add(face(&pts_a))?;
+        add(face(&pts_b))?;
+        for i in 0..n {
+            add(face(&[pts_a[i], pts_a[(i + 1) % n], pts_b[(i + 1) % n], pts_b[i]]))?;
+        }
+        let shape = native::sewer_finish(sewer.pin_mut()).ok()?;
+        Solid::from_shape(shape).validated_body().ok()
+    }
+
     /// Joins two or more flat profiles (in the given order) into a solid. Holes of the profiles are
     /// lofted separately and subtracted; all profiles must have the same number of holes.
     pub fn loft(inputs: &[LoftInput], ruled: bool) -> Result<Solid> {
         if inputs.len() < 2 {
             return Err(KernelError::Invalid("a loft needs at least two profiles".into()));
+        }
+        // two coaxial circles give a real cone or cylinder, two similar polygons give flat sides: the faces are of the types they are
+        // (a cone can be edited like a cone, and a STEP file holds them as such), not freeform surfaces that look the same
+        if inputs.len() == 2 {
+            if let Some(s) = Solid::loft_analytic(&inputs[0], &inputs[1]) {
+                return Ok(s);
+            }
         }
         let mut l = native::new_loft(ruled);
         for i in inputs {
