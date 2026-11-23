@@ -8,7 +8,7 @@ features is visible. 0.2.0 is the first public release.
 
 ## [Unreleased]
 
-Nothing yet (the next version: patterns and mirror in the window with a typed direction, more to repeat).
+Nothing yet.
 
 ## [0.2.1] - 2026-11-23
 
