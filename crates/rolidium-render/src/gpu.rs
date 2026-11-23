@@ -200,7 +200,8 @@ enum PickState {
     Idle,
     /// Copy recorded into the encoder; mapping not yet requested.
     Copied,
-    Mapping(Arc<AtomicU32>),
+    /// Mapping requested: the flag it sets, and for how many frames it has been waiting.
+    Mapping(Arc<AtomicU32>, u32),
 }
 
 const MAP_PENDING: u32 = u32::MAX;
@@ -230,6 +231,8 @@ pub struct Renderer {
     target: Option<RenderTarget>,
     pick_buf: wgpu::Buffer,
     pick_state: PickState,
+    /// How many read-backs were started (the program asks for the next one only when the pointer or the picture changed since).
+    pick_serial: u64,
     pick_result: u32,
 }
 
@@ -576,6 +579,7 @@ impl Renderer {
             target: None,
             pick_buf,
             pick_state: PickState::Idle,
+            pick_serial: 0,
             pick_result: ID_NONE,
         }
     }
@@ -1037,12 +1041,14 @@ impl Renderer {
                     },
                 );
                 self.pick_state = PickState::Copied;
+                self.pick_serial += 1;
             }
         }
     }
 
     /// Moves the pick read-back state machine forward. Call once per frame.
     fn advance_pick(&mut self, device: &wgpu::Device) {
+        let mut waited_more: Option<(Arc<AtomicU32>, u32)> = None;
         match &self.pick_state {
             PickState::Copied => {
                 // The copy was submitted with the previous frame; request the mapping now.
@@ -1051,10 +1057,10 @@ impl Renderer {
                 self.pick_buf.slice(..4).map_async(wgpu::MapMode::Read, move |r| {
                     f2.store(if r.is_ok() { 0 } else { MAP_FAILED }, Ordering::SeqCst);
                 });
-                self.pick_state = PickState::Mapping(flag);
+                self.pick_state = PickState::Mapping(flag, 0);
                 let _ = device.poll(wgpu::PollType::Poll);
             }
-            PickState::Mapping(flag) => {
+            PickState::Mapping(flag, waited) => {
                 let _ = device.poll(wgpu::PollType::Poll);
                 let v = flag.load(Ordering::SeqCst);
                 if v == 0 {
@@ -1067,15 +1073,31 @@ impl Renderer {
                     self.pick_state = PickState::Idle;
                 } else if v == MAP_FAILED {
                     self.pick_state = PickState::Idle;
+                } else {
+                    waited_more = Some((flag.clone(), *waited));
                 }
             }
             PickState::Idle => {}
+        }
+        // A read-back that does not finish (a graphics driver that is behind, a very slow frame) is given up after a few frames: the window keeps
+        // drawing for as long as one is running, and the next pick starts again.
+        if let Some((flag, waited)) = waited_more {
+            if waited >= 8 {
+                self.pick_buf.unmap();
+                self.pick_state = PickState::Idle;
+            } else {
+                self.pick_state = PickState::Mapping(flag, waited + 1);
+            }
         }
     }
 
     /// Latest completed pick (face ID under the requested pixel, or `ID_NONE`).
     pub fn pick_result(&self) -> u32 {
         self.pick_result
+    }
+    /// The number of read-backs started so far.
+    pub fn pick_serial(&self) -> u64 {
+        self.pick_serial
     }
     /// True while a read-back is in flight (the app should keep repainting).
     pub fn pick_busy(&self) -> bool {

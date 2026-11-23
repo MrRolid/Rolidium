@@ -2106,6 +2106,97 @@ impl App {
                 st.wait_frames = 2;
             }
             96 => {
+                // a thread of a wire of 1 mm on a cone of 40 mm (10 turns): the whole thread is there at every zoom
+                use rolidium_kernel::*;
+                self.replace_document(Document::new(), None);
+                let pts = [[0.0, 0.0], [20.0, 0.0], [10.0, 30.0], [0.0, 30.0]];
+                let seg: Vec<ProfileSegment> = (0..4)
+                    .map(|i| ProfileSegment::Line {
+                        a: pts[i],
+                        b: pts[(i + 1) % 4],
+                    })
+                    .collect();
+                let cone = Solid::revolve_profile(
+                    &Profile { loops: vec![seg] },
+                    DVec3::ZERO,
+                    -DVec3::Y,
+                    DVec3::X,
+                    DVec3::ZERO,
+                    DVec3::Z,
+                    std::f64::consts::TAU,
+                );
+                let h = HelixDef {
+                    origin: DVec3::ZERO,
+                    axis: DVec3::Z,
+                    x_dir: DVec3::X,
+                    radius: 20.0,
+                    pitch: 3.0,
+                    turns: 10.0,
+                    right: true,
+                    start_deg: 0.0,
+                    cone_deg: -(10.0_f64 / 30.0).atan().to_degrees(),
+                };
+                let thread = Path::build(PathSource::Helix(h)).and_then(|path| {
+                    let t = path.start_tangent;
+                    let disc = Profile {
+                        loops: vec![vec![ProfileSegment::Circle {
+                            center: [0.0, 0.0],
+                            radius: 0.5,
+                        }]],
+                    };
+                    let input = LoftInput::Profile {
+                        profile: &disc,
+                        origin: path.start,
+                        normal: t,
+                        x_dir: t.cross(DVec3::Z).normalize(),
+                    };
+                    Solid::sweep(&input, &path, &SweepOptions::default()).map(|r| r.solid)
+                });
+                if let (Ok(cone), Ok(thread)) = (cone, thread) {
+                    let _ = self.doc.apply(Command::AddSolids {
+                        solids: vec![cone, thread],
+                    });
+                }
+                self.request_meshes();
+                st.wait_frames = 3;
+            }
+            97 => {
+                if self.meshes.len() < 2 {
+                    self.selftest = Some(st);
+                    return;
+                }
+                use rolidium_render::StandardView;
+                let thread_id = self.meshes[1].id;
+                let solid = self.doc.body(thread_id).map(|b| b.solid.clone());
+                let mut worst = 1.0_f64;
+                for (zoom, view) in [
+                    (1.0_f32, StandardView::Isometric),
+                    (12.0, StandardView::Front),
+                    (120.0, StandardView::Isometric),
+                ] {
+                    self.view_anim = None;
+                    self.camera.set_view(view);
+                    self.camera.target = Vec3::new(20.0, 0.0, 2.0);
+                    self.camera.distance = 80.0 / zoom;
+                    self.remesh_now();
+                    if let (Some(s), Some(m)) = (&solid, self.meshes.iter().find(|m| m.id == thread_id)) {
+                        let n = s.face_count();
+                        let area = m.mesh.area_per_face(n);
+                        for (i, f) in s.faces().enumerate() {
+                            let exact = s.face_info(f).map(|f| f.area).unwrap_or(0.0);
+                            if exact > 1e-6 {
+                                worst = worst.min(area[i] / exact);
+                            }
+                        }
+                    }
+                }
+                println!("selftest: thread on a cone: the least coverage of a face {worst:.4}");
+                check(&mut st, "every face of the thread is covered to 99 % at every zoom", worst >= 0.99);
+                self.layers_changed = true;
+                st.wait_frames = 3;
+                shot(&mut st, ctx, "thread-on-cone");
+            }
+            98 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

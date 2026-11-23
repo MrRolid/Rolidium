@@ -158,3 +158,8 @@ A loft and a sweep (`"type": "loft"` and `"sweep"`) have `"mode"` and `"target"`
 
 `links/<id>.base.brep` (only for "add" and "cut"): the solid of the target body before the pattern; every recalculation starts from it. Units are millimetres, angles degrees.
 Opening a file recalculates nothing: the bodies are stored as they were, and the link recalculates when its source changes.
+
+## Sketches on the end of a curve (added in program version 0.2.1, still format version 1)
+
+A sketch may have `"anchor": { "curve": 8, "end": "start" | "end", "plane": "axis_plane" | "normal_to_tangent" | "normal_to_axis" | "parallel_xy" | "parallel_xz" | "parallel_yz" | "free", "normal": [..], "x_dir": [..] }` in `sketches/<id>.json` (`normal` and `x_dir` only for `free`). The plane of the sketch is calculated from the end of the curve whenever the curve changes, so the `plane` stored in the file is the last result. An anchor whose curve is not in the file is dropped when the file is opened (the sketch stays where it was). A program that does not know the key keeps it unchanged.
+

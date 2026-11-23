@@ -262,10 +262,14 @@ pub struct App {
     last_op_ms: Option<f32>,
     frame_ms: f32,
     fps_smooth: f32,
+    /// Why the view asked for the next frame: the pointer moved, a pick read-back is running (for the diagnostic panel).
+    repaint_why: (bool, bool, bool, bool),
     /// When the next frame may start (the software ceiling of the frame rate).
     frame_deadline: Option<Instant>,
     /// A pick read-back is due (the pointer or the picture changed since the last one).
     pick_dirty: bool,
+    /// The number of read-backs the renderer had started at the last frame.
+    pick_serial: u64,
     /// The size of the diagnostic panel in the last frame (to put it into the corner).
     diag_size: Vec2,
     last_frame: Instant,
@@ -479,8 +483,10 @@ impl App {
             last_op_ms: None,
             frame_ms: 0.0,
             fps_smooth: 0.0,
+            repaint_why: (false, false, false, false),
             frame_deadline: None,
             pick_dirty: true,
+            pick_serial: 0,
             diag_size: Vec2::new(300.0, 90.0),
             last_frame: Instant::now(),
             backend: format!("{:?}", info.backend),
@@ -2575,18 +2581,24 @@ impl App {
             let l = (p - rect.min) * ppp;
             [l.x.max(0.0) as u32, l.y.max(0.0) as u32]
         });
-        let busy_pick = {
+        let (busy_pick, pick_serial) = {
             let r = self.render_state.renderer.read();
             match r.callback_resources.get::<Resources>() {
                 Some(res) => {
                     self.hover_id = res.renderer.pick_result();
-                    res.renderer.pick_busy()
+                    (res.renderer.pick_busy(), res.renderer.pick_serial())
                 }
-                None => false,
+                None => (false, 0),
             }
         };
+        // a read-back was started since the last frame: what was asked for is being done
+        if pick_serial != self.pick_serial {
+            self.pick_serial = pick_serial;
+            self.pick_dirty = false;
+        }
         // nothing moves and nothing is computed: no frame is drawn (a finished calculation and every input wake the window by themselves)
         let pointer_moved = self.last_pointer != pointer;
+        self.repaint_why = (pointer_moved, busy_pick, false, false);
         if pointer_moved || busy_pick {
             ctx.request_repaint();
         }
@@ -2608,15 +2620,14 @@ impl App {
         self.pump_edge_preview();
         let scene_sent = self.meshes_changed;
         let render_ids = scene_sent || self.camera != self.last_cam || size_px != self.last_size;
+        self.repaint_why.2 = scene_sent;
+        self.repaint_why.3 = self.camera != self.last_cam || size_px != self.last_size;
         // the pick read-back (what is under the pointer) is asked for when the pointer or the picture changed, not every frame: a
         // pick in flight keeps the window repainting, so a pick on every frame would draw frames for ever
         if pointer_moved || render_ids {
             self.pick_dirty = true;
         }
         let pick_at = if self.pick_dirty { pick_at } else { None };
-        if self.pick_dirty && !busy_pick {
-            self.pick_dirty = false;
-        }
         self.last_cam = self.camera;
         self.last_size = size_px;
         let scene_radius = self.scene_radius();
@@ -4438,12 +4449,16 @@ impl eframe::App for App {
                 })
                 .collect();
             let text = format!(
-                "{text}\nlast frame asked for by: {}",
+                "{text}\nlast frame asked for by: {}\nview: pointer moved {}, pick running {}, scene sent {}, camera or size changed {}",
                 if causes.is_empty() {
                     "-".into()
                 } else {
                     causes.join(", ")
-                }
+                },
+                self.repaint_why.0,
+                self.repaint_why.1,
+                self.repaint_why.2,
+                self.repaint_why.3
             );
             // inside the model area (never over the bars or the columns): default in the lower left corner, dragged by the mouse
             let vr = self.viewport_rect;
