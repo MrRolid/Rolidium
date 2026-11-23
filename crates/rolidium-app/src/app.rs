@@ -3815,8 +3815,7 @@ impl App {
             }
             (None, Tool::Loft) => tr("Loft: click the profiles (sketch regions or flat faces) in the order they should be joined, then Apply or Enter."),
             (None, Tool::Combine) => tr("Combine: click the target body, then the bodies to combine with it; choose Merge, Cut or Intersect and press Apply or Enter."),
-            (None, Tool::Pattern) => tr("Pattern: click the body to repeat, set the direction (or the axis), the number of pieces and the spacing, then Apply or Enter."),
-            (None, Tool::Mirror) => tr("Mirror: click the body, choose the plane (a base plane, a flat face or a sketch) and how the image is kept, then Apply or Enter."),
+            (None, Tool::Pattern | Tool::Mirror) => self.link_hint(),
             (None, Tool::Join) => tr("Join ends: select the lines (Shift adds more; nothing selected means the whole sketch), choose the largest gap, Enter confirms"),
             (None, Tool::Fill) => tr("Fill: click an edge of a hole or opening, or the lines of a shape that is not filled yet. Shift adds more."),
             (None, Tool::Measure) => tr("Measure: click two elements (vertex, edge, face, point of a sketch or curve). Esc clears."),

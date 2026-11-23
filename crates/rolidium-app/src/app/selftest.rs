@@ -2885,6 +2885,122 @@ impl App {
                 st.wait_frames = 1;
             }
             142 => {
+                // a plate 100 x 60 x 4 with a hole 5 mm from two edges: the hole is the source and is repeated into the four corners
+                self.replace_document(Document::new(), None);
+                let plate = rolidium_kernel::Solid::cuboid(DVec3::ZERO, DVec3::new(100.0, 60.0, 4.0)).ok();
+                let hole =
+                    rolidium_kernel::Solid::cylinder(1.5, 6.0, DVec3::new(5.0, 5.0, -1.0), DVec3::Z).ok();
+                if let (Some(a), Some(b)) = (plate, hole) {
+                    if let Ok(r) = a.boolean(&b, rolidium_kernel::BooleanOp::Cut) {
+                        self.submit(Command::AddNamedSolids {
+                            solids: vec![(r.solid, "Plate".into())],
+                        });
+                    }
+                }
+                st.wait_frames = 6;
+            }
+            143 => {
+                let Some(b) = self.doc.bodies().first().map(|b| (b.id, b.solid.clone())) else {
+                    check(&mut st, "the plate was made", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                let faces: Vec<_> = b.1.faces().collect();
+                let hole = faces
+                    .iter()
+                    .find(|f| b.1.cylinder_info(**f).ok().flatten().is_some_and(|c| c.is_hole))
+                    .copied();
+                let top = faces
+                    .iter()
+                    .find(|f| {
+                        b.1.face_info(**f)
+                            .is_ok_and(|i| i.kind == rolidium_kernel::FaceKind::Plane && i.normal.z > 0.99)
+                    })
+                    .copied();
+                self.activate_link_tool(super::linktool::LinkMode::Fill);
+                if let (Some(h), Some(t)) = (hole, top) {
+                    self.link_ui.feature = Some((b.0, h.0));
+                    self.link_ui.rect_face = Some(t.0);
+                    println!("selftest: hint: {}", self.link_hint());
+                    self.apply_link();
+                }
+                st.wait_frames = 6;
+            }
+            144 => {
+                let v = self
+                    .doc
+                    .bodies()
+                    .first()
+                    .and_then(|b| b.solid.volume().ok())
+                    .unwrap_or(0.0);
+                let want = 100.0 * 60.0 * 4.0 - 4.0 * std::f64::consts::PI * 1.5 * 1.5 * 4.0;
+                check(
+                    &mut st,
+                    "a hole repeated into the four corners of the plate: four holes, one link",
+                    (v - want).abs() < 1e-3 && self.doc.state().links.len() == 1,
+                );
+                self.camera.set_view(rolidium_render::StandardView::Isometric);
+                self.fit_all();
+                st.wait_frames = 6;
+                shot(&mut st, ctx, "plate-corner-holes");
+            }
+            145 => {
+                // six holes round the axis of a pin that is not at the origin
+                self.replace_document(Document::new(), None);
+                let plate = rolidium_kernel::Solid::cuboid(DVec3::ZERO, DVec3::new(80.0, 80.0, 10.0)).ok();
+                let hole =
+                    rolidium_kernel::Solid::cylinder(3.0, 12.0, DVec3::new(60.0, 40.0, -1.0), DVec3::Z).ok();
+                if let (Some(a), Some(b)) = (plate, hole) {
+                    if let Ok(r) = a.boolean(&b, rolidium_kernel::BooleanOp::Cut) {
+                        self.submit(Command::AddNamedSolids {
+                            solids: vec![(r.solid, "Plate".into())],
+                        });
+                    }
+                }
+                st.wait_frames = 6;
+            }
+            146 => {
+                let Some(b) = self.doc.bodies().first().map(|b| (b.id, b.solid.clone())) else {
+                    check(&mut st, "the plate was made", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                let hole =
+                    b.1.faces()
+                        .find(|f| b.1.cylinder_info(*f).ok().flatten().is_some_and(|c| c.is_hole));
+                self.activate_link_tool(super::linktool::LinkMode::Circular);
+                if let Some(h) = hole {
+                    self.link_ui.feature = Some((b.0, h.0));
+                    self.link_ui.p.axis = rolidium_doc::Axis {
+                        origin: DVec3::new(40.0, 40.0, 0.0),
+                        dir: DVec3::Z,
+                    };
+                    self.link_ui.p.count = 6;
+                    self.link_ui.p.full = true;
+                    println!("selftest: hint: {}", self.link_hint());
+                    self.apply_link();
+                }
+                st.wait_frames = 6;
+            }
+            147 => {
+                let v = self
+                    .doc
+                    .bodies()
+                    .first()
+                    .and_then(|b| b.solid.volume().ok())
+                    .unwrap_or(0.0);
+                let want = 80.0 * 80.0 * 10.0 - 6.0 * std::f64::consts::PI * 9.0 * 10.0;
+                check(
+                    &mut st,
+                    "a hole repeated 6 times round an axis that is not at the origin",
+                    (v - want).abs() < 1e-3,
+                );
+                self.camera.set_view(rolidium_render::StandardView::Isometric);
+                self.fit_all();
+                st.wait_frames = 6;
+                shot(&mut st, ctx, "circular-holes");
+            }
+            148 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

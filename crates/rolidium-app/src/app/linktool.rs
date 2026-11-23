@@ -16,11 +16,17 @@ pub enum LinkMode {
     Linear,
     Circular,
     Mirror,
+    /// A hole or a pin repeated into the corners (or a grid) of a flat rectangular face.
+    Fill,
 }
 
 /// What the next click in the view sets.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum LinkPick {
+    /// The place of the second piece of a row: a point on a face.
+    Point,
+    /// The flat rectangular face the corners or the grid are made on.
+    RectFace,
     Direction,
     Direction2,
     Axis,
@@ -110,6 +116,14 @@ pub struct LinkUi {
     /// The pieces of the preview as triangles (normal, and those that may overlap or lie outside), and a remark about them.
     pub note: std::cell::RefCell<String>,
     pub plane_sketch: usize,
+    /// A hole or a pin that is repeated in its own body (the body and the cylindrical face), instead of whole bodies.
+    pub feature: Option<(BodyId, u32)>,
+    /// The flat rectangular face of the corners or the grid, and what is made on it.
+    pub rect_face: Option<u32>,
+    pub grid: bool,
+    pub columns: u32,
+    pub rows: u32,
+    pub margin: f64,
     /// The mouse handle of the spacing is being dragged.
     pub handle_drag: bool,
     /// The panel of patterns and mirrors of the shapes of the sketch that is open (`Linear`, `Circular` or `Mirror`).
@@ -163,6 +177,20 @@ impl LinkParams {
             _ => PatternMode::New,
         };
         match self.mode {
+            // the corners and the grid are made from the face (see `AddFeatureLink`); the numbers here are not used
+            LinkMode::Fill => LinkKind::Linear(
+                LinearParams {
+                    axis: Axis {
+                        origin: DVec3::ZERO,
+                        dir: DVec3::X,
+                    },
+                    count: 1,
+                    spacing: 0.0,
+                    by_total: false,
+                    second: None,
+                },
+                PatternMode::New,
+            ),
             LinkMode::Linear => LinkKind::Linear(
                 LinearParams {
                     axis: Axis {
@@ -291,6 +319,11 @@ impl App {
             }
         }
         self.link_ui.editing = None;
+        self.link_ui.feature = None;
+        self.link_ui.rect_face = None;
+        if self.link_ui.columns == 0 {
+            (self.link_ui.columns, self.link_ui.rows, self.link_ui.margin) = (3, 2, 5.0);
+        }
         let old = std::mem::take(&mut self.link_ui.p);
         self.link_ui.p = LinkParams {
             mode,
@@ -397,6 +430,27 @@ impl App {
                     }
                 }
             }
+            Some(LinkPick::Point) => {
+                if self.pick_second_point(resp) {
+                    self.link_ui.pick = None;
+                    self.layers_changed = true;
+                }
+            }
+            Some(LinkPick::RectFace) => {
+                let ok = self.hovered_face().and_then(|(b, f)| {
+                    let (fb, _) = self.link_ui.feature?;
+                    let solid = &self.doc.body(b)?.solid;
+                    (b == fb && solid.face_info(FaceId(f)).ok()?.kind == FaceKind::Plane).then_some(f)
+                });
+                match ok {
+                    Some(f) => {
+                        self.link_ui.rect_face = Some(f);
+                        self.link_ui.pick = None;
+                        self.layers_changed = true;
+                    }
+                    None => self.set_status("Click the flat rectangular face of the same body", true),
+                }
+            }
             Some(p @ (LinkPick::Direction | LinkPick::Direction2 | LinkPick::Axis | LinkPick::Plane)) => {
                 if self.pick_link_geometry(p) {
                     self.link_ui.pick = None;
@@ -407,7 +461,20 @@ impl App {
                 if self.link_ui.editing.is_some() {
                     return;
                 }
+                // the round face of a hole or a pin is a thing to repeat in its own body
+                if let Some((b, f)) = self.hovered_face() {
+                    if self.is_feature_face(b, f) {
+                        self.link_ui.feature = Some((b, f));
+                        self.move_sel.clear();
+                        self.selection = vec![(b, f)];
+                        self.link_ui.rect_face = None;
+                        self.set_status("The hole or the pin is the source: choose how to repeat it (a row, round an axis, a mirror or into the corners)", false);
+                        self.layers_changed = true;
+                        return;
+                    }
+                }
                 if let Some(b) = hover {
+                    self.link_ui.feature = None;
                     if let Some(i) = self.move_sel.iter().position(|x| *x == b) {
                         self.move_sel.remove(i);
                     } else {
@@ -420,8 +487,123 @@ impl App {
         }
     }
 
+    /// The one sentence of the status line: what to click next in the Pattern and Mirror tools.
+    pub(super) fn link_hint(&self) -> String {
+        let u = &self.link_ui;
+        if u.editing.is_some() {
+            return tr("Change the numbers in the panel, then Apply or Enter.");
+        }
+        let have = u.feature.is_some() || !self.link_sources().is_empty();
+        if let Some(pick) = u.pick {
+            return match pick {
+                LinkPick::Point => tr("Click the place of the second piece on a face."),
+                LinkPick::RectFace => tr("Click the flat rectangular face of the same body."),
+                LinkPick::Plane => tr("Click a flat face, a straight edge or the plane of a sketch for the mirror plane."),
+                LinkPick::Axis => tr("Click a round edge, a cylindrical face, a straight edge or a face for the axis (or press X, Y, Z)."),
+                LinkPick::Target => tr("Click the body the pieces are added to or cut out of."),
+                LinkPick::Direction | LinkPick::Direction2 => tr("Click a straight edge or a face for the direction."),
+            };
+        }
+        if !have {
+            return if self.tool == Tool::Mirror {
+                tr("Mirror: click what is mirrored: a body, or the round face of a hole or a pin.")
+            } else {
+                tr("Pattern: click what is repeated: a body (Ctrl adds more), or the round face of a hole or a pin.")
+            };
+        }
+        match u.p.mode {
+            LinkMode::Linear => tr("Row: click an edge or a face for the direction (or press X, Y, Z), or click the place of the second piece."),
+            LinkMode::Circular => tr("Round an axis: click the centre: a round edge, a cylindrical face, a straight edge (or press X, Y, Z), then set the number."),
+            LinkMode::Mirror => tr("Mirror: click the plane: a flat face, a straight edge, or choose a base plane or the plane of a sketch."),
+            LinkMode::Fill => tr("Into a face: click the flat rectangular face (Pick the face), choose the corners or a grid, then Apply."),
+        }
+    }
+
+    /// Whether a face is the round face of a hole or a pin of a body that has more than the round part itself (a plain cylinder is a body to repeat).
+    fn is_feature_face(&self, body: BodyId, face: u32) -> bool {
+        self.doc.body(body).is_some_and(|b| {
+            b.solid.face_count() > 3 && b.solid.cylinder_info(FaceId(face)).ok().flatten().is_some()
+        })
+    }
+
+    /// The point of the second piece of a row: the point of the face under the pointer; the direction and the spacing are read from it.
+    fn pick_second_point(&mut self, resp: &egui::Response) -> bool {
+        let (Some((b, f)), Some(pointer)) = (self.hovered_face(), resp.interact_pointer_pos()) else {
+            return false;
+        };
+        let rect = resp.rect;
+        let aspect = rect.width() / rect.height().max(1.0);
+        let (o, d) = self.camera.ray(Self::ndc(pointer, rect), aspect);
+        let Some(to) = self.ray_face_point(b, f, o, d) else {
+            return false;
+        };
+        // the place of the first piece: the axis of the hole, or the centre of the box of the sources
+        let from = match self.link_ui.feature {
+            Some((fb, ff)) => self
+                .doc
+                .body(fb)
+                .and_then(|x| x.solid.cylinder_info(FaceId(ff)).ok().flatten())
+                .map(|c| c.base),
+            None => {
+                let (mut lo, mut hi) = (DVec3::splat(f64::MAX), DVec3::splat(f64::MIN));
+                for s in self.link_sources() {
+                    if let Some((a, c)) = self.doc.body(s).and_then(|x| x.solid.bounding_box().ok()) {
+                        lo = lo.min(a);
+                        hi = hi.max(c);
+                    }
+                }
+                (lo.x <= hi.x).then(|| (lo + hi) * 0.5)
+            }
+        };
+        let Some(from) = from else {
+            self.set_status("Click what is repeated first", true);
+            return false;
+        };
+        // a hole is drilled along its axis: the point is taken on the plane through the axis point, square to the axis of the face the point lies on
+        let count = self.link_ui.p.count.max(2);
+        match rolidium_doc::linear_through(from, to, count) {
+            Ok(q) => {
+                let p = &mut self.link_ui.p;
+                (p.dir, p.dir_label) = (q.axis.dir, tr("the second piece"));
+                p.spacing = q.spacing;
+                p.by_total = false;
+                p.count = count;
+                true
+            }
+            Err(e) => {
+                self.set_status(e.to_string(), true);
+                false
+            }
+        }
+    }
+
     /// Sets a direction, an axis or a plane from the edge or the face under the pointer. `true` when something was taken.
     fn pick_link_geometry(&mut self, what: LinkPick) -> bool {
+        // a round edge: its centre and the axis of the circle (an axis of a pattern)
+        if let (Some(Obj::Edge(b, e)), LinkPick::Axis) = (self.hover_obj, what) {
+            if let Some(pl) = self.edge_polyline(b, e).filter(|p| p.len() >= 8) {
+                let n = pl.len();
+                let (a, m, c) = (dv(pl[0]), dv(pl[n / 3]), dv(pl[2 * n / 3]));
+                let (u, v) = (m - a, c - a);
+                let normal = u.cross(v);
+                if normal.length() > 1e-9 {
+                    // the centre of the circle through the three points
+                    let w = normal.normalize();
+                    let (uu, vv, uv) = (u.dot(u), v.dot(v), u.dot(v));
+                    let k = 2.0 * (uu * vv - uv * uv);
+                    if k.abs() > 1e-12 {
+                        let (s1, s2) = (vv * (uu - uv) / k, uu * (vv - uv) / k);
+                        let centre = a + u * s1 + v * s2;
+                        self.link_ui.p.axis = Axis {
+                            origin: centre,
+                            dir: w,
+                        };
+                        self.link_ui.p.axis_label = tr("a round edge");
+                        return true;
+                    }
+                }
+            }
+        }
         // an edge: a straight one gives a direction and a point
         if let Some(Obj::Edge(b, e)) = self.hover_obj {
             if let Some(body) = self.doc.body(b) {
@@ -442,10 +624,16 @@ impl App {
                                 )
                             }
                             LinkPick::Plane => {
-                                self.set_status("Click a flat face for the mirror plane", true);
-                                return false;
+                                // the plane through the middle of the edge, square to it
+                                (p.plane, p.plane_label) = (
+                                    Axis {
+                                        origin: (i.start + i.end) * 0.5,
+                                        dir: d,
+                                    },
+                                    tr("the middle of an edge"),
+                                )
                             }
-                            LinkPick::Target => {}
+                            LinkPick::Target | LinkPick::Point | LinkPick::RectFace => {}
                         }
                         return true;
                     }
@@ -704,6 +892,31 @@ impl App {
                 name: None,
             });
         }
+        if let Some((body, face)) = self.link_ui.feature {
+            let u = &self.link_ui;
+            let rect = if p.mode == LinkMode::Fill {
+                let f = u.rect_face?;
+                let fill = if u.grid {
+                    rolidium_doc::RectFill::Grid {
+                        columns: u.columns.max(1),
+                        rows: u.rows.max(1),
+                        margin: u.margin,
+                    }
+                } else {
+                    rolidium_doc::RectFill::Corners
+                };
+                Some((FaceId(f), fill))
+            } else {
+                None
+            };
+            return Some(Command::AddFeatureLink {
+                body,
+                face: FaceId(face),
+                kind: p.kind(),
+                name: String::new(),
+                rect,
+            });
+        }
         if sources.is_empty() {
             return None;
         }
@@ -734,7 +947,12 @@ impl App {
         if !self.idle() {
             return;
         }
-        let why = if self.link_ui.editing.is_none() && self.link_sources().is_empty() {
+        let feature = self.link_ui.feature.is_some() && self.link_ui.editing.is_none();
+        let why = if feature && self.link_ui.p.mode == LinkMode::Fill && self.link_ui.rect_face.is_none() {
+            Some("Click the flat rectangular face the copies go into (Pick the face)")
+        } else if feature {
+            None
+        } else if self.link_ui.editing.is_none() && self.link_sources().is_empty() {
             Some("Click the body to repeat or mirror")
         } else if self.link_ui.p.result != 0
             && self.link_ui.p.target.is_none()
@@ -755,6 +973,8 @@ impl App {
         let editing = self.link_ui.editing.is_some();
         if !editing {
             self.move_sel.clear();
+            self.link_ui.feature = None;
+            self.link_ui.rect_face = None;
             self.link_ui.pick = None;
             self.tool = Tool::Select;
         }
@@ -792,6 +1012,13 @@ impl App {
             .filter_map(|b| self.doc.body(*b))
             .map(|b| b.name.clone())
             .collect();
+        let feature_label = self.link_ui.feature.and_then(|(b, _)| {
+            self.doc
+                .body(b)
+                .map(|x| trf("a hole or a pin of {}", std::slice::from_ref(&x.name)))
+        });
+        let has_feature = feature_label.is_some();
+        let rect_label = self.link_ui.rect_face.map(|f| format!("#{f}"));
         let bodies = self.doc.bodies().to_vec();
         let sketches = self.doc.sketches().to_vec();
         let error = editing
@@ -802,12 +1029,19 @@ impl App {
             let p = &mut ui_state.p;
             ui.horizontal_wrapped(|ui| {
                 ui.colored_label(crate::theme::rgb(242, 89, 242), tr("Source"));
-                ui.label(if sources.is_empty() { tr("click the body in the view") } else { sources.join(", ") });
+                ui.label(match (&feature_label, sources.is_empty()) {
+                    (Some(f), _) => f.clone(),
+                    (None, true) => tr("click a body, or the round face of a hole or a pin"),
+                    (None, false) => sources.join(", "),
+                });
             });
             if editing.is_none() && p.mode != LinkMode::Mirror {
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut p.mode, LinkMode::Linear, tr("Along a line"));
                     ui.selectable_value(&mut p.mode, LinkMode::Circular, tr("Round an axis"));
+                    if has_feature {
+                        ui.selectable_value(&mut p.mode, LinkMode::Fill, tr("Into a face"));
+                    }
                 });
             }
             let pick_btn = |ui: &mut egui::Ui, st: &mut Option<LinkPick>, what: LinkPick, label: &str| {
@@ -830,11 +1064,28 @@ impl App {
                     }
                 });
                 ui.weak(format!("{}: ({:.2}, {:.2}, {:.2})", label, dir.x, dir.y, dir.z));
+                // the direction as numbers (any direction, not only X, Y and Z)
+                ui.horizontal(|ui| {
+                    let mut v = [dir.x, dir.y, dir.z];
+                    let mut changed = false;
+                    for (k, n) in ["dx", "dy", "dz"].iter().enumerate() {
+                        ui.label(*n);
+                        changed |= ui.add(egui::DragValue::new(&mut v[k]).speed(0.02).max_decimals(4)).changed();
+                    }
+                    if changed && v.iter().any(|x| x.abs() > 1e-9) {
+                        *dir = DVec3::new(v[0], v[1], v[2]);
+                        *label = tr("typed");
+                    }
+                });
             };
             match p.mode {
                 LinkMode::Linear => {
                     ui.label(tr("Direction"));
                     dir_row(ui, &mut ui_state.pick, LinkPick::Direction, &mut p.dir, &mut p.dir_label);
+                    ui.horizontal(|ui| {
+                        pick_btn(ui, &mut ui_state.pick, LinkPick::Point, &tr("Second piece here"));
+                        ui.weak(tr("click the place of the second piece: the spacing is taken from it"));
+                    });
                     ui.horizontal(|ui| {
                         ui.label(tr("Pieces"));
                         ui.add(egui::DragValue::new(&mut p.count).range(1..=1000).speed(0.2));
@@ -874,12 +1125,34 @@ impl App {
                         ui.add(egui::DragValue::new(&mut p.count).range(1..=1000).speed(0.2));
                         ui.checkbox(&mut p.full, tr("Round the whole circle"));
                     });
+                    ui.checkbox(&mut p.keep_orientation, tr("Keep the orientation of the copies"));
                     ui.add_enabled_ui(!p.full, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(tr("Angle between pieces"));
                             ui.add(egui::DragValue::new(&mut p.angle).speed(0.5).suffix("°"));
                         });
                     });
+                }
+                LinkMode::Fill => {
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut ui_state.grid, false, tr("The four corners"));
+                        ui.radio_value(&mut ui_state.grid, true, tr("A grid"));
+                    });
+                    if ui_state.grid {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Columns"));
+                            ui.add(egui::DragValue::new(&mut ui_state.columns).range(1..=200).speed(0.2));
+                            ui.label(tr("Rows"));
+                            ui.add(egui::DragValue::new(&mut ui_state.rows).range(1..=200).speed(0.2));
+                            ui.label(tr("Margin"));
+                            ui.add(egui::DragValue::new(&mut ui_state.margin).range(0.0..=1000.0).speed(0.2).suffix(" mm"));
+                        });
+                    }
+                    ui.horizontal(|ui| {
+                        pick_btn(ui, &mut ui_state.pick, LinkPick::RectFace, &tr("Pick the face"));
+                        ui.label(rect_label.clone().unwrap_or_else(|| tr("click the flat rectangular face")));
+                    });
+                    ui.weak(tr("The copies keep the distances from the two nearest edges that the hole has. The face is read when you press Apply: a later change of the plate does not move them."));
                 }
                 LinkMode::Mirror => {
                     ui.label(tr("Mirror plane"));
@@ -919,7 +1192,7 @@ impl App {
                             p.plane_label = tr("as set");
                         }
                     });
-                    if editing.is_none() {
+                    if editing.is_none() && !has_feature {
                         ui.separator();
                         for (h, n, tip) in [
                             (MirrorHow::InPlace, "Mirror the body itself", "The body is mirrored where it is."),
@@ -932,7 +1205,7 @@ impl App {
                     }
                 }
             }
-            if p.mode != LinkMode::Mirror {
+            if p.mode != LinkMode::Mirror && p.mode != LinkMode::Fill && !has_feature {
                 ui.separator();
                 let locked = editing.is_some();
                 ui.add_enabled_ui(!locked, |ui| {
@@ -958,7 +1231,9 @@ impl App {
                     crate::theme::rgb(255, 200, 100),
                     match pk {
                         LinkPick::Target => tr("Click the body in the view"),
-                        LinkPick::Plane => tr("Click a flat face in the view"),
+                        LinkPick::Plane => tr("Click a flat face, a straight edge or the plane of a sketch in the view"),
+                        LinkPick::Point => tr("Click the place of the second piece on a face"),
+                        LinkPick::RectFace => tr("Click the flat rectangular face of the same body"),
                         _ => tr("Click a straight edge or a face in the view"),
                     },
                 );
@@ -1595,7 +1870,7 @@ impl App {
             let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
             let entities: Vec<_> = one.into_iter().collect();
             Some(match mode {
-                LinkMode::Linear => Command::SketchPattern {
+                LinkMode::Linear | LinkMode::Fill => Command::SketchPattern {
                     sketch: sk,
                     entities,
                     pattern: rolidium_doc::SketchPattern::Linear {
@@ -1662,7 +1937,7 @@ impl App {
         let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
         let ids: Vec<_> = one.into_iter().collect();
         let made = match mode {
-            LinkMode::Linear => rolidium_doc::preview_pattern(
+            LinkMode::Linear | LinkMode::Fill => rolidium_doc::preview_pattern(
                 sd,
                 &ids,
                 &rolidium_doc::SketchPattern::Linear {

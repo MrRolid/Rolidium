@@ -104,6 +104,7 @@ The server uses one thread per core less one for the calculations that can share
 | `set_material` | Set the material of a body, which decides its mass: steel, aluminium, brass, copper, PLA, PETG, ABS, or a density in g/cm3 |
 | `mass` | Report the mass (g) of every body from its volume and material |
 | `linear_pattern` | Make a pattern of a body along a straight line (a link): the body and copies at a spacing, also as a grid, or added to or cut out of another body (a row of holes from one cylinder) |
+| `repeat_feature` | Repeat a hole or a pin of a body in the same body: a row (also with the second piece at a point), round an axis, a mirror, into the four corners or a grid of a flat rectangular face (a link; a hidden tool body is made from the round faces) |
 | `circular_pattern` | Make a pattern of a body round an axis (a link): copies turned by an angle one after another, or spread evenly round the whole circle |
 | `mirror_body` | Mirror a body in a plane: in place, keeping the original, merged with it into one symmetric body, or as a live link that follows the original |
 | `list_links` | List the links (patterns and mirrors) with their parameters, source bodies and the bodies they made |

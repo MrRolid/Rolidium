@@ -8,7 +8,16 @@ features is visible. 0.2.0 is the first public release.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- Holes and pins are things to repeat: click the round face of a hole (a counterbore, a countersink or a chamfer round the same axis belong to it) or of a pin with the Pattern (`T`) or Mirror (`B`) tool, and a row, a circle of copies or a mirror image is cut out of (or fused into) the same body; a hidden tool body is made from the round faces, the result is one link and one step of Undo. Also in `rolidium cli` and MCP: `repeat-feature`.
+- Row: the direction can be typed as numbers (dx, dy, dz) as well as picked, and **Second piece here** takes the direction and the spacing from a click on the place of the second piece (`linear-pattern ... to x y z` in the script language).
+- Pattern round an axis: the axis can be a round edge (its centre and normal); the copies can keep the orientation of the original (`keep`).
+- Mirror: a straight edge gives the plane through its middle square to the edge; mirror of a hole into the same body.
+- Into the corners of a face: a hole is copied into the four corners of a flat rectangular face with the distances from the two nearest edges that it has, or into a grid (columns x rows and a margin).
+- The status line says in one sentence what to click next in the Pattern and Mirror tools. A short guide is in `docs/PATTERNS.md`.
+
+### Not yet
+- Auxiliary (dashed) axes in a sketch, the live distances to the nearest edges, and corners that follow a change of the size of the plate.
 
 ## [0.2.1] - 2026-11-23
 

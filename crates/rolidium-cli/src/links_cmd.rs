@@ -260,8 +260,12 @@ impl Runner {
             }
             "repeat-feature" => {
                 // repeat-feature <face> linear|circular|mirror|corners|grid ...: a hole or a pin of the body, repeated in the same body
-                let sel = w.get(1).ok_or("repeat-feature needs the face of the hole or the pin (#N) and how to repeat it")?;
-                let how = *w.get(2).ok_or("repeat-feature needs: linear, circular, mirror, corners or grid")?;
+                let sel = w.get(1).ok_or(
+                    "repeat-feature needs the face of the hole or the pin (#N) and how to repeat it",
+                )?;
+                let how = *w
+                    .get(2)
+                    .ok_or("repeat-feature needs: linear, circular, mirror, corners or grid")?;
                 let id = self.first_body()?;
                 let solid = self.doc.body(id).ok_or("the body is missing")?.solid.clone();
                 let face = crate::select_face(&solid, sel)?;
@@ -276,30 +280,65 @@ impl Runner {
                         let second = if c.eat("second") {
                             let (n, sp) = (c.num("the second count")? as u32, c.num("the second spacing")?);
                             let d = c.vec3("the second direction")?;
-                            Some(Direction2 { axis: Axis { origin: DVec3::ZERO, dir: d }, count: n, spacing: sp, by_total: c.eat("total") })
+                            Some(Direction2 {
+                                axis: Axis {
+                                    origin: DVec3::ZERO,
+                                    dir: d,
+                                },
+                                count: n,
+                                spacing: sp,
+                                by_total: c.eat("total"),
+                            })
                         } else {
                             None
                         };
                         let (dir, spacing, by_total) = if c.eat("to") {
                             let to = c.vec3("the point of the second piece")?;
-                            let at = solid.cylinder_info(face).map_err(|e| e.to_string())?.ok_or("click the cylindrical face of a hole or a pin")?.base;
+                            let at = solid
+                                .cylinder_info(face)
+                                .map_err(|e| e.to_string())?
+                                .ok_or("click the cylindrical face of a hole or a pin")?
+                                .base;
                             let p = rolidium_doc::linear_through(at, to, count).map_err(err)?;
                             (p.axis.dir, p.spacing, false)
                         } else {
                             (dir, spacing, by_total)
                         };
                         LinkKind::Linear(
-                            LinearParams { axis: Axis { origin: DVec3::ZERO, dir }, count, spacing, by_total, second },
+                            LinearParams {
+                                axis: Axis {
+                                    origin: DVec3::ZERO,
+                                    dir,
+                                },
+                                count,
+                                spacing,
+                                by_total,
+                                second,
+                            },
                             PatternMode::New,
                         )
                     }
                     "circular" => {
                         let count = c.num("the number of pieces")? as u32;
-                        let (angle_deg, full) = if c.eat("full") { (0.0, true) } else { (c.num("the angle")?, false) };
+                        let (angle_deg, full) = if c.eat("full") {
+                            (0.0, true)
+                        } else {
+                            (c.num("the angle")?, false)
+                        };
                         let dir = c.vec3("the axis")?;
-                        let origin = if c.eat("through") { c.vec3("the point of the axis")? } else { DVec3::ZERO };
+                        let origin = if c.eat("through") {
+                            c.vec3("the point of the axis")?
+                        } else {
+                            DVec3::ZERO
+                        };
                         LinkKind::Circular(
-                            CircularParams { axis: Axis { origin, dir }, count, angle_deg, full, keep_orientation: rest.contains(&"keep") },
+                            CircularParams {
+                                axis: Axis { origin, dir },
+                                count,
+                                angle_deg,
+                                full,
+                                keep_orientation: rest.contains(&"keep"),
+                            },
                             PatternMode::New,
                         )
                     }
@@ -312,7 +351,9 @@ impl Runner {
                                 c.i += 1;
                                 c.vec3("the normal")?
                             }
-                            _ => return Err("mirror needs the plane: x, y, z or normal <nx> <ny> <nz>".into()),
+                            _ => {
+                                return Err("mirror needs the plane: x, y, z or normal <nx> <ny> <nz>".into())
+                            }
                         };
                         if matches!(c.peek(), Some("x" | "y" | "z")) {
                             c.i += 1;
@@ -324,7 +365,11 @@ impl Runner {
                         } else {
                             DVec3::ZERO
                         };
-                        LinkKind::Mirror(MirrorParams { origin, normal, into: PatternMode::New })
+                        LinkKind::Mirror(MirrorParams {
+                            origin,
+                            normal,
+                            into: PatternMode::New,
+                        })
                     }
                     "corners" | "grid" => {
                         let fill = if how == "corners" {
@@ -336,17 +381,40 @@ impl Runner {
                                 margin: c.num("the margin from the edges")?,
                             }
                         };
-                        let plate = crate::select_face(&solid, c.peek().ok_or("name the flat rectangular face of the body (top, #N)")?)?;
+                        let plate = crate::select_face(
+                            &solid,
+                            c.peek()
+                                .ok_or("name the flat rectangular face of the body (top, #N)")?,
+                        )?;
                         rect = Some((plate, fill));
                         LinkKind::Linear(
-                            LinearParams { axis: Axis { origin: DVec3::ZERO, dir: DVec3::X }, count: 1, spacing: 0.0, by_total: false, second: None },
+                            LinearParams {
+                                axis: Axis {
+                                    origin: DVec3::ZERO,
+                                    dir: DVec3::X,
+                                },
+                                count: 1,
+                                spacing: 0.0,
+                                by_total: false,
+                                second: None,
+                            },
                             PatternMode::New,
                         )
                     }
-                    other => return Err(format!("repeat-feature: unknown way '{other}' (linear, circular, mirror, corners, grid)")),
+                    other => {
+                        return Err(format!(
+                            "repeat-feature: unknown way '{other}' (linear, circular, mirror, corners, grid)"
+                        ))
+                    }
                 };
                 self.doc
-                    .apply(Command::AddFeatureLink { body: id, face, kind, name: Self::name_of(w), rect })
+                    .apply(Command::AddFeatureLink {
+                        body: id,
+                        face,
+                        kind,
+                        name: Self::name_of(w),
+                        rect,
+                    })
                     .map_err(err)?;
                 self.report_link("repeat-feature");
             }
