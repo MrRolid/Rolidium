@@ -2191,7 +2191,11 @@ impl App {
                     }
                 }
                 println!("selftest: thread on a cone: the least coverage of a face {worst:.4}");
-                check(&mut st, "every face of the thread is covered to 99 % at every zoom", worst >= 0.99);
+                check(
+                    &mut st,
+                    "every face of the thread is covered to 99 % at every zoom",
+                    worst >= 0.99,
+                );
                 self.layers_changed = true;
                 st.wait_frames = 3;
                 shot(&mut st, ctx, "thread-on-cone");
