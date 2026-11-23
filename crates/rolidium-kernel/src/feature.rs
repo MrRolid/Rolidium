@@ -159,7 +159,7 @@ impl Solid {
         }
         let z_lo = members.iter().map(|m| m.1.z_lo).fold(f64::MAX, f64::min);
         let z_hi = members.iter().map(|m| m.1.z_hi).fold(f64::MIN, f64::max);
-        if !(z_hi - z_lo > 1e-6) {
+        if z_hi - z_lo <= 1e-6 || !(z_hi - z_lo).is_finite() {
             return Err(not("The feature has no length"));
         }
         // the ends: where the material is not (a hole) or is (a pin) just beyond the end, the tool reaches out by OVERSHOOT
