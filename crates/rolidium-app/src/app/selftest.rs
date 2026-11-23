@@ -30,7 +30,11 @@ impl SelfTest {
         let _ = std::fs::create_dir_all(&dir);
         SelfTest {
             dir,
-            step: 0,
+            // ROLIDIUM_SELFTEST_FROM=87 starts at that step (for the steps that make their own document)
+            step: std::env::var("ROLIDIUM_SELFTEST_FROM")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0),
             wait_frames: 0,
             shot_pending: None,
             slot: Default::default(),
@@ -1845,6 +1849,11 @@ impl App {
                     self.camera.target = Vec3::new(10.0, 0.0, 18.0);
                     self.camera.distance = fit / zoom;
                     self.remesh_now();
+                    println!(
+                        "selftest: spring zoom {zoom}x: {} triangles, peak memory {} MB",
+                        self.meshes[0].mesh.triangle_count(),
+                        peak_memory_mb()
+                    );
                     let m = &self.meshes[0].mesh;
                     let tris = m.triangles_per_face(faces);
                     let area = m.area_per_face(faces);
@@ -1855,6 +1864,12 @@ impl App {
                     }
                 }
                 println!("selftest: spring: {faces} faces, lost: {lost:?}");
+                let mem = peak_memory_mb();
+                check(
+                    &mut st,
+                    &format!("zooming into the spring stays within memory (peak {mem} MB, limit 4000)"),
+                    mem < 4000,
+                );
                 check(
                     &mut st,
                     "no face of the swept helix is lost or cut when zooming in",
@@ -2049,4 +2064,14 @@ fn selftest_spring(turns: f64) -> rolidium_kernel::Solid {
     Solid::sweep(&input, &path, &SweepOptions::default())
         .unwrap()
         .solid
+}
+
+/// The highest memory the process has used so far, MB (0 where it cannot be read).
+fn peak_memory_mb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("VmHWM")).map(String::from))
+        .and_then(|l| l.split_whitespace().nth(1).and_then(|n| n.parse::<u64>().ok()))
+        .unwrap_or(0)
+        / 1024
 }

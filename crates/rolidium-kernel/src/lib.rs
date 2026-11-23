@@ -32,6 +32,8 @@ pub const FIRST_DISPLAY_FRACTION: f64 = 0.002;
 /// At most this many triangles are made for the faces in view in one go: meshing them costs about 15 microseconds a triangle when few
 /// faces are meshed at once (no parallelism), and the background work must be done in about a second and a half.
 pub const FINE_TRIANGLE_BUDGET: usize = 60_000;
+/// The most a pass of `view_mesh_faces` makes the mesh of a face finer (see there).
+const MAX_STEP: f64 = 4.0;
 
 pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
@@ -547,6 +549,16 @@ impl Solid {
                 .unwrap_or(base.deflection)
         };
         let is_fine = |i: usize| fine.get(i).copied().unwrap_or(false);
+        // One pass makes the faces at most `MAX_STEP` times finer than their present mesh. The number of triangles of a face grows
+        // faster than the estimate below says for long curved faces (a spring), and one mesher call that is far too fine takes
+        // minutes and tens of gigabytes. The caller asks again (the deflection recorded for the faces is the one reached) until the
+        // zoom is met, so a deep zoom is a few quick passes.
+        let coarsest = (0..n).filter(|i| is_fine(*i)).map(defl).fold(0.0_f64, f64::max);
+        let step_floor = coarsest / MAX_STEP;
+        if linear < step_floor {
+            linear = step_floor;
+        }
+        let first_linear = linear;
         let fixed: f64 = (0..n).filter(|i| !is_fine(*i)).map(|i| per_face[i] as f64).sum();
         // How the triangles of a face in view grow when the deflection gets smaller. The edges of a face are cut into segments, which grow
         // with the square root of 1 / deflection; a plane (with the circles of its holes) and a cylinder (a strip of triangles along the
@@ -586,7 +598,12 @@ impl Solid {
             }
             linear = hi;
         }
-        let mask: Vec<u8> = (0..n).map(|i| is_fine(i) as u8).collect();
+        let budget_hit = linear > first_linear;
+        // when the step was limited, the faces that are already finer than this pass stay as they are
+        let step_limited = first_linear > requested;
+        let mask: Vec<u8> = (0..n)
+            .map(|i| (is_fine(i) && !(step_limited && defl(i) <= first_linear)) as u8)
+            .collect();
         if !mask.contains(&1) {
             return Ok(base.clone());
         }
@@ -614,8 +631,22 @@ impl Solid {
                 base.clone()
             };
             out.deflection = linear;
+            // the deflection the faces really got (the estimate of the next pass starts from it), and the one that was asked for
             out.face_deflection = (0..n)
-                .map(|i| if accepted[i] == 1 { requested } else { defl(i) })
+                .map(|i| if accepted[i] == 1 { linear } else { defl(i) })
+                .collect();
+            out.face_asked = (0..n)
+                .map(|i| match accepted[i] {
+                    // met the zoom, or the budget does not allow more (do not ask again); else the program asks for the next pass
+                    1 if budget_hit || attempt > 0 || first_linear <= requested => requested,
+                    1 => first_linear,
+                    _ => base
+                        .face_asked
+                        .get(i)
+                        .copied()
+                        .filter(|d| *d > 0.0)
+                        .unwrap_or_else(|| defl(i)),
+                })
                 .collect();
             if out.triangle_count() as f64 <= max_triangles as f64 * 1.25 || attempt == 3 {
                 break;
@@ -629,7 +660,22 @@ impl Solid {
         if out.triangle_count() as f64 > max_triangles as f64 * 1.25
             && base.triangle_count() <= out.triangle_count()
         {
-            return Ok(base.clone());
+            // the faces stay as they are, and the display is told that more is not possible (it does not ask again)
+            let mut kept = base.clone();
+            kept.face_asked = (0..n)
+                .map(|i| {
+                    if mask[i] == 1 {
+                        requested
+                    } else {
+                        base.face_asked
+                            .get(i)
+                            .copied()
+                            .filter(|d| *d > 0.0)
+                            .unwrap_or_else(|| defl(i))
+                    }
+                })
+                .collect();
+            return Ok(kept);
         }
         Ok(out)
     }

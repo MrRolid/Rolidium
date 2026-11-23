@@ -627,7 +627,13 @@ mod tests {
     /// The order of the versions is the one that dpkg gives to the versions of the .deb packages (`~dev.N.ghash` for the development builds).
     #[test]
     fn the_order_agrees_with_dpkg() {
-        let deb = ["0.2.0", "0.2.1~dev.10.gabc", "0.2.1~dev.11.g012", "0.2.1", "0.2.2~dev.5.gfff"];
+        let deb = [
+            "0.2.0",
+            "0.2.1~dev.10.gabc",
+            "0.2.1~dev.11.g012",
+            "0.2.1",
+            "0.2.2~dev.5.gfff",
+        ];
         let prog = ["0.2.0", "0.2.1-dev.10", "0.2.1-dev.11", "0.2.1", "0.2.2-dev.5"];
         let Ok(probe) = std::process::Command::new("dpkg").arg("--version").output() else {
             eprintln!("dpkg is not installed: the comparison with it is skipped");
@@ -644,7 +650,13 @@ mod tests {
         for i in 0..deb.len() {
             for j in 0..deb.len() {
                 assert_eq!(dpkg_lt(deb[i], deb[j]), i < j, "dpkg: {} < {}", deb[i], deb[j]);
-                assert_eq!(is_newer(prog[j], prog[i]), i < j, "program: {} < {}", prog[i], prog[j]);
+                assert_eq!(
+                    is_newer(prog[j], prog[i]),
+                    i < j,
+                    "program: {} < {}",
+                    prog[i],
+                    prog[j]
+                );
             }
         }
         // the old numbering ("+dev.<hash>") is higher than the release, so the new packages are lower than an installed old one:

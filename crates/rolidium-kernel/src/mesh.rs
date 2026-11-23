@@ -27,6 +27,10 @@ pub struct Mesh {
     pub deflection: f64,
     /// The linear deflection (mm) each B-rep face was asked for (0 when not known); the faces outside the view are coarser.
     pub face_deflection: Vec<f64>,
+    /// The deflection the display wanted for each face when it was last meshed (what the program compares with the zoom to decide whether
+    /// a face needs a new mesh). It differs from `face_deflection` where a limit (the budget of triangles, the step of one pass) held the
+    /// mesh back; empty when not known (then `face_deflection` is used).
+    pub face_asked: Vec<f64>,
 }
 
 fn vec3s(f: &[f32]) -> Vec<Vec3> {
@@ -58,6 +62,7 @@ impl Mesh {
             edges,
             deflection: 0.0,
             face_deflection: Vec::new(),
+            face_asked: Vec::new(),
         }
     }
 
@@ -95,6 +100,7 @@ impl Mesh {
             edges: Vec::new(),
             deflection: self.deflection,
             face_deflection: Vec::new(),
+            face_asked: Vec::new(),
         };
         // the triangles of the faces that are kept (their vertices are copied as they are used)
         let mut remap: Vec<u32> = vec![u32::MAX; self.positions.len()];

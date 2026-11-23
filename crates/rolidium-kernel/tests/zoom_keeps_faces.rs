@@ -93,3 +93,130 @@ fn zooming_into_a_swept_helix_keeps_every_face() {
         }
     }
 }
+
+fn peak_rss_mb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("VmHWM")).map(String::from))
+        .and_then(|l| l.split_whitespace().nth(1).and_then(|n| n.parse::<u64>().ok()))
+        .unwrap_or(0)
+        / 1024
+}
+
+#[test]
+fn zooming_far_into_a_swept_helix_stays_within_memory_and_time() {
+    let s = spring(9.0);
+    let n = s.face_count();
+    let base = s.display_mesh().unwrap();
+    let fine = vec![true; n];
+    for pixel in [1e-3, 1e-4, 1e-5, 1e-6] {
+        let t = std::time::Instant::now();
+        let m = s.view_mesh_faces(pixel, &fine, 150_000, Some(&base)).unwrap();
+        eprintln!(
+            "pixel {pixel}: {} triangles, {:.1} s, peak {} MB",
+            m.triangle_count(),
+            t.elapsed().as_secs_f64(),
+            peak_rss_mb()
+        );
+        assert!(m.triangle_count() < 400_000);
+        assert!(peak_rss_mb() < 3000, "the peak memory is {} MB", peak_rss_mb());
+    }
+}
+
+#[test]
+fn zooming_in_step_by_step_stays_within_memory_and_time() {
+    let s = spring(9.0);
+    let n = s.face_count();
+    let mut mesh = s.display_mesh().unwrap();
+    let fine = vec![true; n];
+    // each mesh is the base of the next one, as when the person zooms in a few times
+    for pixel in [0.1, 0.01, 0.001, 0.0001] {
+        let t = std::time::Instant::now();
+        mesh = s.view_mesh_faces(pixel, &fine, 150_000, Some(&mesh)).unwrap();
+        eprintln!(
+            "pixel {pixel}: {} triangles, {:.1} s, peak {} MB",
+            mesh.triangle_count(),
+            t.elapsed().as_secs_f64(),
+            peak_rss_mb()
+        );
+        assert!(mesh.triangle_count() < 400_000);
+        assert!(peak_rss_mb() < 3000, "the peak memory is {} MB", peak_rss_mb());
+    }
+}
+
+#[test]
+fn zooming_far_into_single_faces_stays_within_memory_and_time() {
+    let s = spring(9.0);
+    let n = s.face_count();
+    let base = s.display_mesh().unwrap();
+    for i in 0..n {
+        let fine: Vec<bool> = (0..n).map(|k| k == i).collect();
+        let t = std::time::Instant::now();
+        let m = s.view_mesh_faces(1e-5, &fine, 6_000, Some(&base)).unwrap();
+        let secs = t.elapsed().as_secs_f64();
+        eprintln!(
+            "face {i}: {} triangles, {secs:.1} s, peak {} MB",
+            m.triangle_count(),
+            peak_rss_mb()
+        );
+        assert!(
+            peak_rss_mb() < 3000,
+            "face {i}: the peak memory is {} MB",
+            peak_rss_mb()
+        );
+        assert!(secs < 20.0, "face {i}: {secs} s");
+    }
+}
+
+#[test]
+fn a_zoom_after_a_zoom_with_some_faces_in_view_stays_within_memory_and_time() {
+    let s = spring(9.0);
+    let n = s.face_count();
+    let first = s
+        .view_mesh_faces(0.0834, &vec![true; n], 150_000, Some(&s.display_mesh().unwrap()))
+        .unwrap();
+    for skip in 0..n {
+        let fine: Vec<bool> = (0..n).map(|k| k >= 5 || k == skip).collect();
+        let t = std::time::Instant::now();
+        let m = s.view_mesh_faces(2.1e-4, &fine, 150_000, Some(&first)).unwrap();
+        let secs = t.elapsed().as_secs_f64();
+        eprintln!(
+            "mask {skip}: {} triangles, {secs:.1} s, peak {} MB",
+            m.triangle_count(),
+            peak_rss_mb()
+        );
+        assert!(
+            peak_rss_mb() < 3000 && secs < 20.0,
+            "mask {skip}: {secs} s, {} MB",
+            peak_rss_mb()
+        );
+    }
+}
+
+#[test]
+fn three_zooms_in_a_row_with_fewer_faces_in_view_stay_within_memory_and_time() {
+    let s = spring(9.0);
+    let n = s.face_count();
+    let mut mesh = s.display_mesh().unwrap();
+    for (pixel, lo, hi) in [
+        (0.0834, 0, 20),
+        (2.1e-4, 5, 20),
+        (2.1e-5, 10, 20),
+        (2.1e-5, 0, 10),
+    ] {
+        let fine: Vec<bool> = (0..n).map(|k| k >= lo && k < hi).collect();
+        let t = std::time::Instant::now();
+        mesh = s.view_mesh_faces(pixel, &fine, 150_000, Some(&mesh)).unwrap();
+        let secs = t.elapsed().as_secs_f64();
+        eprintln!(
+            "pixel {pixel} faces {lo}..{hi}: {} triangles, {secs:.1} s, peak {} MB",
+            mesh.triangle_count(),
+            peak_rss_mb()
+        );
+        assert!(
+            peak_rss_mb() < 3000 && secs < 30.0,
+            "{secs} s, {} MB",
+            peak_rss_mb()
+        );
+    }
+}

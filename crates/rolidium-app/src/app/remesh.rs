@@ -111,8 +111,9 @@ impl App {
         let want = need * VIEW_PIXEL_FRACTION;
         let asked = |i: usize| {
             e.mesh
-                .face_deflection
+                .face_asked
                 .get(i)
+                .or_else(|| e.mesh.face_deflection.get(i))
                 .copied()
                 .filter(|d| *d > 0.0)
                 .unwrap_or(e.mesh.deflection)
@@ -246,15 +247,21 @@ impl App {
 
     /// For the self-test: the meshes made at once for the present zoom, by the same choice of bodies and budget as the program uses.
     pub(super) fn remesh_now(&mut self) {
-        let (bodies, _) = self.remesh_batch();
-        let made = crate::worker::remesh_entries(&bodies);
-        let mut all: Vec<MeshEntry> = self.meshes.iter().cloned().collect();
-        for e in made.into_iter().flatten() {
-            if let Some(slot) = all.iter_mut().find(|o| o.id == e.id) {
-                *slot = e;
+        // a pass makes the faces at most a few times finer (the kernel limits it), so a deep zoom is a few passes, as in the program
+        for _ in 0..10 {
+            let (bodies, _) = self.remesh_batch();
+            if bodies.is_empty() {
+                break;
             }
+            let made = crate::worker::remesh_entries(&bodies);
+            let mut all: Vec<MeshEntry> = self.meshes.iter().cloned().collect();
+            for e in made.into_iter().flatten() {
+                if let Some(slot) = all.iter_mut().find(|o| o.id == e.id) {
+                    *slot = e;
+                }
+            }
+            self.set_meshes(all);
         }
-        self.set_meshes(all);
     }
 }
 
