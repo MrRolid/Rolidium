@@ -26,8 +26,8 @@ mod generate;
 mod links;
 mod sketchops;
 pub use links::{
-    link_of_result, placements_of, Axis, CircularParams, Direction2, Group, GroupId, LinearParams, Link,
-    LinkId, LinkKind, MirrorParams, PatternMode, MAX_PIECES,
+    linear_through, link_of_result, placements_of, rect_fill, Axis, CircularParams, Direction2, Group,
+    GroupId, LinearParams, Link, LinkId, LinkKind, MirrorParams, PatternMode, RectFill, MAX_PIECES,
 };
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
 
@@ -279,6 +279,17 @@ pub enum Command {
         name: String,
         min: DVec3,
         max: DVec3,
+    },
+    /// Repeats a hole or a pin of a body: the round faces (a counterbore, a countersink belong to the hole) are read into a hidden tool body, and a pattern
+    /// or a mirror cuts the tool out of the body at every place (a hole) or fuses it into the body (a pin). One step of Undo; it stays a link.
+    AddFeatureLink {
+        body: BodyId,
+        face: FaceId,
+        kind: LinkKind,
+        name: String,
+        /// Into the corners (or a grid) of this flat rectangular face of the same body: the `kind` is then not used, the pattern is made from the
+        /// place of the feature and the face (`rect_fill`).
+        rect: Option<(FaceId, RectFill)>,
     },
     PullFace {
         body: BodyId,
@@ -780,6 +791,7 @@ impl Job {
         let link_command = matches!(
             self.command,
             Command::AddLink { .. }
+                | Command::AddFeatureLink { .. }
                 | Command::EditLink { .. }
                 | Command::Unlink { .. }
                 | Command::DeleteLink { .. }
@@ -2365,6 +2377,66 @@ impl Job {
                     .ok_or(DocError::NoSuchBody)?
                     .material = material.clone();
                 Ok(self.done(st, "Material"))
+            }
+            Command::AddFeatureLink {
+                body,
+                face,
+                kind,
+                name,
+                rect,
+            } => {
+                let solid = st
+                    .bodies
+                    .iter()
+                    .find(|b| b.id == *body)
+                    .ok_or(DocError::NoSuchBody)?
+                    .solid
+                    .clone();
+                let ft = solid.feature_tool(*face)?;
+                let kind = match rect {
+                    Some((plate, fill)) => {
+                        let at = solid
+                            .cylinder_info(*face)?
+                            .map(|c| c.base)
+                            .ok_or(KernelError::NotPlanar)?;
+                        rect_fill(&solid, *plate, at, *fill)?
+                    }
+                    None => kind.clone(),
+                };
+                let tool_id = self.next_id;
+                st.body_counter += 1;
+                st.bodies.push(Body {
+                    id: tool_id,
+                    name: format!(
+                        "{} tool {}",
+                        if ft.is_hole { "Hole" } else { "Pin" },
+                        st.body_counter
+                    ),
+                    solid: ft.solid,
+                    color: [0.9, 0.5, 0.2],
+                    visible: false,
+                    features: Vec::new(),
+                    material: None,
+                });
+                let mode = if ft.is_hole {
+                    PatternMode::Cut(*body)
+                } else {
+                    PatternMode::Add(*body)
+                };
+                let mut next = self.next_id + 1;
+                let id = links::create(&mut st, kind.with_mode(mode), vec![tool_id], name, &mut next)?;
+                let warnings = st
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .map(|l| l.warnings.join("; "))
+                    .unwrap_or_default();
+                let mut c = self.done(st, "Repeat a hole or a pin");
+                c.touched_body = Some(*body);
+                if !warnings.is_empty() {
+                    c.notice = Some(warnings);
+                }
+                Ok(c)
             }
             Command::AddLink { kind, sources, name } => {
                 let mut next = self.next_id;

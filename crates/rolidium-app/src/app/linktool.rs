@@ -56,6 +56,8 @@ pub struct LinkParams {
     pub axis_label: String,
     pub angle: f64,
     pub full: bool,
+    /// Circular pattern: the copies keep the orientation of the original instead of turning round the axis.
+    pub keep_orientation: bool,
     /// 0 new bodies, 1 add to a body, 2 cut from a body.
     pub result: u8,
     pub target: Option<BodyId>,
@@ -86,6 +88,7 @@ impl Default for LinkParams {
             axis_label: "Z".into(),
             angle: 60.0,
             full: true,
+            keep_orientation: false,
             result: 0,
             target: None,
             plane: Axis {
@@ -187,12 +190,14 @@ impl LinkParams {
                     count: self.count,
                     angle_deg: self.angle,
                     full: self.full,
+                    keep_orientation: self.keep_orientation,
                 },
                 mode,
             ),
             LinkMode::Mirror => LinkKind::Mirror(MirrorParams {
                 origin: self.plane.origin,
                 normal: self.plane.dir,
+                into: PatternMode::New,
             }),
         }
     }
@@ -230,6 +235,7 @@ impl LinkParams {
                 p.count = q.count;
                 p.angle = q.angle_deg;
                 p.full = q.full;
+                p.keep_orientation = q.keep_orientation;
                 (p.result, p.target) = result(*m);
             }
             LinkKind::Mirror(m) => {

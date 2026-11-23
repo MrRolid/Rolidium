@@ -11,6 +11,7 @@
 //! * shapes are immutable, so a failed operation can never damage its inputs.
 
 mod blend;
+mod feature;
 mod frustum;
 mod looptool;
 mod measure;
@@ -22,6 +23,7 @@ mod sweep;
 pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
+pub use feature::FeatureTool;
 pub use frustum::FrustumInfo;
 pub use glam::{DVec3, Vec3};
 pub use rounds::{BlendMap, RoundComponent, Rounding};

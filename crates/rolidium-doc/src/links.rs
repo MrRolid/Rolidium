@@ -73,12 +73,16 @@ pub struct CircularParams {
     pub angle_deg: f64,
     /// The pieces are spread evenly round the whole circle (the angle is 360 / count).
     pub full: bool,
+    /// The pieces keep the orientation of the original (they are only carried round the axis) instead of turning with it.
+    pub keep_orientation: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MirrorParams {
     pub origin: DVec3,
     pub normal: DVec3,
+    /// Where the mirror images go: new bodies, or added to / cut from a body (a hole or a pin made again on the other side of a plane).
+    pub into: PatternMode,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,8 +110,19 @@ impl LinkKind {
         match self {
             LinkKind::Linear(_, m) | LinkKind::Circular(_, m) => *m,
             LinkKind::Loft { mode, .. } | LinkKind::Sweep { mode, .. } => *mode,
-            LinkKind::Mirror(_) => PatternMode::New,
+            LinkKind::Mirror(m) => m.into,
         }
+    }
+
+    /// The same link with another place for the pieces (the modes of a loft and a sweep are changed too).
+    pub fn with_mode(&self, mode: PatternMode) -> LinkKind {
+        let mut k = self.clone();
+        match &mut k {
+            LinkKind::Linear(_, m) | LinkKind::Circular(_, m) => *m = mode,
+            LinkKind::Mirror(p) => p.into = mode,
+            LinkKind::Loft { mode: m, .. } | LinkKind::Sweep { mode: m, .. } => *m = mode,
+        }
+        k
     }
 
     /// Whether the link makes its solid from sketches, curves and faces (a loft or a sweep) and not from copies of bodies.
@@ -276,6 +291,18 @@ fn pieces_of(kind: &LinkKind, plan: &[Placement], source: &Solid) -> Result<Vec<
         LinkKind::Mirror(m) => {
             let r = source.mirrored(m.origin, m.normal)?;
             Ok(vec![(r.solid, r.history)])
+        }
+        LinkKind::Circular(c, _) if c.keep_orientation => {
+            // carried round the axis without turning: the translation that takes the centre of the source to where the turn takes it
+            let (lo, hi) = source.bounding_box()?;
+            let centre = (lo + hi) * 0.5;
+            plan.iter()
+                .map(|p| {
+                    let turned = glam::DQuat::from_axis_angle(p.axis, p.angle) * (centre - p.pivot) + p.pivot;
+                    let r = source.moved(turned - centre, DVec3::ZERO, DVec3::Z, 0.0)?;
+                    Ok((r.solid, r.history))
+                })
+                .collect()
         }
         _ => plan
             .iter()
@@ -849,4 +876,145 @@ pub fn placements_of(kind: &LinkKind) -> Result<Vec<(DVec3, DVec3, DVec3, f64)>,
                 .collect()
         })
         .map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------- where the pieces go: from a point, into the corners of a face
+
+/// A linear pattern whose second piece lies at `to` (the first, the original, at `from`): the direction and the spacing are read from the two points, and
+/// `count` pieces are made (so that a click on the place of the second piece gives the pattern).
+pub fn linear_through(from: DVec3, to: DVec3, count: u32) -> Result<LinearParams, DocError> {
+    let d = to - from;
+    if !d.is_finite() || d.length() < 1e-9 {
+        return Err(bad(
+            "The second piece would lie on the first one: click another point",
+        ));
+    }
+    Ok(LinearParams {
+        axis: Axis {
+            origin: from,
+            dir: d.normalize(),
+        },
+        count: count.max(2),
+        spacing: d.length(),
+        by_total: false,
+        second: None,
+    })
+}
+
+/// How many pieces a pattern into a rectangle makes along each side: the four corners, or a grid with a margin from the edges.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RectFill {
+    /// Four copies, each with the distances from the two nearest edges that the original has (symmetric).
+    Corners,
+    /// `columns` x `rows` pieces from the original to a margin of `margin` mm from the far edges.
+    Grid { columns: u32, rows: u32, margin: f64 },
+}
+
+/// The pattern that puts the copies of something that lies at `source` into the corners of the flat rectangular `face` (or in a grid over it): the
+/// original keeps its place and the copies are placed with the distances to the two nearest edges that it has. `source` may lie anywhere (it is projected
+/// on the plane of the face).
+pub fn rect_fill(solid: &Solid, face: FaceId, source: DVec3, fill: RectFill) -> Result<LinkKind, DocError> {
+    let info = solid.face_info(face)?;
+    if info.kind != rolidium_kernel::FaceKind::Plane {
+        return Err(bad("Click a flat rectangular face (or a rectangle of a sketch)"));
+    }
+    let n = info.normal.normalize();
+    let lines: Vec<_> = solid
+        .face_edges(face)?
+        .into_iter()
+        .filter_map(|e| solid.edge_info(e).ok())
+        .filter(|i| i.kind == rolidium_kernel::EdgeKind::Line)
+        .collect();
+    if lines.len() != 4 {
+        return Err(bad(
+            "The face is not a rectangle (it needs four straight sides). Click a rectangular face",
+        ));
+    }
+    let a = (lines[0].end - lines[0].start).normalize();
+    let b = n.cross(a).normalize();
+    // the four sides must be along a and b, and the face must fill the rectangle they make
+    let pts: Vec<DVec3> = lines.iter().flat_map(|l| [l.start, l.end]).collect();
+    let o = pts[0];
+    let (mut amin, mut amax, mut bmin, mut bmax) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for p in &pts {
+        let (x, y) = ((*p - o).dot(a), (*p - o).dot(b));
+        amin = amin.min(x);
+        amax = amax.max(x);
+        bmin = bmin.min(y);
+        bmax = bmax.max(y);
+    }
+    for l in &lines {
+        let d = (l.end - l.start).normalize();
+        if d.dot(a).abs().max(d.dot(b).abs()) < 1.0 - 1e-6 {
+            return Err(bad(
+                "The face is not a rectangle (its sides are not square to each other)",
+            ));
+        }
+    }
+    let area = (amax - amin) * (bmax - bmin);
+    // a hole in the face (the hole that is repeated) makes the area smaller: the outer rectangle is what counts, so only the sides are checked
+    if area <= 1e-9 || info.area > area * (1.0 + 1e-6) {
+        return Err(bad("The face is not a rectangle"));
+    }
+    let (sa, sb) = ((source - o).dot(a), (source - o).dot(b));
+    let (da0, da1, db0, db1) = (sa - amin, amax - sa, sb - bmin, bmax - sb);
+    if da0.min(da1) < -1e-6 || db0.min(db1) < -1e-6 {
+        return Err(bad(
+            "The hole does not lie inside the face: click the face the hole is in",
+        ));
+    }
+    let (sign_a, near_a) = if da0 <= da1 { (1.0, da0) } else { (-1.0, da1) };
+    let (sign_b, near_b) = if db0 <= db1 { (1.0, db0) } else { (-1.0, db1) };
+    let (nc, nr, len_a, len_b) = match fill {
+        RectFill::Corners => (2, 2, (amax - amin) - 2.0 * near_a, (bmax - bmin) - 2.0 * near_b),
+        RectFill::Grid {
+            columns,
+            rows,
+            margin,
+        } => {
+            let la = if sign_a > 0.0 {
+                (amax - margin) - sa
+            } else {
+                sa - (amin + margin)
+            };
+            let lb = if sign_b > 0.0 {
+                (bmax - margin) - sb
+            } else {
+                sb - (bmin + margin)
+            };
+            (columns.max(1), rows.max(1), la, lb)
+        }
+    };
+    // the columns run along the longer side of the rectangle, the rows along the shorter
+    let (nc, nr) = if matches!(fill, RectFill::Grid { .. }) && (amax - amin) < (bmax - bmin) {
+        (nr, nc)
+    } else {
+        (nc, nr)
+    };
+    if (nc > 1 && len_a <= 1e-9) || (nr > 1 && len_b <= 1e-9) {
+        return Err(bad(
+            "The pieces do not fit into the face with this distance from the edges",
+        ));
+    }
+    Ok(LinkKind::Linear(
+        LinearParams {
+            axis: Axis {
+                origin: source,
+                dir: a * sign_a,
+            },
+            count: nc,
+            spacing: len_a,
+            by_total: true,
+            second: Some(Direction2 {
+                axis: Axis {
+                    origin: source,
+                    dir: b * sign_b,
+                },
+                count: nr,
+                spacing: len_b,
+                by_total: true,
+            }),
+        },
+        PatternMode::New,
+    ))
 }

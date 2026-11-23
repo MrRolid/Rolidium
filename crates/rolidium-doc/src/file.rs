@@ -346,9 +346,13 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("count".into(), json!(p.count));
             j.insert("angle_deg".into(), json!(p.angle_deg));
             j.insert("full".into(), json!(p.full));
+            j.insert("keep_orientation".into(), json!(p.keep_orientation));
         }
         LinkKind::Mirror(m) => {
             j.insert("type".into(), json!("mirror"));
+            if !matches!(m.into, PatternMode::New) {
+                mode(&m.into, &mut j);
+            }
             j.insert("origin".into(), arr3(m.origin));
             j.insert("normal".into(), arr3(m.normal));
         }
@@ -435,12 +439,14 @@ fn link_from(
                     .ok_or_else(|| corrupt("a link without a count"))? as u32,
                 angle_deg: get_f(&j["angle_deg"])?,
                 full: j["full"].as_bool().unwrap_or(true),
+                keep_orientation: j["keep_orientation"].as_bool().unwrap_or(false),
             },
             mode()?,
         ),
         Some("mirror") => LinkKind::Mirror(MirrorParams {
             origin: get3(&j["origin"])?,
             normal: get3(&j["normal"])?,
+            into: mode()?,
         }),
         Some("loft") => LinkKind::Loft {
             profiles: j["profiles"]

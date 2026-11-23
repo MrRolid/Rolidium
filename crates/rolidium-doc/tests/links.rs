@@ -173,6 +173,7 @@ fn six_holes_round_a_flange_taken_out_of_the_body() {
             count: 6,
             angle_deg: 0.0,
             full: true,
+            keep_orientation: false,
         },
         PatternMode::Cut(flange),
     );
@@ -202,6 +203,7 @@ fn six_holes_round_a_flange_taken_out_of_the_body() {
             count: 3,
             angle_deg: 20.0,
             full: false,
+            keep_orientation: false,
         },
         PatternMode::Cut(flange),
     );
@@ -225,6 +227,7 @@ fn a_mirror_and_a_live_mirror_follow_the_original() {
     let k = LinkKind::Mirror(MirrorParams {
         origin: DVec3::ZERO,
         normal: DVec3::X,
+        into: PatternMode::New,
     });
     d.apply(Command::AddLink {
         kind: k,
@@ -267,6 +270,7 @@ fn a_mirror_and_a_live_mirror_follow_the_original() {
             kind: LinkKind::Mirror(MirrorParams {
                 origin: DVec3::ZERO,
                 normal: DVec3::X,
+                into: PatternMode::New,
             }),
             sources: vec![w],
             name: String::new(),
@@ -627,6 +631,7 @@ fn links_and_groups_are_saved_and_opened() {
                 count: 6,
                 angle_deg: 0.0,
                 full: true,
+                keep_orientation: false,
             },
             PatternMode::Cut(flange),
         ),
@@ -649,6 +654,7 @@ fn links_and_groups_are_saved_and_opened() {
         kind: LinkKind::Mirror(MirrorParams {
             origin: DVec3::new(0.0, 0.0, 0.0),
             normal: DVec3::Y,
+            into: PatternMode::New,
         }),
         sources: vec![rod],
         name: String::new(),

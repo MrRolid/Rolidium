@@ -233,6 +233,7 @@ impl Runner {
                         count,
                         angle_deg,
                         full,
+                        keep_orientation: w.contains(&"keep"),
                     },
                     self.mode_of(w)?,
                 );
@@ -268,7 +269,11 @@ impl Runner {
                 let sources = self.sources_of(w)?;
                 let (live, keep, merge) = (w.contains(&"live"), w.contains(&"keep"), w.contains(&"merge"));
                 if live {
-                    let kind = LinkKind::Mirror(MirrorParams { origin, normal });
+                    let kind = LinkKind::Mirror(MirrorParams {
+                        origin,
+                        normal,
+                        into: PatternMode::New,
+                    });
                     self.doc
                         .apply(Command::AddLink {
                             kind,
