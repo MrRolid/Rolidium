@@ -85,6 +85,7 @@ double volume_of(const Shape& shape);
 rust::String shape_diag(const Shape& shape);
 double solid_distance(const Shape& a, const Shape& b);
 rust::Vec<double> bounds_of(const Shape& shape);
+rust::Vec<double> face_scales(const Shape& shape);
 rust::String take_stages();
 void set_threads(int32_t n);
 rust::Vec<uint64_t> shared_keys(const Shape& shape);

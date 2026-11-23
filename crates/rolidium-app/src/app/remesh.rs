@@ -108,7 +108,11 @@ impl App {
             return None;
         }
         let need = self.pixel_mm_at(eye + (lo + hi - eye * 2.0).normalize_or_zero() * nearest.max(1e-3));
-        let want = need * VIEW_PIXEL_FRACTION;
+        // what the kernel will really ask for at this pixel (it limits the deflection at both ends: asking more would never be met)
+        let want = self
+            .doc
+            .body(e.id)
+            .map_or(need * VIEW_PIXEL_FRACTION, |b| b.solid.view_deflection(need));
         let asked = |i: usize| {
             e.mesh
                 .face_asked

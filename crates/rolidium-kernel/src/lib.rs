@@ -24,6 +24,9 @@ pub use glam::{DVec3, Vec3};
 /// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
 /// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.
 pub const VIEW_ANGLE: f64 = 0.5;
+/// The angle of the faces that are meshed finer than the rest because of their smallest feature (a thin wire): with 0.5 a circle of the profile
+/// has 13 segments and the mesh covers 96 % of it, with this 31 and 99.3 %.
+pub const THIN_ANGLE: f64 = 0.2;
 /// The display mesh deviates from the exact shape by at most this fraction of a pixel.
 pub const VIEW_PIXEL_FRACTION: f64 = 0.4;
 /// The first display mesh after an operation is rough: its deflection is this fraction of the size of the part (about two pixels of a
@@ -34,6 +37,10 @@ pub const FIRST_DISPLAY_FRACTION: f64 = 0.002;
 pub const FINE_TRIANGLE_BUDGET: usize = 60_000;
 /// The most a pass of `view_mesh_faces` makes the mesh of a face finer (see there).
 const MAX_STEP: f64 = 4.0;
+/// A face is meshed so that the mesh is at most this fraction of its smallest radius of curvature from it (but not finer than `MIN_FACE_DEFLECTION`):
+/// the thin wire of a thread on a big cone keeps its shape although the body is big. The deviation is then at most about 10 % of the radius.
+const CAP_FRACTION: f64 = 0.1;
+const MIN_FACE_DEFLECTION: f64 = 0.002;
 
 pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
@@ -462,12 +469,75 @@ impl Solid {
         Ok(m)
     }
 
-    /// Triangulation tuned for display: the chord error scales with the size of the part.
+    /// Triangulation tuned for display: the chord error scales with the size of the part, and with the size of the smallest features of a face
+    /// (a thread of a thin wire on a big cone is meshed for the wire, not for the cone).
     pub fn display_mesh(&self) -> Result<Mesh> {
         // only the box is needed here; the full properties (volume, area) cost much more
         let b = native::bounds_of(&self.shape)?;
         let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2])).length();
-        self.mesh((diag * FIRST_DISPLAY_FRACTION).clamp(0.005, 0.5), VIEW_ANGLE)
+        let linear = (diag * FIRST_DISPLAY_FRACTION).clamp(0.005, 0.5);
+        let caps = self.face_caps()?;
+        if caps.iter().all(|c| *c >= linear) {
+            return self.mesh(linear, VIEW_ANGLE);
+        }
+        let target: Vec<f64> = caps.iter().map(|c| c.min(linear)).collect();
+        let angles: Vec<f64> = caps
+            .iter()
+            .map(|c| if *c < linear { THIN_ANGLE } else { VIEW_ANGLE })
+            .collect();
+        let (part, used) = self.mesh_in_groups(&target, &angles)?;
+        let mut m = part;
+        m.deflection = linear;
+        m.face_asked = used.clone();
+        m.face_deflection = used;
+        Ok(m)
+    }
+
+    /// The deflection each face needs to stay close to its smallest feature (see `CAP_FRACTION`); large for a plane.
+    fn face_caps(&self) -> Result<Vec<f64>> {
+        Ok(native::face_scales(&self.shape)?
+            .into_iter()
+            .map(|r| (r * CAP_FRACTION).max(MIN_FACE_DEFLECTION))
+            .collect())
+    }
+
+    /// Meshes the faces with their own deflections (`target`, 0 = not meshed): the faces whose deflections are within a factor of two of
+    /// each other go into one call of the mesher, with the finest of them. Returns the mesh of those faces and the deflection each got.
+    fn mesh_in_groups(&self, target: &[f64], angles: &[f64]) -> Result<(Mesh, Vec<f64>)> {
+        let n = target.len();
+        // the key: the power of two the deflection lies under, and the angle (in thousandths)
+        let key_of = |i: usize| (target[i].log2().floor() as i32, (angles[i] * 1000.0) as i32);
+        let mut groups: std::collections::BTreeMap<(i32, i32), f64> = std::collections::BTreeMap::new();
+        for i in (0..n).filter(|i| target[*i] > 0.0) {
+            let e = groups.entry(key_of(i)).or_insert(f64::MAX);
+            *e = e.min(target[i]);
+        }
+        let mut used = vec![0.0; n];
+        let mut acc = Mesh::default();
+        let whole = groups.len() == 1 && target.iter().all(|t| *t > 0.0);
+        for (key, linear) in &groups {
+            let mask: Vec<u8> = (0..n)
+                .map(|i| (target[i] > 0.0 && key_of(i) == *key) as u8)
+                .collect();
+            let part = Mesh::from_native(native::mesh_shape_regions(
+                &self.shape,
+                *linear,
+                key.1 as f64 / 1000.0,
+                *linear,
+                if whole { &[] } else { &mask },
+            )?);
+            for i in 0..n {
+                if mask[i] == 1 {
+                    used[i] = *linear;
+                }
+            }
+            acc = if acc.positions.is_empty() {
+                part
+            } else {
+                acc.merged_with(&part, &mask)
+            };
+        }
+        Ok((acc, used))
     }
 
     /// Triangulation for a view in which one pixel is `pixel_mm` millimetres wide: the triangles and the edge polylines
@@ -507,6 +577,11 @@ impl Solid {
     }
 
     /// The size of the part and the linear deflection for a pixel of `pixel_mm`.
+    /// The deflection a mesh for a pixel of `pixel_mm` is asked for (limited at both ends); what the program compares the meshes with.
+    pub fn view_deflection(&self, pixel_mm: f64) -> f64 {
+        self.view_linear(pixel_mm).map_or(pixel_mm * VIEW_PIXEL_FRACTION, |v| v.1)
+    }
+
     fn view_linear(&self, pixel_mm: f64) -> Result<(f64, f64)> {
         let b = native::bounds_of(&self.shape)?;
         let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2]))
@@ -548,17 +623,21 @@ impl Solid {
                 .filter(|d| *d > 0.0)
                 .unwrap_or(base.deflection)
         };
+        let asked_before = |i: usize| {
+            base.face_asked
+                .get(i)
+                .copied()
+                .filter(|d| *d > 0.0)
+                .unwrap_or_else(|| defl(i))
+        };
         let is_fine = |i: usize| fine.get(i).copied().unwrap_or(false);
-        // One pass makes the faces at most `MAX_STEP` times finer than their present mesh. The number of triangles of a face grows
-        // faster than the estimate below says for long curved faces (a spring), and one mesher call that is far too fine takes
-        // minutes and tens of gigabytes. The caller asks again (the deflection recorded for the faces is the one reached) until the
-        // zoom is met, so a deep zoom is a few quick passes.
-        let coarsest = (0..n).filter(|i| is_fine(*i)).map(defl).fold(0.0_f64, f64::max);
-        let step_floor = coarsest / MAX_STEP;
-        if linear < step_floor {
-            linear = step_floor;
-        }
-        let first_linear = linear;
+        let caps = self.face_caps()?;
+        // The deflection a face is meshed with when the display asks for `linear`: not coarser than its cap (the smallest feature of the face),
+        // and a pass makes a face at most `MAX_STEP` times finer than its present mesh. The number of triangles of a face grows faster than the
+        // estimate below says for long curved faces (a spring), and one mesher call that is far too fine takes minutes and tens of gigabytes. The
+        // caller asks again (the deflection asked for is only met when it is reached) until the zoom is met, so a deep zoom is a few quick passes.
+        let target = |i: usize, linear: f64| linear.min(caps[i]).max(defl(i) / MAX_STEP);
+        let want = |i: usize| requested.min(caps[i]);
         let fixed: f64 = (0..n).filter(|i| !is_fine(*i)).map(|i| per_face[i] as f64).sum();
         // How the triangles of a face in view grow when the deflection gets smaller. The edges of a face are cut into segments, which grow
         // with the square root of 1 / deflection; a plane (with the circles of its holes) and a cylinder (a strip of triangles along the
@@ -575,13 +654,14 @@ impl Solid {
         let estimate = |linear: f64| -> f64 {
             (0..n)
                 .filter(|i| is_fine(*i))
-                .map(|i| per_face[i] as f64 * (defl(i) / linear).max(1.0).powf(exponent[i]))
+                .map(|i| per_face[i] as f64 * (defl(i) / target(i, linear)).max(1.0).powf(exponent[i]))
                 .sum()
         };
         // the faces in view get at most the budget, and the whole mesh stays under the cap (aim a little lower: the estimate is rough)
         let room = ((max_triangles as f64 - fixed).max(max_triangles as f64 * 0.2))
             .min(FINE_TRIANGLE_BUDGET as f64)
             * 0.9;
+        let first_linear = linear;
         if estimate(linear) > room {
             // the smallest deflection (not finer than asked) for which the estimate fits: the estimate falls as the deflection grows
             let (mut lo, mut hi) = (linear, linear);
@@ -599,53 +679,71 @@ impl Solid {
             linear = hi;
         }
         let budget_hit = linear > first_linear;
-        // when the step was limited, the faces that are already finer than this pass stay as they are
-        let step_limited = first_linear > requested;
-        let mask: Vec<u8> = (0..n)
-            .map(|i| (is_fine(i) && !(step_limited && defl(i) <= first_linear)) as u8)
+        // the faces that get a finer mesh in this pass (the others are as fine as asked, or finer)
+        let mut goal: Vec<f64> = (0..n)
+            .map(|i| {
+                if is_fine(i) && target(i, linear) < defl(i) * 0.999 {
+                    target(i, linear)
+                } else {
+                    0.0
+                }
+            })
             .collect();
-        if !mask.contains(&1) {
-            return Ok(base.clone());
+        if goal.iter().all(|g| *g == 0.0) {
+            // nothing to do: the display is told that these faces are as fine as they can be made for this zoom
+            let mut kept = base.clone();
+            kept.face_asked = (0..n)
+                .map(|i| {
+                    if is_fine(i) {
+                        want(i).max(requested.min(asked_before(i)))
+                    } else {
+                        asked_before(i)
+                    }
+                })
+                .collect();
+            return Ok(kept);
         }
         let mut angle = VIEW_ANGLE;
         let base_area = base.area_per_face(n);
         let mut out = base.clone();
         for attempt in 0..4 {
-            let part = Mesh::from_native(native::mesh_shape_regions(
-                &self.shape,
-                linear,
-                angle,
-                linear,
-                &mask,
-            )?);
+            let angles: Vec<f64> = (0..n)
+                .map(|i| {
+                    if caps[i] < requested {
+                        angle.min(THIN_ANGLE)
+                    } else {
+                        angle
+                    }
+                })
+                .collect();
+            let (part, used) = self.mesh_in_groups(&goal, &angles)?;
             // A finer mesh replaces the coarse one of a face only when it is complete: the face has triangles and covers
             // (nearly) the area the coarse mesh covers. A face the mesher failed on, or only did in part, stays as it was.
             let got = part.triangles_per_face(n);
             let area = part.area_per_face(n);
             let accepted: Vec<u8> = (0..n)
-                .map(|i| (mask[i] == 1 && got[i] > 0 && area[i] >= base_area[i] * 0.97) as u8)
+                .map(|i| (goal[i] > 0.0 && got[i] > 0 && area[i] >= base_area[i] * 0.97) as u8)
                 .collect();
             out = if accepted.contains(&1) {
                 base.merged_with(&part, &accepted)
             } else {
                 base.clone()
             };
-            out.deflection = linear;
+            out.deflection = used
+                .iter()
+                .copied()
+                .fold(0.0_f64, f64::max)
+                .max(out.deflection.min(linear));
             // the deflection the faces really got (the estimate of the next pass starts from it), and the one that was asked for
             out.face_deflection = (0..n)
-                .map(|i| if accepted[i] == 1 { linear } else { defl(i) })
+                .map(|i| if accepted[i] == 1 { used[i] } else { defl(i) })
                 .collect();
             out.face_asked = (0..n)
                 .map(|i| match accepted[i] {
                     // met the zoom, or the budget does not allow more (do not ask again); else the program asks for the next pass
-                    1 if budget_hit || attempt > 0 || first_linear <= requested => requested,
-                    1 => first_linear,
-                    _ => base
-                        .face_asked
-                        .get(i)
-                        .copied()
-                        .filter(|d| *d > 0.0)
-                        .unwrap_or_else(|| defl(i)),
+                    1 if budget_hit || attempt > 0 || goal[i] <= want(i) * 1.001 => requested,
+                    1 => goal[i],
+                    _ => asked_before(i),
                 })
                 .collect();
             if out.triangle_count() as f64 <= max_triangles as f64 * 1.25 || attempt == 3 {
@@ -653,7 +751,15 @@ impl Solid {
             }
             // the estimate can be off: coarser again (also in the angle) while the cap is passed
             let ratio = (out.triangle_count() as f64 / max_triangles as f64).max(1.5);
-            linear *= ratio;
+            for (i, g) in goal.iter_mut().enumerate().filter(|(_, g)| **g > 0.0) {
+                *g *= ratio;
+                if *g >= defl(i) * 0.999 {
+                    *g = 0.0; // not coarser than the mesh the face has
+                }
+            }
+            if goal.iter().all(|g| *g == 0.0) {
+                break;
+            }
             angle = (angle * ratio.sqrt()).min(0.8);
         }
         // over the budget in the end: the coarse mesh stays (the faces are never dropped to fit)
@@ -663,17 +769,7 @@ impl Solid {
             // the faces stay as they are, and the display is told that more is not possible (it does not ask again)
             let mut kept = base.clone();
             kept.face_asked = (0..n)
-                .map(|i| {
-                    if mask[i] == 1 {
-                        requested
-                    } else {
-                        base.face_asked
-                            .get(i)
-                            .copied()
-                            .filter(|d| *d > 0.0)
-                            .unwrap_or_else(|| defl(i))
-                    }
-                })
+                .map(|i| if is_fine(i) { requested } else { asked_before(i) })
                 .collect();
             return Ok(kept);
         }

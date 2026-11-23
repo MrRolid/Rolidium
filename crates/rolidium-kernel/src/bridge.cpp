@@ -25,6 +25,7 @@
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepBuilderAPI_TransitionMode.hxx>
 #include <BRepTools.hxx>
+#include <BRepLProp_SLProps.hxx>
 #include <GCPnts_QuasiUniformDeflection.hxx>
 #include <GC_MakeArcOfCircle.hxx>
 #include <Geom2d_Line.hxx>
@@ -1160,6 +1161,9 @@ MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, doub
         IMeshTools_Parameters mp;
         mp.Deflection = linear;
         mp.Angle = angular;
+        // the boundary edges (the circles of a thin wire) get the fine angle; the interior of a face keeps the coarse one (rows along a long
+        // swept face would otherwise be six times as many for no gain)
+        mp.AngleInterior = std::max(angular, 0.5);
         mp.Relative = false;
         mp.InParallel = run_parallel();
         StageTimer st("mesh");
@@ -1306,6 +1310,42 @@ bool check_shape(const Shape& sh) {
     } catch (...) {
         return false;
     }
+}
+
+// The smallest radius of curvature of every face (the order of the faces of the shape), sampled on a grid of the face: how fine the mesh of
+// the face must be to stay close to it (a thread of a 1 mm wire along a helix of 20 mm has 0.5, a plane has none: 1e9).
+rust::Vec<double> face_scales(const Shape& sh) {
+    return guarded_free("face_scales", [&] {
+        rust::Vec<double> out;
+        for (int fi = 1; fi <= sh.faces.Extent(); ++fi) {
+            const TopoDS_Face& f = TopoDS::Face(sh.faces.FindKey(fi));
+            double scale = 1e9;
+            try {
+                BRepAdaptor_Surface sf(f);
+                if (sf.GetType() != GeomAbs_Plane) {
+                    double u0, u1, v0, v1;
+                    BRepTools::UVBounds(f, u0, u1, v0, v1);
+                    if (u1 - u0 > 1e6) u1 = u0 + 1e6;
+                    if (v1 - v0 > 1e6) v1 = v0 + 1e6;
+                    BRepLProp_SLProps lp(sf, 2, 1e-7);
+                    // an analytic round face has one radius (or a few): one sample, the others a small grid
+                    const GeomAbs_SurfaceType ty = sf.GetType();
+                    const int N = (ty == GeomAbs_Cylinder || ty == GeomAbs_Sphere) ? 0 : 4;
+                    for (int i = 0; i <= N; ++i) {
+                        for (int j = 0; j <= N; ++j) {
+                            const double fu = N ? double(i) / N : 0.5, fv = N ? double(j) / N : 0.5;
+                            lp.SetParameters(u0 + (u1 - u0) * fu, v0 + (v1 - v0) * fv);
+                            if (!lp.IsCurvatureDefined()) continue;
+                            double k = std::max(std::abs(lp.MaxCurvature()), std::abs(lp.MinCurvature()));
+                            if (k > 1e-9) scale = std::min(scale, 1.0 / k);
+                        }
+                    }
+                }
+            } catch (...) {}
+            out.push_back(scale);
+        }
+        return out;
+    });
 }
 
 // Bounding box only: min x y z, max x y z (the same box props() gives).

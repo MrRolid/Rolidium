@@ -171,6 +171,7 @@ pub mod ffi {
         fn shape_diag(shape: &Shape) -> Result<String>;
         fn solid_distance(a: &Shape, b: &Shape) -> Result<f64>;
         fn bounds_of(shape: &Shape) -> Result<Vec<f64>>;
+        fn face_scales(shape: &Shape) -> Result<Vec<f64>>;
         fn take_stages() -> String;
         fn set_threads(n: i32);
         fn shared_keys(shape: &Shape) -> Result<Vec<u64>>;
