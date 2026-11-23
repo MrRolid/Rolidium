@@ -6,7 +6,11 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [Unreleased] - 0.2.1, in development (Rolidium for 3D printing)
+## [Unreleased]
+
+Nothing yet (the next version: patterns and mirror in the window with a typed direction, more to repeat).
+
+## [0.2.1] - 2026-11-23
 
 ### Added
 - The frame of the window is profiled by part (`prof.rs`: toolbar, left column, viewport, panels, ticks, native calls on the window thread); the F12 panel shows the three dearest parts and `ROLIDIUM_FRAME_LOG` writes all of them. The profile found that a body with hundreds of swept faces made the window ask the kernel for its bounding box at every frame (about 0.85 s each): the box is now found once, on the worker, and kept with the solid (the work of the window per frame with a cone, a thread of 40 turns and a sweep link: 2.4 ms, before about 840 ms in the same scene).
