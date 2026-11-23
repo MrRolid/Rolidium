@@ -324,3 +324,29 @@ fn the_time_of_a_pull_with_rounds_is_reported() {
     println!("pull of the top face of a box with four rounds: {per:.1} ms (the same box without rounds: {plain:.1} ms)");
     assert!(per < 2000.0);
 }
+
+#[test]
+fn where_the_time_of_a_pull_with_rounds_goes() {
+    use std::time::Instant;
+    let s = bx();
+    let r = s.fillet(&top_edges(&s), 3.0).unwrap().solid;
+    let t = Instant::now();
+    let m = r.blend_map();
+    let map_ms = t.elapsed().as_secs_f64() * 1e3;
+    let ids: Vec<u32> = m.components.iter().flat_map(|c| c.faces.iter().map(|f| f.0)).collect();
+    let _ = ids;
+    let t = Instant::now();
+    let p = r.pull_face(top(&r), 5.0).unwrap();
+    let pull_ms = t.elapsed().as_secs_f64() * 1e3;
+    let t = Instant::now();
+    let _ = p.solid.blend_map();
+    let map2_ms = t.elapsed().as_secs_f64() * 1e3;
+    let t = Instant::now();
+    let _ = s.pull_face(top(&s), 5.0).unwrap();
+    let plain_ms = t.elapsed().as_secs_f64() * 1e3;
+    let t = Instant::now();
+    let _ = s.fillet(&top_edges(&s), 3.0).unwrap();
+    let fillet_ms = t.elapsed().as_secs_f64() * 1e3;
+    println!("blend map {map_ms:.1} ms; pull with rounds {pull_ms:.1} ms (the map of its result {map2_ms:.1} ms); pull without rounds {plain_ms:.1} ms; four rounds {fillet_ms:.1} ms");
+    println!("{}", rolidium_kernel::timing::describe(&rolidium_kernel::timing::take()));
+}

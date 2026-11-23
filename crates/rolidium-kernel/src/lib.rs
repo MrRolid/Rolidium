@@ -894,4 +894,20 @@ pub(crate) fn finish(r: native::OpResult) -> Result<OpResult> {
     })
 }
 
+/// Like [`finish`] without the check of the shape: for a step in the middle of an operation whose result is checked (the sharp solid after
+/// the rounds were taken out; the solid that is made from it is checked). The cancel flag and the number of solids are still looked at.
+pub(crate) fn finish_loose(r: native::OpResult) -> Result<OpResult> {
+    if native::cancel_requested() {
+        return Err(KernelError::Cancelled);
+    }
+    let solid = Solid::from_shape(r.shape);
+    if native::solid_count(&solid.shape) != 1 {
+        return Err(KernelError::SplitResult);
+    }
+    Ok(OpResult {
+        solid,
+        history: history_from(&r.history),
+    })
+}
+
 pub(crate) use native as nat;
