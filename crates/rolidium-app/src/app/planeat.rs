@@ -50,6 +50,8 @@ pub struct FreeEdit {
 #[derive(Default)]
 pub struct PlaneAt {
     pub hover: Option<Hover>,
+    /// The last point the pointer was at (the button "Free plane" takes the plane there).
+    pub last: Option<Hover>,
     pub choice: usize,
     wheel: f32,
     pub free: Option<FreeEdit>,
@@ -134,6 +136,74 @@ impl App {
             false,
         );
         self.layers_changed = true;
+    }
+
+    /// The Free plane at a point: the rings to turn it.
+    fn begin_free_plane(&mut self, h: &Hover, prop: &Prop) {
+        if let Some(pa) = self.plane_at.as_mut() {
+            pa.free = Some(FreeEdit {
+                plane: prop.plane,
+                anchor: h.anchor,
+                step: 1.0,
+                drag: None,
+                fields: Default::default(),
+                key: [f64::NAN; 3],
+            });
+        }
+        self.set_status(
+            "Free plane: drag a ring to turn the plane (the step is in the panel), type the angles, Enter chooses it, Esc cancels",
+            false,
+        );
+        self.layers_changed = true;
+    }
+
+    /// The small panel of the tool: what it does, and the button that turns on the Free plane without the wheel.
+    pub(super) fn plane_at_panel(&mut self, ctx: &egui::Context, rect: Rect) {
+        let Some(pa) = &self.plane_at else { return };
+        if pa.free.is_some() {
+            return;
+        }
+        let last = pa.last.clone();
+        let mut free = false;
+        let mut cancel = false;
+        let mut docks = std::mem::take(&mut self.docks);
+        docks.panel(
+            ctx,
+            "plane_at",
+            Pos2::new(rect.max.x - 250.0, rect.min.y + 10.0),
+            None,
+            230.0,
+            &tr("Sketch plane"),
+            false,
+            |ui| {
+                ui.label(tr(
+                    "Point at the end of a curve, a vertex, the centre of a round edge or a point of an edge. Turn the wheel to switch the proposed planes; the last one is the Free plane.",
+                ));
+                ui.add_space(4.0);
+                if ui
+                    .add_enabled(last.is_some(), egui::Button::new(tr("Free plane")))
+                    .on_hover_text(tr("Turns the Free plane on at the last point, without the wheel"))
+                    .clicked()
+                {
+                    free = true;
+                }
+                if ui.button(tr("Cancel")).clicked() {
+                    cancel = true;
+                }
+            },
+        );
+        self.docks = docks;
+        if free {
+            if let Some(h) = last {
+                if let Some(prop) = h.props.iter().find(|p| p.free).cloned() {
+                    self.begin_free_plane(&h, &prop);
+                }
+            }
+        }
+        if cancel {
+            self.end_plane_at();
+            self.set_status("Cancelled", false);
+        }
     }
 
     pub(super) fn end_plane_at(&mut self) {
@@ -321,6 +391,9 @@ impl App {
             pa.wheel = 0.0;
         }
         pa.hover = hover;
+        if pa.hover.is_some() {
+            pa.last = pa.hover.clone();
+        }
         let mut status = None;
         if let Some(h) = &pa.hover {
             let n = h.props.len();
@@ -338,7 +411,7 @@ impl App {
         }
         if let Some(name) = status {
             self.set_status_quiet(trf(
-                "Sketch plane: {} (the wheel changes it, a click chooses it)",
+                "Sketch plane: {}. Turn the wheel to switch the proposals, the last one is the Free plane; a click chooses",
                 &[tr(name)],
             ));
         }
@@ -351,18 +424,7 @@ impl App {
             if let Some((h, i)) = chosen {
                 let prop = h.props[i.min(h.props.len() - 1)].clone();
                 if prop.free {
-                    self.plane_at.as_mut().unwrap().free = Some(FreeEdit {
-                        plane: prop.plane,
-                        anchor: h.anchor,
-                        step: 1.0,
-                        drag: None,
-                        fields: Default::default(),
-                        key: [f64::NAN; 3],
-                    });
-                    self.set_status(
-                        "Free plane: drag a ring to turn the plane (the step is in the panel), type the angles, Enter chooses it, Esc cancels",
-                        false,
-                    );
+                    self.begin_free_plane(&h, &prop);
                 } else {
                     self.start_sketch_on(prop.plane, h.anchor.map(|(c, e)| (c, e, prop.kind.clone())));
                 }
@@ -525,6 +587,9 @@ impl App {
             &tr("Free plane"),
             false,
             |ui| {
+                ui.label(tr(
+                    "Drag a ring to turn the plane, one step at a time. Type the angles to the base planes if you know them. Enter chooses the plane, Esc cancels.",
+                ));
                 ui.horizontal(|ui| {
                     ui.label(tr("Step"));
                     for s in [1.0, 5.0, 10.0, 15.0] {

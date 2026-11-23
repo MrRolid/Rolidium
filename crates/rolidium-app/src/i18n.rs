@@ -486,6 +486,9 @@ mod coverage {
         "There is nothing to fill yet: draw lines or open a model",
         "There are no open lines to join yet: draw lines or a 3D line first",
         "The round or chamfer cannot be changed here: {}",
+        "The helix would leave the face. The largest height is {} mm",
+        "The rounds next to the new one could not be made together with it ({}); the new one was made alone",
+        "The display mesh of the body could not be made, so the view was not changed",
         "The rounds next to the face cannot be moved with it: {}",
         "Internal error while computing the operation; the model was not changed ({})",
     ];

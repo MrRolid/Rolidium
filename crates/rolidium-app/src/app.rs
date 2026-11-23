@@ -4453,6 +4453,7 @@ impl eframe::App for App {
         self.loft_panel(&ctx, vr);
         self.helix_panel(&ctx, vr);
         self.sweep_panel(&ctx, vr);
+        self.plane_at_panel(&ctx, vr);
         self.plane_free_panel(&ctx, vr);
         self.line3_panel(&ctx, vr);
         self.join_panel(&ctx, vr);
