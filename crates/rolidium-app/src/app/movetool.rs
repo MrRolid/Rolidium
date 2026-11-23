@@ -77,6 +77,21 @@ impl App {
     pub(super) fn move_bbox(&self) -> Option<(Vec3, Vec3)> {
         let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
         let mut any = false;
+        // an end face of a loft: the box of that face (the gizmo stands on it)
+        if let Some((b, sk)) = self.move_end {
+            if let Some(m) = self.entry(b) {
+                for (i, meta) in m.faces.iter().enumerate() {
+                    if self.doc.end_face(b, FaceId(i as u32)).is_some_and(|e| e.sketch == sk) {
+                        lo = lo.min(meta.bounds.0);
+                        hi = hi.max(meta.bounds.1);
+                        any = true;
+                    }
+                }
+            }
+            if any {
+                return Some((lo, hi));
+            }
+        }
         for m in self.meshes.iter().filter(|m| self.move_sel.contains(&m.id)) {
             for p in &m.mesh.positions {
                 lo = lo.min(*p);
@@ -257,6 +272,22 @@ impl App {
             let add = ctx.input(|i| i.modifiers.command || i.modifiers.shift);
             let on_handle = pointer.and_then(|p| self.handle_at(p, rect)).is_some();
             if !on_handle {
+                self.move_end = None;
+                // an end face of a loft is moved by moving the sketch of its profile: the body follows
+                if let (Some((b, f)), false) = (hovered_face, add) {
+                    if let Some(ef) = self.doc.end_face(b, FaceId(f)).filter(|e| e.kind == rolidium_doc::EndKind::Loft) {
+                        self.move_end = Some((b, ef.sketch));
+                        self.move_sel = vec![b];
+                        self.move_curves.clear();
+                        self.body_sel = None;
+                        self.layers_changed = true;
+                        self.set_status(
+                            "End face: the sketch of its profile moves in any direction and the body follows. Turning it is not possible here",
+                            false,
+                        );
+                        return;
+                    }
+                }
                 // a curve under the pointer is moved like a body
                 if let Some(Obj::Curve(c)) = self.hover_obj {
                     if add && !self.move_curves.contains(&c) {
@@ -313,6 +344,21 @@ impl App {
         }
         self.keep_move_sel = self.move_sel.clone();
         self.pending = None;
+        if let Some((_, sketch)) = self.move_end {
+            if angle.abs() > 1e-9 {
+                self.set_status(
+                    "An end face cannot be turned here: turn the sketch of its profile in the sketch mode",
+                    true,
+                );
+                return;
+            }
+            self.submit(Command::MoveSketch {
+                sketch,
+                translation: t,
+            });
+            self.set_status("Computing…", false);
+            return;
+        }
         if self.move_sel.is_empty() && !self.move_curves.is_empty() {
             self.submit(Command::MoveCurves {
                 curves: self.move_curves.clone(),

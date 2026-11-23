@@ -355,6 +355,10 @@ pub struct App {
     chamfer_flip: bool,
     /// Change all rounds of the same size that touch the selected one.
     blend_chain: bool,
+    /// A new diameter of an end of a cone keeps the angle of the cone (the other end follows) instead of the diameter of the other end.
+    cap_keep_angle: bool,
+    /// The Move tool moves the end face of a loft: the body and the sketch of its profile (the sketch moves).
+    move_end: Option<(BodyId, SketchId)>,
     combine: combinetool::CombineUi,
     link_ui: linktool::LinkUi,
     link_sel: Option<rolidium_doc::LinkId>,
@@ -569,6 +573,8 @@ impl App {
             chamfer_angle_text: "45".into(),
             chamfer_flip: false,
             blend_chain: false,
+            cap_keep_angle: false,
+            move_end: None,
             combine: Default::default(),
             link_ui: Default::default(),
             link_sel: None,
@@ -4343,7 +4349,7 @@ impl eframe::App for App {
                                     ui.weak(tr("F2 or a double click on the name renames it"));
                                 }
                                 if let Some(b) = self.body_sel {
-                                    self.link_sources_ui(ui, b, false);
+                                    self.link_sources_ui(ui, b, None);
                                 }
                                 if self.entity_sel.is_some() {
                                     ui.label(tr("Sketch shape (Delete removes it)"));
@@ -4415,7 +4421,8 @@ impl eframe::App for App {
                                 }
                                 let face_body = self.selection.first().map(|s| s.0);
                                 if let Some(b) = face_body.filter(|b| self.made_by_profiles(*b)) {
-                                    self.link_sources_ui(ui, b, true);
+                                    let kind = self.selection.first().and_then(|(sb, f)| self.entry(*sb).and_then(|m| m.faces.get(*f as usize)).map(|m| m.kind));
+                                    self.link_sources_ui(ui, b, Some(kind.unwrap_or(FaceKind::Other)));
                                 }
                                 self.properties_ui(ui);
                                 if let Some((s, i)) = self.region_sel {

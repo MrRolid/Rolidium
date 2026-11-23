@@ -46,6 +46,10 @@ enum Target {
         blend: Option<(BlendKind, f64)>,
         planar: bool,
         opposite: Option<f64>,
+        /// An end of a plain cone, frustum or cylinder: its diameter.
+        cap: Option<f64>,
+        /// An end of a loft whose profile is a circle: (sketch, circle, centre, diameter). The diameter is the circle of the sketch.
+        end: Option<(SketchId, EntityId, DVec2, f64)>,
     },
     Region {
         sketch: SketchId,
@@ -62,6 +66,8 @@ enum Row {
     BlendSize,
     MoveBy,
     Opposite,
+    CapDiameter,
+    EndDiameter,
 }
 
 enum Act {
@@ -69,6 +75,8 @@ enum Act {
     EdgeSize(f64),
     Diameter(f64),
     BlendSize(f64),
+    CapDiameter(f64),
+    EndDiameter(f64),
     MoveBy(f64),
     Opposite(f64),
     UpTo,
@@ -99,11 +107,18 @@ impl Target {
                 blend,
                 planar,
                 opposite,
+                cap,
+                end,
                 ..
             } => {
                 let mut v = Vec::new();
                 if hole.is_some() {
                     v.push((Row::Diameter, tr("Diameter")));
+                }
+                if end.is_some() {
+                    v.push((Row::EndDiameter, tr("Diameter")));
+                } else if cap.is_some() && hole.is_none() {
+                    v.push((Row::CapDiameter, tr("Diameter")));
                 }
                 if let Some((k, _)) = blend {
                     v.push((
@@ -179,6 +194,8 @@ impl Target {
                 },
                 Row::BlendSize,
             ) => fmt(*s),
+            (Target::Face { end: Some((_, _, _, d)), .. }, Row::EndDiameter) => fmt(*d),
+            (Target::Face { cap: Some(d), .. }, Row::CapDiameter) => fmt(*d),
             (
                 Target::Face {
                     opposite: Some(d), ..
@@ -241,6 +258,12 @@ impl App {
                 .and_then(|bd| bd.features.iter().find(|ft| ft.faces.contains(&FaceId(f))))
                 .map(|ft| (ft.kind, ft.size));
             let planar = meta.kind == FaceKind::Plane;
+            // an end of a loft whose profile is one circle: the diameter is the circle of the sketch
+            let end = self
+                .doc
+                .end_face(b, FaceId(f))
+                .and_then(|ef| self.doc.end_circle(&ef).map(|(e, c, r)| (ef.sketch, e, c, 2.0 * r)));
+            let cap = if end.is_none() { meta.cap } else { None };
             if hole.is_none() && blend.is_none() && !planar {
                 return None;
             }
@@ -261,6 +284,8 @@ impl App {
                     blend,
                     planar,
                     opposite,
+                    cap,
+                    end,
                 },
                 meta.centroid,
             ));
@@ -508,6 +533,7 @@ impl App {
             .position(|(r, _)| matches!(r, Row::EdgeSize | Row::BlendSize));
         let mut flip = self.chamfer_flip;
         let mut whole_chain = self.blend_chain;
+        let mut keep_angle = self.cap_keep_angle;
         let mut angle_text = self.chamfer_angle_text.clone();
         let mut docks = std::mem::take(&mut self.docks);
         let dock = docks.panel(ctx, "dim", pos, Some(anchor_screen), 250.0, &title, true, |ui| {
@@ -566,6 +592,8 @@ impl App {
                             Row::EdgeSize => parse_num(&text).map(Act::EdgeSize),
                             Row::Diameter => parse_num(&text).map(Act::Diameter),
                             Row::BlendSize => parse_num(&text).map(Act::BlendSize),
+                            Row::CapDiameter => parse_num(&text).map(Act::CapDiameter),
+                            Row::EndDiameter => parse_num(&text).map(Act::EndDiameter),
                             Row::MoveBy => parse_num(&text).map(Act::MoveBy),
                             Row::Opposite => parse_num(&text).map(Act::Opposite),
                         };
@@ -575,6 +603,12 @@ impl App {
                         }
                     }
                 });
+            }
+            if matches!(&target, Target::Face { cap: Some(_), end: None, hole: None, .. }) {
+                ui.checkbox(&mut keep_angle, tr("Keep the angle (the other end follows)"))
+                    .on_hover_text(tr(
+                        "Off: the other end keeps its diameter and the angle of the cone changes. On: the angle stays and the other end changes by the same amount.",
+                    ));
             }
             if matches!(&target, Target::Face { blend: Some(_), .. }) {
                 ui.checkbox(&mut whole_chain, tr("Whole chain"))
@@ -642,6 +676,7 @@ impl App {
         self.pull_mode = mode;
         self.chamfer_flip = flip;
         self.blend_chain = whole_chain;
+        self.cap_keep_angle = keep_angle;
         self.chamfer_angle_text = angle_text;
         if let Some(t) = edge_text {
             self.edge_size_text = t;
@@ -705,6 +740,35 @@ impl App {
                     body: *body,
                     face: FaceId(*cyl),
                     diameter: d,
+                });
+                self.set_status(tr("Rebuilding…"), false);
+            }
+            (
+                Target::Face {
+                    end: Some((sketch, entity, centre, _)),
+                    ..
+                },
+                Act::EndDiameter(d),
+            ) => {
+                // the end is the circle of the sketch of its profile: the body follows
+                self.pending = None;
+                self.submit(Command::ReplaceEntity {
+                    sketch: *sketch,
+                    entity: *entity,
+                    new: Entity::Circle {
+                        center: *centre,
+                        radius: d / 2.0,
+                    },
+                });
+                self.set_status(tr("Rebuilding…"), false);
+            }
+            (Target::Face { body, face, .. }, Act::CapDiameter(d)) => {
+                self.pending = None;
+                self.submit(Command::SetCapDiameter {
+                    body: *body,
+                    face: FaceId(*face),
+                    diameter: d,
+                    keep_angle: self.cap_keep_angle,
                 });
                 self.set_status(tr("Rebuilding…"), false);
             }

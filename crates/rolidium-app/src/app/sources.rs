@@ -102,7 +102,7 @@ impl App {
     }
 
     /// In the Selection panel: where the selected body (or the body of the selected face) comes from, with a button for each source.
-    pub(super) fn link_sources_ui(&mut self, ui: &mut egui::Ui, body: BodyId, face: bool) {
+    pub(super) fn link_sources_ui(&mut self, ui: &mut egui::Ui, body: BodyId, face: Option<FaceKind>) {
         let Some(link) = rolidium_doc::link_of_result(self.doc.state(), body).cloned() else {
             return;
         };
@@ -111,12 +111,19 @@ impl App {
         }
         let what = tr(link.kind.title());
         ui.separator();
-        if face {
-            // a face of such a body has no size to change: it comes from the profile and the path
-            ui.label(trf(
-                "This face has no size of its own: it comes from the {} '{}', so its size follows the profile and the path. Change the source profile instead.",
-                &[what.clone(), link.name.clone()],
-            ));
+        if let Some(kind) = face {
+            if kind == FaceKind::Other {
+                // a freeform face has no size to change: it comes from the profile and the path
+                ui.label(trf(
+                    "This face has no size of its own: it comes from the {} '{}', so its size follows the profile and the path. Change the source profile instead.",
+                    &[what.clone(), link.name.clone()],
+                ));
+            } else {
+                ui.label(trf("A face of the {} '{}'", &[what.clone(), link.name.clone()]));
+                ui.weak(tr(
+                    "The end faces follow their profile: change the diameter, pull the face or move it. Other changes of this face ask whether the link may be removed.",
+                ));
+            }
         } else {
             ui.label(trf("Made by the {} '{}'", &[what, link.name.clone()]));
             ui.weak(tr(

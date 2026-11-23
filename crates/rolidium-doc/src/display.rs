@@ -22,6 +22,8 @@ pub struct FaceMeta {
     pub cyl_diameter: Option<f64>,
     /// Flat circular face belonging to a hole or pin: (cylindrical face, diameter).
     pub disc: Option<(u32, f64)>,
+    /// An end of a plain cone, frustum or cylinder (a solid of three faces): its diameter. The side follows when it changes.
+    pub cap: Option<f64>,
 }
 
 #[derive(Clone)]
@@ -95,6 +97,7 @@ pub fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
             bounds: bounds[i],
             cyl_diameter: None,
             disc: None,
+            cap: None,
         });
     }
     // Hole/pin information for the dimension panel (only cheap candidates are examined).
@@ -111,6 +114,13 @@ pub fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
                 }
             }
             _ => {}
+        }
+    }
+    if let Some(fr) = solid.frustum_info() {
+        for (f, r) in [(fr.cap_base, fr.r_base), (fr.cap_top, fr.r_top)] {
+            if let Some(m) = faces.get_mut(f.0 as usize) {
+                m.cap = Some(2.0 * r);
+            }
         }
     }
     Ok(MeshEntry {

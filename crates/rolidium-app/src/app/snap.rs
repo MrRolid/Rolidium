@@ -269,6 +269,7 @@ mod tests {
             bounds: (glam::Vec3::ZERO, glam::Vec3::ZERO),
             cyl_diameter: None,
             disc: None,
+            cap: None,
         }
     }
 

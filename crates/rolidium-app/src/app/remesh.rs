@@ -284,6 +284,7 @@ mod tests {
             bounds: (lo, hi),
             cyl_diameter: None,
             disc: None,
+            cap: None,
         }
     }
 

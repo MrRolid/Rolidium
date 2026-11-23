@@ -44,6 +44,7 @@ pub fn million_triangle_entry() -> MeshEntry {
         bounds: (glam::Vec3::ZERO, glam::Vec3::ZERO),
         cyl_diameter: None,
         disc: None,
+        cap: None,
     };
     MeshEntry {
         id: 1,

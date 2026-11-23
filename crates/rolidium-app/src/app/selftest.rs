@@ -2534,6 +2534,98 @@ impl App {
                 st.wait_frames = 2;
             }
             113 => {
+                // a frustum of two coaxial circles as a loft: the side is a cone, the ends are the sketches of the profiles
+                use rolidium_doc::rolidium_sketch::{DVec2, PlaneDef};
+                self.replace_document(Document::new(), None);
+                let mut ids = Vec::new();
+                for (z, r) in [(0.0, 20.0), (30.0, 10.0)] {
+                    let c = self.doc.apply(Command::AddEntity {
+                        target: rolidium_doc::SketchTarget::New {
+                            plane: PlaneDef {
+                                origin: DVec3::new(0.0, 0.0, z),
+                                normal: DVec3::Z,
+                                x_dir: DVec3::X,
+                            },
+                            body: None,
+                        },
+                        entity: Entity::Circle {
+                            center: DVec2::ZERO,
+                            radius: r,
+                        },
+                    });
+                    ids.push(c.ok().and_then(|c| c.created_sketch));
+                }
+                if let [Some(a), Some(b)] = ids[..] {
+                    self.submit(Command::AddLink {
+                        kind: rolidium_doc::LinkKind::Loft {
+                            profiles: vec![
+                                rolidium_doc::LoftRef::Region { sketch: a, region: 0 },
+                                rolidium_doc::LoftRef::Region { sketch: b, region: 0 },
+                            ],
+                            ruled: true,
+                            mode: rolidium_doc::PatternMode::New,
+                        },
+                        sources: Vec::new(),
+                        name: String::new(),
+                    });
+                }
+                st.wait_frames = 8;
+            }
+            114 => {
+                use rolidium_kernel::FaceKind;
+                let Some(bd) = self.doc.bodies().first() else {
+                    check(&mut st, "the loft made a body", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                let (b, s) = (bd.id, bd.solid.clone());
+                let top = s.faces().find(|f| {
+                    s.face_info(*f).map(|i| i.kind == FaceKind::Plane && (i.origin.z - 30.0).abs() < 1e-6).unwrap_or(false)
+                });
+                let cone = s.faces().any(|f| s.face_info(f).map(|i| i.kind == FaceKind::Cone).unwrap_or(false));
+                check(&mut st, "the side of a loft of two coaxial circles is a cone", cone && s.face_count() == 3);
+                if let Some(top) = top {
+                    self.selection = vec![(b, top.0)];
+                    let rows = self.panel_rows();
+                    println!("selftest: panel rows of the end face: {rows:?}");
+                    check(&mut st, "the end face of the loft shows its diameter", rows.iter().any(|r| r == &tr("Diameter")));
+                    // the top end moved sideways: a slanting frustum (the picture is taken afterwards)
+                    if let Some(ef) = self.doc.end_face(b, top) {
+                        self.submit(Command::MoveSketch {
+                            sketch: ef.sketch,
+                            translation: DVec3::new(14.0, 0.0, 0.0),
+                        });
+                    }
+                }
+                self.selection.clear();
+                st.wait_frames = 8;
+            }
+            115 => {
+                let ok = self.doc.state().links.len() == 1
+                    && self.doc.bodies().first().is_some_and(|b| {
+                        let (lo, hi) = b.solid.bounding_box().unwrap_or_default();
+                        hi.x > 23.0 && (hi.z - 30.0).abs() < 1e-4 && lo.x < -19.0
+                    });
+                check(&mut st, "the end moved sideways: a slanting frustum, the link stays", ok);
+                self.camera.set_view(rolidium_render::StandardView::Isometric);
+                self.fit_all();
+                st.wait_frames = 6;
+                shot(&mut st, ctx, "slanting-frustum");
+            }
+            116 => {
+                // one Undo takes the move back
+                self.undo();
+                st.wait_frames = 6;
+            }
+            117 => {
+                let ok = self.doc.bodies().first().is_some_and(|b| {
+                    let (lo, hi) = b.solid.bounding_box().unwrap_or_default();
+                    hi.x < 20.5 && lo.x > -20.5
+                });
+                check(&mut st, "Undo brings the straight frustum back", ok);
+                st.wait_frames = 1;
+            }
+            118 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
