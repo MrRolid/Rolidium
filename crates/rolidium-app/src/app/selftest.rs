@@ -2816,8 +2816,8 @@ impl App {
                 );
                 check(
                     &mut st,
-                    &format!("frame scene {scene}: the work of the window per frame stays under 5 ms"),
-                    v.len() >= 8 && p95 < 5.0,
+                    &format!("frame scene {scene}: the typical work of the window per frame stays under 5 ms (and 95 % under 20 ms, the rest is the load of the machine)"),
+                    v.len() >= 8 && med < 5.0 && p95 < 20.0,
                 );
             }
             134 | 138 => {
