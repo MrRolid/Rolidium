@@ -212,3 +212,106 @@ fn the_panel_commands_move_a_face_with_its_rounds_and_a_failure_changes_nothing(
     assert_eq!(d.revision(), rev);
     assert_eq!(d.body(id).unwrap().solid.volume().unwrap(), vol);
 }
+
+// ---- rounding and chamfering edge by edge ----
+
+fn edge_ids(d: &Document, id: BodyId, lines: &[(DVec3, DVec3)]) -> Vec<u32> {
+    let s = &d.body(id).unwrap().solid;
+    lines
+        .iter()
+        .filter_map(|(p0, dir)| {
+            s.edges()
+                .find(|e| {
+                    let i = s.edge_info(*e).unwrap();
+                    let v = (i.start + i.end) * 0.5 - *p0;
+                    i.start.distance(i.end) > 1e-6
+                        && (v - *dir * v.dot(*dir)).length() < 1e-6
+                        && (i.end - i.start).normalize().dot(*dir).abs() > 0.9999
+                })
+                .map(|e| e.0)
+        })
+        .collect()
+}
+
+fn one_by_one_volume(
+    edges: &dyn Fn(usize, DVec3, DVec3) -> bool,
+    size: f64,
+    chamfer: bool,
+) -> Result<(f64, usize), String> {
+    let (mut d, id) = new_box();
+    let lines = lines(&d, id, edges);
+    for l in &lines {
+        let ids = edge_ids(&d, id, std::slice::from_ref(l));
+        if ids.is_empty() {
+            continue; // already taken along by a neighbouring round
+        }
+        d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer })
+            .map_err(|e| e.to_string())?;
+    }
+    let b = d.body(id).unwrap();
+    assert!(b.solid.is_valid());
+    Ok((b.solid.volume().unwrap(), b.solid.face_count()))
+}
+
+fn together_volume(edges: &dyn Fn(usize, DVec3, DVec3) -> bool, size: f64, chamfer: bool) -> (f64, usize) {
+    let (mut d, id) = new_box();
+    let ids: Vec<u32> = {
+        let l = lines(&d, id, edges);
+        edge_ids(&d, id, &l)
+    };
+    d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer }).unwrap();
+    let b = d.body(id).unwrap();
+    (b.solid.volume().unwrap(), b.solid.face_count())
+}
+
+#[test]
+fn all_twelve_edges_rounded_one_after_the_other_give_what_one_command_gives() {
+    for size in [1.0, 3.0] {
+        let all = |_: usize, _: DVec3, _: DVec3| true;
+        let (v1, f1) = one_by_one_volume(&all, size, false).unwrap_or_else(|e| panic!("r={size}: {e}"));
+        let (v2, f2) = together_volume(&all, size, false);
+        assert!((v1 - v2).abs() < 1e-3, "r={size}: {v1} vs {v2}");
+        assert_eq!(f1, f2, "r={size}");
+    }
+}
+
+#[test]
+fn three_chamfers_at_a_corner_one_after_the_other_equal_those_made_together() {
+    let corner = |_: usize, a: DVec3, b: DVec3| a.length() < 1e-6 || b.length() < 1e-6;
+    let (v1, f1) = one_by_one_volume(&corner, 3.0, true).unwrap();
+    let (v2, f2) = together_volume(&corner, 3.0, true);
+    assert!((v1 - v2).abs() < 1e-3, "{v1} vs {v2}");
+    assert_eq!(f1, f2);
+}
+
+#[test]
+fn rounds_and_chamfers_on_one_cube_in_any_order() {
+    let (mut d, id) = new_box();
+    // rounds on the four edges of the top, chamfers on the four of the bottom, one by one, alternating
+    let top = lines(&d, id, &|_, a, b| a.z > 19.9 && b.z > 19.9);
+    let bottom = lines(&d, id, &|_, a, b| a.z < 0.1 && b.z < 0.1);
+    for k in 0..4 {
+        for (set, chamfer, size) in [(&top, false, 2.0), (&bottom, true, 2.0)] {
+            let ids = edge_ids(&d, id, std::slice::from_ref(&set[k]));
+            if ids.is_empty() {
+                continue;
+            }
+            d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer })
+                .unwrap_or_else(|e| panic!("step {k} chamfer={chamfer}: {e}"));
+            assert!(d.body(id).unwrap().solid.is_valid());
+        }
+    }
+    let b = d.body(id).unwrap();
+    let v = b.solid.volume().unwrap();
+    assert!(v < 24000.0 && v > 23000.0, "{v}");
+    assert!(b.features.iter().any(|f| f.kind == BlendKind::Round));
+    assert!(b.features.iter().any(|f| f.kind == BlendKind::Chamfer));
+    // the sizes can still be changed, and everything taken back to sharp edges
+    for step in 0..2 {
+        let kinds: Vec<_> = d.body(id).unwrap().features.iter().map(|f| (f.kind, f.size, f.faces.len())).collect();
+        let f = d.body(id).unwrap().features[0].faces[0];
+        d.apply(Command::EditBlend { body: id, face: f, size: 0.0, chain: true })
+            .unwrap_or_else(|e| panic!("removing step {step}: {e}; features {kinds:?}"));
+    }
+    assert_eq!(d.body(id).unwrap().solid.face_count(), 6);
+}

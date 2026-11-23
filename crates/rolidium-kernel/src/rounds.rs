@@ -594,11 +594,14 @@ impl Solid {
             .ok_or_else(|| KernelError::Invalid("this face is not a round or a chamfer".into()))?;
         let comp = &map.components[ci];
         let target = &comp.roundings[ri];
+        // chamfers made one after another at a corner differ by a few per cent: for the chain they are the same size
+        let tol = if target.chamfer { 0.05 } else { 1e-3 };
         let selected = |i: usize| {
             i == ri
                 || (whole_chain
                     && comp.roundings[i].chamfer == target.chamfer
-                    && same_size(comp.roundings[i].size, target.size))
+                    && (comp.roundings[i].size - target.size).abs()
+                        <= tol * target.size.max(comp.roundings[i].size) + 1e-6)
         };
         let before = self.volume()?;
         let ids: Vec<u32> = comp.faces.iter().map(|f| f.0).collect();
@@ -638,6 +641,103 @@ impl Solid {
                 history: open.history.compose(&m.history),
                 solid: m.solid,
             }),
+        }
+    }
+
+    /// Rounds or chamfers `edges` (and the edges that continue them tangentially) together with the existing rounds that touch them: the whole
+    /// component of those is taken out, and everything is made again at once, each round with its own size and the new edges with `size`. A
+    /// round made next to another one in a separate operation does not work for many edges in a row, and three chamfers at a corner made one after
+    /// the other are not equal to those made together; this does not have those faults.
+    ///
+    /// `Ok(None)`: no existing round touches the new edges (nothing to do differently).
+    pub fn blend_edges_keeping(&self, edges: &[EdgeId], size: f64, chamfer: bool) -> Result<Option<OpResult>> {
+        let map = self.blend_map();
+        if map.components.is_empty() || !size.is_finite() || size <= 0.0 {
+            return Ok(None);
+        }
+        let chain = self.blend_chain(edges, chamfer)?;
+        // the ends of the new edges
+        let mut ends: Vec<DVec3> = Vec::new();
+        for e in &chain {
+            let i = self.edge_info(*e)?;
+            ends.push(i.start);
+            ends.push(i.end);
+        }
+        let near = |p: DVec3| ends.iter().any(|q| (*q - p).length() < 1e-5);
+        let mut touching: Vec<usize> = Vec::new();
+        for (ci, c) in map.components.iter().enumerate() {
+            if c.roundings.iter().any(|r| r.chamfer != chamfer) {
+                continue;
+            }
+            let touches = c.faces.iter().any(|f| {
+                self.face_edges(*f)
+                    .map(|es| {
+                        es.iter().any(|e| {
+                            self.edge_info(*e)
+                                .map(|i| near(i.start) || near(i.end))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            });
+            if touches {
+                touching.push(ci);
+            }
+        }
+        if touching.is_empty() {
+            return Ok(None);
+        }
+        // the pair of faces every new edge separates
+        let mut new_roundings: Vec<Rounding> = Vec::new();
+        for e in &chain {
+            let owners: Vec<FaceId> = self
+                .faces()
+                .filter(|f| self.face_edges(*f).map(|v| v.contains(e)).unwrap_or(false))
+                .collect();
+            if owners.len() != 2 {
+                return Err(KernelError::Invalid("an edge does not have two faces".into()));
+            }
+            let (a, b) = ordered(self, owners[0], owners[1]);
+            new_roundings.push(Rounding {
+                chamfer,
+                size,
+                angle_deg: 45.0,
+                faces: Vec::new(),
+                corners: Vec::new(),
+                pairs: vec![(a, b)],
+                legs: if chamfer { vec![(size, size)] } else { Vec::new() },
+            });
+        }
+        let mut ids: Vec<u32> = Vec::new();
+        let mut items: Vec<Item> = Vec::new();
+        for ci in &touching {
+            let c = &map.components[*ci];
+            ids.extend(c.faces.iter().map(|f| f.0));
+            items.extend(c.roundings.iter().map(|r| (r, r.size, None)));
+        }
+        items.extend(new_roundings.iter().map(|r| (r, size, None)));
+        ids.sort_unstable();
+        ids.dedup();
+        let volume = self.volume()?;
+        let open = crate::finish(native::defeature_faces(self.raw(), &ids)?).map_err(|e| match e {
+            KernelError::Native(m) => KernelError::Invalid(format!(
+                "The rounds next to the new one cannot be changed with it: {}",
+                m.rsplit(": ").next().unwrap_or(&m)
+            )),
+            e => e,
+        })?;
+        if (open.solid.volume()? - volume).abs() < 1e-9 {
+            return Err(KernelError::Invalid(
+                "The rounds next to the new one could not be removed cleanly, so nothing was changed".into(),
+            ));
+        }
+        let locate = |f: FaceId| open.history.successors(0, f);
+        match open.solid.make_roundings(&items, &locate)? {
+            Some(m) => Ok(Some(OpResult {
+                history: open.history.compose(&m.history),
+                solid: m.solid,
+            })),
+            None => Ok(None),
         }
     }
 

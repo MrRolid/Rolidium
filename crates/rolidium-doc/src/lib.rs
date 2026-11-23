@@ -1407,74 +1407,24 @@ impl Job {
                 } else {
                     BlendKind::Round
                 };
-                // Rounds next to the new one that its tangent chain runs through are redone together with it,
-                // so only the edges the user chose are rounded.
-                let same_kind: Vec<usize> = (0..b.features.len())
-                    .filter(|i| b.features[*i].kind == kind)
-                    .collect();
-                let inputs: Vec<rolidium_kernel::BlendInput> = same_kind
-                    .iter()
-                    .map(|i| rolidium_kernel::BlendInput {
-                        faces: b.features[*i].faces.clone(),
-                        size: b.features[*i].size,
-                        chamfer: *chamfer,
-                    })
-                    .collect();
+                // Rounds that touch the new edges are taken out with their whole group and made again together with the new ones, each with its
+                // own size (recognised from the geometry), so only the edges the user chose are rounded and the corners come out right.
                 let mut notice = None;
-                let combo = match b.solid.blend_with_neighbours(&inputs, &ids, *size, *chamfer) {
-                    Ok(c) => c,
+                match b.solid.blend_edges_keeping(&ids, *size, *chamfer) {
+                    Ok(Some(r)) => {
+                        remap_features(&mut b.features, &r.history);
+                        b.solid = r.solid;
+                        let mut c = self.done(st, if *chamfer { "Chamfer" } else { "Round" });
+                        c.history = Some((*body, r.history));
+                        c.touched_body = Some(*body);
+                        return Ok(c);
+                    }
+                    Ok(None) => {}
                     Err(e) => {
                         notice = Some(format!(
-                            "The chain of tangent edges could not be limited to the selected edges ({e}); the whole chain was treated"
+                            "The rounds next to the new one could not be made together with it ({e}); the new one was made alone"
                         ));
-                        None
                     }
-                };
-                if let Some(combo) = combo {
-                    let mut old = std::mem::take(&mut b.features);
-                    let absorbed: Vec<usize> = combo
-                        .groups
-                        .iter()
-                        .filter_map(|g| g.existing)
-                        .map(|i| same_kind[i])
-                        .collect();
-                    // blends that were not touched follow the history; the redone ones get their new faces
-                    let mut keep: Vec<Feature> = Vec::new();
-                    for (i, f) in old.drain(..).enumerate() {
-                        if !absorbed.contains(&i) {
-                            keep.push(f);
-                        }
-                    }
-                    let mut redone: Vec<Feature> = Vec::new();
-                    for g in &combo.groups {
-                        match g.existing {
-                            Some(i) => {
-                                let f = &inputs[i];
-                                redone.push(Feature {
-                                    kind,
-                                    size: f.size,
-                                    faces: g.faces.clone(),
-                                    angle: 45.0,
-                                    flip: false,
-                                });
-                            }
-                            None => redone.push(Feature {
-                                kind,
-                                size: *size,
-                                faces: g.faces.clone(),
-                                angle: 45.0,
-                                flip: false,
-                            }),
-                        }
-                    }
-                    remap_features(&mut keep, &combo.result.history);
-                    keep.extend(redone);
-                    b.features = keep;
-                    b.solid = combo.result.solid;
-                    let mut c = self.done(st, if *chamfer { "Chamfer" } else { "Round" });
-                    c.history = Some((*body, combo.result.history));
-                    c.touched_body = Some(*body);
-                    return Ok(c);
                 }
                 let r = if *chamfer {
                     b.solid.chamfer(&ids, *size)
