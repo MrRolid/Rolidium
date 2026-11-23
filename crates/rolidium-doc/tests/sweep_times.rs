@@ -8,6 +8,10 @@ use rolidium_kernel::{DVec3, HelixDef, Path, PathSource};
 use std::time::Instant;
 
 fn doc_for(turns: f64) -> (Document, Command) {
+    doc_for_wire(turns, 0.5)
+}
+
+fn doc_for_wire(turns: f64, wire: f64) -> (Document, Command) {
     let mut d = Document::new();
     let h = HelixDef {
         origin: DVec3::ZERO,
@@ -41,7 +45,7 @@ fn doc_for(turns: f64) -> (Document, Command) {
             },
             entity: Entity::Circle {
                 center: DVec2::ZERO,
-                radius: 0.5,
+                radius: wire,
             },
         })
         .unwrap()
@@ -91,6 +95,55 @@ fn the_time_of_a_circle_of_1_mm_along_a_helix_for_20_to_300_turns() {
                 );
             }
             Err(e) => println!("{turns:5} | {sweep:8.0} | failed: {e}"),
+        }
+    }
+}
+
+/// The base mesh of a thin wire: triangles and time for 10, 40 and 100 turns (the base mesh follows the size on the screen, not the radius of the wire).
+#[test]
+#[ignore = "slow: a few seconds"]
+fn the_base_mesh_of_a_thin_wire_for_10_40_100_turns() {
+    println!("wire radius | turns | faces | triangles | display mesh ms");
+    for wire in [0.15, 0.3, 0.5] {
+        for turns in [10.0, 40.0, 100.0] {
+            let (mut d, cmd) = doc_for_wire(turns, wire);
+            d.apply(cmd).unwrap();
+            let b = &d.bodies()[0];
+            let t = Instant::now();
+            let m = b.solid.display_mesh().unwrap();
+            println!(
+                "{wire:5} | {turns:5} | {:5} | {:9} | {:8.0}",
+                b.solid.face_count(),
+                m.triangle_count(),
+                t.elapsed().as_secs_f64() * 1e3
+            );
+        }
+    }
+}
+
+/// Time of the sweep with its display mesh against the estimate that decides the question "is it announced" (thin wires on helices of 4 mm radius).
+#[test]
+#[ignore = "slow: about a minute"]
+fn the_estimate_against_the_measured_time_for_thin_wires() {
+    println!("wire radius | turns | estimate s | measured s (sweep + display mesh) | triangles");
+    for wire in [0.15, 0.3, 0.5, 1.0] {
+        for turns in [40.0, 80.0, 300.0] {
+            let (mut d, cmd) = doc_for_wire(turns, wire);
+            let t = Instant::now();
+            let r = d.apply(cmd);
+            if let Err(e) = r {
+                println!("{wire:5} | {turns:5} | failed: {e}");
+                continue;
+            }
+            let b = &d.bodies()[0];
+            let m = b.solid.display_mesh().unwrap();
+            let secs = t.elapsed().as_secs_f64();
+            let len = std::f64::consts::TAU * 4.0 * turns;
+            println!(
+                "{wire:5} | {turns:5} | {:6.1} | {secs:6.1} | {}",
+                rolidium_kernel::estimated_sweep_seconds(len, wire),
+                m.triangle_count()
+            );
         }
     }
 }

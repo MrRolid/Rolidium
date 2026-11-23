@@ -912,7 +912,6 @@ The rounds next to the face could not be removed cleanly, so nothing was changed
 (calculated) => (自動計算)
 A helix of {} turns is too large: the limit is {} turns => 巻き数 {} のらせんは大きすぎます。上限は {} 巻きです
 Calculate => 自動計算
-Create it anyway => それでも作成
 Drag a ring to turn the plane, one step at a time. Type the angles to the base planes if you know them. Enter chooses the plane, Esc cancels. => リングをドラッグして平面を一段ずつ回します。基準平面との角度は数値でも入力できます。Enterで平面を選び、Escで取り消します。
 Point at the end of a curve, a vertex, the centre of a round edge or a point of an edge. Turn the wheel to switch the proposed planes; the last one is the Free plane. => 曲線の端、頂点、丸い辺の中心、または辺上の点を指します。ホイールで提案される平面を切り替えます。最後は自由平面です。
 Restore without the last change => 直前の変更なしで復元
@@ -942,3 +941,8 @@ This sweep is expected to take about {} s and makes a large body. Cancel stops i
 the cone could not be made => 円すいを作成できませんでした
 this face is not an end of the cone => この面は円すいの端ではありません
 this solid is not a plain cone or cylinder => このボディは単純な円すいや円柱ではありません
+A large sweep => 大きなスイープ
+This sweep is expected to take about {} s. => このスイープには約{}秒かかる見込みです。
+The body will have about {} faces. => ボディは約{}面になります。
+The window stays usable meanwhile and Cancel stops the calculation. => その間もウィンドウは使え、キャンセルで計算を止められます。
+A helix of a face stays on it: the height is at most the height of the face, {} mm. => 面上のらせんは面の上にとどまります。高さは面の高さ以下で、{} mmです。

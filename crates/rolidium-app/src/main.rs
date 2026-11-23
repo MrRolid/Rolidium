@@ -3,6 +3,8 @@
 #![deny(unsafe_code)]
 // On Windows the program is a window program (no console box on a double click); the command-line modes attach to the console they were started from.
 #![cfg_attr(windows, windows_subsystem = "windows")]
+#[macro_use]
+mod prof;
 mod app;
 mod assets_index;
 mod bench;

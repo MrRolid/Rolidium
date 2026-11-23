@@ -912,7 +912,6 @@ The rounds next to the face could not be removed cleanly, so nothing was changed
 (calculated) => (wird berechnet)
 A helix of {} turns is too large: the limit is {} turns => Eine Schraubenlinie mit {} Windungen ist zu groß: Das Limit ist {} Windungen
 Calculate => Berechnen
-Create it anyway => Trotzdem erstellen
 Drag a ring to turn the plane, one step at a time. Type the angles to the base planes if you know them. Enter chooses the plane, Esc cancels. => Ziehe an einem Ring, um die Ebene schrittweise zu drehen. Die Winkel zu den Grundebenen kannst du eintippen. Enter wählt die Ebene, Esc bricht ab.
 Point at the end of a curve, a vertex, the centre of a round edge or a point of an edge. Turn the wheel to switch the proposed planes; the last one is the Free plane. => Zeige auf das Ende einer Kurve, einen Eckpunkt, den Mittelpunkt einer runden Kante oder einen Punkt einer Kante. Mit dem Rad wechselst du die vorgeschlagenen Ebenen; die letzte ist die freie Ebene.
 Restore without the last change => Ohne die letzte Änderung wiederherstellen
@@ -942,3 +941,8 @@ This sweep is expected to take about {} s and makes a large body. Cancel stops i
 the cone could not be made => der Kegel konnte nicht erstellt werden
 this face is not an end of the cone => diese Fläche ist kein Ende des Kegels
 this solid is not a plain cone or cylinder => dieser Körper ist kein einfacher Kegel oder Zylinder
+A large sweep => Großes Sweep
+This sweep is expected to take about {} s. => Dieses Sweep dauert voraussichtlich etwa {} s.
+The body will have about {} faces. => Der Körper hat etwa {} Flächen.
+The window stays usable meanwhile and Cancel stops the calculation. => Das Fenster bleibt währenddessen bedienbar, und Abbrechen stoppt die Berechnung.
+A helix of a face stays on it: the height is at most the height of the face, {} mm. => Eine Schraubenlinie auf einer Fläche bleibt auf ihr: Die Höhe ist höchstens die Höhe der Fläche, {} mm.

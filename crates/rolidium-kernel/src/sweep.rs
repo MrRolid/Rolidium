@@ -46,10 +46,11 @@ pub const HELIX_MAX_TURNS: f64 = 300.0;
 pub const SWEEP_WARN_SECONDS: f64 = 5.0;
 
 /// The time (seconds) of a sweep of a profile of the radius `profile_radius` mm along a path of `path_length` mm, with the display mesh of the body. Measured
-/// for a circle of 1 mm along a helix of 4 mm radius and 1.25 mm pitch (a rod M8): 20 turns 1.1 s, 50 turns 2.8 s, 100 turns 4.7 s, 200 turns 11 s,
-/// 300 turns 16.5 s; the time follows the length of the path in units of the size of the profile, because a thin wire along a long path is meshed finely.
+/// along a helix of 4 mm radius and 1.25 mm pitch (a rod M8), the sweep with the display mesh: wire of 0.5 mm radius 40 turns 1.1 s, 80 turns 2.1 s, 300 turns
+/// 6.8 s; wire of 0.3 mm 1.2 / 2.1 / 9.7 s; wire of 0.15 mm 1.7 / 2.8 / 10.1 s. The time follows the length of the path; a thinner wire is meshed
+/// somewhat finer (not in proportion to its radius: the base mesh of a thin face is limited by the size of the part on the screen).
 pub fn estimated_sweep_seconds(path_length: f64, profile_radius: f64) -> f64 {
-    0.0011 * path_length / profile_radius.max(1e-3)
+    0.0009 * path_length * (0.5 / profile_radius.max(1e-3)).powf(0.4)
 }
 
 impl HelixDef {

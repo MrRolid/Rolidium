@@ -125,8 +125,8 @@ pub struct SweepUi {
     pub path: Option<SweepPath>,
     pub mode: SweepMode,
     pub rounded: bool,
-    /// The person confirmed a sweep along a helix with many turns.
-    pub confirm_big: bool,
+    /// A large sweep waits for the answer of the dialog: the estimated seconds and the faces the body will have (when known).
+    pub ask: Option<(f64, Option<u32>)>,
     pub preview: Vec<Vec3>,
 }
 
@@ -137,7 +137,7 @@ impl Default for SweepUi {
             path: None,
             mode: SweepMode::Auto,
             rounded: false,
-            confirm_big: false,
+            ask: None,
             preview: Vec::new(),
         }
     }
@@ -950,8 +950,10 @@ impl App {
         self.docks = docks;
         if create {
             if let Some(def) = self.helix.def() {
-                self.submit(Command::AddCurve {
-                    def: CurveDef::Helix(def),
+                let def = CurveDef::Helix(def);
+                self.submit(match self.helix.limit_height {
+                    Some(limit_height) => Command::AddCurveOnFace { def, limit_height },
+                    None => Command::AddCurve { def },
                 });
                 self.tool = Tool::Select;
                 self.helix.preview.clear();
@@ -1313,8 +1315,16 @@ impl App {
                     }),
                     _ => None,
                 };
-                let many = estimate.is_some_and(|s| s > rolidium_kernel::SWEEP_WARN_SECONDS);
-                if let (true, Some(s)) = (many, estimate) {
+                let many = estimate.filter(|s| *s > rolidium_kernel::SWEEP_WARN_SECONDS);
+                // the faces of the body: a helix gives two faces to a turn
+                let faces = match &self.sweep.path {
+                    Some(SweepPath::Curve(id)) => match self.doc.curve(*id).map(|c| &c.def) {
+                        Some(CurveDef::Helix(h)) => Some((h.turns.abs() * 2.0).ceil() as u32 + 2),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                if let Some(s) = many {
                     ui.colored_label(
                         crate::theme::rgb(255, 190, 90),
                         trf(
@@ -1322,14 +1332,15 @@ impl App {
                             &[format!("{s:.0}")],
                         ),
                     );
-                    ui.checkbox(&mut self.sweep.confirm_big, tr("Create it anyway"));
                 }
                 ui.horizontal(|ui| {
-                    let ready = self.sweep.profile.is_some()
-                        && self.sweep.path.is_some()
-                        && (!many || self.sweep.confirm_big);
+                    let ready = self.sweep.profile.is_some() && self.sweep.path.is_some();
                     if ui.add_enabled(ready, egui::Button::new(tr("Apply"))).clicked() {
-                        apply = true;
+                        // a large one asks first (a dialog with the estimate); the others are made at once
+                        match many {
+                            Some(s) => self.sweep.ask = Some((s, faces)),
+                            None => apply = true,
+                        }
                     }
                     if ui.button(tr("Clear")).clicked() {
                         clear = true;
@@ -1339,6 +1350,37 @@ impl App {
         );
         self.docks = docks;
         let _ = changed;
+        if let Some((secs, faces)) = self.sweep.ask {
+            let mut answer = None;
+            egui::Window::new(tr("A large sweep"))
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    ui.label(trf(
+                        "This sweep is expected to take about {} s.",
+                        &[format!("{secs:.0}")],
+                    ));
+                    if let Some(f) = faces {
+                        ui.label(trf("The body will have about {} faces.", &[f.to_string()]));
+                    }
+                    ui.label(tr(
+                        "The window stays usable meanwhile and Cancel stops the calculation.",
+                    ));
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("Create")).clicked() {
+                            answer = Some(true);
+                        }
+                        if ui.button(tr("Cancel")).clicked() {
+                            answer = Some(false);
+                        }
+                    });
+                });
+            if let Some(yes) = answer {
+                self.sweep.ask = None;
+                apply = yes;
+            }
+        }
         if apply {
             self.apply_sweep();
         }

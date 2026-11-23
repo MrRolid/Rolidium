@@ -64,24 +64,29 @@ fn a_helix_with_too_many_turns_is_refused() {
 
 #[test]
 fn the_estimate_of_a_sweep_follows_the_measured_times_of_a_rod_m8() {
-    // circle of 1 mm along a helix of 4 mm radius and 1.25 mm pitch (measured: 20 turns 1.1 s, 50: 2.8 s, 100: 4.7 s, 200: 11 s, 300: 16.5 s)
-    for (turns, measured) in [
-        (20.0, 1.1),
-        (50.0, 2.8),
-        (100.0, 4.7),
-        (200.0, 11.0),
-        (300.0, 16.5),
+    // (wire radius, turns, measured seconds of the sweep with its display mesh) on a helix of 4 mm radius and 1.25 mm pitch
+    for (wire, turns, measured) in [
+        (0.5, 40.0, 1.1),
+        (0.5, 80.0, 2.1),
+        (0.5, 300.0, 6.8),
+        (0.3, 80.0, 2.1),
+        (0.3, 300.0, 9.7),
+        (0.15, 40.0, 1.7),
+        (0.15, 80.0, 2.8),
+        (0.15, 300.0, 10.1),
     ] {
         let length = std::f64::consts::TAU * 4.0 * turns;
-        let est = estimated_sweep_seconds(length, 0.5);
+        let est = estimated_sweep_seconds(length, wire);
         assert!(
-            est > 0.4 * measured && est < 2.2 * measured,
-            "{turns} turns: {est:.1} s estimated, {measured} s measured"
+            est > 0.6 * measured && est < 1.6 * measured,
+            "wire {wire}, {turns} turns: {est:.1} s estimated, {measured} s measured"
         );
     }
-    // the thread M8 x 100 mm (80 turns) is just under the warning, and 300 turns with the thin wire is far over it
-    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 80.0, 0.5) < SWEEP_WARN_SECONDS * 1.2);
-    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 300.0, 0.5) > SWEEP_WARN_SECONDS);
+    // 40 and 80 turns of a thin wire (they take under 5 s) are made without a question, 300 turns of it asks
+    let len = |turns: f64| std::f64::consts::TAU * 4.0 * turns;
+    assert!(estimated_sweep_seconds(len(40.0), 0.15) < SWEEP_WARN_SECONDS);
+    assert!(estimated_sweep_seconds(len(80.0), 0.15) < SWEEP_WARN_SECONDS);
+    assert!(estimated_sweep_seconds(len(300.0), 0.15) > SWEEP_WARN_SECONDS);
     // a thick profile along the same helix is quick
-    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 300.0, 2.0) < 5.0);
+    assert!(estimated_sweep_seconds(len(300.0), 3.0) < SWEEP_WARN_SECONDS);
 }

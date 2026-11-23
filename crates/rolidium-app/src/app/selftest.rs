@@ -30,6 +30,10 @@ pub struct SelfTest {
     sampling: bool,
     cancel_at: Option<std::time::Instant>,
     heavy: Option<Command>,
+    /// Work of the window per frame in a quiet scene (the frame budget steps)
+    fs_on: bool,
+    fs_until: Option<std::time::Instant>,
+    fsamples: Vec<f32>,
     step_started: std::time::Instant,
     test_started: std::time::Instant,
 }
@@ -43,6 +47,9 @@ impl SelfTest {
             sampling: false,
             cancel_at: None,
             heavy: None,
+            fs_on: false,
+            fs_until: None,
+            fsamples: Vec::new(),
             step_started: std::time::Instant::now(),
             test_started: std::time::Instant::now(),
             dir,
@@ -178,6 +185,13 @@ impl App {
                 }
             }
         }
+        if st.fs_on {
+            // the camera turns for the first frames, then stands: the display meshes for the zoom are made while it stands
+            if st.fsamples.len() < 8 {
+                self.camera.orbit(3.0, 0.0);
+            }
+            st.fsamples.push(self.last_ui_ms.get());
+        }
         if st.sampling && !self.idle() {
             st.samples.push(self.last_ui_ms.get());
             if st.cancel_at.is_some_and(|t| t.elapsed().as_secs_f32() > 0.0)
@@ -226,6 +240,10 @@ impl App {
         ctx.request_repaint();
         // the last steps start from an empty document
         if !self.idle() || st.shot_pending.is_some() || (self.meshes.is_empty() && st.step < 36) {
+            self.selftest = Some(st);
+            return;
+        }
+        if st.fs_on && st.fs_until.is_some_and(|t| std::time::Instant::now() < t) {
             self.selftest = Some(st);
             return;
         }
@@ -2765,7 +2783,108 @@ impl App {
             121 => {
                 st.wait_frames = 1;
             }
-            122 => {
+            122 | 126 | 130 => {
+                // the frame budget: a body of a loft or a cylinder with a helix and a sweep link; the work of the window per frame stays small
+                self.frame_scene((st.step - 122) / 4 + 1, 1);
+                st.wait_frames = 2;
+            }
+            123 | 127 | 131 => {
+                self.frame_scene((st.step - 123) / 4 + 1, 2);
+                st.wait_frames = 10;
+            }
+            124 | 128 | 132 => {
+                st.fsamples.clear();
+                st.fs_on = true;
+                self.selftest_remesh = true;
+                st.fs_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(10));
+                st.wait_frames = 0;
+            }
+            125 | 129 | 133 => {
+                st.fs_on = false;
+                self.selftest_remesh = false;
+                let mut v = st.fsamples.clone();
+                v.sort_by(|a, b| a.total_cmp(b));
+                let med = v.get(v.len() / 2).copied().unwrap_or(99.0);
+                let p95 = v.get(v.len() * 95 / 100).copied().unwrap_or(99.0);
+                let scene = (st.step - 125) / 4 + 1;
+                println!(
+                    "selftest: frame scene {scene}: {} bodies, {} faces, {} triangles; work of the window per frame: median {med:.2} ms, 95 % under {p95:.2} ms; parts: {}",
+                    self.doc.bodies().len(),
+                    self.doc.bodies().iter().map(|b| b.solid.face_count()).sum::<usize>(),
+                    self.meshes.iter().map(|m| m.mesh.triangle_count()).sum::<usize>(),
+                    crate::prof::all_text()
+                );
+                check(
+                    &mut st,
+                    &format!("frame scene {scene}: the work of the window per frame stays under 5 ms"),
+                    v.len() >= 8 && p95 < 5.0,
+                );
+            }
+            134 | 138 => {
+                self.frame_scene((st.step - 134) / 4 + 4, 1);
+                st.wait_frames = 2;
+            }
+            135 | 139 => {
+                self.frame_scene((st.step - 135) / 4 + 4, 2);
+                st.wait_frames = 10;
+            }
+            136 | 140 => {
+                // the numbers of the helix are typed in the Selection panel (as in its fields) and Enter is pressed
+                let on_face = st.step == 136;
+                let Some(c) = self.doc.curves().first().map(|c| c.id) else {
+                    check(&mut st, "the scene of the helix edit was made", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                self.curve_sel = Some(c);
+                let body_faces = self.doc.bodies().get(1).map_or(0, |b| b.solid.face_count());
+                st.fsamples.clear();
+                st.fsamples.push(body_faces as f32);
+                if let Some(rolidium_doc::CurveDef::Helix(h)) = self.doc.curve(c).map(|c| c.def.clone()) {
+                    let now = [h.radius, h.pitch, h.turns, h.cone_deg, h.height()];
+                    self.curve_edit = (Some(c), now.iter().map(|v| fmt_num(*v)).collect(), now);
+                    self.curve_solve = 1;
+                    // Turns 30 on a face: the pitch follows, the height stays; on a free helix Turns 5
+                    self.curve_edit.1[2] = if on_face { "30".into() } else { "5".into() };
+                }
+                self.apply_curve_fields(c);
+                st.wait_frames = 4;
+            }
+            137 | 141 => {
+                let on_face = st.step == 137;
+                let before = st.fsamples.first().copied().unwrap_or(0.0) as usize;
+                let Some(b) = self.doc.bodies().get(1) else {
+                    check(&mut st, "the sweep body exists after the edit", false);
+                    self.selftest = Some(st);
+                    return;
+                };
+                let faces = b.solid.face_count();
+                let drawn = self
+                    .meshes
+                    .iter()
+                    .find(|m| m.id == b.id)
+                    .map_or(0, |m| m.faces.len());
+                let (lo, hi) = b.solid.bounding_box().unwrap_or_default();
+                let turns: f64 = self
+                    .doc
+                    .curves()
+                    .first()
+                    .and_then(|c| match &c.def {
+                        rolidium_doc::CurveDef::Helix(h) => Some(h.turns),
+                        _ => None,
+                    })
+                    .unwrap_or(0.0);
+                println!("selftest: helix edit: faces {before} -> {faces}, drawn {drawn}, turns {turns}, z {:.2} .. {:.2}", lo.z, hi.z);
+                if on_face {
+                    // the turns were asked to be 30: the height of the face stays, so the pitch is 1 and nothing leaves the face
+                    check(&mut st, "a helix of a face: 30 turns change the pitch, the sweep stays in the height of the face", (turns - 30.0).abs() < 1e-6 && faces > before && lo.z > -1.0 && hi.z < 31.0 && drawn == faces);
+                } else {
+                    check(&mut st, "a free helix: Turns 5 in the panel makes the sweep body again, and the drawn body follows", turns == 5.0 && faces < before && drawn == faces);
+                }
+                self.curve_sel = None;
+                st.wait_frames = 1;
+            }
+            142 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
@@ -2781,6 +2900,122 @@ impl App {
         }
         st.step += 1;
         self.selftest = Some(st);
+    }
+}
+
+impl App {
+    /// The scenes of the frame budget: 1 a cone (loft of two circles) with a conical helix, a sweep of a circle along it and the Sweep tool
+    /// active; 2 a cylinder with a helix and its sweep, the curve selected; 3 as 1 with the Select tool and nothing selected.
+    fn frame_scene(&mut self, scene: u32, stage: u32) {
+        use rolidium_doc::rolidium_sketch::{DVec2, PlaneDef};
+        use rolidium_kernel::{HelixDef, Path, PathSource};
+        if stage == 1 {
+            self.replace_document(Document::new(), None);
+        }
+        let (r0, r1) = if scene >= 2 && scene != 3 {
+            (10.0, 10.0)
+        } else {
+            (10.0, 5.0)
+        };
+        if stage == 1 {
+            let mut ids = Vec::new();
+            for (z, r) in [(0.0, r0), (30.0, r1)] {
+                let c = self.doc.apply(Command::AddEntity {
+                    target: rolidium_doc::SketchTarget::New {
+                        plane: PlaneDef {
+                            origin: DVec3::new(0.0, 0.0, z),
+                            normal: DVec3::Z,
+                            x_dir: DVec3::X,
+                        },
+                        body: None,
+                    },
+                    entity: Entity::Circle {
+                        center: DVec2::ZERO,
+                        radius: r,
+                    },
+                });
+                ids.push(c.ok().and_then(|c| c.created_sketch));
+            }
+            if let [Some(a), Some(b)] = ids[..] {
+                self.submit(Command::AddLink {
+                    kind: rolidium_doc::LinkKind::Loft {
+                        profiles: vec![
+                            rolidium_doc::LoftRef::Region { sketch: a, region: 0 },
+                            rolidium_doc::LoftRef::Region { sketch: b, region: 0 },
+                        ],
+                        ruled: true,
+                        mode: rolidium_doc::PatternMode::New,
+                    },
+                    sources: Vec::new(),
+                    name: String::new(),
+                });
+            }
+            return;
+        }
+        let h = HelixDef {
+            origin: DVec3::ZERO,
+            axis: DVec3::Z,
+            x_dir: DVec3::X,
+            radius: if scene == 2 || scene >= 4 { 10.0 } else { 9.0 },
+            pitch: if scene >= 4 { 3.0 } else { 0.7 },
+            turns: if scene >= 4 { 10.0 } else { 40.0 },
+            right: true,
+            start_deg: 0.0,
+            cone_deg: if scene == 2 || scene >= 4 { 0.0 } else { -9.0 },
+        };
+        let curve = self
+            .doc
+            .apply(if scene == 4 {
+                Command::AddCurveOnFace {
+                    def: rolidium_doc::CurveDef::Helix(h),
+                    limit_height: 30.0,
+                }
+            } else {
+                Command::AddCurve {
+                    def: rolidium_doc::CurveDef::Helix(h),
+                }
+            })
+            .ok()
+            .and_then(|c| c.created_curve);
+        if let (Some(curve), Ok(path)) = (curve, Path::build(PathSource::Helix(h))) {
+            let x = path.start_tangent.cross(DVec3::Z).normalize();
+            let sk = self
+                .doc
+                .apply(Command::AddEntity {
+                    target: rolidium_doc::SketchTarget::New {
+                        plane: PlaneDef {
+                            origin: path.start,
+                            normal: path.start_tangent,
+                            x_dir: x,
+                        },
+                        body: None,
+                    },
+                    entity: Entity::Circle {
+                        center: DVec2::ZERO,
+                        radius: 0.3,
+                    },
+                })
+                .ok()
+                .and_then(|c| c.created_sketch);
+            if let Some(sk) = sk {
+                self.submit(Command::AddLink {
+                    kind: rolidium_doc::LinkKind::Sweep {
+                        profile: rolidium_doc::LoftRef::Region {
+                            sketch: sk,
+                            region: 0,
+                        },
+                        path: rolidium_doc::SweepPath::Curve(curve),
+                        rounded: false,
+                        mode: rolidium_doc::PatternMode::New,
+                    },
+                    sources: Vec::new(),
+                    name: String::new(),
+                });
+            }
+            self.curve_sel = if scene == 2 { Some(curve) } else { None };
+        }
+        self.tool = if scene == 1 { Tool::Sweep } else { Tool::Select };
+        self.fit_all();
     }
 }
 

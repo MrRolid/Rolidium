@@ -45,6 +45,11 @@ const MAX_STEP: f64 = 4.0;
 /// the thin wire of a thread on a big cone keeps its shape although the body is big. The deviation is then at most about 10 % of the radius.
 const CAP_FRACTION: f64 = 0.1;
 const MIN_FACE_DEFLECTION: f64 = 0.002;
+/// The angle between neighbouring normals in the base mesh of a thin face: a wire of a few pixels has ten segments round it.
+const BASE_THIN_ANGLE: f64 = 1.0;
+/// A face is thin for the base mesh when its cap (a tenth of its smallest radius) is under this fraction of the base deflection: its radius is
+/// then about five pixels at most. Wider wires keep the mesh made for their own radius (their shape is seen).
+const BASE_THIN_RATIO: f64 = 0.3;
 
 pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
@@ -112,6 +117,13 @@ pub fn request_cancel() {
 /// Clears the flag; every job calls this before it starts.
 pub fn reset_cancel() {
     native::set_cancel(false);
+}
+
+/// What the calling thread spent in native calls since the last ask: (calls, ms waiting for the lock, ms running, the dearest call in ms and its name).
+pub fn take_thread_stats() -> (u32, f64, f64, f64, String) {
+    let worst = native::take_thread_worst();
+    let v = native::take_thread_stats();
+    (v[0] as u32, v[1], v[2], v[3], worst)
 }
 
 pub fn cancel_requested() -> bool {
@@ -397,6 +409,11 @@ impl Solid {
         &*self.shape as *const native::Shape as usize
     }
 
+    /// Whether `other` is this very solid (a clone of it), not only one of the same shape: the same one is not made again.
+    pub fn is_same_solid(&self, other: &Solid) -> bool {
+        std::sync::Arc::ptr_eq(&self.volume, &other.volume)
+    }
+
     /// The box around the solid (cached): the smallest and the largest corner.
     pub fn bounding_box(&self) -> Result<(DVec3, DVec3)> {
         if let Some(b) = self.bbox.get() {
@@ -488,12 +505,33 @@ impl Solid {
         if caps.iter().all(|c| *c >= linear) {
             return self.mesh(linear, VIEW_ANGLE);
         }
-        let target: Vec<f64> = caps.iter().map(|c| c.min(linear)).collect();
+        // The first mesh is for the whole part in the window: a thin feature (the wire of a thread) is a few pixels wide there, so
+        // it is meshed with the deflection of the part and a wide angle, not to a fraction of its own radius (that would be hundreds of thousands of
+        // triangles for 40 turns); the finer mesh for what the camera comes close to is made afterwards (`view_mesh_faces`).
+        let very_thin = |c: f64| c < linear * BASE_THIN_RATIO;
+        let target: Vec<f64> = caps
+            .iter()
+            .map(|c| if very_thin(*c) { linear } else { c.min(linear) })
+            .collect();
         let angles: Vec<f64> = caps
             .iter()
-            .map(|c| if *c < linear { THIN_ANGLE } else { VIEW_ANGLE })
+            .map(|c| {
+                if very_thin(*c) {
+                    BASE_THIN_ANGLE
+                } else if *c < linear {
+                    THIN_ANGLE
+                } else {
+                    VIEW_ANGLE
+                }
+            })
             .collect();
-        let (part, used) = self.mesh_in_groups(&target, &angles)?;
+        // the shortest element of the base mesh of a thin face: at least five along its smallest circle, and not shorter than two pixels
+        let thin_cap = caps
+            .iter()
+            .filter(|c| very_thin(**c))
+            .fold(f64::MAX, |a, c| a.min(*c));
+        let min_size = (2.0 * linear).min(12.5 * thin_cap);
+        let (part, used) = self.mesh_in_groups(&target, &angles, min_size)?;
         let mut m = part;
         m.deflection = linear;
         m.face_asked = used.clone();
@@ -511,7 +549,7 @@ impl Solid {
 
     /// Meshes the faces with their own deflections (`target`, 0 = not meshed): the faces whose deflections are within a factor of two of
     /// each other go into one call of the mesher, with the finest of them. Returns the mesh of those faces and the deflection each got.
-    fn mesh_in_groups(&self, target: &[f64], angles: &[f64]) -> Result<(Mesh, Vec<f64>)> {
+    fn mesh_in_groups(&self, target: &[f64], angles: &[f64], thin_min_size: f64) -> Result<(Mesh, Vec<f64>)> {
         let n = target.len();
         // the key: the power of two the deflection lies under, and the angle (in thousandths)
         let key_of = |i: usize| (target[i].log2().floor() as i32, (angles[i] * 1000.0) as i32);
@@ -531,7 +569,12 @@ impl Solid {
                 &self.shape,
                 *linear,
                 key.1 as f64 / 1000.0,
-                *linear,
+                // the groups of the wide base angle (thin faces in the base mesh) have a shortest element
+                if key.1 == (BASE_THIN_ANGLE * 1000.0) as i32 {
+                    thin_min_size
+                } else {
+                    0.0
+                },
                 if whole { &[] } else { &mask },
             )?);
             for i in 0..n {
@@ -592,10 +635,10 @@ impl Solid {
     }
 
     fn view_linear(&self, pixel_mm: f64) -> Result<(f64, f64)> {
-        let b = native::bounds_of(&self.shape)?;
-        let diag = (DVec3::new(b[3], b[4], b[5]) - DVec3::new(b[0], b[1], b[2]))
-            .length()
-            .max(1e-6);
+        // the cached box: this is asked for at every frame of the window (is a finer mesh due?), the exact box of a body with
+        // hundreds of swept faces takes about a second
+        let (lo, hi) = self.bounding_box()?;
+        let diag = (hi - lo).length().max(1e-6);
         let linear =
             (pixel_mm * VIEW_PIXEL_FRACTION).clamp(1e-4_f64.max(diag * 1e-7), (diag * 0.01).max(0.005));
         Ok((diag, linear))
@@ -725,7 +768,7 @@ impl Solid {
                     }
                 })
                 .collect();
-            let (part, used) = self.mesh_in_groups(&goal, &angles)?;
+            let (part, used) = self.mesh_in_groups(&goal, &angles, 0.0)?;
             // A finer mesh replaces the coarse one of a face only when it is complete: the face has triangles and covers
             // (nearly) the area the coarse mesh covers. A face the mesher failed on, or only did in part, stays as it was.
             let got = part.triangles_per_face(n);

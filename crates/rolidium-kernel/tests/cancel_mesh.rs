@@ -46,7 +46,7 @@ fn a_mesh_that_was_stopped_is_an_error_even_when_the_flag_is_cleared_at_once() {
     let (mut stopped, mut finished) = (0, 0);
     for delay_ms in [1u64, 3, 8, 15, 30, 60, 120, 250] {
         let solid = s.clone();
-        let job = std::thread::spawn(move || solid.display_mesh());
+        let job = std::thread::spawn(move || solid.mesh(0.003, 0.1));
         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
         request_cancel();
         // the next job clears the flag soon, before the mesher has finished its way out
@@ -72,5 +72,5 @@ fn a_mesh_that_was_stopped_is_an_error_even_when_the_flag_is_cleared_at_once() {
     eprintln!("{stopped} meshes stopped, {finished} finished");
     reset_cancel();
     assert!(stopped > 0, "at least one mesh was stopped");
-    assert!(s.display_mesh().is_ok(), "the next mesh works");
+    assert!(s.mesh(0.003, 0.1).is_ok(), "the next mesh works");
 }

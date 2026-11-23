@@ -624,6 +624,10 @@ pub fn save_to_bytes(
                 j.insert("name".into(), json!(c.name));
                 j.insert("visible".into(), json!(c.visible));
                 curve_json(&c.def, &mut j);
+                match c.limit_height {
+                    Some(l) => j.insert("limit_height".into(), json!(l)),
+                    None => j.remove("limit_height"),
+                };
                 put(
                     &mut zip,
                     &format!("curves/{}.json", c.id),
@@ -975,6 +979,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
                 .to_string(),
             def,
             visible: j.get("visible").and_then(Value::as_bool).unwrap_or(true),
+            limit_height: j.get("limit_height").and_then(Value::as_f64).filter(|l| *l > 0.0),
         });
         take_keys(
             &mut j,
@@ -992,6 +997,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
                 "right",
                 "start_deg",
                 "cone_deg",
+                "limit_height",
             ],
         );
         if !j.is_empty() {

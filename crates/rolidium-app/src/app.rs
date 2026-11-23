@@ -330,7 +330,9 @@ pub struct App {
     curve_cache: curvetools::CurveCache,
     curve_sel: Option<rolidium_doc::CurveId>,
     /// The fields of the helix in the Selection panel: the curve, the texts, and the numbers they were made from.
-    curve_edit: (Option<rolidium_doc::CurveId>, Vec<String>, [f64; 4]),
+    curve_edit: (Option<rolidium_doc::CurveId>, Vec<String>, [f64; 5]),
+    /// Which of height, pitch and turns the Selection panel calculates for a helix of a face (0 height, 1 pitch, 2 turns)
+    curve_solve: u8,
     measure: measuretool::MeasureUi,
     view_anim: Option<viewanim::ViewAnim>,
     view_before_sketch: Option<rolidium_render::Camera>,
@@ -356,6 +358,8 @@ pub struct App {
     /// Change all rounds of the same size that touch the selected one.
     blend_chain: bool,
     /// A new diameter of an end of a cone keeps the angle of the cone (the other end follows) instead of the diameter of the other end.
+    /// The self-test of the frame budget lets the display meshes for the zoom be made (they are off in the other steps)
+    selftest_remesh: bool,
     cap_keep_angle: bool,
     /// For the self-test: the state of the document before a heavy calculation.
     state_before_heavy: Option<Arc<rolidium_doc::State>>,
@@ -555,7 +559,8 @@ impl App {
             sweep: Default::default(),
             curve_cache: Default::default(),
             curve_sel: None,
-            curve_edit: (None, Vec::new(), [0.0; 4]),
+            curve_edit: (None, Vec::new(), [0.0; 5]),
+            curve_solve: 1,
             measure: Default::default(),
             view_anim: None,
             view_before_sketch: None,
@@ -575,6 +580,7 @@ impl App {
             chamfer_angle_text: "45".into(),
             chamfer_flip: false,
             blend_chain: false,
+            selftest_remesh: false,
             cap_keep_angle: false,
             state_before_heavy: None,
             move_end: None,
@@ -2088,8 +2094,23 @@ impl App {
                 }
                 | Command::DeleteLink { .. }
         );
+        // a command that is made here and not on the worker can still change bodies (a curve edited, the sweeps along it follow): their
+        // meshes are made again whatever the command was
+        let before: Vec<(BodyId, rolidium_kernel::Solid)> = self
+            .doc
+            .bodies()
+            .iter()
+            .map(|b| (b.id, b.solid.clone()))
+            .collect();
         match self.doc.apply(cmd) {
             Ok(_) => {
+                let after = self.doc.bodies();
+                let bodies_change = bodies_change
+                    || before.len() != after.len()
+                    || before
+                        .iter()
+                        .zip(after)
+                        .any(|((id, s), b)| *id != b.id || !s.is_same_solid(&b.solid));
                 self.clear_selection();
                 if let Some(sm) = &mut self.sk {
                     sm.drawing = None;
@@ -3845,12 +3866,19 @@ impl eframe::App for App {
             }
         }
         let _timer = Timer(Instant::now(), self.last_ui_ms.clone());
+        crate::prof::next_frame();
+        crate::prof::take_kernel();
         self.work_ms[0] = self.work_ms[0] * 0.9 + self.last_ui_ms.get() * 0.1;
         if self.last_work_log.elapsed().as_secs() >= 2 && std::env::var_os("ROLIDIUM_FRAME_LOG").is_some() {
             self.last_work_log = Instant::now();
             log(&format!(
-                "frame work: window {:.1} ms (viewport {:.1}, pointer {:.1}); frame {:.1} ms",
-                self.work_ms[0], self.work_ms[1], self.work_ms[2], self.frame_ms
+                "frame work: window {:.1} ms (viewport {:.1}, pointer {:.1}); frame {:.1} ms; parts: {}; dearest native call: {:?}",
+                self.work_ms[0],
+                self.work_ms[1],
+                self.work_ms[2],
+                self.frame_ms,
+                crate::prof::all_text(),
+                crate::prof::worst_kernel_call()
             ));
         }
         let ctx = ui.ctx().clone();
@@ -3888,22 +3916,22 @@ impl eframe::App for App {
         // icons follow the theme, also when "follow the system" changes it while the program runs
         theme::set(!ctx.global_style().visuals.dark_mode, self.settings.brightness);
         icons::set_light(!ctx.global_style().visuals.dark_mode);
-        self.refresh_curve_cache(&ctx);
-        self.busy_tick();
-        self.view_tick(&ctx);
-        self.bench_tick(&ctx);
-        self.edit_bench_tick(&ctx);
-        self.poll_worker();
+        prof!("refresh_curve_cache", self.refresh_curve_cache(&ctx));
+        prof!("busy_tick", self.busy_tick());
+        prof!("view_tick", self.view_tick(&ctx));
+        prof!("bench_tick", self.bench_tick(&ctx));
+        prof!("edit_bench_tick", self.edit_bench_tick(&ctx));
+        prof!("poll_worker", self.poll_worker());
         // a result of the worker or an Undo of this frame changed the document: the curves are drawn from it, not from the frame before
-        self.refresh_curve_cache(&ctx);
-        self.selftest_tick(&ctx);
-        self.guide_tick();
-        self.remesh_tick(&ctx);
+        prof!("refresh_curve_cache", self.refresh_curve_cache(&ctx));
+        prof!("selftest_tick", self.selftest_tick(&ctx));
+        prof!("guide_tick", self.guide_tick());
+        prof!("remesh_tick", self.remesh_tick(&ctx));
 
         egui::Panel::top("toolbar")
             .resizable(false)
             .exact_size(46.0)
-            .show(ui, |ui| self.top_toolbar(ui));
+            .show(ui, |ui| prof!("toolbar", self.top_toolbar(ui)));
 
         // declared before the side panels, so that they end above it and nothing of them is hidden under it
         let status = egui::Panel::bottom("status").resizable(false).show(ui, |ui| {
@@ -3981,7 +4009,7 @@ impl eframe::App for App {
                 let out = egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .max_height((column_h - bottom_h).max(60.0))
-                    .show(ui, |ui| self.left_column(ui));
+                    .show(ui, |ui| prof!("left column", self.left_column(ui)));
                 self.left_rest_h = out.content_size.y;
                 self.left_scrolls = out.content_size.y > out.inner_rect.height() + 0.5;
                 self.left_file_rect = Rect::NOTHING;
@@ -4015,7 +4043,7 @@ impl eframe::App for App {
                     egui::UiBuilder::new()
                         .max_rect(fb_rect)
                         .layout(egui::Layout::bottom_up(egui::Align::Min)),
-                    |ui| self.feedback_panel(ui, full.height()),
+                    |ui| prof!("report panel", self.feedback_panel(ui, full.height())),
                 );
                 if (self.feedback.rect.height() - before).abs() > 0.5 {
                     ui.ctx().request_repaint();
@@ -4174,7 +4202,7 @@ impl eframe::App for App {
                                             ui.weak(tr("(none)"));
                                         }
                                     });
-                                self.links_and_groups_tree(ui, &mut tree_cmd);
+                                prof!("tree: links", self.links_and_groups_tree(ui, &mut tree_cmd));
                                 egui::CollapsingHeader::new(tr("Sketches"))
                                     .default_open(true)
                                     .show(ui, |ui| {
@@ -4448,38 +4476,38 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| {
-                self.viewport(ui);
+                prof!("viewport total", self.viewport(ui));
             });
 
         let vr = self.viewport_rect;
         self.docks.area = Some(vr);
-        self.show_dim_panel(&ctx, vr);
-        self.move_panel(&ctx, vr);
-        self.combine_panel(&ctx, vr);
-        self.link_panel(&ctx, vr);
-        self.sketch_pattern_panel(&ctx, vr);
-        self.busy_overlay(&ctx, vr);
-        self.measure_panel(&ctx, vr);
-        self.loft_panel(&ctx, vr);
-        self.helix_panel(&ctx, vr);
-        self.sweep_panel(&ctx, vr);
-        self.plane_at_panel(&ctx, vr);
-        self.plane_free_panel(&ctx, vr);
-        self.line3_panel(&ctx, vr);
-        self.join_panel(&ctx, vr);
-        self.revolve_panel(&ctx, vr);
-        self.plane_window(&ctx);
-        self.handle_export_dialog(&ctx);
-        self.settings_window(&ctx);
-        self.about_window(&ctx);
-        self.updates_tick(&ctx);
-        self.updates_ui(&ctx);
-        self.feedback_preview(&ctx);
-        self.feedback_big(&ctx);
-        self.guide_window(&ctx);
-        self.rename_window(&ctx);
-        self.derived_window(&ctx);
-        self.dialogs(&ctx);
+        prof!("show_dim_panel", self.show_dim_panel(&ctx, vr));
+        prof!("move_panel", self.move_panel(&ctx, vr));
+        prof!("combine_panel", self.combine_panel(&ctx, vr));
+        prof!("link_panel", self.link_panel(&ctx, vr));
+        prof!("sketch_pattern_panel", self.sketch_pattern_panel(&ctx, vr));
+        prof!("busy_overlay", self.busy_overlay(&ctx, vr));
+        prof!("measure_panel", self.measure_panel(&ctx, vr));
+        prof!("loft_panel", self.loft_panel(&ctx, vr));
+        prof!("helix_panel", self.helix_panel(&ctx, vr));
+        prof!("sweep_panel", self.sweep_panel(&ctx, vr));
+        prof!("plane_at_panel", self.plane_at_panel(&ctx, vr));
+        prof!("plane_free_panel", self.plane_free_panel(&ctx, vr));
+        prof!("line3_panel", self.line3_panel(&ctx, vr));
+        prof!("join_panel", self.join_panel(&ctx, vr));
+        prof!("revolve_panel", self.revolve_panel(&ctx, vr));
+        prof!("plane_window", self.plane_window(&ctx));
+        prof!("handle_export_dialog", self.handle_export_dialog(&ctx));
+        prof!("settings_window", self.settings_window(&ctx));
+        prof!("about_window", self.about_window(&ctx));
+        prof!("updates_tick", self.updates_tick(&ctx));
+        prof!("updates_ui", self.updates_ui(&ctx));
+        prof!("feedback_preview", self.feedback_preview(&ctx));
+        prof!("feedback_big", self.feedback_big(&ctx));
+        prof!("guide_window", self.guide_window(&ctx));
+        prof!("rename_window", self.rename_window(&ctx));
+        prof!("derived_window", self.derived_window(&ctx));
+        prof!("dialogs", self.dialogs(&ctx));
         self.autosave_tick();
 
         if self.show_debug || self.bench.is_some() {
@@ -4495,10 +4523,11 @@ impl eframe::App for App {
                     .map_or("-".to_string(), |v| format!("{v:.1} ms (incl. meshing)"))
             );
             let text = format!(
-                "{text}\nwork of the window per frame: {:.1} ms (viewport {:.1}, pointer {:.1})\nceiling: {}\nhand-over (as requested): {}\nframes drawn: {}",
+                "{text}\nwork of the window per frame: {:.1} ms (viewport {:.1}, pointer {:.1})\nthe three dearest parts (ms): {}\nceiling: {}\nhand-over (as requested): {}\nframes drawn: {}",
                 self.work_ms[0],
                 self.work_ms[1],
                 self.work_ms[2],
+                crate::prof::top3_text(),
                 match self.settings.fps_cap.as_str() {
                     "monitor" => "by the monitor".to_string(),
                     "none" => "none".to_string(),

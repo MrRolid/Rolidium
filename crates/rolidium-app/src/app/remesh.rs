@@ -172,7 +172,10 @@ impl App {
 
     /// Once a frame: starts the remeshing when it is due.
     pub(super) fn remesh_tick(&mut self, ctx: &egui::Context) {
-        if self.selftest.is_some() || self.bench.is_some() || self.meshes.is_empty() {
+        if (self.selftest.is_some() && !self.selftest_remesh)
+            || self.bench.is_some()
+            || self.meshes.is_empty()
+        {
             return;
         }
         let v = (

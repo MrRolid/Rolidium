@@ -167,52 +167,135 @@ impl App {
         }
     }
 
-    /// The numbers of the selected helix in the Selection panel (Enter applies): the bodies made along it follow.
+    /// The numbers of the selected helix in the Selection panel (Enter applies): the bodies made along it follow. A helix made on a cylindrical or
+    /// a conical face keeps the rule of its making: the height is the height of the face (or less), a change of the turns changes the pitch
+    /// ("Calculate" chooses what follows), the radius and the cone angle are those of the face. A free helix is limited only by the general limit.
     #[allow(deprecated)]
     pub(super) fn curve_edit_ui(&mut self, ui: &mut egui::Ui, id: CurveId) {
-        let Some(CurveDef::Helix(h)) = self.doc.curve(id).map(|c| c.def.clone()) else {
+        let Some(doc) = self.doc.curve(id) else {
             return;
         };
-        let now = [h.radius, h.pitch, h.turns, h.cone_deg];
+        let CurveDef::Helix(h) = doc.def.clone() else {
+            return;
+        };
+        let limit = doc.limit_height;
+        let now = [h.radius, h.pitch, h.turns, h.cone_deg, h.height()];
         if self.curve_edit.0 != Some(id) || self.curve_edit.2 != now {
             self.curve_edit = (Some(id), now.iter().map(|v| fmt_num(*v)).collect(), now);
         }
-        let labels = [
-            ("Radius", "mm"),
-            ("Pitch", "mm"),
-            ("Turns", ""),
-            ("Cone angle", "°"),
-        ];
+        // the fields: index into the texts, label, unit, whether it can be typed
+        let solve = self.curve_solve;
+        let mut labels: Vec<(usize, &str, &str, bool)> = vec![(0, "Radius", "mm", limit.is_none())];
+        if limit.is_some() {
+            labels.push((1, "Pitch", "mm", solve != 1));
+            labels.push((4, "Height", "mm", solve != 0));
+            labels.push((2, "Turns", "", solve != 2));
+        } else {
+            labels.push((1, "Pitch", "mm", true));
+            labels.push((2, "Turns", "", true));
+        }
+        labels.push((3, "Cone angle", "°", limit.is_none()));
         let mut apply = false;
-        for (i, (label, unit)) in labels.iter().enumerate() {
+        let mut typed = false;
+        for (i, label, unit, enabled) in labels {
             ui.horizontal(|ui| {
                 ui.label(tr(label));
-                let r = ui.add(
+                let r = ui.add_enabled(
+                    enabled,
                     egui::TextEdit::singleline(&mut self.curve_edit.1[i])
                         .id(egui::Id::new(("curve_edit", i)))
                         .desired_width(60.0),
                 );
-                ui.label(*unit);
+                ui.label(unit);
+                if !enabled && limit.is_some() && matches!(i, 1 | 2 | 4) {
+                    ui.label(egui::RichText::new(tr("(calculated)")).weak());
+                }
+                typed |= r.changed();
                 if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                     apply = true;
                 }
             });
         }
+        if let Some(l) = limit {
+            ui.horizontal(|ui| {
+                ui.label(tr("Calculate"));
+                ui.selectable_value(&mut self.curve_solve, 1, tr("Pitch"));
+                ui.selectable_value(&mut self.curve_solve, 0, tr("Height"));
+                ui.selectable_value(&mut self.curve_solve, 2, tr("Turns"));
+            })
+            .response
+            .on_hover_text(tr(
+                "Two of height, pitch and turns are typed, the third is calculated. Choose which one is calculated.",
+            ));
+            ui.weak(trf(
+                "A helix of a face stays on it: the height is at most the height of the face, {} mm.",
+                &[fmt_num(l)],
+            ));
+            if typed {
+                curve_recalculate(&mut self.curve_edit.1, self.curve_solve);
+            }
+        }
         if apply {
-            let v: Vec<Option<f64>> = self.curve_edit.1.iter().map(|t| parse_num(t)).collect();
-            let mut h2 = h;
-            let (Some(r), Some(p), Some(t), Some(c)) = (v[0], v[1], v[2], v[3]) else {
-                self.set_status("Type numbers into the fields", true);
-                return;
-            };
-            (h2.radius, h2.pitch, h2.turns, h2.cone_deg) = (r, p, t, c);
-            self.run_doc_command(
-                Command::EditCurve {
-                    curve: id,
-                    def: CurveDef::Helix(h2),
-                },
-                "Helix changed",
+            self.apply_curve_fields(id);
+        }
+    }
+
+    /// Takes the numbers typed in the Selection panel for the helix `id` (what Enter in a field does).
+    pub(super) fn apply_curve_fields(&mut self, id: CurveId) {
+        let Some(doc) = self.doc.curve(id) else {
+            return;
+        };
+        let CurveDef::Helix(h) = doc.def.clone() else {
+            return;
+        };
+        let limit = doc.limit_height;
+        if limit.is_some() {
+            curve_recalculate(&mut self.curve_edit.1, self.curve_solve);
+        }
+        let v: Vec<Option<f64>> = self.curve_edit.1.iter().map(|t| parse_num(t)).collect();
+        let (Some(r), Some(p), Some(t), Some(c)) = (v[0], v[1], v[2], v[3]) else {
+            self.set_status("Type numbers into the fields", true);
+            return;
+        };
+        let mut h2 = h;
+        (h2.radius, h2.pitch, h2.turns, h2.cone_deg) = (r, p, t, c);
+        if let Some(l) = limit.filter(|l| h2.height() > l + 1e-6) {
+            self.set_status(
+                trf(
+                    "The helix would leave the face. The largest height is {} mm",
+                    &[fmt_num(l)],
+                ),
+                true,
             );
+            return;
+        }
+        // made on the thread of the worker: the sweeps along the helix follow, and their meshes are made again
+        self.submit(Command::EditCurve {
+            curve: id,
+            def: CurveDef::Helix(h2),
+        });
+        self.set_status("Computing…", false);
+    }
+}
+
+/// The third of height (4), pitch (1) and turns (2) from the other two (`solve`: 0 height, 1 pitch, 2 turns).
+fn curve_recalculate(t: &mut [String], solve: u8) {
+    let (p, ht, n) = (parse_num(&t[1]), parse_num(&t[4]), parse_num(&t[2]));
+    match solve {
+        0 => {
+            if let (Some(p), Some(n)) = (p, n) {
+                t[4] = fmt_num(n * p.abs());
+            }
+        }
+        1 => {
+            if let (Some(ht), Some(n)) = (ht, n.filter(|n| *n > 1e-9)) {
+                t[1] = fmt_num(ht / n);
+            }
+        }
+        _ => {
+            if let (Some(p), Some(ht)) = (p.filter(|p| p.abs() > 1e-9), ht) {
+                t[2] = fmt_num(ht / p.abs());
+            }
         }
     }
 }

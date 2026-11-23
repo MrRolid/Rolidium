@@ -21,6 +21,9 @@ pub struct CurveDoc {
     pub name: String,
     pub def: CurveDef,
     pub visible: bool,
+    /// A helix made on a cylindrical or conical face: the height of that face. The helix may not be made higher than this (a change of the turns
+    /// changes the pitch, not the height), and it never leaves the face. `None`: a free curve, only the general limit of turns holds.
+    pub limit_height: Option<f64>,
 }
 
 impl CurveDef {

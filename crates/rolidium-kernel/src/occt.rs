@@ -149,7 +149,7 @@ pub mod ffi {
             shape: &Shape,
             linear: f64,
             angular: f64,
-            coarse: f64,
+            min_size: f64,
             fine: &[u8],
         ) -> Result<MeshData>;
         fn check_shape(shape: &Shape) -> bool;
@@ -184,6 +184,8 @@ pub mod ffi {
         fn set_threads(n: i32);
         fn shared_keys(shape: &Shape) -> Result<Vec<u64>>;
         fn cancel_requested() -> bool;
+        fn take_thread_stats() -> Vec<f64>;
+        fn take_thread_worst() -> String;
         fn make_path(data: &[f64]) -> Result<SharedPtr<Shape>>;
         fn edges_wire(shape: &Shape, edges: &[u32]) -> Result<SharedPtr<Shape>>;
         fn path_info(path: &Shape) -> Result<Vec<f64>>;

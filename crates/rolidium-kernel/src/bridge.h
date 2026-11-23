@@ -92,6 +92,8 @@ rust::String take_stages();
 void set_threads(int32_t n);
 rust::Vec<uint64_t> shared_keys(const Shape& shape);
 bool cancel_requested();
+rust::Vec<double> take_thread_stats();
+rust::String take_thread_worst();
 std::shared_ptr<Shape> make_path(rust::Slice<const double> data);
 std::shared_ptr<Shape> edges_wire(const Shape& shape, rust::Slice<const uint32_t> edges);
 rust::Vec<double> path_info(const Shape& path);
@@ -114,7 +116,7 @@ void sewer_add(Sewer& sewer, const Shape& shape);
 std::shared_ptr<Shape> sewer_finish(Sewer& sewer);
 
 MeshData mesh_shape(const Shape& shape, double linear, double angular);
-MeshData mesh_shape_regions(const Shape& shape, double linear, double angular, double coarse, rust::Slice<const uint8_t> fine);
+MeshData mesh_shape_regions(const Shape& shape, double linear, double angular, double min_size, rust::Slice<const uint8_t> fine);
 bool check_shape(const Shape& shape);
 Props props(const Shape& shape);
 rust::Vec<double> section_plane(const Shape& shape, std::array<double, 3> origin, std::array<double, 3> normal, double tolerance);

@@ -68,6 +68,8 @@ pub fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
 /// The entry of a body for a given mesh of it.
 pub fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
     let (id, name, solid, color) = b;
+    // the box is found here, on the thread of the worker, and stays with the solid: the window asks for it at every frame
+    let _ = solid.bounding_box();
     // a body with faces and no triangle is a mesh that was stopped or failed, not a body to show as empty
     if solid.face_count() > 0 && mesh.triangle_count() == 0 {
         return Err("The display mesh of the body could not be made, so the view was not changed".into());

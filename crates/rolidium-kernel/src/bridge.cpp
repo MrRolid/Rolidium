@@ -7,6 +7,7 @@
 #include "bridge.h"
 #include "rolidium-kernel/src/occt.rs.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <sstream>
@@ -131,13 +132,39 @@ std::atomic<bool> g_hit{false};
 
 [[noreturn]] void fail(const std::string& what) { throw std::runtime_error(what); }
 
+// What the calling thread spent in native calls since it last asked (the profile of the frame: how many calls, the time waiting for the
+// lock, the time running, the dearest call).
+struct ThreadStats {
+    double calls = 0, wait_ms = 0, run_ms = 0, worst_ms = 0;
+    std::string worst;
+};
+thread_local ThreadStats t_stats;
+
+struct RunTimer {
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    const char* name;
+    explicit RunTimer(const char* n) : name(n) {}
+    ~RunTimer() {
+        double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        t_stats.calls += 1;
+        t_stats.run_ms += ms;
+        if (ms > t_stats.worst_ms) {
+            t_stats.worst_ms = ms;
+            t_stats.worst = name;
+        }
+    }
+};
+
 template <bool Lock, typename F>
 auto guarded_impl(const char* name, F&& f) -> decltype(f()) {
     std::unique_lock<std::recursive_mutex> lock(g_lock, std::defer_lock);
     if (Lock) {
+        auto w0 = std::chrono::steady_clock::now();
         lock.lock();
+        t_stats.wait_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - w0).count();
         g_hit.store(false);
     }
+    RunTimer run_timer(name);
     static const bool quiet = [] {
         // Open CASCADE prints diagnostics to stdout; we report errors through Results instead.
         Message::DefaultMessenger()->RemovePrinters(STANDARD_TYPE(Message_Printer));
@@ -1252,14 +1279,13 @@ std::shared_ptr<Shape> sewer_finish(Sewer& sw) {
 }
 
 MeshData mesh_shape(const Shape& sh, double linear, double angular) {
-    return mesh_shape_regions(sh, linear, angular, linear, rust::Slice<const uint8_t>());
+    return mesh_shape_regions(sh, linear, angular, 0.0, rust::Slice<const uint8_t>());
 }
 
 // Faces marked in `fine` (one byte per face) are triangulated with the deflection `linear`; the others are left out (the caller keeps the
-// triangles it has of them), and so are the edges that border no fine face. An empty mask means all faces, with `linear`. (`coarse` is unused
-// and kept for the callers.)
-MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, double coarse, rust::Slice<const uint8_t> fine) {
-    (void)coarse;
+// triangles it has of them), and so are the edges that border no fine face. An empty mask means all faces, with `linear`. (`min_size` is the shortest
+// element the mesher may make, 0 for its default.)
+MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, double min_size, rust::Slice<const uint8_t> fine) {
     return guarded_free("mesh", [&] {
         // an indicator of its own: the shared one keeps the state of one run and meshing runs for many bodies at once
         Handle(CancelIndicator) ind = new CancelIndicator();
@@ -1273,6 +1299,8 @@ MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, doub
         // swept face would otherwise be six times as many for no gain)
         mp.AngleInterior = std::max(angular, 0.5);
         mp.Relative = false;
+        // the shortest element (0: the default of the mesher)
+        if (min_size > 0.0) mp.MinSize = min_size;
         mp.InParallel = run_parallel();
         StageTimer st("mesh");
         if (!partial) {
@@ -1389,6 +1417,18 @@ rust::String take_stages() {
 
 void set_cancel(bool on) { g_cancel.store(on); }
 bool cancel_requested() { return g_cancel.load(); }
+
+rust::Vec<double> take_thread_stats() {
+    rust::Vec<double> v;
+    v.push_back(t_stats.calls);
+    v.push_back(t_stats.wait_ms);
+    v.push_back(t_stats.run_ms);
+    v.push_back(t_stats.worst_ms);
+    t_stats = ThreadStats();
+    return v;
+}
+
+rust::String take_thread_worst() { return rust::String(t_stats.worst); }
 
 static TopoDS_Shape measure_part(const Shape& sh, uint32_t kind, uint32_t index, const std::array<double, 3>& p) {
     if (kind == 0) return BRepBuilderAPI_MakeVertex(gp_Pnt(p[0], p[1], p[2]));

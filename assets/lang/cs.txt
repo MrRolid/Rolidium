@@ -912,7 +912,6 @@ The rounds next to the face could not be removed cleanly, so nothing was changed
 (calculated) => (dopočítá se)
 A helix of {} turns is too large: the limit is {} turns => Šroubovice s {} závity je příliš velká: limit je {} závitů
 Calculate => Dopočítat
-Create it anyway => Přesto vytvořit
 Drag a ring to turn the plane, one step at a time. Type the angles to the base planes if you know them. Enter chooses the plane, Esc cancels. => Táhni kruhem a otáčej rovinu po krocích. Úhly k základním rovinám můžeš zadat číslem. Enter rovinu vybere, Esc ruší.
 Point at the end of a curve, a vertex, the centre of a round edge or a point of an edge. Turn the wheel to switch the proposed planes; the last one is the Free plane. => Ukaž na konec křivky, vrchol, střed kruhové hrany nebo bod hrany. Kolečkem přepínáš navržené roviny; poslední je Volná rovina.
 Restore without the last change => Obnovit bez poslední změny
@@ -942,3 +941,8 @@ This sweep is expected to take about {} s and makes a large body. Cancel stops i
 the cone could not be made => kužel se nepodařilo vytvořit
 this face is not an end of the cone => tato plocha není koncem kužele
 this solid is not a plain cone or cylinder => toto těleso není prostý kužel ani válec
+A large sweep => Velké tažení
+This sweep is expected to take about {} s. => Toto tažení bude trvat zhruba {} s.
+The body will have about {} faces. => Těleso bude mít zhruba {} ploch.
+The window stays usable meanwhile and Cancel stops the calculation. => Okno zůstává během výpočtu použitelné a Zrušit výpočet zastaví.
+A helix of a face stays on it: the height is at most the height of the face, {} mm. => Šroubovice na ploše na ní zůstává: výška je nejvýš výška plochy, {} mm.

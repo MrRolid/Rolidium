@@ -912,7 +912,6 @@ The rounds next to the face could not be removed cleanly, so nothing was changed
 (calculated) => (calculado)
 A helix of {} turns is too large: the limit is {} turns => Una hélice de {} vueltas es demasiado grande: el límite es {} vueltas
 Calculate => Calcular
-Create it anyway => Crear de todos modos
 Drag a ring to turn the plane, one step at a time. Type the angles to the base planes if you know them. Enter chooses the plane, Esc cancels. => Arrastra un anillo para girar el plano paso a paso. Puedes escribir los ángulos respecto a los planos base. Intro elige el plano, Esc cancela.
 Point at the end of a curve, a vertex, the centre of a round edge or a point of an edge. Turn the wheel to switch the proposed planes; the last one is the Free plane. => Señala el final de una curva, un vértice, el centro de una arista redonda o un punto de una arista. La rueda cambia los planos propuestos; el último es el plano libre.
 Restore without the last change => Restaurar sin el último cambio
@@ -942,3 +941,8 @@ This sweep is expected to take about {} s and makes a large body. Cancel stops i
 the cone could not be made => no se pudo crear el cono
 this face is not an end of the cone => esta cara no es un extremo del cono
 this solid is not a plain cone or cylinder => este cuerpo no es un simple cono o cilindro
+A large sweep => Un barrido grande
+This sweep is expected to take about {} s. => Este barrido tardará unos {} s.
+The body will have about {} faces. => El cuerpo tendrá unas {} caras.
+The window stays usable meanwhile and Cancel stops the calculation. => La ventana sigue utilizable mientras tanto y Cancelar detiene el cálculo.
+A helix of a face stays on it: the height is at most the height of the face, {} mm. => Una hélice de una cara permanece en ella: la altura es como máximo la de la cara, {} mm.

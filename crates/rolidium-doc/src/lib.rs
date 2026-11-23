@@ -402,6 +402,11 @@ pub enum Command {
     AddCurve {
         def: CurveDef,
     },
+    /// A helix made on a cylindrical or conical face: `limit_height` is the height of the face; the curve keeps it as its limit.
+    AddCurveOnFace {
+        def: CurveDef,
+        limit_height: f64,
+    },
     /// A new definition of a curve (the helix of a spring with another pitch, a polyline with other points); what was made along it follows.
     EditCurve {
         curve: CurveId,
@@ -2173,7 +2178,15 @@ impl Job {
                 out.history = touched.1.map(|h| (touched.0, h));
                 Ok(out)
             }
-            Command::AddCurve { def } => {
+            Command::AddCurve { .. } | Command::AddCurveOnFace { .. } => {
+                let (def, limit_height) = match &self.command {
+                    Command::AddCurve { def } => (def, None),
+                    Command::AddCurveOnFace { def, limit_height } => (def, Some(*limit_height)),
+                    _ => unreachable!(),
+                };
+                if let (CurveDef::Helix(h), Some(l)) = (def, limit_height) {
+                    check_face_limit(h.height(), l)?;
+                }
                 def.path()?; // the curve must be buildable
                 st.curve_counter += 1;
                 let id = self.next_id;
@@ -2182,18 +2195,23 @@ impl Job {
                     name: format!("Curve {}", st.curve_counter),
                     def: def.clone(),
                     visible: true,
+                    limit_height,
                 });
                 let mut c = self.done(st, "Add curve");
                 c.created_curve = Some(id);
                 Ok(c)
             }
             Command::EditCurve { curve, def } => {
-                def.path()?; // the curve must be buildable
                 let c = st
                     .curves
                     .iter_mut()
                     .find(|c| c.id == *curve)
                     .ok_or(DocError::NoSuchCurve)?;
+                // a helix made on a face stays on it
+                if let (CurveDef::Helix(h), Some(l)) = (def, c.limit_height) {
+                    check_face_limit(h.height(), l)?;
+                }
+                def.path()?; // the curve must be buildable
                 c.def = def.clone();
                 Ok(self.done(st, "Edit curve"))
             }
@@ -2601,6 +2619,18 @@ pub struct Document {
     saved: Option<Arc<State>>,
     /// File content this program does not know; written back unchanged on save.
     pub extras: file::Extras,
+}
+
+/// A helix of a face may not be higher than the face.
+fn check_face_limit(height: f64, limit: f64) -> Result<(), DocError> {
+    if height > limit + 1e-6 {
+        return Err(KernelError::Invalid(format!(
+            "The helix would leave the face. The largest height is {} mm",
+            (limit * 1e6).round() / 1e6
+        ))
+        .into());
+    }
+    Ok(())
 }
 
 impl Document {
