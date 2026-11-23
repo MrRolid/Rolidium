@@ -346,6 +346,8 @@ pub struct App {
     status_top: f32,
     chamfer_angle_text: String,
     chamfer_flip: bool,
+    /// Change all rounds of the same size that touch the selected one.
+    blend_chain: bool,
     combine: combinetool::CombineUi,
     link_ui: linktool::LinkUi,
     link_sel: Option<rolidium_doc::LinkId>,
@@ -552,6 +554,7 @@ impl App {
             status_top: f32::MAX,
             chamfer_angle_text: "45".into(),
             chamfer_flip: false,
+            blend_chain: false,
             combine: Default::default(),
             link_ui: Default::default(),
             link_sel: None,

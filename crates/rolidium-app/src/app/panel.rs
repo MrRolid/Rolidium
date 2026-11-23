@@ -507,6 +507,7 @@ impl App {
             .iter()
             .position(|(r, _)| matches!(r, Row::EdgeSize | Row::BlendSize));
         let mut flip = self.chamfer_flip;
+        let mut whole_chain = self.blend_chain;
         let mut angle_text = self.chamfer_angle_text.clone();
         let mut docks = std::mem::take(&mut self.docks);
         let dock = docks.panel(ctx, "dim", pos, Some(anchor_screen), 250.0, &title, true, |ui| {
@@ -575,6 +576,12 @@ impl App {
                     }
                 });
             }
+            if matches!(&target, Target::Face { blend: Some(_), .. }) {
+                ui.checkbox(&mut whole_chain, tr("Whole chain"))
+                    .on_hover_text(tr(
+                        "Change all rounds of the same size that touch this one, not only the selected one",
+                    ));
+            }
             if show_angle {
                 ui.horizontal(|ui| {
                     ui.label(tr("Angle"));
@@ -634,6 +641,7 @@ impl App {
         self.edge_chamfer = chamfer;
         self.pull_mode = mode;
         self.chamfer_flip = flip;
+        self.blend_chain = whole_chain;
         self.chamfer_angle_text = angle_text;
         if let Some(t) = edge_text {
             self.edge_size_text = t;
@@ -730,6 +738,7 @@ impl App {
                         distance: v,
                         angle_deg: angle,
                         flip: self.chamfer_flip,
+                        chain: self.blend_chain,
                     });
                     self.set_status(tr("Computing…"), false);
                     return;
@@ -738,6 +747,7 @@ impl App {
                     body: *body,
                     face: FaceId(*face),
                     size: v,
+                    chain: self.blend_chain,
                 });
                 self.set_status(tr("Computing…"), false);
             }

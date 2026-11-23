@@ -1100,6 +1100,8 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         ],
     );
     extras.manifest = manifest;
+    let mut state = state;
+    crate::refresh_features(&mut state);
     Ok(Loaded {
         state,
         next_id: max_id + 1,
@@ -1409,7 +1411,7 @@ mod tests {
         e.apply(Command::EditBlend {
             body: id,
             face,
-            size: 8.0,
+            size: 8.0, chain: true,
         })
         .unwrap();
         assert!(e.body(id).unwrap().solid.volume().unwrap() < before);
@@ -1417,7 +1419,7 @@ mod tests {
         e.apply(Command::EditBlend {
             body: id,
             face,
-            size: 0.0,
+            size: 0.0, chain: true,
         })
         .unwrap();
         assert!(e.body(id).unwrap().features.is_empty());

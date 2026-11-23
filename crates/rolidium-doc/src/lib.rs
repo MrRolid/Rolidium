@@ -329,6 +329,8 @@ pub enum Command {
         body: BodyId,
         face: FaceId,
         size: f64,
+        /// All rounds of the same size that touch it follow (otherwise only the one the face belongs to).
+        chain: bool,
     },
     /// Chamfer with a distance and an angle (the second distance is distance * tan(angle)).
     ChamferAngled {
@@ -345,6 +347,7 @@ pub enum Command {
         distance: f64,
         angle_deg: f64,
         flip: bool,
+        chain: bool,
     },
     /// Combine bodies: the target with the others (merge, cut, intersect).
     Combine {
@@ -598,6 +601,32 @@ fn contour_loop(c: &Contour) -> Vec<ProfileSegment> {
         .collect()
 }
 
+/// The rounds and chamfers of every body, recognised from its geometry (so also for a body read from a STEP file or a file
+/// of another version, and after any operation).
+pub(crate) fn refresh_features(state: &mut State) {
+    for b in state.bodies.iter_mut() {
+        b.features = features_of(&b.solid);
+    }
+}
+
+fn features_of(solid: &Solid) -> Vec<Feature> {
+    let mut out = Vec::new();
+    for c in &solid.blend_map().components {
+        for r in &c.roundings {
+            let mut faces = r.faces.clone();
+            faces.extend(r.corners.iter().copied());
+            out.push(Feature {
+                kind: if r.chamfer { BlendKind::Chamfer } else { BlendKind::Round },
+                size: r.size,
+                faces,
+                angle: r.angle_deg,
+                flip: false,
+            });
+        }
+    }
+    out
+}
+
 /// Moves the faces of every feature to the faces that descend from them.
 fn remap_features(features: &mut Vec<Feature>, history: &History) {
     for f in features.iter_mut() {
@@ -761,6 +790,7 @@ impl Job {
         );
         anchor::refresh(&mut c.state);
         let notes = links::refresh(&mut c.state, &mut next);
+        refresh_features(&mut c.state);
         if !notes.is_empty() {
             let text = notes.join("; ");
             c.notice = Some(match c.notice.take() {
@@ -1543,34 +1573,27 @@ impl Job {
                 distance,
                 angle_deg,
                 flip,
+                chain,
             } => {
                 let b = st
                     .bodies
                     .iter_mut()
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let fi = b
-                    .features
-                    .iter()
-                    .position(|f| f.faces.contains(face) && f.kind == BlendKind::Chamfer)
+                let (ci, ri) = b
+                    .solid
+                    .blend_map()
+                    .rounding_of(*face)
                     .ok_or_else(|| KernelError::Invalid("this face is not a chamfer".into()))?;
-                let feat = b.features.remove(fi);
+                if !b.solid.blend_map().components[ci].roundings[ri].chamfer {
+                    return Err(KernelError::Invalid("this face is not a chamfer".into()).into());
+                }
+                if !angle_deg.is_finite() || *angle_deg <= 0.5 || *angle_deg >= 89.5 {
+                    return Err(KernelError::Invalid("the chamfer angle must be between 1 and 89 degrees".into()).into());
+                }
                 let r = b
                     .solid
-                    .edit_blend_angled(&feat.faces, *distance, true, *angle_deg, *flip)?;
-                remap_features(&mut b.features, &r.history);
-                if *distance > 1e-9 {
-                    let faces = r.history.new_faces(r.solid.face_count());
-                    if !faces.is_empty() {
-                        b.features.push(Feature {
-                            kind: BlendKind::Chamfer,
-                            size: *distance,
-                            faces,
-                            angle: *angle_deg,
-                            flip: *flip,
-                        });
-                    }
-                }
+                    .resize_blend(*face, *distance, *chain, Some((*angle_deg, *flip)))?;
                 b.solid = r.solid;
                 let mut c = self.done(
                     st,
@@ -1717,35 +1740,22 @@ impl Job {
                 c.touched_body = Some(first);
                 Ok(c)
             }
-            Command::EditBlend { body, face, size } => {
+            Command::EditBlend { body, face, size, chain } => {
                 let b = st
                     .bodies
                     .iter_mut()
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let fi = b
-                    .features
-                    .iter()
-                    .position(|f| f.faces.contains(face))
+                let (ci, ri) = b
+                    .solid
+                    .blend_map()
+                    .rounding_of(*face)
                     .ok_or_else(|| KernelError::Invalid("this face is not a round or a chamfer".into()))?;
-                let feat = b.features.remove(fi);
-                let chamfer = feat.kind == BlendKind::Chamfer;
+                let chamfer = b.solid.blend_map().components[ci].roundings[ri].chamfer;
+                let angle = b.solid.blend_map().components[ci].roundings[ri].angle_deg;
                 let r = b
                     .solid
-                    .edit_blend_angled(&feat.faces, *size, chamfer, feat.angle, feat.flip)?;
-                remap_features(&mut b.features, &r.history);
-                if *size > 1e-9 {
-                    let faces = r.history.new_faces(r.solid.face_count());
-                    if !faces.is_empty() {
-                        b.features.push(Feature {
-                            kind: feat.kind,
-                            size: *size,
-                            faces,
-                            angle: feat.angle,
-                            flip: feat.flip,
-                        });
-                    }
-                }
+                    .resize_blend(*face, *size, *chain, chamfer.then_some((angle, false)))?;
                 b.solid = r.solid;
                 let label = match (chamfer, *size > 1e-9) {
                     (false, true) => "Change round",
@@ -3343,7 +3353,10 @@ mod blend_tests {
     fn top(d: &Document, id: BodyId) -> FaceId {
         let s = &d.body(id).unwrap().solid;
         s.faces()
-            .find(|f| s.face_info(*f).unwrap().normal.z > 0.99)
+            .find(|f| {
+                let i = s.face_info(*f).unwrap();
+                i.kind == rolidium_kernel::FaceKind::Plane && i.normal.z > 0.99
+            })
             .unwrap()
     }
 
@@ -3360,7 +3373,7 @@ mod blend_tests {
 
     fn edit(d: &mut Document, id: BodyId, size: f64) -> Result<Computed, DocError> {
         let face = d.body(id).unwrap().features[0].faces[0];
-        d.apply(Command::EditBlend { body: id, face, size })
+        d.apply(Command::EditBlend { body: id, face, size, chain: true })
     }
 
     #[test]
@@ -3418,7 +3431,7 @@ mod blend_tests {
             .apply(Command::EditBlend {
                 body: id,
                 face: f,
-                size: 2.0
+                size: 2.0, chain: true
             })
             .is_err());
     }
@@ -3584,24 +3597,29 @@ mod neighbour_blend_tests {
         assert!((b.solid.volume().unwrap() - want).abs() < 1e-3);
         assert_eq!(
             b.features.len(),
-            2,
-            "the old round and the new one are separate features"
+            3,
+            "the rounds of the three edges are recognised from the geometry, each one for itself"
         );
-        // the new one can be changed and removed on its own
-        let new_face = b.features.iter().find(|f| f.faces.len() < 3).unwrap().faces[0];
+        // the new one (along Y, between the two old ones) can be changed and removed on its own
+        let new_face = b
+            .features
+            .iter()
+            .map(|f| f.faces[0])
+            .find(|f| b.solid.face_info(*f).unwrap().normal.y.abs() > 0.99)
+            .unwrap();
         let before = d.body(id).unwrap().solid.volume().unwrap();
         d.apply(Command::EditBlend {
             body: id,
             face: new_face,
-            size: 0.0,
+            size: 0.0, chain: false,
         })
         .unwrap();
         assert!(d.body(id).unwrap().solid.volume().unwrap() > before);
-        assert_eq!(d.body(id).unwrap().features.len(), 1);
+        assert_eq!(d.body(id).unwrap().features.len(), 2);
         // one undo step for the whole combined operation
         d.undo();
         d.undo();
-        assert_eq!(d.body(id).unwrap().features.len(), 1);
+        assert_eq!(d.body(id).unwrap().features.len(), 2);
         assert!(
             (d.body(id).unwrap().solid.volume().unwrap()
                 - (8000.0 - 2.0 * 9.0 * (1.0 - std::f64::consts::PI / 4.0) * 20.0))
@@ -3739,7 +3757,7 @@ mod phase1g_tests {
         d.apply(Command::EditBlend {
             body: id,
             face,
-            size: 8.0,
+            size: 8.0, chain: true,
         })
         .unwrap();
         assert!((vol(&d, id) - 23725.31).abs() < 0.01);
@@ -4186,7 +4204,7 @@ mod phase1h_tests {
         d.apply(Command::EditBlend {
             body: a,
             face,
-            size: 5.0,
+            size: 5.0, chain: true,
         })
         .unwrap();
     }
@@ -4237,26 +4255,29 @@ mod phase1h_tests {
             face,
             distance: 5.0,
             angle_deg: 30.0,
-            flip: true,
+            flip: true, chain: true,
         })
         .unwrap();
         assert!((v(&d) - 23855.66).abs() < 0.01);
-        assert!(d.body(id).unwrap().features[0].flip);
+        // the chamfer is recognised from the geometry: the same chamfer is described from its other face (60 degrees)
+        let f = &d.body(id).unwrap().features[0];
+        assert_eq!(f.angle, 60.0);
+        assert!((f.size - 5.0 * 30f64.to_radians().tan()).abs() < 1e-6);
         let face = d.body(id).unwrap().features[0].faces[0];
         d.apply(Command::EditBlend {
             body: id,
             face,
-            size: 4.0,
+            size: 4.0, chain: true,
         })
         .unwrap();
-        assert_eq!(d.body(id).unwrap().features[0].angle, 30.0);
+        assert_eq!(d.body(id).unwrap().features[0].angle, 60.0, "a size change keeps the shape of the chamfer");
         let face = d.body(id).unwrap().features[0].faces[0];
         d.apply(Command::EditChamfer {
             body: id,
             face,
             distance: 5.0,
             angle_deg: 60.0,
-            flip: false,
+            flip: false, chain: true,
         })
         .unwrap();
         assert!((v(&d) - 23566.99).abs() < 0.01);
@@ -4266,7 +4287,7 @@ mod phase1h_tests {
             face,
             distance: 0.0,
             angle_deg: 60.0,
-            flip: false,
+            flip: false, chain: true,
         })
         .unwrap();
         assert!((v(&d) - 24000.0).abs() < 1e-6);

@@ -532,7 +532,7 @@ impl App {
                     self.submit(Command::EditBlend {
                         body: b,
                         face: FaceId(f),
-                        size: 4.0,
+                        size: 4.0, chain: true,
                     });
                 }
                 st.wait_frames = 2;
@@ -553,7 +553,7 @@ impl App {
                 self.submit(Command::EditBlend {
                     body: b,
                     face: FaceId(f),
-                    size: 0.0,
+                    size: 0.0, chain: true,
                 });
                 st.wait_frames = 2;
             }
