@@ -66,6 +66,10 @@ pub fn mesh_entry(b: &BodyInput) -> Result<MeshEntry, String> {
 /// The entry of a body for a given mesh of it.
 pub fn entry_of(b: &BodyInput, mesh: Mesh) -> Result<MeshEntry, String> {
     let (id, name, solid, color) = b;
+    // a body with faces and no triangle is a mesh that was stopped or failed, not a body to show as empty
+    if solid.face_count() > 0 && mesh.triangle_count() == 0 {
+        return Err("The display mesh of the body could not be made, so the view was not changed".into());
+    }
     let mut sums = vec![(glam::Vec3::ZERO, 0u32); solid.face_count()];
     let mut bounds = vec![(glam::Vec3::splat(f32::MAX), glam::Vec3::splat(f32::MIN)); solid.face_count()];
     for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {

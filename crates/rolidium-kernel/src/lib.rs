@@ -52,7 +52,8 @@ pub use ops::{
     SectionCurve,
 };
 pub use sweep::{
-    polyline_segments, HelixDef, Path, PathSeg, PathSource, SweepOptions, SweepResult, SweepWarning,
+    polyline_segments, HelixDef, Path, PathSeg, PathSource, SweepOptions, SweepResult, SweepWarning, HELIX_MAX_TURNS,
+    HELIX_WARN_TURNS,
 };
 
 use cxx::SharedPtr;

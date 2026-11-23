@@ -389,6 +389,8 @@ pub struct App {
     recovery: Option<files::Recovery>,
     /// Set while an autosave is being opened: the path of the document it came from.
     recovering: Option<Option<PathBuf>>,
+    /// When the last restore of an autosave began (until the program has run on for a while after it).
+    restore_started: Option<Instant>,
     /// After a start with another graphics backend than usual: which backends failed and which one runs now (shown once).
     startup_notice: Option<(Vec<String>, String)>,
 }
@@ -592,6 +594,7 @@ impl App {
             last_autosave: Instant::now(),
             recovery: None,
             recovering: None,
+            restore_started: None,
             startup_notice: crate::startup::take_notice(),
         };
         app.grid_text = fmt_num(app.settings.grid_step);

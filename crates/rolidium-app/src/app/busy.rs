@@ -16,6 +16,8 @@ pub const CANCELLED: &str = "Cancelled";
 impl App {
     /// Bookkeeping once a frame: since when the program has been busy.
     pub(super) fn busy_tick(&mut self) {
+        crate::memwatch::start();
+        crate::memwatch::set_computing(!self.idle());
         if self.idle() {
             self.busy_since = None;
             if self.cancelling {
@@ -45,7 +47,17 @@ impl App {
     /// The result of a cancelled calculation arrived (or the text is something else: `false`).
     pub(super) fn was_cancelled(&mut self, msg: &str) -> bool {
         if msg == CANCELLED {
-            self.set_status("Cancelled: the model is unchanged", false);
+            if crate::memwatch::take_stopped() {
+                self.set_status(
+                    trf(
+                        "The calculation needed too much memory (more than {} MB) and was stopped. The model is unchanged. A smaller or simpler shape needs less",
+                        &[crate::memwatch::limit_mb().to_string()],
+                    ),
+                    true,
+                );
+            } else {
+                self.set_status("Cancelled: the model is unchanged", false);
+            }
             true
         } else {
             false

@@ -21,6 +21,10 @@ pub enum Pending {
 pub struct Recovery {
     pub original: Option<PathBuf>,
     pub age: String,
+    /// The last attempt to restore this copy stopped the program (it did not run on for a while afterwards).
+    pub failed_before: bool,
+    /// There is the copy before the last one (the last change is not in it).
+    pub has_previous: bool,
 }
 
 fn data_dir() -> PathBuf {
@@ -38,9 +42,51 @@ fn autosave_meta() -> PathBuf {
     data_dir().join("autosave.json")
 }
 
+/// The copy before the last one: restoring it leaves out the last change (which may be the one that stopped the program).
+pub fn previous_file() -> PathBuf {
+    data_dir().join("autosave-previous.rolidium")
+}
+/// Written when a restore starts and removed when the program has run on for a while: if it is still there at the next start, the restore failed.
+fn attempt_marker() -> PathBuf {
+    data_dir().join("restoring")
+}
+
 pub fn remove_autosave() {
     let _ = std::fs::remove_file(autosave_file());
     let _ = std::fs::remove_file(autosave_meta());
+    let _ = std::fs::remove_file(previous_file());
+    let _ = std::fs::remove_file(attempt_marker());
+}
+
+/// A restore of `which` starts: the marker is written first.
+pub fn begin_restore(which: &std::path::Path) {
+    let _ = std::fs::create_dir_all(data_dir());
+    let _ = std::fs::write(attempt_marker(), which.display().to_string());
+}
+
+/// The program ran on after the restore: it worked.
+pub fn end_restore() {
+    let _ = std::fs::remove_file(attempt_marker());
+}
+
+/// A copy that could not be restored is put aside (it is not offered again, the person can still look at the file).
+pub fn put_aside() -> Option<PathBuf> {
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let to = data_dir().join(format!("autosave-not-restored-{stamp}.rolidium"));
+    let moved = std::fs::rename(autosave_file(), &to).ok().map(|_| to);
+    let _ = std::fs::remove_file(autosave_meta());
+    let _ = std::fs::remove_file(previous_file());
+    let _ = std::fs::remove_file(attempt_marker());
+    moved
+}
+
+/// Before an autosave is written the one that is there becomes the previous one.
+pub fn rotate_autosave() {
+    if autosave_file().exists() {
+        let _ = std::fs::rename(autosave_file(), previous_file());
+    }
 }
 
 /// An autosave from an earlier run, if there is one.
@@ -63,7 +109,12 @@ pub fn find_recovery() -> Option<Recovery> {
         .ok()
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .and_then(|v| v["original"].as_str().map(PathBuf::from));
-    Some(Recovery { original, age })
+    Some(Recovery {
+        original,
+        age,
+        failed_before: attempt_marker().exists(),
+        has_previous: previous_file().exists(),
+    })
 }
 
 pub fn display_name(path: &Option<PathBuf>) -> String {
@@ -242,6 +293,13 @@ impl App {
 
     /// Autosave: only when something changed since the last one, never while another job runs.
     pub(super) fn autosave_tick(&mut self) {
+        // a restored copy that the program has lived with for a while is good: the marker of the attempt goes
+        if let Some(t) = self.restore_started {
+            if self.idle() && t.elapsed().as_secs() >= 10 {
+                end_restore();
+                self.restore_started = None;
+            }
+        }
         let minutes = self.settings.autosave_minutes;
         if minutes == 0 || self.selftest.is_some() || self.bench.is_some() || self.autosave_inflight {
             return;
@@ -265,6 +323,7 @@ impl App {
         }
         self.last_autosave = Instant::now();
         let _ = std::fs::create_dir_all(data_dir());
+        rotate_autosave();
         let meta =
             serde_json::json!({ "original": self.file_path.as_ref().map(|p| p.display().to_string()) });
         let _ = std::fs::write(autosave_meta(), meta.to_string());
@@ -469,8 +528,9 @@ impl App {
     #[allow(deprecated)]
     fn recovery_window(&mut self, ctx: &egui::Context) {
         let Some(r) = &self.recovery else { return };
-        let (age, original) = (r.age.clone(), r.original.clone());
-        let mut choice: Option<bool> = None;
+        let (age, original, failed, previous) = (r.age.clone(), r.original.clone(), r.failed_before, r.has_previous);
+        // 0 restore, 1 restore without the last change, 2 discard, 3 start without restoring
+        let mut choice: Option<u8> = None;
         egui::Window::new(tr("Recover unsaved work"))
             .collapsible(false)
             .resizable(false)
@@ -478,31 +538,116 @@ impl App {
             .show(ctx, |ui| {
                 ui.label(tr("Rolidium was not closed properly the last time."));
                 ui.label(trf("There is an automatic copy of your work from {}.", &[age]));
+                if failed {
+                    ui.colored_label(
+                        crate::theme::rgb(255, 190, 90),
+                        tr("The last attempt to restore this copy stopped the program. Start without restoring, or restore the copy before the last change."),
+                    );
+                }
                 ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button(tr("Restore")).clicked() {
-                        choice = Some(true);
+                ui.horizontal_wrapped(|ui| {
+                    if failed {
+                        if ui.button(tr("Start without restoring")).clicked() {
+                            choice = Some(3);
+                        }
+                    } else if ui.button(tr("Restore")).clicked() {
+                        choice = Some(0);
+                    }
+                    if previous && ui.button(tr("Restore without the last change")).clicked() {
+                        choice = Some(1);
                     }
                     if ui.button(tr("Discard")).clicked() {
-                        choice = Some(false);
+                        choice = Some(2);
                     }
                 });
             });
-        match choice {
-            Some(true) => {
-                self.recovery = None;
-                self.recovering = Some(original);
-                if self.worker.send(Work::OpenFile {
-                    path: autosave_file(),
-                }) {
-                    self.busy = Busy::File;
-                }
+        let restore = |app: &mut App, file: PathBuf, original: Option<PathBuf>| {
+            app.recovery = None;
+            app.recovering = Some(original);
+            begin_restore(&file);
+            app.restore_started = Some(Instant::now());
+            if app.worker.send(Work::OpenFile { path: file }) {
+                app.busy = Busy::File;
             }
-            Some(false) => {
+        };
+        match choice {
+            Some(0) => restore(self, autosave_file(), original),
+            Some(1) => restore(self, previous_file(), original),
+            Some(2) => {
                 self.recovery = None;
                 remove_autosave();
             }
-            None => {}
+            Some(3) => {
+                self.recovery = None;
+                if let Some(to) = put_aside() {
+                    self.set_status(
+                        trf("The copy was put aside in {}", &[to.display().to_string()]),
+                        false,
+                    );
+                }
+            }
+            _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+
+    /// The directory of the autosave is taken from the environment, so these tests run one after another.
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn in_temp_dir(name: &str, f: impl FnOnce()) {
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("rolidium-recovery-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("ROLIDIUM_AUTOSAVE_DIR", &dir);
+        f();
+        std::env::remove_var("ROLIDIUM_AUTOSAVE_DIR");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_copy_before_the_last_one_is_kept_and_offered() {
+        in_temp_dir("previous", || {
+            std::fs::write(autosave_file(), b"first").unwrap();
+            assert!(!find_recovery().unwrap().has_previous);
+            // a new autosave: the old one becomes the previous one
+            rotate_autosave();
+            std::fs::write(autosave_file(), b"second").unwrap();
+            let r = find_recovery().unwrap();
+            assert!(r.has_previous && !r.failed_before);
+            assert_eq!(std::fs::read(previous_file()).unwrap(), b"first");
+            assert_eq!(std::fs::read(autosave_file()).unwrap(), b"second");
+        });
+    }
+
+    #[test]
+    fn a_restore_that_stopped_the_program_is_not_offered_again_as_a_restore() {
+        in_temp_dir("failed", || {
+            std::fs::write(autosave_file(), b"heavy").unwrap();
+            assert!(!find_recovery().unwrap().failed_before);
+            // the restore starts and the program dies: the marker stays
+            begin_restore(&autosave_file());
+            let r = find_recovery().unwrap();
+            assert!(r.failed_before, "the next start knows that the restore failed");
+            // "start without restoring": the copy is put aside and nothing is offered any more
+            let aside = put_aside().expect("moved");
+            assert!(aside.exists());
+            assert!(find_recovery().is_none());
+            assert!(!attempt_marker().exists());
+        });
+    }
+
+    #[test]
+    fn a_restore_that_worked_leaves_no_marker() {
+        in_temp_dir("worked", || {
+            std::fs::write(autosave_file(), b"fine").unwrap();
+            begin_restore(&autosave_file());
+            end_restore();
+            assert!(!find_recovery().unwrap().failed_before);
+        });
     }
 }

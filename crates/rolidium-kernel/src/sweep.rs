@@ -39,6 +39,66 @@ pub struct HelixDef {
     pub cone_deg: f64,
 }
 
+/// More turns than this are refused: the body of a sweep along such a helix has tens of thousands of faces and its calculation does not end in
+/// a useful time (1000 turns on a cone brought the program down).
+pub const HELIX_MAX_TURNS: f64 = 300.0;
+/// From this number of turns on the person is warned and asked to confirm (the body is large and slow to calculate).
+pub const HELIX_WARN_TURNS: f64 = 40.0;
+
+impl HelixDef {
+    /// The height along the axis (mm).
+    pub fn height(&self) -> f64 {
+        self.pitch.abs() * self.turns
+    }
+
+    /// The radius at the end of the helix; the cone (`cone_deg` negative: narrowing along the axis) is followed from the start.
+    pub fn end_radius(&self) -> f64 {
+        self.radius + self.height() * self.cone_deg.to_radians().tan()
+    }
+
+    /// The largest height the helix can have on its cone: where the radius would reach zero (the apex); `None` on a cylinder or a widening cone.
+    pub fn apex_height(&self) -> Option<f64> {
+        let t = self.cone_deg.to_radians().tan();
+        (t < -1e-9 && self.radius > 0.0).then(|| self.radius / -t)
+    }
+
+    /// Refuses a helix that is not a helix on its surface: it may not pass the apex of its cone (the radius would reach zero and then grow
+    /// again as an inverted cone) and it may not have more than [`HELIX_MAX_TURNS`] turns.
+    pub fn check(&self) -> Result<()> {
+        if !(self.radius.is_finite() && self.radius > 0.0 && self.pitch.is_finite() && self.pitch.abs() > 1e-9 && self.turns.is_finite() && self.turns > 0.0) {
+            return Ok(()); // the other checks of the construction report these
+        }
+        if let Some(max) = self.apex_height() {
+            // the radius must stay above a hundredth of the start radius
+            let limit = max * 0.99;
+            if self.height() > limit + 1e-9 {
+                return Err(KernelError::Invalid(format!(
+                    "The helix would pass the apex of the cone (the radius would reach zero). The largest height is {} mm, which is {} turns at this pitch",
+                    trim(limit),
+                    trim(limit / self.pitch.abs())
+                )));
+            }
+        }
+        if self.turns > HELIX_MAX_TURNS {
+            return Err(KernelError::Invalid(format!(
+                "A helix of {} turns is too large: the limit is {} turns",
+                trim(self.turns),
+                trim(HELIX_MAX_TURNS)
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn trim(v: f64) -> String {
+    let r = (v * 100.0).round() / 100.0;
+    if r.fract() == 0.0 {
+        format!("{}", r as i64)
+    } else {
+        format!("{r}")
+    }
+}
+
 pub enum PathSource<'a> {
     Segments(&'a [PathSeg]),
     Helix(HelixDef),
@@ -122,6 +182,7 @@ impl Path {
                 if x.cross(axis).length() < 1e-9 {
                     x = if axis.x.abs() < 0.9 { DVec3::X } else { DVec3::Y };
                 }
+                h.check()?;
                 helix_axis = Some(axis);
                 helix_pitch = Some(h.pitch.abs());
                 let mut d = vec![3.0];

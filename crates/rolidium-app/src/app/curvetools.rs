@@ -37,6 +37,12 @@ pub struct HelixUi {
     pub start: String,
     pub cone: String,
     pub right: bool,
+    /// Which of height, pitch and turns is calculated from the other two: 0 height, 1 pitch, 2 turns.
+    pub solve: u8,
+    /// The height of the face the axis was taken from: the helix may not leave it.
+    pub limit_height: Option<f64>,
+    /// The person confirmed a helix with many turns.
+    pub confirm_big: bool,
     preview_key: String,
     pub preview: Vec<Vec3>,
     pub error: Option<String>,
@@ -54,6 +60,9 @@ impl Default for HelixUi {
             start: "0".into(),
             cone: "0".into(),
             right: true,
+            solve: 0,
+            limit_height: None,
+            confirm_big: false,
             preview_key: String::new(),
             preview: Vec::new(),
             error: None,
@@ -62,6 +71,28 @@ impl Default for HelixUi {
 }
 
 impl HelixUi {
+    /// Calculates the value that is not typed (see `solve`) from the other two.
+    fn recompute(&mut self) {
+        let (p, ht, t) = (parse_num(&self.pitch), parse_num(&self.height), parse_num(&self.turns));
+        match self.solve {
+            0 => {
+                if let (Some(p), Some(t)) = (p, t) {
+                    self.height = fmt_num(t * p.abs());
+                }
+            }
+            1 => {
+                if let (Some(ht), Some(t)) = (ht, t.filter(|t| *t > 1e-9)) {
+                    self.pitch = fmt_num(ht / t);
+                }
+            }
+            _ => {
+                if let (Some(p), Some(ht)) = (p.filter(|p| p.abs() > 1e-9), ht) {
+                    self.turns = fmt_num(ht / p.abs());
+                }
+            }
+        }
+    }
+
     fn def(&self) -> Option<HelixDef> {
         let (origin, axis) = self.axis?;
         Some(HelixDef {
@@ -85,6 +116,8 @@ pub struct SweepUi {
     pub path: Option<SweepPath>,
     pub mode: SweepMode,
     pub rounded: bool,
+    /// The person confirmed a sweep along a helix with many turns.
+    pub confirm_big: bool,
     pub preview: Vec<Vec3>,
 }
 
@@ -95,6 +128,7 @@ impl Default for SweepUi {
             path: None,
             mode: SweepMode::Auto,
             rounded: false,
+            confirm_big: false,
             preview: Vec::new(),
         }
     }
@@ -655,12 +689,15 @@ impl App {
             self.helix.diameter = fmt_num(d);
             self.helix.cone = fmt_num(cone);
             self.helix.start = "0".into();
-            // the helix runs along the whole face: the height of the face, and the turns that fit it
+            // the helix runs along the whole face: its height is fixed, the turns are typed and the pitch follows
             self.helix.height = fmt_num(height);
-            if let Some(p) = parse_num(&self.helix.pitch).filter(|p| p.abs() > 1e-9) {
-                self.helix.turns = fmt_num(height / p.abs());
-            }
+            self.helix.limit_height = Some(height);
+            self.helix.solve = 1;
+            self.helix.recompute();
+        } else {
+            self.helix.limit_height = None;
         }
+        self.helix.confirm_big = false;
         self.helix.preview_key.clear();
         self.layers_changed = true;
     }
@@ -685,6 +722,12 @@ impl App {
         self.helix.error = None;
         self.helix.preview.clear();
         match self.helix.def() {
+            Some(def) if self.helix.limit_height.is_some_and(|l| def.height() > l + 1e-6) => {
+                self.helix.error = Some(format!(
+                    "The helix would leave the face. The largest height is {} mm",
+                    fmt_num(self.helix.limit_height.unwrap_or(0.0))
+                ))
+            }
             Some(def) => match CurveDef::Helix(def).path() {
                 Ok(p) => {
                     self.helix.preview = p
@@ -715,44 +758,68 @@ impl App {
             if self.helix.axis.is_none() {
                 ui.label(tr("Click the axis: a cylindrical face, a straight edge or line, or a point for a vertical axis"));
             }
-            let pitch = parse_num(&self.helix.pitch).filter(|p| p.abs() > 1e-9);
-            let field = |ui: &mut egui::Ui, label: &str, text: &mut String, unit: &str| -> bool {
+            let field = |ui: &mut egui::Ui, label: &str, text: &mut String, unit: &str, enabled: bool| -> bool {
                 let mut changed = false;
                 ui.horizontal(|ui| {
                     ui.label(label);
-                    changed = ui.add(egui::TextEdit::singleline(text).desired_width(60.0)).changed();
+                    changed = ui
+                        .add_enabled(enabled, egui::TextEdit::singleline(text).desired_width(60.0))
+                        .changed();
                     ui.label(unit);
+                    if !enabled {
+                        ui.label(egui::RichText::new(tr("(calculated)")).weak());
+                    }
                 });
                 changed
             };
             let mut h = std::mem::take(&mut self.helix);
-            field(ui, &tr("Diameter"), &mut h.diameter, "mm");
-            if field(ui, &tr("Pitch"), &mut h.pitch, "mm") {
-                if let (Some(p), Some(t)) = (parse_num(&h.pitch).filter(|p| p.abs() > 1e-9), parse_num(&h.turns)) {
-                    h.height = fmt_num(t * p.abs());
+            field(ui, &tr("Diameter"), &mut h.diameter, "mm", true);
+            let mut changed = field(ui, &tr("Pitch"), &mut h.pitch, "mm", h.solve != 1);
+            changed |= field(ui, &tr("Height"), &mut h.height, "mm", h.solve != 0);
+            changed |= field(ui, &tr("Turns"), &mut h.turns, "", h.solve != 2);
+            ui.horizontal(|ui| {
+                ui.label(tr("Calculate"));
+                let before = h.solve;
+                ui.selectable_value(&mut h.solve, 1, tr("Pitch"));
+                ui.selectable_value(&mut h.solve, 0, tr("Height"));
+                ui.selectable_value(&mut h.solve, 2, tr("Turns"));
+                if h.solve != before {
+                    changed = true;
                 }
+            })
+            .response
+            .on_hover_text(tr(
+                "Two of height, pitch and turns are typed, the third is calculated. Choose which one is calculated.",
+            ));
+            if changed {
+                h.recompute();
+                h.confirm_big = false;
             }
-            if field(ui, &tr("Height"), &mut h.height, "mm") {
-                if let (Some(p), Some(ht)) = (pitch, parse_num(&h.height)) {
-                    h.turns = fmt_num(ht / p.abs());
-                }
-            }
-            if field(ui, &tr("Turns"), &mut h.turns, "") {
-                if let (Some(p), Some(t)) = (pitch, parse_num(&h.turns)) {
-                    h.height = fmt_num(t * p.abs());
-                }
+            let many = parse_num(&h.turns).is_some_and(|t| t > rolidium_kernel::HELIX_WARN_TURNS);
+            if many {
+                ui.colored_label(
+                    crate::theme::rgb(255, 190, 90),
+                    tr("This helix has many turns: a body swept along it is large and slow to calculate"),
+                );
+                ui.checkbox(&mut h.confirm_big, tr("Create it anyway"));
             }
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut h.right, true, tr("Right-handed"));
                 ui.selectable_value(&mut h.right, false, tr("Left-handed"));
             });
-            field(ui, &tr("Start angle"), &mut h.start, "°");
-            field(ui, &tr("Cone angle"), &mut h.cone, "°");
+            field(ui, &tr("Start angle"), &mut h.start, "°", true);
+            field(ui, &tr("Cone angle"), &mut h.cone, "°", true);
             if let Some(e) = &h.error {
                 ui.colored_label(crate::theme::rgb(255, 120, 110), tr(e));
             }
             ui.horizontal(|ui| {
-                if ui.add_enabled(h.axis.is_some() && h.error.is_none(), egui::Button::new(tr("Create"))).clicked() {
+                if ui
+                    .add_enabled(
+                        h.axis.is_some() && h.error.is_none() && (!many || h.confirm_big),
+                        egui::Button::new(tr("Create")),
+                    )
+                    .clicked()
+                {
                     create = true;
                 }
                 if ui.button(tr("Cancel")).clicked() {
@@ -1111,8 +1178,24 @@ impl App {
                 {
                     changed = true;
                 }
+                // a long helix makes a body of thousands of faces: ask first
+                let many = match &self.sweep.path {
+                    Some(SweepPath::Curve(id)) => self.doc.curve(*id).is_some_and(|c| {
+                        matches!(&c.def, CurveDef::Helix(h) if h.turns > rolidium_kernel::HELIX_WARN_TURNS)
+                    }),
+                    _ => false,
+                };
+                if many {
+                    ui.colored_label(
+                        crate::theme::rgb(255, 190, 90),
+                        tr("This helix has many turns: a body swept along it is large and slow to calculate"),
+                    );
+                    ui.checkbox(&mut self.sweep.confirm_big, tr("Create it anyway"));
+                }
                 ui.horizontal(|ui| {
-                    let ready = self.sweep.profile.is_some() && self.sweep.path.is_some();
+                    let ready = self.sweep.profile.is_some()
+                        && self.sweep.path.is_some()
+                        && (!many || self.sweep.confirm_big);
                     if ui.add_enabled(ready, egui::Button::new(tr("Apply"))).clicked() {
                         apply = true;
                     }

@@ -123,12 +123,20 @@ namespace {
 
 std::recursive_mutex g_lock;
 
+// Set when an algorithm of the running (locked) call saw the cancel flag. The flag itself can be cleared by the next job before the call
+// looks at it; an algorithm that stopped half way would then pass for a finished one (a damaged mesh or solid). This one stays set until
+// the next locked call starts.
+std::atomic<bool> g_hit{false};
+
 [[noreturn]] void fail(const std::string& what) { throw std::runtime_error(what); }
 
 template <bool Lock, typename F>
 auto guarded_impl(const char* name, F&& f) -> decltype(f()) {
     std::unique_lock<std::recursive_mutex> lock(g_lock, std::defer_lock);
-    if (Lock) lock.lock();
+    if (Lock) {
+        lock.lock();
+        g_hit.store(false);
+    }
     static const bool quiet = [] {
         // Open CASCADE prints diagnostics to stdout; we report errors through Results instead.
         Message::DefaultMessenger()->RemovePrinters(STANDARD_TYPE(Message_Printer));
@@ -184,7 +192,13 @@ struct StageTimer {
 
 class CancelIndicator : public Message_ProgressIndicator {
 public:
-    bool UserBreak() override { return g_cancel.load(); }
+    // `hit` is the memory of this indicator (a mesh run has its own), `g_hit` that of the locked call
+    std::atomic<bool> hit{false};
+    bool UserBreak() override {
+        const bool b = g_cancel.load();
+        if (b) { hit.store(true); g_hit.store(true); }
+        return b;
+    }
     void Show(const Message_ProgressScope&, const bool) override {}
 };
 
@@ -193,7 +207,7 @@ static Handle(CancelIndicator) g_indicator = new CancelIndicator();
 static Message_ProgressRange progress() { return g_indicator->Start(); }
 
 static void check_cancelled() {
-    if (g_cancel.load()) fail("cancelled");
+    if (g_cancel.load() || g_hit.load()) fail("cancelled");
 }
 
 /// a minus b, cancellable.
@@ -1260,7 +1274,8 @@ MeshData mesh_shape_regions(const Shape& sh, double linear, double angular, doub
             }
             BRepMesh_IncrementalMesh im(comp, mp, ind->Start());
         }
-        check_cancelled();
+        // a run that was stopped has left faces without triangles: it is not a mesh, whatever the flag says now
+        if (ind->hit.load() || g_cancel.load()) fail("cancelled");
         MeshData m;
         for (int fi = 1; fi <= sh.faces.Extent(); ++fi) {
             m.face_fine.push_back(is_fine(fi) ? 1 : 0);

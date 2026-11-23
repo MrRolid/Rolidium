@@ -16,6 +16,7 @@ mod guide;
 mod i18n;
 mod icons;
 mod logging;
+mod memwatch;
 mod session;
 mod settings;
 mod sketchguides;
