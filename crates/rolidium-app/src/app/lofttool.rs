@@ -273,7 +273,10 @@ impl App {
         }
         self.pending = None;
         // a loft is a link: it remembers its profiles and follows them when a sketch changes
-        let kind = match self.doc.loft_link(&self.loft.profiles, self.loft.ruled, self.loft.mode) {
+        let kind = match self
+            .doc
+            .loft_link(&self.loft.profiles, self.loft.ruled, self.loft.mode)
+        {
             Ok(k) => k,
             Err(e) => {
                 self.set_status(e.to_string(), true);

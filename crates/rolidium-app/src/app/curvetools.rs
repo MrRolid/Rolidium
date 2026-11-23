@@ -1025,7 +1025,10 @@ impl App {
         }
         self.pending = None;
         // a sweep is a link: it remembers its profile and its path and follows them
-        let kind = match self.doc.sweep_link(&profile, &path, self.sweep.rounded, self.sweep.mode) {
+        let kind = match self
+            .doc
+            .sweep_link(&profile, &path, self.sweep.rounded, self.sweep.mode)
+        {
             Ok(k) => k,
             Err(e) => {
                 self.set_status(e.to_string(), true);

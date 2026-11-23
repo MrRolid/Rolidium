@@ -4386,9 +4386,7 @@ impl eframe::App for App {
                     "none" => "none".to_string(),
                     n => format!("{n} fps"),
                 },
-                crate::settings::PRESENT
-                    .get()
-                    .map_or("-", |s| s.as_str()),
+                crate::settings::PRESENT.get().map_or("-", |s| s.as_str()),
                 crate::startup::frame_count()
             );
             // who asked for the last frame (a frame without a reason is a bug: nothing should draw at rest)
@@ -4396,9 +4394,22 @@ impl eframe::App for App {
                 .repaint_causes()
                 .iter()
                 .take(3)
-                .map(|c| format!("{}:{}", c.file.rsplit(['/', '\\']).next().unwrap_or(c.file), c.line))
+                .map(|c| {
+                    format!(
+                        "{}:{}",
+                        c.file.rsplit(['/', '\\']).next().unwrap_or(c.file),
+                        c.line
+                    )
+                })
                 .collect();
-            let text = format!("{text}\nlast frame asked for by: {}", if causes.is_empty() { "-".into() } else { causes.join(", ") });
+            let text = format!(
+                "{text}\nlast frame asked for by: {}",
+                if causes.is_empty() {
+                    "-".into()
+                } else {
+                    causes.join(", ")
+                }
+            );
             // inside the model area (never over the bars or the columns): default in the lower left corner, dragged by the mouse
             let vr = self.viewport_rect;
             let [ox, oy] = self.settings.diag_pos.unwrap_or([8.0, 8.0]);
@@ -4430,10 +4441,7 @@ impl eframe::App for App {
             if area.response.dragged() {
                 let d = area.response.drag_delta();
                 let [x, y] = self.settings.diag_pos.unwrap_or([8.0, 8.0]);
-                self.settings.diag_pos = Some([
-                    (x + d.x).clamp(0.0, max_x),
-                    (y - d.y).clamp(0.0, max_y),
-                ]);
+                self.settings.diag_pos = Some([(x + d.x).clamp(0.0, max_x), (y - d.y).clamp(0.0, max_y)]);
             }
             if area.response.drag_stopped() {
                 self.settings.save();

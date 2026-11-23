@@ -235,7 +235,11 @@ impl Settings {
                         .unwrap_or(1.0)
                 }
                 "fps_cap" => {
-                    s.fps_cap = if FPS_CAPS.contains(&v) { v.to_string() } else { "monitor".into() }
+                    s.fps_cap = if FPS_CAPS.contains(&v) {
+                        v.to_string()
+                    } else {
+                        "monitor".into()
+                    }
                 }
                 "diag_pos" => {
                     let mut it = v.split(',').filter_map(|n| n.trim().parse::<f32>().ok());

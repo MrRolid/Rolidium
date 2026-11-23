@@ -488,7 +488,11 @@ fn apply(st: &mut State, link: &mut Link, out: Outcome, next: &mut u64) {
             link.results = old;
             return;
         };
-        let id = match old.first().copied().filter(|id| st.bodies.iter().any(|b| b.id == *id)) {
+        let id = match old
+            .first()
+            .copied()
+            .filter(|id| st.bodies.iter().any(|b| b.id == *id))
+        {
             Some(id) => {
                 if let Some(b) = st.bodies.iter_mut().find(|b| b.id == id) {
                     b.solid = solid;

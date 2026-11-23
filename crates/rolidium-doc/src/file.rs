@@ -198,7 +198,9 @@ fn axis_from(v: &Value) -> Result<crate::Axis, FileError> {
 
 fn ref_json(r: &crate::LoftRef) -> Value {
     match r {
-        crate::LoftRef::Region { sketch, region } => json!({"kind": "region", "sketch": sketch, "region": region}),
+        crate::LoftRef::Region { sketch, region } => {
+            json!({"kind": "region", "sketch": sketch, "region": region})
+        }
         crate::LoftRef::Face { body, face } => json!({"kind": "face", "body": body, "face": face.0}),
         crate::LoftRef::EdgeLoop { body, edge } => json!({"kind": "edge_loop", "body": body, "edge": edge}),
     }
@@ -300,10 +302,17 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("origin".into(), arr3(m.origin));
             j.insert("normal".into(), arr3(m.normal));
         }
-        LinkKind::Loft { profiles, ruled, mode: m } => {
+        LinkKind::Loft {
+            profiles,
+            ruled,
+            mode: m,
+        } => {
             j.insert("type".into(), json!("loft"));
             mode(m, &mut j);
-            j.insert("profiles".into(), Value::Array(profiles.iter().map(ref_json).collect()));
+            j.insert(
+                "profiles".into(),
+                Value::Array(profiles.iter().map(ref_json).collect()),
+            );
             j.insert("ruled".into(), json!(ruled));
         }
         LinkKind::Sweep {
@@ -416,8 +425,14 @@ fn link_from(
     }
     // a loft or a sweep whose sketches or curves are not in the file is dropped too (its body stays)
     let deps = crate::generate::deps(&kind);
-    if deps.sketches.iter().any(|s| !state.sketches.iter().any(|x| x.id == *s))
-        || deps.curves.iter().any(|c| !state.curves.iter().any(|x| x.id == *c))
+    if deps
+        .sketches
+        .iter()
+        .any(|s| !state.sketches.iter().any(|x| x.id == *s))
+        || deps
+            .curves
+            .iter()
+            .any(|c| !state.curves.iter().any(|x| x.id == *c))
         || deps.bodies.iter().any(|b| !bodies.iter().any(|x| x.id == *b))
     {
         return Ok(None);

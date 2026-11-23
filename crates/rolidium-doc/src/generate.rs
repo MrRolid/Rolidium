@@ -16,7 +16,7 @@ pub(crate) struct Made {
     pub notice: Option<String>,
 }
 
-fn body_of<'a>(st: &'a State, id: BodyId) -> Result<&'a Body, DocError> {
+fn body_of(st: &State, id: BodyId) -> Result<&Body, DocError> {
     st.bodies.iter().find(|b| b.id == id).ok_or(DocError::NoSuchBody)
 }
 
@@ -104,7 +104,12 @@ pub(crate) fn loft(st: &State, profiles: &[LoftRef], ruled: bool) -> Result<Made
 }
 
 /// The solid of a sweep of `profile` along `path`.
-pub(crate) fn sweep(st: &State, profile: &LoftRef, path: &SweepPath, rounded: bool) -> Result<Made, DocError> {
+pub(crate) fn sweep(
+    st: &State,
+    profile: &LoftRef,
+    path: &SweepPath,
+    rounded: bool,
+) -> Result<Made, DocError> {
     let mut used = Vec::new();
     let mut target = None;
     let g = gather(st, profile, &mut used, &mut target)?;
@@ -127,7 +132,8 @@ pub(crate) fn sweep(st: &State, profile: &LoftRef, path: &SweepPath, rounded: bo
         }
         SweepPath::Edges { body, edges } => {
             let b = body_of(st, *body)?;
-            let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
+            let ids: Vec<rolidium_kernel::EdgeId> =
+                edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
             rolidium_kernel::Path::build(rolidium_kernel::PathSource::Edges {
                 solid: &b.solid,
                 edges: &ids,
@@ -148,7 +154,10 @@ pub(crate) fn sweep(st: &State, profile: &LoftRef, path: &SweepPath, rounded: bo
         .warnings
         .contains(&rolidium_kernel::SweepWarning::ProfileNotPerpendicular)
     {
-        Some("The profile is not perpendicular to the path where it starts; the sweep was made anyway".to_string())
+        Some(
+            "The profile is not perpendicular to the path where it starts; the sweep was made anyway"
+                .to_string(),
+        )
     } else {
         None
     };
@@ -235,10 +244,16 @@ fn pattern_mode(st: &State, made: &Made, way: Way) -> Result<PatternMode, DocErr
         }),
         Way::Cut => {
             // the body the profile lies on first, then the others: the first one the tool cuts into
-            let ids: Vec<BodyId> = made.target.into_iter().chain(st.bodies.iter().map(|b| b.id)).collect();
+            let ids: Vec<BodyId> = made
+                .target
+                .into_iter()
+                .chain(st.bodies.iter().map(|b| b.id))
+                .collect();
             let mut last = DocError::Kernel(KernelError::Invalid("There is no body to cut from".into()));
             for id in ids {
-                let Some(b) = st.bodies.iter().find(|b| b.id == id) else { continue };
+                let Some(b) = st.bodies.iter().find(|b| b.id == id) else {
+                    continue;
+                };
                 match b.solid.boolean_checked(&made.tool, BooleanOp::Cut) {
                     Ok(r) => {
                         let (v0, v1) = (b.solid.volume()?, r.solid.volume()?);
@@ -255,7 +270,12 @@ fn pattern_mode(st: &State, made: &Made, way: Way) -> Result<PatternMode, DocErr
 }
 
 /// The kind of link for a loft through `profiles` that is added with `mode` (the body it works on is found as `Command::Loft` finds it).
-pub(crate) fn loft_kind(st: &State, profiles: &[LoftRef], ruled: bool, mode: LoftMode) -> Result<LinkKind, DocError> {
+pub(crate) fn loft_kind(
+    st: &State,
+    profiles: &[LoftRef],
+    ruled: bool,
+    mode: LoftMode,
+) -> Result<LinkKind, DocError> {
     let made = loft(st, profiles, ruled)?;
     let way = match mode {
         LoftMode::NewBody => Way::New,

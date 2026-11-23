@@ -63,12 +63,17 @@ impl App {
             .links
             .iter()
             .find(|l| l.kind.generates() && source_of(&l.kind).sketches.contains(&sketch))?;
-        l.results.first().and_then(|b| self.doc.body(*b)).map(|b| b.name.clone())
+        l.results
+            .first()
+            .and_then(|b| self.doc.body(*b))
+            .map(|b| b.name.clone())
     }
 
     /// Edits a sketch in the sketch mode (the sketch is shown if it was hidden: the loft or the sweep hides the sketches it was made from).
     pub(super) fn edit_sketch(&mut self, id: SketchId) {
-        let Some(s) = self.doc.sketch(id).cloned() else { return };
+        let Some(s) = self.doc.sketch(id).cloned() else {
+            return;
+        };
         if !self.idle() {
             return;
         }
@@ -114,11 +119,15 @@ impl App {
             ));
         } else {
             ui.label(trf("Made by the {} '{}'", &[what, link.name.clone()]));
-            ui.weak(tr("It follows its sources: change a source and the body is made again."));
+            ui.weak(tr(
+                "It follows its sources: change a source and the body is made again.",
+            ));
         }
         let src = source_of(&link.kind);
         for id in src.sketches {
-            let Some(s) = self.doc.sketch(id).map(|s| s.name.clone()) else { continue };
+            let Some(s) = self.doc.sketch(id).map(|s| s.name.clone()) else {
+                continue;
+            };
             ui.horizontal(|ui| {
                 ui.label(trf("Source: {}", std::slice::from_ref(&s)));
                 if ui.small_button(tr("Select")).clicked() {
@@ -132,7 +141,9 @@ impl App {
             });
         }
         for id in src.curves {
-            let Some(c) = self.doc.curve(id).map(|c| c.name.clone()) else { continue };
+            let Some(c) = self.doc.curve(id).map(|c| c.name.clone()) else {
+                continue;
+            };
             ui.horizontal(|ui| {
                 ui.label(trf("Path: {}", std::slice::from_ref(&c)));
                 if ui.small_button(tr("Select")).clicked() {
@@ -143,7 +154,9 @@ impl App {
             });
         }
         if src.from_bodies > 0 {
-            ui.weak(tr("A face or edges of a body are also a source: change that body."));
+            ui.weak(tr(
+                "A face or edges of a body are also a source: change that body.",
+            ));
         }
     }
 

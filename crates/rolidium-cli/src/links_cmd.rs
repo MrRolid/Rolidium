@@ -321,7 +321,9 @@ impl Runner {
                             }
                         ),
                         LinkKind::Mirror(_) => "mirror".to_string(),
-                        LinkKind::Loft { profiles, .. } => format!("loft through {} profiles", profiles.len()),
+                        LinkKind::Loft { profiles, .. } => {
+                            format!("loft through {} profiles", profiles.len())
+                        }
                         LinkKind::Sweep { .. } => "sweep along a path".to_string(),
                     };
                     self.say(format!(

@@ -1825,7 +1825,11 @@ impl App {
                     return;
                 }
                 use rolidium_render::StandardView;
-                let faces = self.meshes[0].mesh.face_deflection.len().max(self.meshes[0].faces.len());
+                let faces = self.meshes[0]
+                    .mesh
+                    .face_deflection
+                    .len()
+                    .max(self.meshes[0].faces.len());
                 let area0 = self.meshes[0].mesh.area_per_face(faces);
                 let fit = 90.0;
                 let mut lost = Vec::new();
@@ -1851,7 +1855,11 @@ impl App {
                     }
                 }
                 println!("selftest: spring: {faces} faces, lost: {lost:?}");
-                check(&mut st, "no face of the swept helix is lost or cut when zooming in", lost.is_empty() && faces > 8);
+                check(
+                    &mut st,
+                    "no face of the swept helix is lost or cut when zooming in",
+                    lost.is_empty() && faces > 8,
+                );
                 self.layers_changed = true;
                 st.wait_frames = 3;
                 shot(&mut st, ctx, "zoomed-spring");
@@ -1864,7 +1872,11 @@ impl App {
                 self.view_anim = None;
                 self.camera.set_view(StandardView::Top);
                 self.begin_plane_move();
-                check(&mut st, "starting Move sketch plane begins the turn of the view", self.view_anim.is_some());
+                check(
+                    &mut st,
+                    "starting Move sketch plane begins the turn of the view",
+                    self.view_anim.is_some(),
+                );
                 st.wait_frames = 90;
             }
             90 => {
@@ -1881,7 +1893,11 @@ impl App {
                         && (self.camera.pitch - iso.pitch).abs() < 1e-3,
                 );
                 self.finish_plane_move();
-                check(&mut st, "ending Move sketch plane turns the view back", self.view_anim.is_some());
+                check(
+                    &mut st,
+                    "ending Move sketch plane turns the view back",
+                    self.view_anim.is_some(),
+                );
                 st.wait_frames = 90;
             }
             91 => {
@@ -1919,7 +1935,9 @@ impl App {
                         rolidium_doc::LoftRef::Region { sketch: a, region: 0 },
                         rolidium_doc::LoftRef::Region { sketch: b, region: 0 },
                     ];
-                    let kind = self.doc.loft_link(&profiles, true, rolidium_doc::LoftMode::NewBody);
+                    let kind = self
+                        .doc
+                        .loft_link(&profiles, true, rolidium_doc::LoftMode::NewBody);
                     check(&mut st, "the kind of a loft link can be made", kind.is_ok());
                     if let Ok(kind) = kind {
                         let _ = self.doc.apply(Command::AddLink {
@@ -1940,8 +1958,16 @@ impl App {
                     self.selftest = Some(st);
                     return;
                 };
-                check(&mut st, "the body of a loft is made by profiles", self.made_by_profiles(body));
-                let v0 = self.doc.body(body).and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
+                check(
+                    &mut st,
+                    "the body of a loft is made by profiles",
+                    self.made_by_profiles(body),
+                );
+                let v0 = self
+                    .doc
+                    .body(body)
+                    .and_then(|b| b.solid.volume().ok())
+                    .unwrap_or(0.0);
                 if let Some(a) = st.step_sketch.take() {
                     let e = self.doc.sketch(a).map(|s| s.sketch.entities()[0].0);
                     if let Some(e) = e {
@@ -1955,8 +1981,16 @@ impl App {
                         });
                     }
                 }
-                let v1 = self.doc.body(body).and_then(|b| b.solid.volume().ok()).unwrap_or(0.0);
-                check(&mut st, "the loft follows a change of the circle of its sketch", v1 > v0 * 2.0);
+                let v1 = self
+                    .doc
+                    .body(body)
+                    .and_then(|b| b.solid.volume().ok())
+                    .unwrap_or(0.0);
+                check(
+                    &mut st,
+                    "the loft follows a change of the circle of its sketch",
+                    v1 > v0 * 2.0,
+                );
                 self.clear_selection();
                 self.request_meshes();
                 self.body_sel = Some(body);
@@ -2012,5 +2046,7 @@ fn selftest_spring(turns: f64) -> rolidium_kernel::Solid {
         normal: t,
         x_dir: x,
     };
-    Solid::sweep(&input, &path, &SweepOptions::default()).unwrap().solid
+    Solid::sweep(&input, &path, &SweepOptions::default())
+        .unwrap()
+        .solid
 }

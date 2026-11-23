@@ -2062,7 +2062,9 @@ impl Job {
                 ruled,
                 mode,
             } => {
-                let generate::Made { tool, target, used, .. } = generate::loft(&st, profiles, *ruled)?;
+                let generate::Made {
+                    tool, target, used, ..
+                } = generate::loft(&st, profiles, *ruled)?;
                 let touched = match mode {
                     LoftMode::NewBody => apply_tool(&mut st, None, tool, BooleanOp::Fuse, self.next_id)?,
                     LoftMode::Add => {

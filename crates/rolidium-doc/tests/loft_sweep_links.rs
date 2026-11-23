@@ -139,7 +139,10 @@ fn a_loft_link_is_saved_and_opened() {
     let bytes = file::save_to_bytes(&d, None, "test").unwrap();
     let mut d2 = Document::from_loaded(file::load_from_bytes(&bytes).unwrap());
     assert_eq!(d2.state().links.len(), 1);
-    assert!(matches!(d2.state().links[0].kind, LinkKind::Loft { ruled: true, .. }));
+    assert!(matches!(
+        d2.state().links[0].kind,
+        LinkKind::Loft { ruled: true, .. }
+    ));
     assert_eq!(d2.state().links[0].results, vec![body]);
     // it still follows the sketch after the file was opened
     set_radius(&mut d2, a, ea, 20.0);
@@ -186,7 +189,10 @@ fn spring_doc() -> (Document, CurveId, BodyId, SketchId, u32) {
     let c = d
         .apply(Command::AddLink {
             kind: LinkKind::Sweep {
-                profile: LoftRef::Region { sketch: sk, region: 0 },
+                profile: LoftRef::Region {
+                    sketch: sk,
+                    region: 0,
+                },
                 path: SweepPath::Curve(curve),
                 rounded: false,
                 mode: PatternMode::New,
@@ -215,7 +221,11 @@ fn a_sweep_along_a_helix_follows_the_pitch_and_the_circle() {
     })
     .unwrap();
     assert_eq!(d.bodies().len(), 1);
-    assert!(d.state().links[0].error.is_none(), "{:?}", d.state().links[0].error);
+    assert!(
+        d.state().links[0].error.is_none(),
+        "{:?}",
+        d.state().links[0].error
+    );
     assert!((volume(&d, body) - v(7.0, 1.0)).abs() < 0.01 * v(7.0, 1.0));
     // another diameter of the wire
     set_radius(&mut d, sk, e, 1.5);
