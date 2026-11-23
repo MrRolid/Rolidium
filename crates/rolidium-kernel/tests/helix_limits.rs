@@ -61,3 +61,27 @@ fn a_helix_with_too_many_turns_is_refused() {
     h.turns = 1000.0;
     assert!(Path::build(PathSource::Helix(h)).is_err());
 }
+
+#[test]
+fn the_estimate_of_a_sweep_follows_the_measured_times_of_a_rod_m8() {
+    // circle of 1 mm along a helix of 4 mm radius and 1.25 mm pitch (measured: 20 turns 1.1 s, 50: 2.8 s, 100: 4.7 s, 200: 11 s, 300: 16.5 s)
+    for (turns, measured) in [
+        (20.0, 1.1),
+        (50.0, 2.8),
+        (100.0, 4.7),
+        (200.0, 11.0),
+        (300.0, 16.5),
+    ] {
+        let length = std::f64::consts::TAU * 4.0 * turns;
+        let est = estimated_sweep_seconds(length, 0.5);
+        assert!(
+            est > 0.4 * measured && est < 2.2 * measured,
+            "{turns} turns: {est:.1} s estimated, {measured} s measured"
+        );
+    }
+    // the thread M8 x 100 mm (80 turns) is just under the warning, and 300 turns with the thin wire is far over it
+    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 80.0, 0.5) < SWEEP_WARN_SECONDS * 1.2);
+    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 300.0, 0.5) > SWEEP_WARN_SECONDS);
+    // a thick profile along the same helix is quick
+    assert!(estimated_sweep_seconds(std::f64::consts::TAU * 4.0 * 300.0, 2.0) < 5.0);
+}

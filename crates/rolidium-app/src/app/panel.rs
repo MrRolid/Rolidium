@@ -194,7 +194,13 @@ impl Target {
                 },
                 Row::BlendSize,
             ) => fmt(*s),
-            (Target::Face { end: Some((_, _, _, d)), .. }, Row::EndDiameter) => fmt(*d),
+            (
+                Target::Face {
+                    end: Some((_, _, _, d)),
+                    ..
+                },
+                Row::EndDiameter,
+            ) => fmt(*d),
             (Target::Face { cap: Some(d), .. }, Row::CapDiameter) => fmt(*d),
             (
                 Target::Face {
@@ -259,10 +265,11 @@ impl App {
                 .map(|ft| (ft.kind, ft.size));
             let planar = meta.kind == FaceKind::Plane;
             // an end of a loft whose profile is one circle: the diameter is the circle of the sketch
-            let end = self
-                .doc
-                .end_face(b, FaceId(f))
-                .and_then(|ef| self.doc.end_circle(&ef).map(|(e, c, r)| (ef.sketch, e, c, 2.0 * r)));
+            let end = self.doc.end_face(b, FaceId(f)).and_then(|ef| {
+                self.doc
+                    .end_circle(&ef)
+                    .map(|(e, c, r)| (ef.sketch, e, c, 2.0 * r))
+            });
             let cap = if end.is_none() { meta.cap } else { None };
             if hole.is_none() && blend.is_none() && !planar {
                 return None;

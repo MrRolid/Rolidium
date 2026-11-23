@@ -180,7 +180,9 @@ impl App {
         }
         if st.sampling && !self.idle() {
             st.samples.push(self.last_ui_ms.get());
-            if st.cancel_at.is_some_and(|t| t.elapsed().as_secs_f32() > 0.0) && st.cancel_at.is_some_and(|t| std::time::Instant::now() >= t) {
+            if st.cancel_at.is_some_and(|t| t.elapsed().as_secs_f32() > 0.0)
+                && st.cancel_at.is_some_and(|t| std::time::Instant::now() >= t)
+            {
                 st.cancel_at = None;
                 self.cancel_computation();
             }
@@ -2596,15 +2598,27 @@ impl App {
                 };
                 let (b, s) = (bd.id, bd.solid.clone());
                 let top = s.faces().find(|f| {
-                    s.face_info(*f).map(|i| i.kind == FaceKind::Plane && (i.origin.z - 30.0).abs() < 1e-6).unwrap_or(false)
+                    s.face_info(*f)
+                        .map(|i| i.kind == FaceKind::Plane && (i.origin.z - 30.0).abs() < 1e-6)
+                        .unwrap_or(false)
                 });
-                let cone = s.faces().any(|f| s.face_info(f).map(|i| i.kind == FaceKind::Cone).unwrap_or(false));
-                check(&mut st, "the side of a loft of two coaxial circles is a cone", cone && s.face_count() == 3);
+                let cone = s
+                    .faces()
+                    .any(|f| s.face_info(f).map(|i| i.kind == FaceKind::Cone).unwrap_or(false));
+                check(
+                    &mut st,
+                    "the side of a loft of two coaxial circles is a cone",
+                    cone && s.face_count() == 3,
+                );
                 if let Some(top) = top {
                     self.selection = vec![(b, top.0)];
                     let rows = self.panel_rows();
                     println!("selftest: panel rows of the end face: {rows:?}");
-                    check(&mut st, "the end face of the loft shows its diameter", rows.iter().any(|r| r == &tr("Diameter")));
+                    check(
+                        &mut st,
+                        "the end face of the loft shows its diameter",
+                        rows.iter().any(|r| r == &tr("Diameter")),
+                    );
                     // the top end moved sideways: a slanting frustum (the picture is taken afterwards)
                     if let Some(ef) = self.doc.end_face(b, top) {
                         self.submit(Command::MoveSketch {
@@ -2622,7 +2636,11 @@ impl App {
                         let (lo, hi) = b.solid.bounding_box().unwrap_or_default();
                         hi.x > 23.0 && (hi.z - 30.0).abs() < 1e-4 && lo.x < -19.0
                     });
-                check(&mut st, "the end moved sideways: a slanting frustum, the link stays", ok);
+                check(
+                    &mut st,
+                    "the end moved sideways: a slanting frustum, the link stays",
+                    ok,
+                );
                 self.camera.set_view(rolidium_render::StandardView::Isometric);
                 self.fit_all();
                 st.wait_frames = 6;
@@ -2688,7 +2706,10 @@ impl App {
                     if let Some(sk) = sk {
                         st.heavy = Some(Command::AddLink {
                             kind: rolidium_doc::LinkKind::Sweep {
-                                profile: rolidium_doc::LoftRef::Region { sketch: sk, region: 0 },
+                                profile: rolidium_doc::LoftRef::Region {
+                                    sketch: sk,
+                                    region: 0,
+                                },
                                 path: rolidium_doc::SweepPath::Curve(curve),
                                 rounded: false,
                                 mode: rolidium_doc::PatternMode::New,
@@ -2720,13 +2741,25 @@ impl App {
                 let max = v.last().copied().unwrap_or(0.0);
                 let p95 = v.get(n * 95 / 100).copied().unwrap_or(0.0);
                 println!("selftest: heavy sweep: {n} frames of the window while it ran, work per frame: 95 % under {p95:.1} ms, worst {max:.1} ms");
-                check(&mut st, "the window kept drawing while the heavy sweep ran", n >= 10);
-                check(&mut st, "the work of the window per frame stays under 20 ms during the heavy sweep", p95 < 20.0 && max < 60.0);
+                check(
+                    &mut st,
+                    "the window kept drawing while the heavy sweep ran",
+                    n >= 10,
+                );
+                check(
+                    &mut st,
+                    "the work of the window per frame stays under 20 ms during the heavy sweep",
+                    p95 < 20.0 && max < 60.0,
+                );
                 let unchanged = self
                     .state_before_heavy
                     .take()
                     .is_some_and(|s| Arc::ptr_eq(&s, self.doc.state()));
-                check(&mut st, "Cancel stopped the sweep and the document is unchanged", unchanged && self.doc.bodies().is_empty());
+                check(
+                    &mut st,
+                    "Cancel stopped the sweep and the document is unchanged",
+                    unchanged && self.doc.bodies().is_empty(),
+                );
                 st.wait_frames = 1;
             }
             121 => {

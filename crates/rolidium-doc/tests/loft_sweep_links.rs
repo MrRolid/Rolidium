@@ -118,7 +118,11 @@ fn a_hand_edit_of_a_loft_asks_and_removing_the_link_frees_the_body() {
         size: 1.0,
         chamfer: false,
     });
-    assert!(matches!(r, Err(DocError::Derived { link: l, body: b, .. }) if l == link && b == body), "{:?}", r.map(|_| ()));
+    assert!(
+        matches!(r, Err(DocError::Derived { link: l, body: b, .. }) if l == link && b == body),
+        "{:?}",
+        r.map(|_| ())
+    );
     d.apply(Command::Unlink { link }).unwrap();
     assert!(d.state().links.is_empty());
     // the body is an ordinary body now, and the sketches no longer change it

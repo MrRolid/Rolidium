@@ -13,8 +13,8 @@ mod endface;
 pub use anchor::{
     angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor,
 };
-pub use endface::{end_circle, end_face_of, EndFace, EndKind};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
+pub use endface::{end_circle, end_face_of, EndFace, EndKind};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};
 use std::sync::Arc;
 
@@ -848,8 +848,7 @@ impl Job {
                 // an end of a loft is the sketch of its profile: pulling it moves the sketch along the normal, and the loft follows
                 if let Some(ef) = endface::end_face_of(&st, *body, *face) {
                     if ef.kind == EndKind::Loft {
-                        let n = endface::outward_normal(&st, *body, *face)
-                            .ok_or(DocError::NoSuchBody)?;
+                        let n = endface::outward_normal(&st, *body, *face).ok_or(DocError::NoSuchBody)?;
                         let d = mode.apply(*distance);
                         if !d.is_finite() || d.abs() < 1e-6 {
                             return Err(KernelError::ZeroDistance.into());
@@ -2698,7 +2697,10 @@ impl Document {
     }
 
     /// The circle that is the whole profile of an end face: its entity, its centre and radius.
-    pub fn end_circle(&self, ef: &EndFace) -> Option<(rolidium_sketch::EntityId, rolidium_sketch::DVec2, f64)> {
+    pub fn end_circle(
+        &self,
+        ef: &EndFace,
+    ) -> Option<(rolidium_sketch::EntityId, rolidium_sketch::DVec2, f64)> {
         endface::end_circle(&self.current, ef)
     }
 

@@ -42,8 +42,15 @@ pub struct HelixDef {
 /// More turns than this are refused: the body of a sweep along such a helix has tens of thousands of faces and its calculation does not end in
 /// a useful time (1000 turns on a cone brought the program down).
 pub const HELIX_MAX_TURNS: f64 = 300.0;
-/// From this number of turns on the person is warned and asked to confirm (the body is large and slow to calculate).
-pub const HELIX_WARN_TURNS: f64 = 40.0;
+/// A sweep that is expected to take longer than this many seconds (the calculation and the display mesh) is announced and has to be confirmed.
+pub const SWEEP_WARN_SECONDS: f64 = 5.0;
+
+/// The time (seconds) of a sweep of a profile of the radius `profile_radius` mm along a path of `path_length` mm, with the display mesh of the body. Measured
+/// for a circle of 1 mm along a helix of 4 mm radius and 1.25 mm pitch (a rod M8): 20 turns 1.1 s, 50 turns 2.8 s, 100 turns 4.7 s, 200 turns 11 s,
+/// 300 turns 16.5 s; the time follows the length of the path in units of the size of the profile, because a thin wire along a long path is meshed finely.
+pub fn estimated_sweep_seconds(path_length: f64, profile_radius: f64) -> f64 {
+    0.0011 * path_length / profile_radius.max(1e-3)
+}
 
 impl HelixDef {
     /// The height along the axis (mm).

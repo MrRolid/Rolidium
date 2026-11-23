@@ -81,7 +81,11 @@ impl App {
         if let Some((b, sk)) = self.move_end {
             if let Some(m) = self.entry(b) {
                 for (i, meta) in m.faces.iter().enumerate() {
-                    if self.doc.end_face(b, FaceId(i as u32)).is_some_and(|e| e.sketch == sk) {
+                    if self
+                        .doc
+                        .end_face(b, FaceId(i as u32))
+                        .is_some_and(|e| e.sketch == sk)
+                    {
                         lo = lo.min(meta.bounds.0);
                         hi = hi.max(meta.bounds.1);
                         any = true;
@@ -275,7 +279,11 @@ impl App {
                 self.move_end = None;
                 // an end face of a loft is moved by moving the sketch of its profile: the body follows
                 if let (Some((b, f)), false) = (hovered_face, add) {
-                    if let Some(ef) = self.doc.end_face(b, FaceId(f)).filter(|e| e.kind == rolidium_doc::EndKind::Loft) {
+                    if let Some(ef) = self
+                        .doc
+                        .end_face(b, FaceId(f))
+                        .filter(|e| e.kind == rolidium_doc::EndKind::Loft)
+                    {
                         self.move_end = Some((b, ef.sketch));
                         self.move_sel = vec![b];
                         self.move_curves.clear();

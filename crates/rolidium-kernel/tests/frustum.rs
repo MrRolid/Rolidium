@@ -74,11 +74,17 @@ fn with_keep_angle_the_other_end_follows() {
     let c = Solid::cylinder(10.0, 25.0, DVec3::ZERO, DVec3::Z).unwrap();
     let fc = info(&c);
     let r = c.set_cap_diameter(fc.cap_top, 30.0, true).unwrap();
-    assert_eq!(r.solid.face_info(info(&r.solid).side).unwrap().kind, FaceKind::Cylinder);
+    assert_eq!(
+        r.solid.face_info(info(&r.solid).side).unwrap().kind,
+        FaceKind::Cylinder
+    );
     close(r.solid.volume().unwrap(), PI * 225.0 * 25.0);
     // without keeping the angle one end alone makes a cone of the cylinder
     let r = c.set_cap_diameter(fc.cap_top, 30.0, false).unwrap();
-    assert_eq!(r.solid.face_info(info(&r.solid).side).unwrap().kind, FaceKind::Cone);
+    assert_eq!(
+        r.solid.face_info(info(&r.solid).side).unwrap().kind,
+        FaceKind::Cone
+    );
 }
 
 #[test]
@@ -92,7 +98,10 @@ fn pulling_an_end_extends_or_shortens_the_cone_with_its_angle() {
     close(n.r_top, 10.0 + slope * 6.0);
     close(n.r_base, 20.0);
     assert_eq!(up.solid.face_info(n.side).unwrap().kind, FaceKind::Cone);
-    close(up.solid.volume().unwrap(), frustum_volume(20.0, 10.0 + slope * 6.0, 36.0));
+    close(
+        up.solid.volume().unwrap(),
+        frustum_volume(20.0, 10.0 + slope * 6.0, 36.0),
+    );
     // shorter, from the bottom end (the end that is pulled inwards)
     let down = s.pull_face(f.cap_base, -9.0).unwrap();
     let m = info(&down.solid);
@@ -101,7 +110,10 @@ fn pulling_an_end_extends_or_shortens_the_cone_with_its_angle() {
     close(m.r_base, 20.0 + slope * 9.0);
     // it stays where it was: the top end is at z = 30
     let (lo, hi) = down.solid.bounding_box().unwrap();
-    assert!((hi.z - 30.0).abs() < 1e-5 && (lo.z - 9.0).abs() < 1e-5, "{lo:?} {hi:?}");
+    assert!(
+        (hi.z - 30.0).abs() < 1e-5 && (lo.z - 9.0).abs() < 1e-5,
+        "{lo:?} {hi:?}"
+    );
     // past the point of the cone, and to nothing: refused with a reason
     let e = s.pull_face(f.cap_top, 40.0).expect_err("past the apex");
     assert!(e.to_string().contains("point"), "{e}");
@@ -118,13 +130,34 @@ fn a_cone_from_a_step_file_or_a_revolve_is_edited_the_same_way() {
     // a revolve of a trapezoid
     let p = Profile {
         loops: vec![vec![
-            ProfileSegment::Line { a: [0.0, 0.0], b: [20.0, 0.0] },
-            ProfileSegment::Line { a: [20.0, 0.0], b: [10.0, 30.0] },
-            ProfileSegment::Line { a: [10.0, 30.0], b: [0.0, 30.0] },
-            ProfileSegment::Line { a: [0.0, 30.0], b: [0.0, 0.0] },
+            ProfileSegment::Line {
+                a: [0.0, 0.0],
+                b: [20.0, 0.0],
+            },
+            ProfileSegment::Line {
+                a: [20.0, 0.0],
+                b: [10.0, 30.0],
+            },
+            ProfileSegment::Line {
+                a: [10.0, 30.0],
+                b: [0.0, 30.0],
+            },
+            ProfileSegment::Line {
+                a: [0.0, 30.0],
+                b: [0.0, 0.0],
+            },
         ]],
     };
-    let rev = Solid::revolve_profile(&p, DVec3::ZERO, -DVec3::Y, DVec3::X, DVec3::ZERO, DVec3::Z, std::f64::consts::TAU).unwrap();
+    let rev = Solid::revolve_profile(
+        &p,
+        DVec3::ZERO,
+        -DVec3::Y,
+        DVec3::X,
+        DVec3::ZERO,
+        DVec3::Z,
+        std::f64::consts::TAU,
+    )
+    .unwrap();
     let f = info(&rev);
     let up = rev.pull_face(f.cap_top, 3.0).unwrap();
     close(info(&up.solid).height, 33.0);

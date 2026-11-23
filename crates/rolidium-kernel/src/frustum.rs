@@ -34,9 +34,12 @@ impl Solid {
         if self.face_count() != 3 {
             return None;
         }
-        let side = self
-            .faces()
-            .find(|f| matches!(self.face_info(*f).map(|i| i.kind), Ok(FaceKind::Cone | FaceKind::Cylinder)))?;
+        let side = self.faces().find(|f| {
+            matches!(
+                self.face_info(*f).map(|i| i.kind),
+                Ok(FaceKind::Cone | FaceKind::Cylinder)
+            )
+        })?;
         let si = self.face_info(side).ok()?;
         let (axis, base, height, r_base, r_top) = if si.kind == FaceKind::Cone {
             let c = self.cone_info(side).ok()??;
@@ -48,7 +51,10 @@ impl Solid {
         let mut caps: Vec<(f64, FaceId)> = Vec::new();
         for f in self.faces().filter(|f| *f != side) {
             let i = self.face_info(f).ok()?;
-            if i.kind != FaceKind::Plane || i.inner_wires != 0 || i.normal.normalize().cross(axis).length() > 1e-6 {
+            if i.kind != FaceKind::Plane
+                || i.inner_wires != 0
+                || i.normal.normalize().cross(axis).length() > 1e-6
+            {
                 return None;
             }
             caps.push(((i.origin - base).dot(axis), f));
@@ -81,10 +87,19 @@ impl Solid {
     }
 
     /// The solid with the numbers of `f` changed (a cone, or a cylinder when the radii are equal), and where its faces came from.
-    fn frustum_rebuilt(&self, f: &FrustumInfo, base: DVec3, height: f64, r_base: f64, r_top: f64) -> Result<OpResult> {
+    fn frustum_rebuilt(
+        &self,
+        f: &FrustumInfo,
+        base: DVec3,
+        height: f64,
+        r_base: f64,
+        r_top: f64,
+    ) -> Result<OpResult> {
         let min = 1e-6;
         if !(height.is_finite() && height > min) {
-            return Err(KernelError::Invalid("The solid would have no length left, so nothing was changed".into()));
+            return Err(KernelError::Invalid(
+                "The solid would have no length left, so nothing was changed".into(),
+            ));
         }
         if !(r_base.is_finite() && r_top.is_finite() && r_base > min && r_top > min) {
             return Err(KernelError::Invalid(
@@ -94,12 +109,25 @@ impl Solid {
         let solid = if (r_base - r_top).abs() <= 1e-12 * r_base.max(r_top) {
             Solid::cylinder(r_base, height, base, f.axis)?
         } else {
-            Solid::from_shape(native::make_cone(r_base, r_top, height, base.to_array(), f.axis.to_array())?).validated_body()?
+            Solid::from_shape(native::make_cone(
+                r_base,
+                r_top,
+                height,
+                base.to_array(),
+                f.axis.to_array(),
+            )?)
+            .validated_body()?
         };
         // the new ends and the new side are the successors of the old ones
-        let nf = solid.frustum_info().ok_or_else(|| KernelError::Invalid("the cone could not be made".into()))?;
+        let nf = solid
+            .frustum_info()
+            .ok_or_else(|| KernelError::Invalid("the cone could not be made".into()))?;
         let history = History {
-            links: vec![(0, f.cap_base, nf.cap_base), (0, f.cap_top, nf.cap_top), (0, f.side, nf.side)],
+            links: vec![
+                (0, f.cap_base, nf.cap_base),
+                (0, f.cap_top, nf.cap_top),
+                (0, f.side, nf.side),
+            ],
         };
         Ok(OpResult { solid, history })
     }
@@ -108,7 +136,9 @@ impl Solid {
     /// `keep_angle` the angle of the cone stays and the other end follows. The length does not change.
     pub fn set_cap_diameter(&self, cap: FaceId, diameter: f64, keep_angle: bool) -> Result<OpResult> {
         if !(diameter.is_finite() && diameter > 1e-6) {
-            return Err(KernelError::Invalid("the diameter must be a positive number".into()));
+            return Err(KernelError::Invalid(
+                "the diameter must be a positive number".into(),
+            ));
         }
         let f = self.frustum_info().ok_or_else(|| {
             KernelError::Invalid(
@@ -117,9 +147,23 @@ impl Solid {
         })?;
         let r = diameter / 2.0;
         let (r_base, r_top) = if cap == f.cap_base {
-            (r, if keep_angle { f.r_top + (r - f.r_base) } else { f.r_top })
+            (
+                r,
+                if keep_angle {
+                    f.r_top + (r - f.r_base)
+                } else {
+                    f.r_top
+                },
+            )
         } else if cap == f.cap_top {
-            (if keep_angle { f.r_base + (r - f.r_top) } else { f.r_base }, r)
+            (
+                if keep_angle {
+                    f.r_base + (r - f.r_top)
+                } else {
+                    f.r_base
+                },
+                r,
+            )
         } else {
             return Err(KernelError::Invalid("this face is not an end of the cone".into()));
         };
@@ -134,9 +178,21 @@ impl Solid {
             .ok_or_else(|| KernelError::Invalid("this solid is not a plain cone or cylinder".into()))?;
         let slope = f.slope();
         if cap == f.cap_top {
-            self.frustum_rebuilt(&f, f.base, f.height + distance, f.r_base, f.r_top + slope * distance)
+            self.frustum_rebuilt(
+                &f,
+                f.base,
+                f.height + distance,
+                f.r_base,
+                f.r_top + slope * distance,
+            )
         } else if cap == f.cap_base {
-            self.frustum_rebuilt(&f, f.base - f.axis * distance, f.height + distance, f.r_base - slope * distance, f.r_top)
+            self.frustum_rebuilt(
+                &f,
+                f.base - f.axis * distance,
+                f.height + distance,
+                f.r_base - slope * distance,
+                f.r_top,
+            )
         } else {
             Err(KernelError::Invalid("this face is not an end of the cone".into()))
         }

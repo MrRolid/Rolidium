@@ -999,8 +999,16 @@ impl Solid {
         }
         let (la, lb) = (&pa.loops[0], &pb.loops[0]);
         let at = |o: DVec3, x: DVec3, y: DVec3, p: [f64; 2]| o + x * p[0] + y * p[1];
-        if let ([ProfileSegment::Circle { center: ca, radius: ra }], [ProfileSegment::Circle { center: cb, radius: rb }]) =
-            (la.as_slice(), lb.as_slice())
+        if let (
+            [ProfileSegment::Circle {
+                center: ca,
+                radius: ra,
+            }],
+            [ProfileSegment::Circle {
+                center: cb,
+                radius: rb,
+            }],
+        ) = (la.as_slice(), lb.as_slice())
         {
             let (ca, cb, ra, rb) = (*ca, *cb, *ra, *rb);
             let (c1, c2) = (at(oa, xa, ya, ca), at(ob, xb, yb, cb));
@@ -1037,10 +1045,19 @@ impl Solid {
         }
         let n = pts_a.len();
         // the sides run the same way (parallel, not opposite) and every side face is flat
-        let len: f64 = pts_a.iter().zip(&pts_b).map(|(p, q)| (*p - *q).length()).fold(0.0, f64::max).max(1.0);
+        let len: f64 = pts_a
+            .iter()
+            .zip(&pts_b)
+            .map(|(p, q)| (*p - *q).length())
+            .fold(0.0, f64::max)
+            .max(1.0);
         for i in 0..n {
             let (ea, eb) = (pts_a[(i + 1) % n] - pts_a[i], pts_b[(i + 1) % n] - pts_b[i]);
-            if ea.length() < 1e-9 || eb.length() < 1e-9 || ea.cross(eb).length() > 1e-9 * ea.length() * eb.length() || ea.dot(eb) <= 0.0 {
+            if ea.length() < 1e-9
+                || eb.length() < 1e-9
+                || ea.cross(eb).length() > 1e-9 * ea.length() * eb.length()
+                || ea.dot(eb) <= 0.0
+            {
                 return None;
             }
             // the four corners lie in one plane
@@ -1052,7 +1069,11 @@ impl Solid {
         }
         let face = |q: &[DVec3]| -> Option<cxx::SharedPtr<native::Shape>> {
             let nrm = (q[1] - q[0]).cross(q[q.len() - 1] - q[0]);
-            let nrm = if nrm.length() < 1e-12 { (q[1] - q[0]).cross(q[2] - q[0]) } else { nrm };
+            let nrm = if nrm.length() < 1e-12 {
+                (q[1] - q[0]).cross(q[2] - q[0])
+            } else {
+                nrm
+            };
             if nrm.length() < 1e-12 {
                 return None;
             }
@@ -1076,7 +1097,12 @@ impl Solid {
         add(face(&pts_a))?;
         add(face(&pts_b))?;
         for i in 0..n {
-            add(face(&[pts_a[i], pts_a[(i + 1) % n], pts_b[(i + 1) % n], pts_b[i]]))?;
+            add(face(&[
+                pts_a[i],
+                pts_a[(i + 1) % n],
+                pts_b[(i + 1) % n],
+                pts_b[i],
+            ]))?;
         }
         let shape = native::sewer_finish(sewer.pin_mut()).ok()?;
         Solid::from_shape(shape).validated_body().ok()

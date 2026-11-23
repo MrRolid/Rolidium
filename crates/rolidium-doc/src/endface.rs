@@ -41,8 +41,12 @@ pub fn end_face_of(st: &State, body: BodyId, face: FaceId) -> Option<EndFace> {
     let n = fi.normal.normalize();
     let scale = solid.bounding_box().map(|(a, b)| (b - a).length()).unwrap_or(1.0);
     for p in profiles {
-        let LoftRef::Region { sketch, region } = p else { continue };
-        let Some(sd) = st.sketches.iter().find(|s| s.id == sketch) else { continue };
+        let LoftRef::Region { sketch, region } = p else {
+            continue;
+        };
+        let Some(sd) = st.sketches.iter().find(|s| s.id == sketch) else {
+            continue;
+        };
         let sn = sd.plane.normal.normalize();
         if sn.cross(n).length() < 1e-6 && (fi.origin - sd.plane.origin).dot(sn).abs() < 1e-6 * (1.0 + scale) {
             return Some(EndFace {

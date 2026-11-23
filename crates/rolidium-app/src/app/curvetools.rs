@@ -47,8 +47,10 @@ pub struct HelixUi {
     pub preview: Vec<Vec3>,
     pub error: Option<String>,
     /// The preview that is being made on another thread: the key it is made for, and the result (the polyline or the error).
-    pending: Option<(String, std::sync::mpsc::Receiver<Result<Vec<Vec3>, String>>)>,
+    pending: Option<(String, HelixResult)>,
 }
+
+type HelixResult = std::sync::mpsc::Receiver<Result<Vec<Vec3>, String>>;
 
 impl Default for HelixUi {
     fn default() -> Self {
@@ -262,13 +264,21 @@ impl App {
             c2.request_repaint();
         });
         if spawned.is_ok() {
-            self.curve_cache.pending = Some(CurvePending { defs: now, tol: t, rx });
+            self.curve_cache.pending = Some(CurvePending {
+                defs: now,
+                tol: t,
+                rx,
+            });
         }
     }
 
     /// The length of a curve (mm), when it is known.
     pub(super) fn curve_length(&self, id: CurveId) -> Option<f64> {
-        self.curve_cache.lengths.iter().find(|(c, _)| *c == id).map(|(_, l)| *l)
+        self.curve_cache
+            .lengths
+            .iter()
+            .find(|(c, _)| *c == id)
+            .map(|(_, l)| *l)
     }
 
     pub(super) fn curve_points(&self, id: CurveId) -> &[Vec3] {
@@ -847,18 +857,17 @@ impl App {
         let tol = self.curve_tol();
         let (tx, rx) = std::sync::mpsc::channel();
         let c2 = ctx.clone();
-        let spawned = std::thread::Builder::new().name("helix preview".into()).spawn(move || {
-            let r = CurveDef::Helix(def)
-                .path()
-                .map_err(|e| e.to_string())
-                .map(|p| {
+        let spawned = std::thread::Builder::new()
+            .name("helix preview".into())
+            .spawn(move || {
+                let r = CurveDef::Helix(def).path().map_err(|e| e.to_string()).map(|p| {
                     p.polyline(tol)
                         .map(|v| v.iter().map(|p| p.as_vec3()).collect())
                         .unwrap_or_default()
                 });
-            let _ = tx.send(r);
-            c2.request_repaint();
-        });
+                let _ = tx.send(r);
+                c2.request_repaint();
+            });
         if spawned.is_ok() {
             self.helix.pending = Some((key, rx));
         }
@@ -913,14 +922,6 @@ impl App {
                 h.recompute();
                 h.confirm_big = false;
             }
-            let many = parse_num(&h.turns).is_some_and(|t| t > rolidium_kernel::HELIX_WARN_TURNS);
-            if many {
-                ui.colored_label(
-                    crate::theme::rgb(255, 190, 90),
-                    tr("This helix has many turns: a body swept along it is large and slow to calculate"),
-                );
-                ui.checkbox(&mut h.confirm_big, tr("Create it anyway"));
-            }
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut h.right, true, tr("Right-handed"));
                 ui.selectable_value(&mut h.right, false, tr("Left-handed"));
@@ -933,7 +934,7 @@ impl App {
             ui.horizontal(|ui| {
                 if ui
                     .add_enabled(
-                        h.axis.is_some() && h.error.is_none() && (!many || h.confirm_big),
+                        h.axis.is_some() && h.error.is_none(),
                         egui::Button::new(tr("Create")),
                     )
                     .clicked()
@@ -1296,17 +1297,30 @@ impl App {
                 {
                     changed = true;
                 }
-                // a long helix makes a body of thousands of faces: ask first
-                let many = match &self.sweep.path {
-                    Some(SweepPath::Curve(id)) => self.doc.curve(*id).is_some_and(|c| {
-                        matches!(&c.def, CurveDef::Helix(h) if h.turns > rolidium_kernel::HELIX_WARN_TURNS)
+                // a long path with a thin profile makes a body of many faces and a fine mesh: the time is estimated and a long one is announced
+                let estimate = match (&self.sweep.path, self.sweep.profile) {
+                    (Some(SweepPath::Curve(id)), Some(profile)) => self.curve_length(*id).map(|len| {
+                        let outline = self.loft_outline(&profile);
+                        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+                        for p in &outline {
+                            lo = lo.min(*p);
+                            hi = hi.max(*p);
+                        }
+                        let mut e = [(hi.x - lo.x).abs(), (hi.y - lo.y).abs(), (hi.z - lo.z).abs()];
+                        e.sort_by(|a, b| b.total_cmp(a));
+                        let radius = if outline.is_empty() { 1.0 } else { f64::from(e[1]) / 2.0 };
+                        rolidium_kernel::estimated_sweep_seconds(len, radius)
                     }),
-                    _ => false,
+                    _ => None,
                 };
-                if many {
+                let many = estimate.is_some_and(|s| s > rolidium_kernel::SWEEP_WARN_SECONDS);
+                if let (true, Some(s)) = (many, estimate) {
                     ui.colored_label(
                         crate::theme::rgb(255, 190, 90),
-                        tr("This helix has many turns: a body swept along it is large and slow to calculate"),
+                        trf(
+                            "This sweep is expected to take about {} s and makes a large body. Cancel stops it.",
+                            &[format!("{s:.0}")],
+                        ),
                     );
                     ui.checkbox(&mut self.sweep.confirm_big, tr("Create it anyway"));
                 }

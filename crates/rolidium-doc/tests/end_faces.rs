@@ -38,8 +38,14 @@ fn frustum_doc() -> (Document, BodyId, (SketchId, u32), (SketchId, u32)) {
         .apply(Command::AddLink {
             kind: LinkKind::Loft {
                 profiles: vec![
-                    LoftRef::Region { sketch: a.0, region: 0 },
-                    LoftRef::Region { sketch: b.0, region: 0 },
+                    LoftRef::Region {
+                        sketch: a.0,
+                        region: 0,
+                    },
+                    LoftRef::Region {
+                        sketch: b.0,
+                        region: 0,
+                    },
                 ],
                 ruled: true,
                 mode: PatternMode::New,
@@ -83,7 +89,9 @@ fn a_loft_of_two_coaxial_circles_has_a_conical_side_and_its_ends_know_their_sket
     let bottom = face_of_kind(&d, body, FaceKind::Plane, Some(0.0));
     assert_eq!(d.end_face(body, bottom).unwrap().sketch, a.0);
     // the side is not an end
-    assert!(d.end_face(body, face_of_kind(&d, body, FaceKind::Cone, None)).is_none());
+    assert!(d
+        .end_face(body, face_of_kind(&d, body, FaceKind::Cone, None))
+        .is_none());
 }
 
 #[test]
@@ -151,7 +159,12 @@ fn moving_an_end_sideways_makes_a_slanting_frustum_and_the_file_keeps_it() {
     let (lo, hi) = d.body(body).unwrap().solid.bounding_box().unwrap();
     assert!(hi.x > 21.0 && lo.x < -19.0 && (hi.z - 30.0).abs() < 1e-5);
     assert_eq!(
-        d.body(body).unwrap().solid.faces().filter(|f| d.body(body).unwrap().solid.face_info(*f).unwrap().kind == FaceKind::Cone).count(),
+        d.body(body)
+            .unwrap()
+            .solid
+            .faces()
+            .filter(|f| d.body(body).unwrap().solid.face_info(*f).unwrap().kind == FaceKind::Cone)
+            .count(),
         0,
         "a slanting frustum is not a cone of revolution"
     );
@@ -187,7 +200,13 @@ fn what_cannot_be_turned_into_a_source_still_asks() {
         }),
         Err(DocError::Derived { .. })
     ));
-    assert!(d.apply(Command::SetCylinderDiameter { body, face: side, diameter: 5.0 }).is_err());
+    assert!(d
+        .apply(Command::SetCylinderDiameter {
+            body,
+            face: side,
+            diameter: 5.0
+        })
+        .is_err());
 }
 
 #[test]
@@ -198,11 +217,23 @@ fn after_the_link_is_removed_the_body_is_an_ordinary_cone_whose_ends_can_be_edit
     let s = &d.body(body).unwrap().solid;
     assert!(s.frustum_info().is_some());
     let top = face_of_kind(&d, body, FaceKind::Plane, Some(30.0));
-    d.apply(Command::SetCapDiameter { body, face: top, diameter: 32.0, keep_angle: false }).unwrap();
+    d.apply(Command::SetCapDiameter {
+        body,
+        face: top,
+        diameter: 32.0,
+        keep_angle: false,
+    })
+    .unwrap();
     assert!((volume(&d, body) - frustum(30.0, 20.0, 16.0)).abs() < 1e-3);
     // the top end pulled up: the cone is extended with its angle
     let top = face_of_kind(&d, body, FaceKind::Plane, Some(30.0));
-    d.apply(Command::PullFace { body, face: top, distance: 10.0, mode: PullMode::Auto }).unwrap();
+    d.apply(Command::PullFace {
+        body,
+        face: top,
+        distance: 10.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
     let f = d.body(body).unwrap().solid.frustum_info().unwrap();
     assert!((f.height - 40.0).abs() < 1e-6 && (f.r_top - (16.0 - 10.0 * 4.0 / 30.0)).abs() < 1e-6);
     // one Undo each

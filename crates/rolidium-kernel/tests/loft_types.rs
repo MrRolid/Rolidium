@@ -46,7 +46,14 @@ fn count(s: &Solid, k: FaceKind) -> usize {
 fn two_coaxial_circles_make_a_cone_or_a_cylinder() {
     let (a, b) = (circle(20.0, 0.0), circle(10.0, 0.0));
     let cone = Solid::loft(&[at(&a, 0.0), at(&b, 30.0)], false).unwrap();
-    assert_eq!((cone.face_count(), count(&cone, FaceKind::Plane), count(&cone, FaceKind::Cone)), (3, 2, 1));
+    assert_eq!(
+        (
+            cone.face_count(),
+            count(&cone, FaceKind::Plane),
+            count(&cone, FaceKind::Cone)
+        ),
+        (3, 2, 1)
+    );
     let v = std::f64::consts::PI * 30.0 / 3.0 * (400.0 + 200.0 + 100.0);
     assert!((cone.volume().unwrap() - v).abs() < 1e-6 * v);
     // the same with the smooth loft and the other way round (the larger circle on top)
@@ -55,9 +62,15 @@ fn two_coaxial_circles_make_a_cone_or_a_cylinder() {
     let cyl = Solid::loft(&[at(&a, 0.0), at(&a, 30.0)], false).unwrap();
     assert_eq!((cyl.face_count(), count(&cyl, FaceKind::Cylinder)), (3, 1));
     // the cone has a measurable cone: the information a cone gets for editing
-    let side = cone.faces().find(|f| cone.face_info(*f).unwrap().kind == FaceKind::Cone).unwrap();
+    let side = cone
+        .faces()
+        .find(|f| cone.face_info(*f).unwrap().kind == FaceKind::Cone)
+        .unwrap();
     let ci = cone.cone_info(side).unwrap().unwrap();
-    assert!((ci.r_base - 20.0).abs() < 1e-6 && (ci.r_top - 10.0).abs() < 1e-6 && (ci.height - 30.0).abs() < 1e-6, "{ci:?}");
+    assert!(
+        (ci.r_base - 20.0).abs() < 1e-6 && (ci.r_top - 10.0).abs() < 1e-6 && (ci.height - 30.0).abs() < 1e-6,
+        "{ci:?}"
+    );
     // a STEP file keeps the types
     let back = Solid::read_step(&cone.write_step().unwrap()).unwrap();
     assert_eq!(count(&back, FaceKind::Cone), 1);
@@ -68,10 +81,17 @@ fn circles_that_are_not_coaxial_stay_freeform() {
     let (a, b) = (circle(20.0, 0.0), circle(10.0, 8.0));
     let oblique = Solid::loft(&[at(&a, 0.0), at(&b, 30.0)], false).unwrap();
     assert!(oblique.is_valid());
-    assert_eq!(count(&oblique, FaceKind::Cone), 0, "an oblique frustum is not a cone");
+    assert_eq!(
+        count(&oblique, FaceKind::Cone),
+        0,
+        "an oblique frustum is not a cone"
+    );
     assert_eq!(oblique.face_count(), 3);
     let (lo, hi) = oblique.bounding_box().unwrap();
-    assert!(hi.x >= 20.0 - 1e-6 && lo.z.abs() < 1e-5 && (hi.z - 30.0).abs() < 1e-5, "{lo:?} {hi:?}");
+    assert!(
+        hi.x >= 20.0 - 1e-6 && lo.z.abs() < 1e-5 && (hi.z - 30.0).abs() < 1e-5,
+        "{lo:?} {hi:?}"
+    );
 }
 
 #[test]

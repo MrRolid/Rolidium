@@ -3,7 +3,7 @@
 //! A guard of the memory of a calculation. While the program computes (an operation, a mesh, an export) a thread looks at the memory the process
 //! uses; when it passes the limit (a share of the memory of the computer, or `ROLIDIUM_MEMORY_LIMIT_MB`) or the computer has almost none left, the
 //! calculation is cancelled like by the Cancel button, so the operating system does not have to kill the program. The model stays as it was.
-//! On Linux; elsewhere there is no guard (the other limits of the sizes still apply).
+//! On Linux (`/proc`) and on Windows (`GlobalMemoryStatusEx` and the working set of the process); elsewhere there is no guard (the other limits of the sizes still apply).
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 
@@ -44,7 +44,13 @@ pub fn usage_mb() -> Option<(u64, u64)> {
     Some((rss, kb("MemAvailable:")? / 1024))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(windows)]
+pub fn usage_mb() -> Option<(u64, u64)> {
+    // (the memory this process uses, the physical memory that is free)
+    crate::winsys::memory_use_mb().map(|(_, avail, used)| (used, avail))
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 pub fn usage_mb() -> Option<(u64, u64)> {
     None
 }
@@ -63,7 +69,12 @@ fn default_limit_mb() -> u64 {
     (total * 6 / 10).max(1024)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(windows)]
+fn default_limit_mb() -> u64 {
+    crate::winsys::memory_use_mb().map_or(0, |(total, _, _)| (total * 6 / 10).max(1024))
+}
+
+#[cfg(not(any(target_os = "linux", windows)))]
 fn default_limit_mb() -> u64 {
     0
 }
@@ -118,10 +129,10 @@ mod tests {
         assert!(!over_limit(5000, 8000, 0), "no limit");
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     #[test]
     fn the_memory_of_this_process_is_known() {
-        let (rss, available) = usage_mb().expect("/proc is there");
+        let (rss, available) = usage_mb().expect("the system tells");
         assert!(rss > 0 && available > 0);
     }
 }

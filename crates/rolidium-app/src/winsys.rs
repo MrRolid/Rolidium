@@ -38,8 +38,25 @@ struct OsVersionInfo {
     csd: [u16; 128],
 }
 
+/// PROCESS_MEMORY_COUNTERS (K32GetProcessMemoryInfo).
+#[repr(C)]
+struct ProcessMemoryCounters {
+    cb: u32,
+    page_faults: u32,
+    peak_working_set: usize,
+    working_set: usize,
+    quota_peak_paged: usize,
+    quota_paged: usize,
+    quota_peak_non_paged: usize,
+    quota_non_paged: usize,
+    pagefile: usize,
+    peak_pagefile: usize,
+}
+
 #[link(name = "kernel32")]
 extern "system" {
+    fn GetCurrentProcess() -> isize;
+    fn K32GetProcessMemoryInfo(process: isize, counters: *mut ProcessMemoryCounters, size: u32) -> i32;
     fn GlobalMemoryStatusEx(buffer: *mut MemoryStatusEx) -> i32;
     fn GetLogicalProcessorInformation(buffer: *mut ProcessorInfo, length: *mut u32) -> i32;
 }
@@ -60,6 +77,45 @@ extern "system" {
 #[link(name = "ntdll")]
 extern "system" {
     fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
+}
+
+/// The memory of the computer and of this process in megabytes: (physical memory, available physical memory, working set of the process).
+pub fn memory_use_mb() -> Option<(u64, u64, u64)> {
+    let mut s = MemoryStatusEx {
+        length: std::mem::size_of::<MemoryStatusEx>() as u32,
+        load: 0,
+        total_phys: 0,
+        avail_phys: 0,
+        total_page: 0,
+        avail_page: 0,
+        total_virt: 0,
+        avail_virt: 0,
+        avail_ext: 0,
+    };
+    // SAFETY: `s` is a valid structure with its size set, as the call requires.
+    let ok = unsafe { GlobalMemoryStatusEx(&mut s) };
+    if ok == 0 || s.total_phys == 0 {
+        return None;
+    }
+    let mut c = ProcessMemoryCounters {
+        cb: std::mem::size_of::<ProcessMemoryCounters>() as u32,
+        page_faults: 0,
+        peak_working_set: 0,
+        working_set: 0,
+        quota_peak_paged: 0,
+        quota_paged: 0,
+        quota_peak_non_paged: 0,
+        quota_non_paged: 0,
+        pagefile: 0,
+        peak_pagefile: 0,
+    };
+    // SAFETY: the pseudo handle of the current process is always valid; `c` is a structure of the size it says.
+    let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut c, c.cb) };
+    if ok == 0 {
+        return None;
+    }
+    let mb = 1024 * 1024;
+    Some((s.total_phys / mb, s.avail_phys / mb, c.working_set as u64 / mb))
 }
 
 /// The physical memory in megabytes.

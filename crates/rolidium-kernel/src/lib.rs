@@ -22,8 +22,8 @@ mod sweep;
 pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
-pub use glam::{DVec3, Vec3};
 pub use frustum::FrustumInfo;
+pub use glam::{DVec3, Vec3};
 pub use rounds::{BlendMap, RoundComponent, Rounding};
 /// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
 /// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.
@@ -54,8 +54,8 @@ pub use ops::{
     SectionCurve,
 };
 pub use sweep::{
-    polyline_segments, HelixDef, Path, PathSeg, PathSource, SweepOptions, SweepResult, SweepWarning,
-    HELIX_MAX_TURNS, HELIX_WARN_TURNS,
+    estimated_sweep_seconds, polyline_segments, HelixDef, Path, PathSeg, PathSource, SweepOptions,
+    SweepResult, SweepWarning, HELIX_MAX_TURNS, SWEEP_WARN_SECONDS,
 };
 
 use cxx::SharedPtr;
