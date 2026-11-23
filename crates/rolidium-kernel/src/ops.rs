@@ -812,6 +812,12 @@ impl Solid {
     pub fn pull_face(&self, face: FaceId, distance: f64) -> Result<OpResult> {
         let info = self.face_info(face)?;
         if info.kind == FaceKind::Plane && distance.is_finite() && distance.abs() >= 1e-6 {
+            // an end of a plain cone or cylinder: the cone is extended or shortened with its angle (a prism on the end would not)
+            if let Some(fr) = self.frustum_info() {
+                if face == fr.cap_base || face == fr.cap_top {
+                    return self.pull_frustum_cap(face, distance);
+                }
+            }
             let touching = self.blend_map().touching(face);
             if !touching.is_empty() {
                 return self.pull_face_with_blends(face, distance, &touching);

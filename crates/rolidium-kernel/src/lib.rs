@@ -11,6 +11,7 @@
 //! * shapes are immutable, so a failed operation can never damage its inputs.
 
 mod blend;
+mod frustum;
 mod looptool;
 mod measure;
 mod mesh;
@@ -22,6 +23,7 @@ pub mod timing;
 
 pub use blend::{largest_working_size, CHAIN_ANGLE_DEG};
 pub use glam::{DVec3, Vec3};
+pub use frustum::FrustumInfo;
 pub use rounds::{BlendMap, RoundComponent, Rounding};
 /// Angular deflection (rad) of the display meshes. It is only a safety limit: the density is set by the linear deflection (a fraction
 /// of a pixel), so a shape that is small on the screen is not made denser than its size in pixels asks for.

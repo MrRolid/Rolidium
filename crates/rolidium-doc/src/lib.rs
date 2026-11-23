@@ -9,9 +9,11 @@ use rolidium_kernel::{BooleanOp, DVec3, FaceId, History, KernelError, Profile, P
 
 mod anchor;
 mod curves;
+mod endface;
 pub use anchor::{
     angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor,
 };
+pub use endface::{end_circle, end_face_of, EndFace, EndKind};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};
 use std::sync::Arc;
@@ -361,6 +363,14 @@ pub enum Command {
         body: BodyId,
         face: FaceId,
         diameter: f64,
+    },
+    /// Change the diameter of an end of a cone, frustum or cylinder (the solid is made again; the other end keeps its diameter, or with
+    /// `keep_angle` the angle of the cone stays).
+    SetCapDiameter {
+        body: BodyId,
+        face: FaceId,
+        diameter: f64,
+        keep_angle: bool,
     },
     /// Replace the geometry of a sketch shape (dimension edit).
     ReplaceEntity {
@@ -835,6 +845,26 @@ impl Job {
                 distance,
                 mode,
             } => {
+                // an end of a loft is the sketch of its profile: pulling it moves the sketch along the normal, and the loft follows
+                if let Some(ef) = endface::end_face_of(&st, *body, *face) {
+                    if ef.kind == EndKind::Loft {
+                        let n = endface::outward_normal(&st, *body, *face)
+                            .ok_or(DocError::NoSuchBody)?;
+                        let d = mode.apply(*distance);
+                        if !d.is_finite() || d.abs() < 1e-6 {
+                            return Err(KernelError::ZeroDistance.into());
+                        }
+                        let sd = st
+                            .sketches
+                            .iter_mut()
+                            .find(|s| s.id == ef.sketch)
+                            .ok_or(DocError::NoSuchSketch)?;
+                        sd.plane.origin += n * d;
+                        let mut c = self.done(st, "Pull end face");
+                        c.touched_body = Some(*body);
+                        return Ok(c);
+                    }
+                }
                 let b = st
                     .bodies
                     .iter_mut()
@@ -1725,6 +1755,25 @@ impl Job {
                     (true, false) => "Remove chamfer",
                 };
                 let mut c = self.done(st, label);
+                c.history = Some((*body, r.history));
+                c.touched_body = Some(*body);
+                Ok(c)
+            }
+            Command::SetCapDiameter {
+                body,
+                face,
+                diameter,
+                keep_angle,
+            } => {
+                let b = st
+                    .bodies
+                    .iter_mut()
+                    .find(|b| b.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
+                let r = b.solid.set_cap_diameter(*face, *diameter, *keep_angle)?;
+                remap_features(&mut b.features, &r.history);
+                b.solid = r.solid;
+                let mut c = self.done(st, "Change diameter");
                 c.history = Some((*body, r.history));
                 c.touched_body = Some(*body);
                 Ok(c)
@@ -2643,6 +2692,16 @@ impl Document {
     }
 
     /// Prepares a command for (possibly off-thread) execution.
+    /// The sketch an end face of a loft (or the start face of a sweep) comes from.
+    pub fn end_face(&self, body: BodyId, face: FaceId) -> Option<EndFace> {
+        endface::end_face_of(&self.current, body, face)
+    }
+
+    /// The circle that is the whole profile of an end face: its entity, its centre and radius.
+    pub fn end_circle(&self, ef: &EndFace) -> Option<(rolidium_sketch::EntityId, rolidium_sketch::DVec2, f64)> {
+        endface::end_circle(&self.current, ef)
+    }
+
     pub fn plan(&self, command: Command) -> Job {
         Job {
             command,

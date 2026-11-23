@@ -110,14 +110,15 @@ fn a_loft_follows_the_diameter_of_a_circle_and_the_move_of_a_sketch() {
 #[test]
 fn a_hand_edit_of_a_loft_asks_and_removing_the_link_frees_the_body() {
     let (mut d, link, body, a, ea, _) = loft_doc();
-    let top = flat_face(&d, body);
-    let r = d.apply(Command::PullFace {
+    // a pull of an end face is a change of its sketch (see end_faces.rs); a round of an edge cannot be turned into one: the link is asked about
+    let edge = d.body(body).unwrap().solid.edges().next().unwrap().0;
+    let r = d.apply(Command::FilletEdges {
         body,
-        face: top,
-        distance: 1.0,
-        mode: PullMode::Auto,
+        edges: vec![edge],
+        size: 1.0,
+        chamfer: false,
     });
-    assert!(matches!(r, Err(DocError::Derived { link: l, body: b, .. }) if l == link && b == body));
+    assert!(matches!(r, Err(DocError::Derived { link: l, body: b, .. }) if l == link && b == body), "{:?}", r.map(|_| ()));
     d.apply(Command::Unlink { link }).unwrap();
     assert!(d.state().links.is_empty());
     // the body is an ordinary body now, and the sketches no longer change it
