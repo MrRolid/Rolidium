@@ -90,6 +90,12 @@ impl BlendMap {
     }
 }
 
+/// An edge of a face: the edge, the face on the other side, the angle between the normals and the convexity.
+type Neighbour = (usize, u32, f64, f64);
+/// What to make again: the rounding, its size, and for a chamfer the two distances and whether the reference is the second face.
+type ChamferSize = Option<(f64, f64, bool)>;
+type Item<'a> = (&'a Rounding, f64, ChamferSize);
+
 struct Scan {
     kind: Vec<u8>,
     radius: Vec<f64>,
@@ -154,7 +160,7 @@ impl Solid {
                 .push((raw[o] as i64, raw[o + 1] as i64, raw[o + 2], raw[o + 3]));
         }
         // neighbours of every face: (edge, other face, angle, convexity)
-        let mut nb: Vec<Vec<(usize, u32, f64, f64)>> = vec![Vec::new(); nf];
+        let mut nb: Vec<Vec<Neighbour>> = vec![Vec::new(); nf];
         for (e, (a, b, ang, cv)) in sc.edges.iter().enumerate() {
             if *a >= 0 && *b >= 0 && a != b {
                 nb[*a as usize].push((e, *b as u32, *ang, *cv));
@@ -228,7 +234,7 @@ impl Solid {
             if role[f] != 0 || sc.kind[f] != 0 {
                 continue;
             }
-            let good: Vec<&(usize, u32, f64, f64)> = nb[f]
+            let good: Vec<&Neighbour> = nb[f]
                 .iter()
                 .filter(|x| x.2 > CHAMFER_MIN && x.2 < CHAMFER_MAX && x.3 != 0.0)
                 .collect();
@@ -242,7 +248,7 @@ impl Solid {
             let Ok(fi) = self.face_info(FaceId(f as u32)) else {
                 continue;
             };
-            let mut long: Vec<(f64, &(usize, u32, f64, f64))> = good
+            let mut long: Vec<(f64, &Neighbour)> = good
                 .iter()
                 .filter_map(|x| self.edge_info(EdgeId(x.0 as u32)).ok().map(|i| (i.length, *x)))
                 .collect();
@@ -340,10 +346,7 @@ impl Solid {
             }
         }
         let mut comps: Vec<(usize, RoundComponent)> = Vec::new();
-        for f in 0..nf {
-            if role[f] == 0 {
-                continue;
-            }
+        for (f, _) in role.iter().enumerate().filter(|(_, r)| **r != 0) {
             let root = find(&mut parent, f);
             let ci = match comps.iter().position(|c| c.0 == root) {
                 Some(i) => i,
@@ -475,7 +478,7 @@ impl Solid {
     /// the rounding are found again through `locate`. Rounds with their own radius in one operation.
     fn make_roundings(
         &self,
-        items: &[(&Rounding, f64, Option<(f64, f64, bool)>)],
+        items: &[Item],
         locate: &dyn Fn(FaceId) -> Vec<FaceId>,
     ) -> Result<Option<OpResult>> {
         let mut round_edges: Vec<(EdgeId, f64)> = Vec::new();
@@ -612,7 +615,7 @@ impl Solid {
             ));
         }
         let locate = |f: FaceId| open.history.successors(0, f);
-        let items: Vec<(&Rounding, f64, Option<(f64, f64, bool)>)> = comp
+        let items: Vec<Item> = comp
             .roundings
             .iter()
             .enumerate()
@@ -728,8 +731,7 @@ impl Solid {
             v.dedup();
             v
         };
-        let items: Vec<(&Rounding, f64, Option<(f64, f64, bool)>)> =
-            roundings.iter().map(|r| (*r, r.size, None)).collect();
+        let items: Vec<Item> = roundings.iter().map(|r| (*r, r.size, None)).collect();
         let made = sharp.make_roundings(&items, &locate)?;
         let (result, hist) = match made {
             Some(m) => (m.solid, open.history.compose(&moved.history).compose(&m.history)),

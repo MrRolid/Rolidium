@@ -23,12 +23,19 @@ pub struct SelfTest {
     look_i: usize,
     look_sample: Option<(f32, f32)>,
     look_applied: bool,
+    /// The step that is running, when it started, and when the whole test started (progress and the time limit of a step).
+    seen_step: Option<u32>,
+    step_started: std::time::Instant,
+    test_started: std::time::Instant,
 }
 
 impl SelfTest {
     pub fn new(dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&dir);
         SelfTest {
+            seen_step: None,
+            step_started: std::time::Instant::now(),
+            test_started: std::time::Instant::now(),
             dir,
             // ROLIDIUM_SELFTEST_FROM=87 starts at that step (for the steps that make their own document)
             step: std::env::var("ROLIDIUM_SELFTEST_FROM")
@@ -123,6 +130,42 @@ impl App {
                     Err(e) => st.failures.push(format!("png: {e}")),
                 }
             }
+        }
+        // progress: the number and the time of every step, and a time limit for each (a step that hangs is named)
+        if st.seen_step != Some(st.step) {
+            if let Some(prev) = st.seen_step {
+                println!(
+                    "selftest: step {prev} done in {:.1} s",
+                    st.step_started.elapsed().as_secs_f64()
+                );
+            }
+            st.seen_step = Some(st.step);
+            st.step_started = std::time::Instant::now();
+            println!(
+                "selftest: step {} starts at {:.1} s",
+                st.step,
+                st.test_started.elapsed().as_secs_f64()
+            );
+        }
+        let limit = std::env::var("ROLIDIUM_SELFTEST_STEP_LIMIT")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(120.0);
+        if st.step_started.elapsed().as_secs_f64() > limit {
+            println!(
+                "selftest: FAIL step {} did not finish in {limit:.0} s (busy: {}, screenshot pending: {}, meshes: {}, wait frames: {})",
+                st.step,
+                !self.idle(),
+                st.shot_pending.is_some(),
+                self.meshes.len(),
+                st.wait_frames
+            );
+            println!(
+                "selftest: {} failure(s) and a step that timed out",
+                st.failures.len() + 1
+            );
+            crate::startup::finish();
+            std::process::exit(2);
         }
         ctx.request_repaint();
         // the last steps start from an empty document
@@ -2247,11 +2290,14 @@ impl App {
                 }
                 self.camera.set_view(rolidium_render::StandardView::Isometric);
                 self.request_meshes();
+                st.wait_frames = 12;
+            }
+            100 => {
                 self.fit_all();
                 st.wait_frames = 3;
                 shot(&mut st, ctx, "rounds-before-pull");
             }
-            100 => {
+            101 => {
                 // the top face pulled up by 5 mm: the rounds move with it
                 use rolidium_kernel::FaceKind;
                 if let Some(b) = self.doc.bodies().first().map(|b| b.id) {
@@ -2283,11 +2329,14 @@ impl App {
                     }
                 }
                 self.request_meshes();
+                st.wait_frames = 12;
+            }
+            102 => {
                 self.fit_all();
                 st.wait_frames = 3;
                 shot(&mut st, ctx, "rounds-after-pull");
             }
-            101 => {
+            103 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

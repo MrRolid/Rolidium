@@ -146,7 +146,7 @@ fn a_move_that_is_too_large_for_the_rounds_changes_nothing_and_says_why() {
     let s = bx();
     let r = s.fillet(&top_edges(&s), 3.0).unwrap().solid;
     let v = r.volume().unwrap();
-    let e = r.pull_face(top(&r), -19.0).err().expect("too far");
+    let e = r.pull_face(top(&r), -19.0).expect_err("too far");
     eprintln!("{e}");
     assert!(!e.to_string().is_empty());
     close(r.volume().unwrap(), v, 1e-9);
@@ -209,7 +209,7 @@ fn the_size_of_rounds_changes_for_any_number_of_edges_and_zero_makes_the_edges_s
                     );
                     close(
                         e.solid.volume().unwrap(),
-                        volume_of_reference(&*pick, new, chamfer),
+                        volume_of_reference(&pick, new, chamfer),
                         1e-6,
                     );
                 }
@@ -299,7 +299,7 @@ fn a_chamfer_is_moved_with_its_face_and_a_chamfer_from_a_step_file_is_found() {
     let reference = tall.chamfer(&top_edges(&tall), 3.0).unwrap().solid;
     close(p.volume().unwrap(), reference.volume().unwrap(), 1e-6);
     // too large for the chamfer: nothing changes, the message says why
-    let e = back.pull_face(top(&back), -19.0).err().expect("too far");
+    let e = back.pull_face(top(&back), -19.0).expect_err("too far");
     eprintln!("{e}");
     assert!(!e.to_string().is_empty());
 }

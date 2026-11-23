@@ -621,11 +621,16 @@ fn edit_round_after_other_changes_and_failures() {
     let s = bx();
     let e = one_vertical_edge(&s);
     let r = s.fillet(&[e], 5.0).unwrap();
-    let blend = r.history.new_faces(r.solid.face_count());
-    // Pull the top face up: the round must still be found through the history.
+    // Pull the top face up: the round moves with it and is recognised again from the geometry.
     let top = top_face(&r.solid);
     let p = r.solid.pull_face(top, 10.0).unwrap();
-    let blend2: Vec<FaceId> = blend.iter().flat_map(|f| p.history.successors(0, *f)).collect();
+    let blend2: Vec<FaceId> = p
+        .solid
+        .blend_map()
+        .components
+        .iter()
+        .flat_map(|c| c.roundings.iter().flat_map(|x| x.faces.clone()))
+        .collect();
     assert!(!blend2.is_empty());
     let before = p.solid.volume().unwrap();
     let edited = p.solid.edit_blend(&blend2, 8.0, false).unwrap();
