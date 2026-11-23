@@ -28,6 +28,8 @@ features is visible. 0.2.0 is the first public release.
 - Zooming into a body no longer takes faces away: a finer mesh replaces the coarse mesh of a face only when it is complete (it has triangles and covers the area of the coarse one); otherwise the face stays as it was. A circle swept along a helix lost parts of its faces when the zoom went to a coarser tolerance.
 - The window no longer draws frames at rest: the read-back of what is under the pointer was started again on every frame and kept the window repainting for as long as the pointer was over the model; the sketch mode and a running pull repainted for ever too.
 
+- A deep zoom into a long curved body (a spring at 100x) could take minutes and tens of gigabytes: the estimate of the triangles started from the deflection the display had asked for, not the one the mesh really had. A pass now makes a face at most 4 times finer than it is (a deep zoom is a few quick passes), and the real deflection is kept for the next estimate.
+
 ### Not yet
 - STEP export of groups as an assembly structure: the prebuilt OpenCascade of the packages has no XCAF libraries, so groups are not written to STEP files (the bodies are).
 
