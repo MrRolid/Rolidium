@@ -7,7 +7,9 @@
 
 use rolidium_kernel::{BooleanOp, DVec3, FaceId, History, KernelError, Profile, ProfileSegment, Solid};
 
+mod anchor;
 mod curves;
+pub use anchor::{angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};
 use std::sync::Arc;
@@ -166,6 +168,8 @@ pub struct SketchDoc {
     pub visible: bool,
     /// Made by Fill: the region fills a hole or opening, so pulling it adds material in either direction.
     pub fill: bool,
+    /// The end of a curve the sketch is laid on: the sketch moves with it when the curve changes.
+    pub anchor: Option<SketchAnchor>,
 }
 
 /// Everything the document contains at one moment. Snapshots are cheap (`Arc`).
@@ -256,6 +260,8 @@ pub enum SweepMode {
 pub enum SketchTarget {
     Existing(SketchId),
     New { plane: PlaneDef, body: Option<BodyId> },
+    /// A new sketch laid on the end of a curve (its plane is the one `anchor` gives there).
+    Anchored { anchor: SketchAnchor },
 }
 
 #[derive(Debug, Clone)]
@@ -746,6 +752,7 @@ impl Job {
                 .unwrap_or(0)
                 + 1,
         );
+        anchor::refresh(&mut c.state);
         let notes = links::refresh(&mut c.state, &mut next);
         if !notes.is_empty() {
             let text = notes.join("; ");
@@ -831,6 +838,7 @@ impl Job {
                     sketch,
                     visible: true,
                     fill: true,
+                    anchor: None,
                 });
                 let mut c = self.done(st, "Fill");
                 c.created_sketch = Some(self.next_id);
@@ -907,6 +915,7 @@ impl Job {
                     sketch,
                     visible: true,
                     fill: false,
+                    anchor: None,
                 });
                 let mut c = self.done(st, "Fill");
                 c.created_sketch = Some(self.next_id);
@@ -1073,6 +1082,32 @@ impl Job {
                             sketch: Sketch::new(),
                             visible: true,
                             fill: false,
+                            anchor: None,
+                        });
+                        created = Some(self.next_id);
+                        self.next_id
+                    }
+                    SketchTarget::Anchored { anchor } => {
+                        let def = st
+                            .curves
+                            .iter()
+                            .find(|c| c.id == anchor.curve)
+                            .ok_or(DocError::NoSuchCurve)?
+                            .def
+                            .clone();
+                        let plane = EndFrame::of(&def, anchor.end)?
+                            .plane(&anchor.plane)
+                            .ok_or_else(|| KernelError::Invalid("That plane does not exist at this end of the curve".into()))?;
+                        st.sketch_counter += 1;
+                        st.sketches.push(SketchDoc {
+                            id: self.next_id,
+                            name: format!("Sketch {}", st.sketch_counter),
+                            plane,
+                            target: None,
+                            sketch: Sketch::new(),
+                            visible: true,
+                            fill: false,
+                            anchor: Some(anchor.clone()),
                         });
                         created = Some(self.next_id);
                         self.next_id

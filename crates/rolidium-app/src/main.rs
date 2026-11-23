@@ -291,15 +291,15 @@ fn main() -> eframe::Result {
     let cap = settings::Settings::load().fps_cap;
     let sync = settings::synchronised(&cap) && !bench_viewport;
     options.wgpu_options.surface.present_mode = if sync {
-        eframe::wgpu::PresentMode::AutoVsync
+        eframe::wgpu::PresentMode::Fifo
     } else {
         eframe::wgpu::PresentMode::AutoNoVsync
     };
     let _ = settings::PRESENT.set(
         if sync {
-            "AutoVsync (frames wait for the monitor)"
+            "Fifo (every frame waits for the monitor)"
         } else {
-            "AutoNoVsync (frames do not wait for the monitor)"
+            "AutoNoVsync (Immediate or Mailbox: no waiting for the monitor)"
         }
         .to_string(),
     );

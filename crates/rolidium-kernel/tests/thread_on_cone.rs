@@ -137,9 +137,14 @@ fn a_face_that_cannot_be_made_finer_is_not_asked_for_again() {
         while due(&s, &mesh, n, pixel) {
             passes += 1;
             assert!(passes <= 8, "pixel {pixel}: still due after {passes} passes");
-            mesh = s.view_mesh_faces(pixel, &vec![true; n], 150_000, Some(&mesh)).unwrap();
+            mesh = s
+                .view_mesh_faces(pixel, &vec![true; n], 150_000, Some(&mesh))
+                .unwrap();
         }
-        eprintln!("pixel {pixel}: settled after {passes} pass(es), {} triangles", mesh.triangle_count());
+        eprintln!(
+            "pixel {pixel}: settled after {passes} pass(es), {} triangles",
+            mesh.triangle_count()
+        );
         // at rest nothing is asked for: the same pixel again gives nothing new
         assert!(!due(&s, &mesh, n, pixel));
     }

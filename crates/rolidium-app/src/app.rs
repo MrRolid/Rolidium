@@ -261,6 +261,8 @@ pub struct App {
     last_op_ms: Option<f32>,
     frame_ms: f32,
     fps_smooth: f32,
+    /// When the next frame may start (the software ceiling of the frame rate).
+    frame_deadline: Option<Instant>,
     /// A pick read-back is due (the pointer or the picture changed since the last one).
     pick_dirty: bool,
     /// The size of the diagnostic panel in the last frame (to put it into the corner).
@@ -474,6 +476,7 @@ impl App {
             last_op_ms: None,
             frame_ms: 0.0,
             fps_smooth: 0.0,
+            frame_deadline: None,
             pick_dirty: true,
             diag_size: Vec2::new(300.0, 90.0),
             last_frame: Instant::now(),
@@ -3752,19 +3755,25 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         crate::startup::frame_drawn();
         self.startup_notice_window(&ctx);
-        // the ceiling of the frame rate: a frame that comes sooner than the interval waits for the rest of it
+        // the ceiling of the frame rate: the next frame waits for its time (kept as a deadline, not as a pause after each frame, so that the
+        // rate does not drift; the last millisecond is waited for in a loop, where the sleep of the system is not exact)
         if self.selftest.is_none() && self.bench.is_none() {
             if let Some(iv) = crate::settings::fps_interval(&self.settings.fps_cap) {
-                let since = self.last_frame.elapsed();
-                if since < iv {
-                    std::thread::sleep(iv - since);
-                }
+                let iv = if crate::settings::synchronised(&self.settings.fps_cap) {
+                    iv.mul_f64(crate::settings::SYNC_MARGIN)
+                } else {
+                    iv
+                };
+                crate::settings::pace(&mut self.frame_deadline, iv);
+            } else {
+                self.frame_deadline = None;
             }
         }
         let now = Instant::now();
         self.frame_ms = (now - self.last_frame).as_secs_f32() * 1000.0;
         self.last_frame = now;
-        if self.frame_ms > 0.0 {
+        // the rate is measured over frames that follow each other (a pause of the window is not a slow frame)
+        if self.frame_ms > 0.0 && self.frame_ms < 250.0 {
             let fps = 1000.0 / self.frame_ms;
             self.fps_smooth = if self.fps_smooth == 0.0 {
                 fps
@@ -4380,7 +4389,7 @@ impl eframe::App for App {
                     .map_or("-".to_string(), |v| format!("{v:.1} ms (incl. meshing)"))
             );
             let text = format!(
-                "{text}\nframe rate ceiling: {}\nframe hand-over: {}\nframes drawn: {}",
+                "{text}\nceiling: {}\nhand-over (as requested): {}\nframes drawn: {}",
                 match self.settings.fps_cap.as_str() {
                     "monitor" => "by the monitor".to_string(),
                     "none" => "none".to_string(),
@@ -4420,34 +4429,103 @@ impl eframe::App for App {
                 vr.left() + ox.clamp(0.0, max_x),
                 vr.bottom() - size.y - oy.clamp(0.0, max_y),
             );
+            const W: f32 = 360.0;
+            let mut close = false;
+            let mut drag = Vec2::ZERO;
+            let mut released = false;
             #[allow(deprecated)]
             let area = egui::Area::new(egui::Id::new("debug_overlay"))
                 .fixed_pos(pos)
                 .constrain_to(vr)
-                .sense(egui::Sense::drag())
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
-                        .fill(Color32::from_black_alpha(190))
-                        .inner_margin(6.0)
+                        .fill(Color32::from_black_alpha(200))
                         .show(ui, |ui| {
-                            ui.label(
-                                egui::RichText::new(text)
-                                    .monospace()
-                                    .color(crate::theme::rgb(140, 255, 140)),
+                            ui.set_width(W);
+                            // the bar: the move icon (drag here), the title and the cross that closes the panel (as F12 does)
+                            let (bar, bar_resp) =
+                                ui.allocate_exact_size(Vec2::new(W, 22.0), egui::Sense::click_and_drag());
+                            let ink = crate::theme::rgb(140, 255, 140);
+                            ui.painter().rect_filled(bar, 0.0, Color32::from_white_alpha(28));
+                            let c = Pos2::new(bar.left() + 14.0, bar.center().y);
+                            let st = Stroke::new(1.5, ink);
+                            for d in [Vec2::X, Vec2::Y] {
+                                ui.painter().line_segment([c - d * 7.0, c + d * 7.0], st);
+                                for sgn in [-1.0_f32, 1.0] {
+                                    let tip = c + d * 7.0 * sgn;
+                                    let perp = Vec2::new(d.y, d.x);
+                                    ui.painter()
+                                        .line_segment([tip, tip - d * 3.0 * sgn + perp * 2.5], st);
+                                    ui.painter()
+                                        .line_segment([tip, tip - d * 3.0 * sgn - perp * 2.5], st);
+                                }
+                            }
+                            ui.painter().text(
+                                Pos2::new(bar.left() + 30.0, bar.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                "Diagnostics (F12)",
+                                egui::FontId::monospace(12.0),
+                                ink,
                             );
+                            let x_rect = Rect::from_center_size(
+                                Pos2::new(bar.right() - 14.0, bar.center().y),
+                                Vec2::splat(18.0),
+                            );
+                            let x_resp = ui.interact(
+                                x_rect,
+                                egui::Id::new("debug_overlay_close"),
+                                egui::Sense::click(),
+                            );
+                            if x_resp.hovered() {
+                                ui.painter()
+                                    .rect_filled(x_rect, 3.0, Color32::from_white_alpha(40));
+                            }
+                            for (a, b) in [((-1.0, -1.0), (1.0, 1.0)), ((-1.0, 1.0), (1.0, -1.0))] {
+                                ui.painter().line_segment(
+                                    [
+                                        x_rect.center() + Vec2::new(a.0, a.1) * 4.5,
+                                        x_rect.center() + Vec2::new(b.0, b.1) * 4.5,
+                                    ],
+                                    st,
+                                );
+                            }
+                            if x_resp.clicked() {
+                                close = true;
+                            }
+                            if bar_resp.dragged() && !x_resp.hovered() {
+                                drag = bar_resp.drag_delta();
+                            }
+                            released = bar_resp.drag_stopped();
+                            if bar_resp.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+                            }
+                            // the lines: a fixed width (a long line is cut, the panel does not change its width with the text)
+                            ui.add_space(3.0);
+                            for line in text.lines() {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(6.0);
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(line).monospace().small().color(ink),
+                                        )
+                                        .truncate(),
+                                    );
+                                });
+                            }
+                            ui.add_space(4.0);
                         });
                 });
             self.diag_size = area.response.rect.size();
-            if area.response.dragged() {
-                let d = area.response.drag_delta();
+            if close {
+                self.show_debug = false;
+            }
+            if drag != Vec2::ZERO {
                 let [x, y] = self.settings.diag_pos.unwrap_or([8.0, 8.0]);
-                self.settings.diag_pos = Some([(x + d.x).clamp(0.0, max_x), (y - d.y).clamp(0.0, max_y)]);
+                self.settings.diag_pos =
+                    Some([(x + drag.x).clamp(0.0, max_x), (y - drag.y).clamp(0.0, max_y)]);
             }
-            if area.response.drag_stopped() {
+            if released {
                 self.settings.save();
-            }
-            if area.response.hovered() {
-                ctx.set_cursor_icon(egui::CursorIcon::Grab);
             }
         }
 

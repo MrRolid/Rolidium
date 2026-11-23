@@ -579,7 +579,8 @@ impl Solid {
     /// The size of the part and the linear deflection for a pixel of `pixel_mm`.
     /// The deflection a mesh for a pixel of `pixel_mm` is asked for (limited at both ends); what the program compares the meshes with.
     pub fn view_deflection(&self, pixel_mm: f64) -> f64 {
-        self.view_linear(pixel_mm).map_or(pixel_mm * VIEW_PIXEL_FRACTION, |v| v.1)
+        self.view_linear(pixel_mm)
+            .map_or(pixel_mm * VIEW_PIXEL_FRACTION, |v| v.1)
     }
 
     fn view_linear(&self, pixel_mm: f64) -> Result<(f64, f64)> {

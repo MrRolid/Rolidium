@@ -256,6 +256,54 @@ fn path_from(j: &Value) -> Result<crate::SweepPath, FileError> {
     })
 }
 
+fn anchor_json(a: &crate::SketchAnchor) -> Value {
+    use crate::PlaneKind;
+    let (kind, extra) = match &a.plane {
+        PlaneKind::AxisPlane => ("axis_plane", None),
+        PlaneKind::NormalToTangent => ("normal_to_tangent", None),
+        PlaneKind::NormalToAxis => ("normal_to_axis", None),
+        PlaneKind::ParallelXY => ("parallel_xy", None),
+        PlaneKind::ParallelXZ => ("parallel_xz", None),
+        PlaneKind::ParallelYZ => ("parallel_yz", None),
+        PlaneKind::Free { normal, x_dir } => ("free", Some((*normal, *x_dir))),
+    };
+    let mut j = json!({
+        "curve": a.curve,
+        "end": if a.end == crate::CurveEnd::Start { "start" } else { "end" },
+        "plane": kind,
+    });
+    if let Some((n, x)) = extra {
+        j["normal"] = arr3(n);
+        j["x_dir"] = arr3(x);
+    }
+    j
+}
+
+/// The anchor of a sketch from its JSON; none when it names a curve that is not in the file or a kind this program does not know (the sketch stays).
+fn anchor_from(a: &Value, curves: &[crate::CurveDoc]) -> Option<crate::SketchAnchor> {
+    use crate::PlaneKind;
+    let curve = a["curve"].as_u64().filter(|c| curves.iter().any(|x| x.id == *c))?;
+    let end = match a["end"].as_str()? {
+        "start" => crate::CurveEnd::Start,
+        "end" => crate::CurveEnd::End,
+        _ => return None,
+    };
+    let plane = match a["plane"].as_str()? {
+        "axis_plane" => PlaneKind::AxisPlane,
+        "normal_to_tangent" => PlaneKind::NormalToTangent,
+        "normal_to_axis" => PlaneKind::NormalToAxis,
+        "parallel_xy" => PlaneKind::ParallelXY,
+        "parallel_xz" => PlaneKind::ParallelXZ,
+        "parallel_yz" => PlaneKind::ParallelYZ,
+        "free" => PlaneKind::Free {
+            normal: get3(&a["normal"]).ok()?,
+            x_dir: get3(&a["x_dir"]).ok()?,
+        },
+        _ => return None,
+    };
+    Some(crate::SketchAnchor { curve, end, plane })
+}
+
 /// The JSON of a link (without the solid it started from, which is a BREP entry of its own).
 fn link_json(l: &crate::Link) -> Value {
     use crate::{LinkKind, PatternMode};
@@ -540,6 +588,14 @@ pub fn save_to_bytes(
             if s.fill {
                 j.insert("fill".into(), json!(true));
             }
+            match &s.anchor {
+                Some(a) => {
+                    j.insert("anchor".into(), anchor_json(a));
+                }
+                None => {
+                    j.remove("anchor");
+                }
+            }
             j.insert(
                 "entities".into(),
                 Value::Array(s.sketch.entities().iter().map(|(_, e)| entity_json(e)).collect()),
@@ -808,6 +864,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         max_id = max_id.max(id);
         state.bodies.push(body);
     }
+    let mut pending_anchors: Vec<(u64, Value)> = Vec::new();
     for s in manifest
         .get("sketches")
         .and_then(Value::as_array)
@@ -861,10 +918,15 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             sketch,
             visible: j.get("visible").and_then(Value::as_bool).unwrap_or(true),
             fill: j.get("fill").and_then(Value::as_bool).unwrap_or(false),
+            anchor: None,
         };
+        // the curves are read after the sketches: the anchor is put on when they are there
+        if let Some(a) = j.get("anchor") {
+            pending_anchors.push((id, a.clone()));
+        }
         take_keys(
             &mut j,
-            &["name", "plane", "target_body", "entities", "visible", "fill"],
+            &["name", "plane", "target_body", "entities", "visible", "fill", "anchor"],
         );
         if !unknown.is_empty() {
             j.insert("entities_unknown".into(), Value::Array(unknown));
@@ -926,6 +988,13 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             extras.curves.insert(id, j);
         }
         max_id = max_id.max(id);
+    }
+    // the sketches laid on the end of a curve (an anchor to a curve that is not in the file is dropped, the sketch stays)
+    for (id, a) in pending_anchors {
+        let anchor = anchor_from(&a, &state.curves);
+        if let Some(s) = state.sketches.iter_mut().find(|s| s.id == id) {
+            s.anchor = anchor;
+        }
     }
     // links and groups (files of an older program have none)
     for l in manifest

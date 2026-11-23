@@ -126,6 +126,30 @@ pub fn synchronised(cap: &str) -> bool {
     !matches!(cap, "120" | "none")
 }
 
+/// How much of the interval of a software ceiling is used when the frames also wait for the monitor: a little less, so that the monitor and
+/// not the clock sets the pace (two clocks of about the same period beat against each other and drop frames, 60 fps became 52).
+pub const SYNC_MARGIN: f64 = 0.94;
+
+/// Waits until the deadline of the next frame and sets the one after it (`iv` later). The deadline moves by whole intervals, so the rate does
+/// not drift whatever the frames cost; the last millisecond is waited for in a loop (the sleep of the system is not exact). A deadline that is
+/// more than a frame behind (the window was idle) starts again from now.
+pub fn pace(deadline: &mut Option<std::time::Instant>, iv: std::time::Duration) {
+    use std::time::{Duration, Instant};
+    let now = Instant::now();
+    let due = deadline.unwrap_or(now);
+    if due > now {
+        let wait = due - now;
+        if wait > Duration::from_millis(2) {
+            std::thread::sleep(wait - Duration::from_millis(1));
+        }
+        while Instant::now() < due {
+            std::hint::spin_loop();
+        }
+    }
+    let after = Instant::now();
+    *deadline = Some(if after > due + iv { after + iv } else { due + iv });
+}
+
 /// The way the frames reach the screen, as started (set once in `main`).
 pub static PRESENT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
@@ -446,5 +470,42 @@ mod threads_tests {
         let first = rolidium_kernel::par::configure(3);
         assert_eq!(rolidium_kernel::par::configure(7), first);
         assert_eq!(rolidium_kernel::par::threads(), first);
+    }
+}
+
+#[cfg(test)]
+mod pace_tests {
+    use super::*;
+
+    #[test]
+    fn the_ceiling_is_met_closely_and_without_drift() {
+        for (cap, frames) in [("30", 30), ("60", 60), ("120", 120)] {
+            let iv = fps_interval(cap).unwrap();
+            let mut deadline = None;
+            let t = std::time::Instant::now();
+            // frames that cost a little, as in the program
+            for _ in 0..frames + 1 {
+                pace(&mut deadline, iv);
+                std::thread::sleep(std::time::Duration::from_micros(300));
+            }
+            let secs = t.elapsed().as_secs_f64();
+            assert!((secs - 1.0).abs() < 0.04, "{cap}: {frames} frames took {secs} s");
+        }
+    }
+
+    #[test]
+    fn the_modes_of_the_ceilings() {
+        // the monitor, 30 and 60 wait for the monitor (Fifo, which every system has); 120 and unlimited do not
+        for (cap, sync) in [
+            ("monitor", true),
+            ("30", true),
+            ("60", true),
+            ("120", false),
+            ("none", false),
+        ] {
+            assert_eq!(synchronised(cap), sync, "{cap}");
+        }
+        assert!(fps_interval("monitor").is_none() && fps_interval("none").is_none());
+        assert!(SYNC_MARGIN < 1.0 && SYNC_MARGIN > 0.8);
     }
 }
