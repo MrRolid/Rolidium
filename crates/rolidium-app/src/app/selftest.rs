@@ -67,6 +67,35 @@ const LAYOUTS: [(f32, f32, f32); 5] = [
 ];
 
 impl App {
+    /// Compares what the view holds (the meshes of the bodies, the vertices of the curves in the layers that were uploaded) with the document.
+    fn drawn_matches_document(&self) -> (bool, String) {
+        let want_bodies: Vec<_> = self.doc.bodies().iter().filter(|b| b.visible).map(|b| b.id).collect();
+        let have_bodies: Vec<_> = self.meshes.iter().map(|m| m.id).collect();
+        let want_curve: usize = self
+            .doc
+            .curves()
+            .iter()
+            .filter(|c| c.visible)
+            .map(|c| {
+                c.def
+                    .path()
+                    .and_then(|p| p.polyline(self.curve_cache.tol.max(0.002)))
+                    .map_or(0, |v| 2 * v.len().saturating_sub(1))
+            })
+            .sum();
+        let ok = want_bodies == have_bodies && !self.layers_changed && !self.meshes_changed && self.drawn_curve_vertices == want_curve;
+        (
+            ok,
+            format!(
+                "bodies in the document {}, drawn {}; curve vertices wanted {want_curve}, drawn {}, layers pending {}, meshes pending {}",
+                want_bodies.len(),
+                have_bodies.len(),
+                self.drawn_curve_vertices,
+                self.layers_changed,
+                self.meshes_changed
+            ),
+        )
+    }
     fn body_volume(&self) -> f64 {
         self.doc
             .bodies()
@@ -2337,6 +2366,138 @@ impl App {
                 shot(&mut st, ctx, "rounds-after-pull");
             }
             103 => {
+                // undo and redo through a body, a curve and a sweep: what is drawn is what the document holds
+                use rolidium_kernel::*;
+                self.replace_document(Document::new(), None);
+                // made the way the window makes them: as jobs of the worker, one after the other
+                self.submit(Command::AddSolids {
+                    solids: vec![Solid::cylinder(10.0, 30.0, DVec3::ZERO, DVec3::Z).unwrap()],
+                });
+                st.wait_frames = 5;
+            }
+            104 => {
+                use rolidium_kernel::*;
+                self.submit(Command::AddCurve {
+                    def: rolidium_doc::CurveDef::Helix(HelixDef {
+                        origin: DVec3::ZERO,
+                        axis: DVec3::Z,
+                        x_dir: DVec3::X,
+                        radius: 12.0,
+                        pitch: 5.0,
+                        turns: 4.0,
+                        right: true,
+                        start_deg: 0.0,
+                        cone_deg: 0.0,
+                    }),
+                });
+                st.wait_frames = 10;
+            }
+            105 => {
+                let (ok, what) = self.drawn_matches_document();
+                check(&mut st, &format!("body and curve are drawn as the document has them ({what})"), ok);
+                self.undo(); // the curve goes
+                st.wait_frames = 10;
+            }
+            106 => {
+                let (ok, what) = self.drawn_matches_document();
+                check(&mut st, &format!("after Undo of the curve the view shows no curve ({what})"), ok && self.doc.curves().is_empty());
+                self.undo(); // the body goes
+                st.wait_frames = 10;
+            }
+            107 => {
+                let (ok, what) = self.drawn_matches_document();
+                check(&mut st, &format!("after Undo of the body the view is empty ({what})"), ok && self.doc.bodies().is_empty());
+                self.redo();
+                st.wait_frames = 10;
+            }
+            108 => {
+                let (ok, what) = self.drawn_matches_document();
+                check(&mut st, &format!("after Redo of the body it is drawn again ({what})"), ok && self.doc.bodies().len() == 1);
+                self.redo();
+                st.wait_frames = 10;
+            }
+            109 => {
+                let (ok, what) = self.drawn_matches_document();
+                check(&mut st, &format!("after Redo of the curve it is drawn again ({what})"), ok && self.doc.curves().len() == 1);
+                st.wait_frames = 1;
+            }
+            110 => {
+                // the scene of the report: a cone and a thread of a circle swept along a helix on it (about 100 000 triangles)
+                self.replace_document(Document::new(), None);
+                if let Some((cone, thread)) = thread_scene() {
+                    let _ = self.doc.apply(Command::AddSolids {
+                        solids: vec![cone, thread],
+                    });
+                }
+                self.camera.set_view(rolidium_render::StandardView::Isometric);
+                self.request_meshes();
+                st.wait_frames = 6;
+            }
+            111 => {
+                // the work of the window for one move of the pointer, and for one turn of the view, in ms (the graphics card is not part of it)
+                if self.meshes.len() < 2 {
+                    self.selftest = Some(st);
+                    return;
+                }
+                self.fit_all();
+                let rect = self.viewport_rect;
+                let tris: usize = self.meshes.iter().map(|m| m.mesh.triangle_count()).sum();
+                let time = |n: usize, f: &mut dyn FnMut(usize)| -> f64 {
+                    let t = Instant::now();
+                    for i in 0..n {
+                        f(i);
+                    }
+                    t.elapsed().as_secs_f64() * 1e3 / n as f64
+                };
+                let n = 40;
+                let mut hits = 0usize;
+                // the pointer on the edges of the thread: the place where the window has most to do
+                let spots: Vec<Pos2> = self
+                    .meshes
+                    .iter()
+                    .flat_map(|m| m.mesh.edges.iter())
+                    .flat_map(|e| e.points.iter().step_by(7).copied())
+                    .filter_map(|p| self.project(p, rect))
+                    .filter(|p| rect.contains(*p))
+                    .collect();
+                // the hierarchies of the triangles are made on other threads: wait for them (a real pointer meets them ready)
+                for _ in 0..200 {
+                    let ready = self.meshes.iter().all(|m| self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh).is_some());
+                    if ready {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                let step = (spots.len() / n).max(1);
+                let pick = time(n, &mut |i| {
+                    let p = spots[(i * step) % spots.len().max(1)];
+                    hits += self.pick_candidates(p, rect, true, true).len();
+                });
+                let layers = time(10, &mut |_| {
+                    let _ = self.build_layers();
+                });
+                let marks = time(n, &mut |_| {
+                    let _ = (self.selected_ids(), self.body_marks());
+                });
+                println!(
+                    "selftest: scene of {tris} triangles: pointer move (pick candidates) {pick:.2} ms ({hits} candidates), layers {layers:.2} ms, marks {marks:.3} ms"
+                );
+                check(&mut st, "a move of the pointer over the scene takes less than 2 ms of the window's own work", pick < 2.0);
+                st.wait_frames = 1;
+            }
+            112 => {
+                // frames of the window over the scene while the view turns (the picture is drawn by software here: the work of the window is the share
+                // that does not depend on the card)
+                // for a measurement by hand or by a script of the pointer: stay here
+                if std::env::var_os("ROLIDIUM_SELFTEST_HOLD").is_some() {
+                    self.fit_all();
+                    self.selftest = Some(st);
+                    return;
+                }
+                self.camera.orbit(5.0, 0.0);
+                st.wait_frames = 2;
+            }
+            113 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,
@@ -2397,4 +2558,53 @@ fn peak_memory_mb() -> u64 {
         .and_then(|l| l.split_whitespace().nth(1).and_then(|n| n.parse::<u64>().ok()))
         .unwrap_or(0)
         / 1024
+}
+
+/// A cone of 40 mm across and a thread of a circle of 1 mm swept along a helix of 10 turns on it (the scene of the report on slow frames).
+fn thread_scene() -> Option<(rolidium_kernel::Solid, rolidium_kernel::Solid)> {
+    use rolidium_kernel::*;
+    let pts = [[0.0, 0.0], [20.0, 0.0], [10.0, 30.0], [0.0, 30.0]];
+    let seg: Vec<ProfileSegment> = (0..4)
+        .map(|i| ProfileSegment::Line {
+            a: pts[i],
+            b: pts[(i + 1) % 4],
+        })
+        .collect();
+    let cone = Solid::revolve_profile(
+        &Profile { loops: vec![seg] },
+        DVec3::ZERO,
+        -DVec3::Y,
+        DVec3::X,
+        DVec3::ZERO,
+        DVec3::Z,
+        std::f64::consts::TAU,
+    )
+    .ok()?;
+    let h = HelixDef {
+        origin: DVec3::ZERO,
+        axis: DVec3::Z,
+        x_dir: DVec3::X,
+        radius: 20.0,
+        pitch: 3.0,
+        turns: 10.0,
+        right: true,
+        start_deg: 0.0,
+        cone_deg: -(10.0_f64 / 30.0).atan().to_degrees(),
+    };
+    let path = Path::build(PathSource::Helix(h)).ok()?;
+    let t = path.start_tangent;
+    let disc = Profile {
+        loops: vec![vec![ProfileSegment::Circle {
+            center: [0.0, 0.0],
+            radius: 0.5,
+        }]],
+    };
+    let input = LoftInput::Profile {
+        profile: &disc,
+        origin: path.start,
+        normal: t,
+        x_dir: t.cross(DVec3::Z).normalize(),
+    };
+    let thread = Solid::sweep(&input, &path, &SweepOptions::default()).ok()?.solid;
+    Some((cone, thread))
 }

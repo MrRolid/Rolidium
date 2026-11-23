@@ -29,6 +29,7 @@ mod bench;
 mod busy;
 mod combinetool;
 mod curvetools;
+mod pickcache;
 mod dock;
 mod edgepull;
 mod editbench;
@@ -235,6 +236,8 @@ pub struct App {
     regions: Vec<SketchRegions>,
     regions_rev: u64,
     layers_changed: bool,
+    /// How many vertices of curves the last uploaded layers hold (for the self-test: what is drawn must match the document).
+    drawn_curve_vertices: usize,
     status: Status,
     adapter: String,
     adapter_software: bool,
@@ -261,6 +264,10 @@ pub struct App {
     show_debug: bool,
     last_op_ms: Option<f32>,
     frame_ms: f32,
+    /// Smoothed work of the window per frame in ms: the whole `ui`, the viewport, and the part of it that finds what is under the pointer.
+    work_ms: [f32; 3],
+    last_ui_ms: std::rc::Rc<std::cell::Cell<f32>>,
+    last_work_log: Instant,
     fps_smooth: f32,
     /// Why the view asked for the next frame: the pointer moved, a pick read-back is running (for the diagnostic panel).
     repaint_why: (bool, bool, bool, bool),
@@ -375,6 +382,7 @@ pub struct App {
     /// Where the Pull button of the left column was drawn (the guide points at it).
     pull_btn_rect: Rect,
     joint_cache: std::cell::RefCell<Option<(JointKey, bool)>>,
+    pick_cache: std::cell::RefCell<pickcache::PickCache>,
     file_path: Option<PathBuf>,
     file_dialog: Option<crate::filedialog::FileDialog>,
     egui_ctx: egui::Context,
@@ -460,6 +468,7 @@ impl App {
             regions: Vec::new(),
             regions_rev: u64::MAX,
             layers_changed: true,
+            drawn_curve_vertices: 0,
             status: Status {
                 text: tr("Ready"),
                 error: false,
@@ -486,6 +495,9 @@ impl App {
             show_debug: false,
             last_op_ms: None,
             frame_ms: 0.0,
+            work_ms: [0.0; 3],
+            last_ui_ms: Default::default(),
+            last_work_log: Instant::now(),
             fps_smooth: 0.0,
             repaint_why: (false, false, false, false),
             frame_deadline: None,
@@ -581,6 +593,7 @@ impl App {
             guide,
             pull_btn_rect: Rect::NOTHING,
             joint_cache: Default::default(),
+            pick_cache: Default::default(),
             file_path: None,
             file_dialog: None,
             egui_ctx: cc.egui_ctx.clone(),
@@ -934,6 +947,9 @@ impl App {
                 sm.sketch = None;
             }
         }
+        // curves, sketches and bodies are drawn from the document as it is now, not as it was a frame ago
+        self.curve_cache.defs.clear();
+        self.layers_changed = true;
         self.request_meshes();
         self.set_status(what, false);
     }
@@ -2474,6 +2490,13 @@ impl App {
     }
 
     fn viewport(&mut self, ui: &mut egui::Ui) {
+        let t0 = Instant::now();
+        self.viewport_inner(ui);
+        let ms = t0.elapsed().as_secs_f32() * 1000.0;
+        self.work_ms[1] = self.work_ms[1] * 0.9 + ms * 0.1;
+    }
+
+    fn viewport_inner(&mut self, ui: &mut egui::Ui) {
         let size = ui.available_size();
         let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
         self.viewport_rect = rect;
@@ -2509,6 +2532,7 @@ impl App {
         let mut hovered_face = if resp.hovered() { self.hovered_face() } else { None };
         let prev_hover_region = self.hover_region;
         let prev_obj = self.hover_obj;
+        let t_pointer = Instant::now();
         self.hover_obj = match (resp.hovered(), pointer, self.pull.is_some()) {
             (true, Some(p), false) => {
                 let entities = self.sk.as_ref().is_none_or(|s| s.tool == SkTool::None);
@@ -2540,6 +2564,10 @@ impl App {
                     self.hover_obj = None;
                 }
             }
+        }
+        {
+            let ms = t_pointer.elapsed().as_secs_f32() * 1000.0;
+            self.work_ms[2] = self.work_ms[2] * 0.9 + ms * 0.1;
         }
         if prev_obj != self.hover_obj {
             self.layers_changed = true;
@@ -2619,7 +2647,13 @@ impl App {
             v: sm.plane.y_dir().as_vec3(),
         });
         let layers = if std::mem::take(&mut self.layers_changed) {
-            Some(self.build_layers())
+            let l = self.build_layers();
+            self.drawn_curve_vertices = l
+                .iter()
+                .filter(|d| d.thick_color == curvetools::CURVE_COLOR)
+                .map(|d| d.thick.len())
+                .sum();
+            Some(l)
         } else {
             None
         };
@@ -3794,6 +3828,22 @@ impl eframe::App for App {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // the time of the whole frame function is noted when it ends (also on an early return) and taken into account by the next frame
+        struct Timer(Instant, std::rc::Rc<std::cell::Cell<f32>>);
+        impl Drop for Timer {
+            fn drop(&mut self) {
+                self.1.set(self.0.elapsed().as_secs_f32() * 1000.0);
+            }
+        }
+        let _timer = Timer(Instant::now(), self.last_ui_ms.clone());
+        self.work_ms[0] = self.work_ms[0] * 0.9 + self.last_ui_ms.get() * 0.1;
+        if self.last_work_log.elapsed().as_secs() >= 2 && std::env::var_os("ROLIDIUM_FRAME_LOG").is_some() {
+            self.last_work_log = Instant::now();
+            log(&format!(
+                "frame work: window {:.1} ms (viewport {:.1}, pointer {:.1}); frame {:.1} ms",
+                self.work_ms[0], self.work_ms[1], self.work_ms[2], self.frame_ms
+            ));
+        }
         let ctx = ui.ctx().clone();
         crate::startup::frame_drawn();
         self.startup_notice_window(&ctx);
@@ -3835,6 +3885,8 @@ impl eframe::App for App {
         self.bench_tick(&ctx);
         self.edit_bench_tick(&ctx);
         self.poll_worker();
+        // a result of the worker or an Undo of this frame changed the document: the curves are drawn from it, not from the frame before
+        self.refresh_curve_cache();
         self.selftest_tick(&ctx);
         self.guide_tick();
         self.remesh_tick(&ctx);
@@ -4432,7 +4484,10 @@ impl eframe::App for App {
                     .map_or("-".to_string(), |v| format!("{v:.1} ms (incl. meshing)"))
             );
             let text = format!(
-                "{text}\nceiling: {}\nhand-over (as requested): {}\nframes drawn: {}",
+                "{text}\nwork of the window per frame: {:.1} ms (viewport {:.1}, pointer {:.1})\nceiling: {}\nhand-over (as requested): {}\nframes drawn: {}",
+                self.work_ms[0],
+                self.work_ms[1],
+                self.work_ms[2],
                 match self.settings.fps_cap.as_str() {
                     "monitor" => "by the monitor".to_string(),
                     "none" => "none".to_string(),
@@ -4476,7 +4531,7 @@ impl eframe::App for App {
                 vr.left() + ox.clamp(0.0, max_x),
                 vr.bottom() - size.y - oy.clamp(0.0, max_y),
             );
-            const W: f32 = 360.0;
+            const W: f32 = 520.0;
             let mut close = false;
             let mut drag = Vec2::ZERO;
             let mut released = false;
@@ -4553,7 +4608,7 @@ impl eframe::App for App {
                                     ui.add_space(6.0);
                                     ui.add(
                                         egui::Label::new(
-                                            egui::RichText::new(line).monospace().small().color(ink),
+                                            egui::RichText::new(line).monospace().color(ink),
                                         )
                                         .truncate(),
                                     );

@@ -7,7 +7,7 @@ use crate::i18n::{parse_num, tr, trf};
 use rolidium_doc::{sketch_chain, CurveDef, CurveId, LoftRef, SweepMode, SweepPath};
 use rolidium_kernel::HelixDef;
 
-const CURVE_COLOR: [f32; 4] = [0.35, 0.90, 1.0, 1.0];
+pub(super) const CURVE_COLOR: [f32; 4] = [0.35, 0.90, 1.0, 1.0];
 const WORK_COLOR: [f32; 4] = [1.0, 0.72, 0.25, 1.0];
 
 // ---------------------------------------------------------------- 3D line
@@ -137,7 +137,7 @@ impl Default for SweepUi {
 /// Polylines of the curves for drawing and picking, rebuilt when the curves of the document change.
 #[derive(Default)]
 pub struct CurveCache {
-    defs: Vec<(CurveId, CurveDef)>,
+    pub(super) defs: Vec<(CurveId, CurveDef)>,
     pub lines: Vec<(CurveId, Vec<Vec3>)>,
     /// The deflection (mm) the polylines were made with.
     pub tol: f64,

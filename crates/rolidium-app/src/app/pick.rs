@@ -65,7 +65,7 @@ pub(super) fn ray_mesh_face_hit(
 }
 
 /// Möller–Trumbore: distance along the ray to the triangle, if hit.
-fn ray_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
+pub(super) fn ray_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
     let (e1, e2) = (b - a, c - a);
     let p = d.cross(e2);
     let det = e1.dot(p);
@@ -167,7 +167,12 @@ impl App {
         }
         if edges {
             for m in self.meshes.iter() {
-                for e in &m.mesh.edges {
+                let boxes = self.pick_cache.borrow_mut().edge_boxes(m.stamp, &m.mesh);
+                for (e, (lo, hi)) in m.mesh.edges.iter().zip(boxes.iter()) {
+                    // an edge whose box is far from the pointer on the screen is not looked at
+                    if !self.box_near_pointer(*lo, *hi, pointer, rect, 8.0) {
+                        continue;
+                    }
                     let proj: Vec<Option<Pos2>> = e.points.iter().map(|p| self.project(*p, rect)).collect();
                     let mut it = proj.windows(2).map(|w| (w[0], w[1]));
                     if let Some((d, t, i)) = near(&mut it, 6.0) {
@@ -203,28 +208,40 @@ impl App {
         Some(c[next].0)
     }
 
-    /// True if a body surface lies between the camera and the point (for scenes small enough to test).
-    fn edge_point_hidden(&self, point: Vec3, _pointer: Pos2, _rect: Rect) -> bool {
-        let tris: usize = self.meshes.iter().map(|m| m.mesh.triangle_count()).sum();
-        if tris > 300_000 {
-            return false;
+    /// True if the screen box of the 3D box `lo`..`hi`, widened by `margin` pixels, holds the pointer (always true when a corner is not on the screen).
+    fn box_near_pointer(&self, lo: Vec3, hi: Vec3, pointer: Pos2, rect: Rect, margin: f32) -> bool {
+        let (mut min, mut max) = (Pos2::new(f32::MAX, f32::MAX), Pos2::new(f32::MIN, f32::MIN));
+        for i in 0..8 {
+            let c = Vec3::new(
+                if i & 1 == 0 { lo.x } else { hi.x },
+                if i & 2 == 0 { lo.y } else { hi.y },
+                if i & 4 == 0 { lo.z } else { hi.z },
+            );
+            let Some(p) = self.project(c, rect) else {
+                return true;
+            };
+            min = Pos2::new(min.x.min(p.x), min.y.min(p.y));
+            max = Pos2::new(max.x.max(p.x), max.y.max(p.y));
         }
+        pointer.x >= min.x - margin && pointer.x <= max.x + margin && pointer.y >= min.y - margin && pointer.y <= max.y + margin
+    }
+
+    /// True if a body surface lies between the camera and the point. The triangles of every body are searched through a hierarchy of boxes
+    /// that is made once per mesh on another thread; while it is not ready nothing is taken for hidden.
+    fn edge_point_hidden(&self, point: Vec3, _pointer: Pos2, _rect: Rect) -> bool {
         let eye = self.camera.eye();
         let to = point - eye;
         let dist = to.length();
+        if dist < 1e-9 {
+            return false;
+        }
         let dir = to / dist;
         let eps = dist * 1e-3 + 0.05;
         for m in self.meshes.iter() {
-            for t in m.mesh.indices.as_chunks::<3>().0 {
-                let (a, b, c) = (
-                    m.mesh.positions[t[0] as usize],
-                    m.mesh.positions[t[1] as usize],
-                    m.mesh.positions[t[2] as usize],
-                );
-                if let Some(h) = ray_triangle(eye, dir, a, b, c) {
-                    if h < dist - eps {
-                        return true;
-                    }
+            let ready = self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh);
+            if let Some(slot) = ready {
+                if slot.get().is_some_and(|b| b.hit_before(eye, dir, dist - eps)) {
+                    return true;
                 }
             }
         }
