@@ -506,6 +506,6 @@ mod pace_tests {
             assert_eq!(synchronised(cap), sync, "{cap}");
         }
         assert!(fps_interval("monitor").is_none() && fps_interval("none").is_none());
-        assert!(SYNC_MARGIN < 1.0 && SYNC_MARGIN > 0.8);
+        const { assert!(SYNC_MARGIN < 1.0 && SYNC_MARGIN > 0.8) };
     }
 }
