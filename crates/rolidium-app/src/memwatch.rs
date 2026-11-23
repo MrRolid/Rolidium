@@ -111,7 +111,10 @@ mod tests {
     fn the_limit_and_the_free_memory_decide() {
         assert!(!over_limit(500, 8000, 4000));
         assert!(over_limit(4500, 8000, 4000));
-        assert!(over_limit(500, 200, 4000), "the computer has almost no memory left");
+        assert!(
+            over_limit(500, 200, 4000),
+            "the computer has almost no memory left"
+        );
         assert!(!over_limit(5000, 8000, 0), "no limit");
     }
 

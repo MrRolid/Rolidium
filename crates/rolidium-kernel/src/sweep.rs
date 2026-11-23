@@ -65,7 +65,13 @@ impl HelixDef {
     /// Refuses a helix that is not a helix on its surface: it may not pass the apex of its cone (the radius would reach zero and then grow
     /// again as an inverted cone) and it may not have more than [`HELIX_MAX_TURNS`] turns.
     pub fn check(&self) -> Result<()> {
-        if !(self.radius.is_finite() && self.radius > 0.0 && self.pitch.is_finite() && self.pitch.abs() > 1e-9 && self.turns.is_finite() && self.turns > 0.0) {
+        if !(self.radius.is_finite()
+            && self.radius > 0.0
+            && self.pitch.is_finite()
+            && self.pitch.abs() > 1e-9
+            && self.turns.is_finite()
+            && self.turns > 0.0)
+        {
             return Ok(()); // the other checks of the construction report these
         }
         if let Some(max) = self.apex_height() {

@@ -208,17 +208,18 @@ mod tests {
     use super::*;
 
     fn quad_mesh(z: f32) -> Mesh {
-        let mut m = Mesh::default();
-        m.positions = vec![
-            Vec3::new(-5.0, -5.0, z),
-            Vec3::new(5.0, -5.0, z),
-            Vec3::new(5.0, 5.0, z),
-            Vec3::new(-5.0, 5.0, z),
-        ];
-        m.normals = vec![Vec3::Z; 4];
-        m.indices = vec![0, 1, 2, 0, 2, 3];
-        m.tri_face = vec![0, 0];
-        m
+        Mesh {
+            positions: vec![
+                Vec3::new(-5.0, -5.0, z),
+                Vec3::new(5.0, -5.0, z),
+                Vec3::new(5.0, 5.0, z),
+                Vec3::new(-5.0, 5.0, z),
+            ],
+            normals: vec![Vec3::Z; 4],
+            indices: vec![0, 1, 2, 0, 2, 3],
+            tri_face: vec![0, 0],
+            ..Default::default()
+        }
     }
 
     #[test]

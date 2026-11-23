@@ -223,7 +223,10 @@ impl App {
             min = Pos2::new(min.x.min(p.x), min.y.min(p.y));
             max = Pos2::new(max.x.max(p.x), max.y.max(p.y));
         }
-        pointer.x >= min.x - margin && pointer.x <= max.x + margin && pointer.y >= min.y - margin && pointer.y <= max.y + margin
+        pointer.x >= min.x - margin
+            && pointer.x <= max.x + margin
+            && pointer.y >= min.y - margin
+            && pointer.y <= max.y + margin
     }
 
     /// True if a body surface lies between the camera and the point. The triangles of every body are searched through a hierarchy of boxes

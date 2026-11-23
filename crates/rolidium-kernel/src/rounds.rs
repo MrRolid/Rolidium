@@ -655,7 +655,12 @@ impl Solid {
     /// the other are not equal to those made together; this does not have those faults.
     ///
     /// `Ok(None)`: no existing round touches the new edges (nothing to do differently).
-    pub fn blend_edges_keeping(&self, edges: &[EdgeId], size: f64, chamfer: bool) -> Result<Option<OpResult>> {
+    pub fn blend_edges_keeping(
+        &self,
+        edges: &[EdgeId],
+        size: f64,
+        chamfer: bool,
+    ) -> Result<Option<OpResult>> {
         let map = self.blend_map();
         if map.components.is_empty() || !size.is_finite() || size <= 0.0 {
             return Ok(None);
@@ -769,7 +774,10 @@ impl Solid {
         ids.sort_unstable();
         ids.dedup();
         let volume = self.volume()?;
-        let open = crate::timing::stage("rounds: take out", || crate::finish_loose(native::defeature_faces(self.raw(), &ids)?)).map_err(|e| match e {
+        let open = crate::timing::stage("rounds: take out", || {
+            crate::finish_loose(native::defeature_faces(self.raw(), &ids)?)
+        })
+        .map_err(|e| match e {
             KernelError::Native(m) => KernelError::Invalid(format!(
                 "The rounds next to the face cannot be moved with it: {}",
                 m.rsplit(": ").next().unwrap_or(&m)
@@ -796,7 +804,9 @@ impl Solid {
             })?;
         let p0_info = open.solid.face_info(p0)?;
         let offset0 = n.dot(p0_info.origin);
-        let moved = crate::timing::stage("rounds: move the face", || open.solid.pull_face_plain(p0, distance))?;
+        let moved = crate::timing::stage("rounds: move the face", || {
+            open.solid.pull_face_plain(p0, distance)
+        })?;
         let sharp = &moved.solid;
         // planar faces are found by their plane (the moved one by the plane it moved to), others through the history
         let plane_faces = |normal: DVec3, offset: f64| -> Vec<FaceId> {
@@ -837,7 +847,9 @@ impl Solid {
             v
         };
         let items: Vec<Item> = roundings.iter().map(|r| (*r, r.size, None)).collect();
-        let made = crate::timing::stage("rounds: make them again", || sharp.make_roundings(&items, &locate))?;
+        let made = crate::timing::stage("rounds: make them again", || {
+            sharp.make_roundings(&items, &locate)
+        })?;
         let (result, hist) = match made {
             Some(m) => (m.solid, open.history.compose(&moved.history).compose(&m.history)),
             None => (moved.solid.clone(), open.history.compose(&moved.history)),

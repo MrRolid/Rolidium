@@ -73,7 +73,11 @@ impl Default for HelixUi {
 impl HelixUi {
     /// Calculates the value that is not typed (see `solve`) from the other two.
     fn recompute(&mut self) {
-        let (p, ht, t) = (parse_num(&self.pitch), parse_num(&self.height), parse_num(&self.turns));
+        let (p, ht, t) = (
+            parse_num(&self.pitch),
+            parse_num(&self.height),
+            parse_num(&self.turns),
+        );
         match self.solve {
             0 => {
                 if let (Some(p), Some(t)) = (p, t) {

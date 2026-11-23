@@ -33,7 +33,9 @@ fn thread() -> Solid {
         normal: t,
         x_dir: t.cross(DVec3::Z).normalize(),
     };
-    Solid::sweep(&input, &path, &SweepOptions::default()).unwrap().solid
+    Solid::sweep(&input, &path, &SweepOptions::default())
+        .unwrap()
+        .solid
 }
 
 #[test]

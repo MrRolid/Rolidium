@@ -69,7 +69,13 @@ const LAYOUTS: [(f32, f32, f32); 5] = [
 impl App {
     /// Compares what the view holds (the meshes of the bodies, the vertices of the curves in the layers that were uploaded) with the document.
     fn drawn_matches_document(&self) -> (bool, String) {
-        let want_bodies: Vec<_> = self.doc.bodies().iter().filter(|b| b.visible).map(|b| b.id).collect();
+        let want_bodies: Vec<_> = self
+            .doc
+            .bodies()
+            .iter()
+            .filter(|b| b.visible)
+            .map(|b| b.id)
+            .collect();
         let have_bodies: Vec<_> = self.meshes.iter().map(|m| m.id).collect();
         let want_curve: usize = self
             .doc
@@ -83,7 +89,10 @@ impl App {
                     .map_or(0, |v| 2 * v.len().saturating_sub(1))
             })
             .sum();
-        let ok = want_bodies == have_bodies && !self.layers_changed && !self.meshes_changed && self.drawn_curve_vertices == want_curve;
+        let ok = want_bodies == have_bodies
+            && !self.layers_changed
+            && !self.meshes_changed
+            && self.drawn_curve_vertices == want_curve;
         (
             ok,
             format!(
@@ -2394,31 +2403,51 @@ impl App {
             }
             105 => {
                 let (ok, what) = self.drawn_matches_document();
-                check(&mut st, &format!("body and curve are drawn as the document has them ({what})"), ok);
+                check(
+                    &mut st,
+                    &format!("body and curve are drawn as the document has them ({what})"),
+                    ok,
+                );
                 self.undo(); // the curve goes
                 st.wait_frames = 10;
             }
             106 => {
                 let (ok, what) = self.drawn_matches_document();
-                check(&mut st, &format!("after Undo of the curve the view shows no curve ({what})"), ok && self.doc.curves().is_empty());
+                check(
+                    &mut st,
+                    &format!("after Undo of the curve the view shows no curve ({what})"),
+                    ok && self.doc.curves().is_empty(),
+                );
                 self.undo(); // the body goes
                 st.wait_frames = 10;
             }
             107 => {
                 let (ok, what) = self.drawn_matches_document();
-                check(&mut st, &format!("after Undo of the body the view is empty ({what})"), ok && self.doc.bodies().is_empty());
+                check(
+                    &mut st,
+                    &format!("after Undo of the body the view is empty ({what})"),
+                    ok && self.doc.bodies().is_empty(),
+                );
                 self.redo();
                 st.wait_frames = 10;
             }
             108 => {
                 let (ok, what) = self.drawn_matches_document();
-                check(&mut st, &format!("after Redo of the body it is drawn again ({what})"), ok && self.doc.bodies().len() == 1);
+                check(
+                    &mut st,
+                    &format!("after Redo of the body it is drawn again ({what})"),
+                    ok && self.doc.bodies().len() == 1,
+                );
                 self.redo();
                 st.wait_frames = 10;
             }
             109 => {
                 let (ok, what) = self.drawn_matches_document();
-                check(&mut st, &format!("after Redo of the curve it is drawn again ({what})"), ok && self.doc.curves().len() == 1);
+                check(
+                    &mut st,
+                    &format!("after Redo of the curve it is drawn again ({what})"),
+                    ok && self.doc.curves().len() == 1,
+                );
                 st.wait_frames = 1;
             }
             110 => {
@@ -2462,7 +2491,10 @@ impl App {
                     .collect();
                 // the hierarchies of the triangles are made on other threads: wait for them (a real pointer meets them ready)
                 for _ in 0..200 {
-                    let ready = self.meshes.iter().all(|m| self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh).is_some());
+                    let ready = self
+                        .meshes
+                        .iter()
+                        .all(|m| self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh).is_some());
                     if ready {
                         break;
                     }
@@ -2482,7 +2514,11 @@ impl App {
                 println!(
                     "selftest: scene of {tris} triangles: pointer move (pick candidates) {pick:.2} ms ({hits} candidates), layers {layers:.2} ms, marks {marks:.3} ms"
                 );
-                check(&mut st, "a move of the pointer over the scene takes less than 2 ms of the window's own work", pick < 2.0);
+                check(
+                    &mut st,
+                    "a move of the pointer over the scene takes less than 2 ms of the window's own work",
+                    pick < 2.0,
+                );
                 st.wait_frames = 1;
             }
             112 => {

@@ -24,10 +24,14 @@ fn a_helix_on_a_cone_may_not_pass_the_apex() {
     let ok = cone_helix(24.0, 2.0);
     let p = Path::build(PathSource::Helix(ok)).expect("inside the cone");
     let r_end = (p.end.x * p.end.x + p.end.y * p.end.y).sqrt();
-    assert!((r_end - ok.end_radius()).abs() < 1e-3, "{r_end} vs {}", ok.end_radius());
+    assert!(
+        (r_end - ok.end_radius()).abs() < 1e-3,
+        "{r_end} vs {}",
+        ok.end_radius()
+    );
     assert!(r_end > 3.0);
     // past the apex (110 turns of 2 mm = 220 mm on a cone 30 mm high): refused with the largest height
-    let e = Path::build(PathSource::Helix(cone_helix(220.0, 2.0))).err().expect("past the apex");
+    let e = Path::build(PathSource::Helix(cone_helix(220.0, 2.0))).expect_err("past the apex");
     let m = e.to_string();
     eprintln!("{m}");
     assert!(m.contains("apex") && m.contains("largest height"), "{m}");
@@ -52,7 +56,7 @@ fn a_helix_with_too_many_turns_is_refused() {
     h.turns = HELIX_MAX_TURNS;
     assert!(Path::build(PathSource::Helix(h)).is_ok());
     h.turns = HELIX_MAX_TURNS + 1.0;
-    let e = Path::build(PathSource::Helix(h)).err().expect("too many");
+    let e = Path::build(PathSource::Helix(h)).expect_err("too many");
     assert!(e.to_string().contains("too large"), "{e}");
     h.turns = 1000.0;
     assert!(Path::build(PathSource::Helix(h)).is_err());

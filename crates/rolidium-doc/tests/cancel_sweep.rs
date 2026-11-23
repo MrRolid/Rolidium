@@ -54,7 +54,10 @@ fn heavy_doc() -> (Document, Command) {
         .unwrap();
     let cmd = Command::AddLink {
         kind: LinkKind::Sweep {
-            profile: LoftRef::Region { sketch: sk, region: 0 },
+            profile: LoftRef::Region {
+                sketch: sk,
+                region: 0,
+            },
             path: SweepPath::Curve(curve),
             rounded: false,
             mode: PatternMode::New,
@@ -80,7 +83,10 @@ fn a_cancelled_heavy_sweep_leaves_the_document_as_it_was() {
     let r = worker.join().unwrap();
     let took = started.elapsed();
     reset_cancel();
-    eprintln!("the sweep stopped after {took:?}: {:?}", r.as_ref().err().map(|e| e.to_string()));
+    eprintln!(
+        "the sweep stopped after {took:?}: {:?}",
+        r.as_ref().err().map(|e| e.to_string())
+    );
     match r {
         Err(DocError::Kernel(KernelError::Cancelled)) => {}
         Err(e) => panic!("another error: {e}"),
@@ -88,8 +94,15 @@ fn a_cancelled_heavy_sweep_leaves_the_document_as_it_was() {
     }
     // the document is the very same one
     assert!(std::sync::Arc::ptr_eq(&before_state, d.state()));
-    assert_eq!((d.bodies().len(), d.curves().len(), d.sketches().len()), (bodies, curves, sketches));
-    assert_eq!(file::save_to_bytes(&d, None, "t").unwrap(), before_bytes, "the saved file is byte for byte the same");
+    assert_eq!(
+        (d.bodies().len(), d.curves().len(), d.sketches().len()),
+        (bodies, curves, sketches)
+    );
+    assert_eq!(
+        file::save_to_bytes(&d, None, "t").unwrap(),
+        before_bytes,
+        "the saved file is byte for byte the same"
+    );
     // and it still works
     let mut d = d;
     d.apply(Command::AddBox {
@@ -110,8 +123,7 @@ fn a_helix_of_1000_turns_on_a_cone_is_refused_not_calculated() {
         .apply(Command::AddCurve {
             def: CurveDef::Helix(helix(1000.0, 3.0, 20.0, half)),
         })
-        .err()
-        .expect("refused");
+        .expect_err("refused");
     eprintln!("{e}");
     assert!(started.elapsed() < Duration::from_secs(2), "refused at once");
     assert!(d.curves().is_empty());

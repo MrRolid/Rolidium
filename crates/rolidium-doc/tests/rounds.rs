@@ -245,8 +245,13 @@ fn one_by_one_volume(
         if ids.is_empty() {
             continue; // already taken along by a neighbouring round
         }
-        d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer })
-            .map_err(|e| e.to_string())?;
+        d.apply(Command::FilletEdges {
+            body: id,
+            edges: ids,
+            size,
+            chamfer,
+        })
+        .map_err(|e| e.to_string())?;
     }
     let b = d.body(id).unwrap();
     assert!(b.solid.is_valid());
@@ -259,7 +264,13 @@ fn together_volume(edges: &dyn Fn(usize, DVec3, DVec3) -> bool, size: f64, chamf
         let l = lines(&d, id, edges);
         edge_ids(&d, id, &l)
     };
-    d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer }).unwrap();
+    d.apply(Command::FilletEdges {
+        body: id,
+        edges: ids,
+        size,
+        chamfer,
+    })
+    .unwrap();
     let b = d.body(id).unwrap();
     (b.solid.volume().unwrap(), b.solid.face_count())
 }
@@ -296,8 +307,13 @@ fn rounds_and_chamfers_on_one_cube_in_any_order() {
             if ids.is_empty() {
                 continue;
             }
-            d.apply(Command::FilletEdges { body: id, edges: ids, size, chamfer })
-                .unwrap_or_else(|e| panic!("step {k} chamfer={chamfer}: {e}"));
+            d.apply(Command::FilletEdges {
+                body: id,
+                edges: ids,
+                size,
+                chamfer,
+            })
+            .unwrap_or_else(|e| panic!("step {k} chamfer={chamfer}: {e}"));
             assert!(d.body(id).unwrap().solid.is_valid());
         }
     }
@@ -308,10 +324,21 @@ fn rounds_and_chamfers_on_one_cube_in_any_order() {
     assert!(b.features.iter().any(|f| f.kind == BlendKind::Chamfer));
     // the sizes can still be changed, and everything taken back to sharp edges
     for step in 0..2 {
-        let kinds: Vec<_> = d.body(id).unwrap().features.iter().map(|f| (f.kind, f.size, f.faces.len())).collect();
+        let kinds: Vec<_> = d
+            .body(id)
+            .unwrap()
+            .features
+            .iter()
+            .map(|f| (f.kind, f.size, f.faces.len()))
+            .collect();
         let f = d.body(id).unwrap().features[0].faces[0];
-        d.apply(Command::EditBlend { body: id, face: f, size: 0.0, chain: true })
-            .unwrap_or_else(|e| panic!("removing step {step}: {e}; features {kinds:?}"));
+        d.apply(Command::EditBlend {
+            body: id,
+            face: f,
+            size: 0.0,
+            chain: true,
+        })
+        .unwrap_or_else(|e| panic!("removing step {step}: {e}; features {kinds:?}"));
     }
     assert_eq!(d.body(id).unwrap().solid.face_count(), 6);
 }

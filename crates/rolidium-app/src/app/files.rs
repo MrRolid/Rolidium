@@ -528,7 +528,8 @@ impl App {
     #[allow(deprecated)]
     fn recovery_window(&mut self, ctx: &egui::Context) {
         let Some(r) = &self.recovery else { return };
-        let (age, original, failed, previous) = (r.age.clone(), r.original.clone(), r.failed_before, r.has_previous);
+        let (age, original, failed, previous) =
+            (r.age.clone(), r.original.clone(), r.failed_before, r.has_previous);
         // 0 restore, 1 restore without the last change, 2 discard, 3 start without restoring
         let mut choice: Option<u8> = None;
         egui::Window::new(tr("Recover unsaved work"))

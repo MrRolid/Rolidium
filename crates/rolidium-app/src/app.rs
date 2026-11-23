@@ -29,7 +29,6 @@ mod bench;
 mod busy;
 mod combinetool;
 mod curvetools;
-mod pickcache;
 mod dock;
 mod edgepull;
 mod editbench;
@@ -44,6 +43,7 @@ mod measuretool;
 mod movetool;
 mod panel;
 mod pick;
+mod pickcache;
 mod planeat;
 mod planemove;
 mod planepick;
@@ -4608,10 +4608,8 @@ impl eframe::App for App {
                                 ui.horizontal(|ui| {
                                     ui.add_space(6.0);
                                     ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(line).monospace().color(ink),
-                                        )
-                                        .truncate(),
+                                        egui::Label::new(egui::RichText::new(line).monospace().color(ink))
+                                            .truncate(),
                                     );
                                 });
                             }
