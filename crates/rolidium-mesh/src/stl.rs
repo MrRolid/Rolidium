@@ -50,7 +50,7 @@ fn weld(raw: &[[f32; 3]]) -> TriMesh {
             (positions.len() - 1) as u32
         })
     };
-    for t in raw.chunks_exact(3) {
+    for t in raw.as_chunks::<3>().0.iter() {
         triangles.push([id(t[0]), id(t[1]), id(t[2])]);
     }
     TriMesh { positions, triangles }

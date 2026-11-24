@@ -243,7 +243,7 @@ impl Runner {
                     num(w, 2, "the factor y")?,
                     num(w, 3, "the factor z")?,
                 ];
-                if f.iter().any(|v| *v == 0.0) {
+                if f.contains(&0.0) {
                     return Err("a factor must not be zero".into());
                 }
                 let c = self.meshes[i]

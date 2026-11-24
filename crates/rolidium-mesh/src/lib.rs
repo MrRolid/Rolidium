@@ -1,6 +1,8 @@
 // Copyright (c) 2026 Rolid spol. s r.o.
 // SPDX-License-Identifier: AGPL-3.0-only
 #![forbid(unsafe_code)]
+// the 3 x 3 and per-axis code reads better with indices
+#![allow(clippy::needless_range_loop)]
 //! Triangle meshes (STL): a welded indexed mesh, import and export, a check with simple repairs, the recognition of planar and cylindrical regions,
 //! and edits made directly on the mesh (pull a planar wall, change the diameter of a round hole or pin) that are undone by a short record of the
 //! moved vertices, not by a copy of the mesh. No B-rep is made (see D60 in docs/DECISIONS.md).

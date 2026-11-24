@@ -73,7 +73,9 @@ pub fn decode(bytes: &[u8]) -> Result<TriMesh, String> {
     let coords = unplanes(&raw[8..8 + nc * 4], nc);
     let deltas = unplanes(&raw[8 + nc * 4..], ni);
     let positions = coords
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|c| [f32::from_bits(c[0]), f32::from_bits(c[1]), f32::from_bits(c[2])])
         .collect();
     let mut prev = 0i64;
@@ -86,6 +88,6 @@ pub fn decode(bytes: &[u8]) -> Result<TriMesh, String> {
         }
         idx.push(prev as u32);
     }
-    let triangles = idx.chunks_exact(3).map(|t| [t[0], t[1], t[2]]).collect();
+    let triangles = idx.as_chunks::<3>().0.to_vec();
     Ok(TriMesh { positions, triangles })
 }
