@@ -6,7 +6,8 @@ authors.workspace = true
 license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-description = "Mesh import, checking and B-rep conversion"
+description = "Triangle meshes: STL import and export, checking and repair, regions, editing of planar walls and round holes"
 
 [dependencies]
-rolidium-kernel = { path = "../rolidium-kernel" }
+flate2 = "1"
+thiserror.workspace = true
