@@ -150,6 +150,9 @@ pub struct LinkUi {
     pub sk_key: String,
 }
 
+/// The lines and axes of a sketch (name, a point, the angle) and the centres it offers (name, point).
+type SketchRefs = (Vec<(String, glam::DVec2, f64)>, Vec<(String, glam::DVec2)>);
+
 /// The point where the second piece would go.
 #[derive(Clone)]
 pub struct SecondHover {
@@ -2113,7 +2116,7 @@ impl App {
         };
         let one = self.entity_sel.filter(|(s, _)| *s == sk).map(|(_, e)| e);
         // the lines and the auxiliary axes of the sketch (a mirror line, a direction), and the centres of its circles and arcs
-        let (lines, centres): (Vec<(String, glam::DVec2, f64)>, Vec<(String, glam::DVec2)>) = self
+        let (lines, centres): SketchRefs = self
             .doc
             .sketch(sk)
             .map(|sd| {

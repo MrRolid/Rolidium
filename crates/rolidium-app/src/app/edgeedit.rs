@@ -12,6 +12,7 @@ pub use crate::sketchmode::EdgeEdit;
 impl App {
     /// Draws the two distances of the point `p` (a point of `plane`) to the nearest edges: a line to each edge with the number on it (the typed text
     /// when there is one), and the marks of the snaps.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn paint_edge_dims(
         &self,
         ui: &egui::Ui,

@@ -487,7 +487,7 @@ fn every_row_of_the_table_is_a_tool_and_a_script_command() {
         r.quiet = true;
         let mut script = String::new();
         // some rows need a sketch first
-        if matches!(c.name, "line" | "rect" | "circle" | "arc") {
+        if matches!(c.name, "line" | "axis" | "rect" | "circle" | "arc") {
             script.push_str("sketch xy\n");
         }
         script.push_str(c.example);

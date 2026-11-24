@@ -596,4 +596,33 @@ mod tests {
         let s = m.compute_snap(DVec2::new(61.9, 80.3), 1.0, 1.0, &[]);
         assert_eq!(s.label, SnapLabel::Free);
     }
+
+    #[test]
+    fn typed_distances_to_the_edges() {
+        let mut e = EdgeEdit::default();
+        assert!(!e.any_typed() && e.values() == (None, None));
+        // digits start the typing in the first field, Tab goes to the second, a second point is ignored
+        assert!(e.type_char('5'));
+        assert!(e.type_char('.'));
+        assert!(e.type_char(','));
+        assert!(e.type_char('5'));
+        e.tab();
+        assert!(e.type_char('7'));
+        assert!(!e.type_char('x') && !e.type_char('-'));
+        assert_eq!(e.values(), (Some(5.5), Some(7.0)));
+        assert!(e.backspace());
+        assert_eq!(e.values(), (Some(5.5), None));
+        e.tab();
+        assert_eq!(e.active, 0);
+        e.clear();
+        assert!(!e.on && !e.any_typed());
+        // a circle is placed: the keys belong to the distances only while the live distances are shown
+        let mut m = mode(SkTool::Circle);
+        assert!(!m.edge_typing());
+        m.type_char('5');
+        assert!(
+            !m.edge_edit.any_typed(),
+            "without live distances the digits go to the old fields"
+        );
+    }
 }

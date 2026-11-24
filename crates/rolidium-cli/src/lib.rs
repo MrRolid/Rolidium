@@ -1193,7 +1193,7 @@ impl Runner {
             "revolve" => {
                 let id = self.sketch.ok_or("there is no current sketch")?;
                 // `axis-of S N` (a line or an auxiliary axis of the sketch S, shape N) stands for the axis
-                let expanded: Vec<String> = if w.iter().any(|t| *t == "axis-of") {
+                let expanded: Vec<String> = if w.contains(&"axis-of") {
                     self.expand_sketch_lines(&w)?
                 } else {
                     w.iter().map(|t| t.to_string()).collect()
@@ -1532,8 +1532,10 @@ impl Runner {
                 }
                 self.render_png(Path::new(path), width, height, view)?;
             }
-            "linear-pattern" | "circular-pattern" | "mirror" | "links" | "repeat-feature"
-            | "move-feature" => {
+            "linear-pattern" | "circular-pattern" | "mirror" | "links" => {
+                self.run_links_command(&w)?;
+            }
+            "repeat-feature" | "move-feature" => {
                 self.run_links_command(&w)?;
             }
             "edit-link" | "unlink" | "delete-link" | "group" | "groups" => {
