@@ -306,12 +306,12 @@ def rapid_clicks(scale):
     import random
     time.sleep(1.5)
     focus_app_window()
-    # the view is quiet when the places of the points of two readings are the same
+    # the view is quiet when no frame was drawn for 2 seconds (the probe is written at every frame in this mode) and the program has drawn some
     p = probe()
-    for _ in range(40):
-        time.sleep(0.5)
+    for _ in range(120):
+        time.sleep(2.0)
         q = probe()
-        if q["points"] == p["points"]:
+        if q["frame"] == p["frame"] and q["frame"] > 5:
             break
         p = q
     check(close(p["ppp"], scale, 0.01), f"the scale of the interface is {scale}: {p['ppp']}")
