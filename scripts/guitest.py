@@ -172,8 +172,35 @@ def hover_cylinder(p, candidates):
     raise RuntimeError("no round face under the candidate points")
 
 
+def hover_normal(candidates, want):
+    """Moves the pointer over each candidate point until the face under it has the normal `want`; returns the screen place."""
+    for name in candidates:
+        x, y = screen(probe(), name)
+        move(x, y)
+        time.sleep(0.35)
+        h = probe().get("hover")
+        if h and h.get("normal") and all(abs(a - b) < 0.02 for a, b in zip(h["normal"], want)):
+            return x, y
+    raise RuntimeError(f"no face with the normal {want} under the candidate points")
+
+
 def finish():
     if _failures:
         print(f"{len(_failures)} check(s) failed")
         sys.exit(1)
     print("all checks passed")
+
+
+def _on_error(kind, value, tb):
+    """A test that stops with an exception leaves a screenshot and the last probe for the person who reads the log."""
+    import traceback
+    traceback.print_exception(kind, value, tb)
+    try:
+        subprocess.run(["import", "-window", "root", f"{SHOTS}/{_name}-FAILED.png"], check=False)
+        print("last probe:", json.dumps(probe())[:3000])
+    except Exception:
+        pass
+    sys.exit(2)
+
+
+sys.excepthook = _on_error

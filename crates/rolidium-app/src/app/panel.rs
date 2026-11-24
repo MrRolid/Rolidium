@@ -485,11 +485,11 @@ impl App {
         if let Target::Entity { entity, e, .. } = &target {
             if matches!(e, Entity::Line { .. } | Entity::Axis { .. }) {
                 let mut axis = e.is_axis();
-                if ui
+                let r = ui
                     .checkbox(&mut axis, tr("Auxiliary axis (dash-dotted, no shape)"))
-                    .on_hover_text(tr("An auxiliary axis forms no region and no path; it is the axis of a mirror, a pattern or a revolve"))
-                    .changed()
-                {
+                    .on_hover_text(tr("An auxiliary axis forms no region and no path; it is the axis of a mirror, a pattern or a revolve"));
+                self.probe_widget("axis_toggle", r.rect);
+                if r.changed() {
                     self.set_entity_axis(sketch, *entity, axis);
                 }
             }

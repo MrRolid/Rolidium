@@ -893,6 +893,14 @@ impl Job {
             return Ok(None);
         }
         let n = fi.normal.normalize();
+        // a pattern that follows a rectangle cannot follow a change of the thickness at the rectangle (the tools would no longer reach through)
+        if let Some(rule) = &link.fill {
+            if let Ok(g) = links::rect_of_rule(st, link.base.as_ref(), &rule.rect) {
+                if g.n.cross(n).length() < 1e-6 {
+                    return Ok(None);
+                }
+            }
+        }
         let mut best: Option<(f64, FaceId)> = None;
         for f in base.faces() {
             let Ok(i) = base.face_info(f) else { continue };

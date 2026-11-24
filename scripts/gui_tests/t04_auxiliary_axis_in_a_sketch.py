@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 Rolid spol. s r.o.
+# SPDX-License-Identifier: AGPL-3.0-only
+"""Sketch tool X: an auxiliary axis (dash-dotted) makes no region and no profile; the switch in the right column makes an ordinary line of it and back."""
+# FIXTURE: box 100 60 10
+# POINTS: top=50,30,10;a1=20,20,10;a2=80,40,10;c1=60,48,10;c2=66,48,10;onaxis=50,30,10
+from guitest import *
+
+time.sleep(1.0)
+focus_app_window()
+p = settle()
+click(*screen(p, "top"))
+key("k")
+p = settle()
+check(p["sketching"] is not None, "sketch mode is on")
+key("x")
+p = settle()
+check(p["sketching"] == "Axis", f"the tool X is the auxiliary axis: {p['sketching']}")
+click(*screen(p, "a1"))
+click(*screen(p, "a2"))
+p = settle()
+check(p["sketches"] and p["sketches"][0]["axes"] == 1, f"one axis in the sketch: {p['sketches']}")
+check(p["sketches"][0]["regions"] == 0, "the axis makes no region")
+shot("01-axis-drawn")
+key("c")
+click(*screen(p, "c1"))
+click(*screen(p, "c2"))
+p = settle()
+check(p["sketches"][0]["shapes"] == 2 and p["sketches"][0]["regions"] == 1, f"the circle makes one region, the axis none: {p['sketches']}")
+shot("02-circle-and-axis")
+key("k")
+settle(0.5)
+key("s")
+p = settle(0.5)
+click(*screen(p, "onaxis"))
+p = settle()
+check(p["entity_sel"] is not None, f"the axis is selected: {p['entity_sel']}")
+click(*screen(p, "axis_toggle"))
+p = settle()
+check(p["sketches"][0]["axes"] == 0, f"the switch made an ordinary line of it: {p['sketches']}")
+click(*screen(p, "axis_toggle"))
+p = settle()
+check(p["sketches"][0]["axes"] == 1, "and an axis again")
+shot("03-toggled")
+finish()

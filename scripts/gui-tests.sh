@@ -27,7 +27,7 @@ for t in "${TESTS[@]}"; do
     "$BIN" cli exec "${ARGS[@]}" --file "$MODEL" >"$W/fixture.log" 2>&1 || { echo "FIXTURE FAILED for $t"; cat "$W/fixture.log"; fail=1; continue; }
   fi
   echo "== $t"
-  mkdir -p "$W/rolidium"; printf 'check_updates=false\nsound=false\nlanguage=en\n' > "$W/rolidium/settings.conf"
+  mkdir -p "$W/rolidium"; printf 'check_updates=no\nsound=false\nlanguage=en\n' > "$W/rolidium/settings.conf"
   # the HOME is empty: no settings, no autosave from other runs
   xvfb-run -a -s "-screen 0 1280x800x24" bash -c "
     export HOME='$W' XDG_CONFIG_HOME='$W' XDG_STATE_HOME='$W/state' XDG_DATA_HOME='$W/data'
