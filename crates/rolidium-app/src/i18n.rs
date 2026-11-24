@@ -494,6 +494,14 @@ mod coverage {
         "The display mesh of the body could not be made, so the view was not changed",
         "The rounds next to the face cannot be moved with it: {}",
         "Internal error while computing the operation; the model was not changed ({})",
+        // messages of the mesh library (STL) that reach the status line
+        "The wall is not cleanly separated: a neighbouring wall is not square to it, so it cannot be moved without bending the mesh",
+        "The move would turn a neighbouring wall inside out (the wall would be pulled through the opposite one)",
+        "The mesh is not closed or not consistent: repair it first",
+        "The diameter must be a positive number",
+        "The hole is not round enough to change its diameter",
+        "The file is not an STL file (no triangles were found)",
+        "The file contains numbers that are not finite",
     ];
 
     fn all_keys() -> Vec<String> {
