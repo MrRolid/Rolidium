@@ -94,3 +94,42 @@ pub fn merged(meshes: &[&TriMesh]) -> TriMesh {
     }
     out
 }
+
+/// After a pull of a wall or a change of a hole the walls and holes are still the same triangles in the same places (the walls next to the pulled one stretch in their own
+/// planes), so the regions of the old mesh are made the regions of the new one, with the offset of the pulled wall, the radius of the hole and the areas made again,
+/// instead of a new search (seconds for a mesh of millions of triangles, in which no edit could be made meanwhile).
+pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Change) {
+    let Some(old_regions) = crate::display::regions_of(old) else {
+        return;
+    };
+    let mut r: rolidium_mesh::regions::Regions = (*old_regions).clone();
+    match change {
+        Change::Wall { first_triangle, normal, distance } => {
+            let Some(p) = r
+                .planes
+                .iter_mut()
+                .find(|p| p.triangles.first() == Some(&first_triangle) && rolidium_mesh::dot(p.normal, normal) > 0.999)
+            else {
+                return;
+            };
+            p.offset += distance;
+        }
+        Change::Hole { first_triangle, diameter } => {
+            let Some(c) = r.cylinders.iter_mut().find(|c| c.triangles.first() == Some(&first_triangle)) else {
+                return;
+            };
+            c.radius = diameter / 2.0;
+        }
+    }
+    for p in &mut r.planes {
+        p.area = p.triangles.iter().map(|t| new.normal_area(*t as usize).1).sum();
+    }
+    crate::display::keep_regions(new, Arc::new(r));
+}
+
+/// What an edit changed in the regions.
+#[derive(Clone, Copy)]
+pub(crate) enum Change {
+    Wall { first_triangle: u32, normal: [f64; 3], distance: f64 },
+    Hole { first_triangle: u32, diameter: f64 },
+}

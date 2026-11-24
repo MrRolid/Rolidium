@@ -724,6 +724,7 @@ impl App {
             self.probe_widget("mesh_job_cancel", r);
         }
         if cancel {
+            log("the search for walls and holes is stopped by the person");
             if let Some(j) = &self.mesh_ui.job {
                 j.cancel.store(true, Ordering::Relaxed);
             }

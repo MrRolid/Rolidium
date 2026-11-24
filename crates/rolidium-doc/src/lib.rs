@@ -3045,8 +3045,15 @@ impl Job {
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let m = meshes::pull(&st.meshes[mp], wall, *distance)?;
-                st.meshes[mp].mesh = Arc::new(m);
+                let m = Arc::new(meshes::pull(&st.meshes[mp], wall, *distance)?);
+                if let Some(first) = wall.triangles.first() {
+                    meshes::carry_regions(
+                        &st.meshes[mp].mesh,
+                        &m,
+                        meshes::Change::Wall { first_triangle: *first, normal: wall.normal, distance: *distance },
+                    );
+                }
+                st.meshes[mp].mesh = m;
                 let mut c = self.done(st, "Pull wall");
                 c.touched_body = Some(*body);
                 Ok(c)
@@ -3057,8 +3064,15 @@ impl Job {
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let m = meshes::hole(&st.meshes[mp], hole, *diameter)?;
-                st.meshes[mp].mesh = Arc::new(m);
+                let m = Arc::new(meshes::hole(&st.meshes[mp], hole, *diameter)?);
+                if let Some(first) = hole.triangles.first() {
+                    meshes::carry_regions(
+                        &st.meshes[mp].mesh,
+                        &m,
+                        meshes::Change::Hole { first_triangle: *first, diameter: *diameter },
+                    );
+                }
+                st.meshes[mp].mesh = m;
                 let mut c = self.done(st, "Hole diameter");
                 c.touched_body = Some(*body);
                 Ok(c)

@@ -33,7 +33,7 @@ pub(crate) fn add(a: V3, b: V3) -> V3 {
 pub(crate) fn mul(a: V3, k: f64) -> V3 {
     [a[0] * k, a[1] * k, a[2] * k]
 }
-pub(crate) fn dot(a: V3, b: V3) -> f64 {
+pub fn dot(a: V3, b: V3) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 pub(crate) fn cross(a: V3, b: V3) -> V3 {
