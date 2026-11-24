@@ -275,7 +275,9 @@ fn see_through_regions(png_path: &std::path::Path, min: usize) -> usize {
 #[test]
 fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_shows_them() {
     // a plate of 100 x 60 x 10 with a hole of 12 mm diameter; it goes through a STEP file, and the copies are made on the imported body
-    let d = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp").join(format!("links-step-{}", std::process::id()));
+    let d = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../target/tmp")
+        .join(format!("links-step-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);
     std::fs::create_dir_all(&d).unwrap();
     let step = d.join("plate.step");
@@ -292,7 +294,10 @@ fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_sh
     let v0 = r.doc.bodies()[0].solid.volume().unwrap();
     let hole = std::f64::consts::PI * 36.0 * 10.0;
     let f = hole_face(&r);
-    r.run_line(&format!("repeat-feature {f} circular 6 full 0 0 1 through 40 30 0")).unwrap();
+    r.run_line(&format!(
+        "repeat-feature {f} circular 6 full 0 0 1 through 40 30 0"
+    ))
+    .unwrap();
     let removed = v0 - r.doc.bodies()[0].solid.volume().unwrap();
     assert!((removed - 5.0 * hole).abs() < 1e-3, "{removed}");
     // the picture from above: six holes (and one before the pattern)
@@ -301,8 +306,10 @@ fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_sh
     let mut r0 = Runner::new();
     r0.quiet = true;
     r0.run_line(&format!("import-step {}", step.display())).unwrap();
-    r0.run_line(&format!("render {} 800 600 top", before.display())).unwrap();
-    r.run_line(&format!("render {} 800 600 top", after.display())).unwrap();
+    r0.run_line(&format!("render {} 800 600 top", before.display()))
+        .unwrap();
+    r.run_line(&format!("render {} 800 600 top", after.display()))
+        .unwrap();
     assert_eq!(see_through_regions(&before, 50), 1);
     assert_eq!(see_through_regions(&after, 50), 6);
     // corners on the imported plate (a hole 8 mm from two edges)
@@ -316,10 +323,14 @@ fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_sh
     r.run_line(&format!("repeat-feature {f} corners top")).unwrap();
     let s = &r.doc.bodies()[0].solid;
     for (x, y) in [(8.0, 8.0), (92.0, 8.0), (8.0, 52.0), (92.0, 52.0)] {
-        assert!(!s.contains_point(rolidium_kernel::DVec3::new(x, y, 5.0)).unwrap(), "no hole at {x}, {y}");
+        assert!(
+            !s.contains_point(rolidium_kernel::DVec3::new(x, y, 5.0)).unwrap(),
+            "no hole at {x}, {y}"
+        );
     }
     let shot = shots_dir().join("step-plate-corner-holes.png");
-    r.run_line(&format!("render {} 800 600 top", shot.display())).unwrap();
+    r.run_line(&format!("render {} 800 600 top", shot.display()))
+        .unwrap();
     assert_eq!(see_through_regions(&shot, 50), 4);
 }
 

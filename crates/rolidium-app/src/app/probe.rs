@@ -133,7 +133,13 @@ impl App {
         let hover = self.hovered_face().map(|(b, f)| {
             let meta = self.entry(b).and_then(|m| m.faces.get(f as usize));
             let kind = meta.map(|m| format!("{:?}", m.kind));
-            let normal = meta.map(|m| json!([round3(m.normal.x as f64), round3(m.normal.y as f64), round3(m.normal.z as f64)]));
+            let normal = meta.map(|m| {
+                json!([
+                    round3(m.normal.x as f64),
+                    round3(m.normal.y as f64),
+                    round3(m.normal.z as f64)
+                ])
+            });
             json!({"body": b, "face": f, "kind": kind, "normal": normal})
         });
         let edge_dims = self.probe_edge_dims();

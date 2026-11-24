@@ -1207,16 +1207,19 @@ impl Runner {
                 };
                 let region = num(1)? as usize;
                 let mut next = 3;
-                let (mut axis_point, axis) = (DVec3::ZERO, match *w.get(2).ok_or("revolve needs an axis (x, y or z)")? {
-                    "x" => DVec3::X,
-                    "y" => DVec3::Y,
-                    "z" => DVec3::Z,
-                    t if t.parse::<f64>().is_ok() => {
-                        next = 5;
-                        DVec3::new(num(2)?, num(3)?, num(4)?)
-                    }
-                    o => return Err(format!("unknown axis '{o}'")),
-                });
+                let (mut axis_point, axis) = (
+                    DVec3::ZERO,
+                    match *w.get(2).ok_or("revolve needs an axis (x, y or z)")? {
+                        "x" => DVec3::X,
+                        "y" => DVec3::Y,
+                        "z" => DVec3::Z,
+                        t if t.parse::<f64>().is_ok() => {
+                            next = 5;
+                            DVec3::new(num(2)?, num(3)?, num(4)?)
+                        }
+                        o => return Err(format!("unknown axis '{o}'")),
+                    },
+                );
                 if w.get(next) == Some(&"through") {
                     axis_point = DVec3::new(num(next + 1)?, num(next + 2)?, num(next + 3)?);
                     next += 4;

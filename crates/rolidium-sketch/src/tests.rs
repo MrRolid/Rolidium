@@ -350,7 +350,10 @@ fn an_auxiliary_axis_makes_no_region_and_does_not_close_a_profile() {
     let s = sketch(&[rect(0.0, 0.0, 10.0, 10.0), ax]);
     let r = s.regions();
     assert_eq!(r.len(), 1);
-    assert!((r[0].area() - 100.0).abs() < 1e-9, "the axis does not split the rectangle");
+    assert!(
+        (r[0].area() - 100.0).abs() < 1e-9,
+        "the axis does not split the rectangle"
+    );
     // an axis alone, and three lines that would close with an axis as the third side
     assert!(sketch(&[ax]).regions().is_empty());
     let open = sketch(&[

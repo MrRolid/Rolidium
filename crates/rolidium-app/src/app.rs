@@ -3369,7 +3369,7 @@ impl App {
             }
         }
         // reference point of the distance fields
-        if sm.drawing.is_none() && sm.tool != SkTool::None {
+        if sm.drawing.is_none() && sm.tool != SkTool::None && !sm.edge_typing() {
             if let Some(rp) = sm
                 .ref_point
                 .and_then(|r| self.project(plane.to_3d(r).as_vec3(), rect))
@@ -3498,7 +3498,7 @@ impl App {
             );
         }
         // distances from the reference while placing a point
-        if sm.drawing.is_none() && sm.tool != SkTool::None {
+        if sm.drawing.is_none() && sm.tool != SkTool::None && !sm.edge_typing() {
             if let Some(rp) = sm.ref_point {
                 let target = sm.place_target(snap.pos).unwrap_or(snap.pos);
                 let d = target - rp;

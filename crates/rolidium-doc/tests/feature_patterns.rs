@@ -823,7 +823,10 @@ fn an_auxiliary_axis_is_saved_and_opened_and_is_no_shape_of_a_pattern_of_all_sha
     // the plane through the axis, square to the sketch, and the axis in space
     let axis = es.iter().find(|(_, x)| x.is_axis()).unwrap().1;
     let pl = sketch_mirror_plane(&rolidium_sketch::PlaneDef::base(), &axis).unwrap();
-    assert!(pl.dir.dot(DVec3::X).abs() > 0.999999 && pl.origin.x.abs() < 1e-9, "{pl:?}");
+    assert!(
+        pl.dir.dot(DVec3::X).abs() > 0.999999 && pl.origin.x.abs() < 1e-9,
+        "{pl:?}"
+    );
     let ln = sketch_line_in_space(&rolidium_sketch::PlaneDef::base(), &axis).unwrap();
     assert!(ln.dir.dot(DVec3::Y).abs() > 0.999999);
 }
