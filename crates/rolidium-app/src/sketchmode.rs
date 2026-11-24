@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Interaction state of the sketch mode: tools, in-progress drawing with dimension fields, snapping.
 
+use rolidium_doc::rolidium_sketch::edgedims::{EdgeDims, EdgeSnap};
 use rolidium_doc::rolidium_sketch::{DVec2, Entity, PlaneDef, SnapKind};
 use rolidium_doc::{BodyId, SketchId};
 
@@ -14,6 +15,70 @@ pub enum SkTool {
     Rect,
     Circle,
     Arc,
+}
+
+/// The two numbers a person types over the live distances.
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct EdgeEdit {
+    /// Typing has started (Tab was pressed or a digit typed): the fields are shown as fields.
+    pub on: bool,
+    pub text: [String; 2],
+    pub active: usize,
+}
+
+impl EdgeEdit {
+    pub fn clear(&mut self) {
+        *self = EdgeEdit::default();
+    }
+
+    /// Tab: starts the typing in the first field, then goes from one field to the other.
+    pub fn tab(&mut self) {
+        if self.on {
+            self.active = 1 - self.active;
+        } else {
+            self.on = true;
+            self.active = 0;
+        }
+    }
+
+    /// A typed character; `false` when it is not a part of a number.
+    pub fn type_char(&mut self, ch: char) -> bool {
+        let ch = if ch == ',' { '.' } else { ch };
+        if !(ch.is_ascii_digit() || ch == '.') {
+            return false;
+        }
+        self.on = true;
+        let f = &mut self.text[self.active];
+        if ch == '.' && f.contains('.') {
+            return true;
+        }
+        f.push(ch);
+        true
+    }
+
+    pub fn backspace(&mut self) -> bool {
+        if !self.on {
+            return false;
+        }
+        self.text[self.active].pop();
+        true
+    }
+
+    /// The typed distances (`None`: not typed).
+    pub fn values(&self) -> (Option<f64>, Option<f64>) {
+        let v = |s: &str| {
+            s.trim()
+                .parse::<f64>()
+                .ok()
+                .filter(|x| x.is_finite() && *x >= 0.0)
+        };
+        (v(&self.text[0]), v(&self.text[1]))
+    }
+
+    pub fn any_typed(&self) -> bool {
+        let (a, b) = self.values();
+        a.is_some() || b.is_some()
+    }
 }
 
 pub struct Field {
@@ -48,6 +113,8 @@ pub enum SnapLabel {
     Perpendicular,
     Symmetric,
     Tangent,
+    EqualDistance,
+    EdgeMiddle,
 }
 
 impl SnapLabel {
@@ -71,6 +138,8 @@ impl SnapLabel {
             SnapLabel::Perpendicular => "perpendicular",
             SnapLabel::Symmetric => "symmetric",
             SnapLabel::Tangent => "tangent",
+            SnapLabel::EqualDistance => "equal distance",
+            SnapLabel::EdgeMiddle => "edge middle",
         }
     }
 }
@@ -117,6 +186,12 @@ pub struct SketchMode {
     pub focus: glam::Vec3,
     /// The end of a curve the sketch is laid on (the sketch made from it remembers it).
     pub anchor: Option<rolidium_doc::SketchAnchor>,
+    /// The straight edges of the face the sketch is on (pairs of points of the plane): the live distances of a circle are measured to them.
+    pub straight: Vec<(DVec2, DVec2)>,
+    /// The distances typed over the live ones while a circle is placed, and the live ones at the snapped point.
+    pub edge_edit: EdgeEdit,
+    pub edge_dims: Option<EdgeDims>,
+    pub edge_snap: Option<EdgeSnap>,
 }
 
 fn closest_on_segment(a: DVec2, b: DVec2, p: DVec2) -> DVec2 {
@@ -154,6 +229,10 @@ impl SketchMode {
             arc_end: None,
             focus: plane.origin.as_vec3(),
             anchor: None,
+            straight: Vec::new(),
+            edge_edit: EdgeEdit::default(),
+            edge_dims: None,
+            edge_snap: None,
         }
     }
 
@@ -170,9 +249,16 @@ impl SketchMode {
     pub fn set_tool(&mut self, t: SkTool) {
         self.tool = t;
         self.drawing = None;
+        self.edge_edit.clear();
+    }
+
+    /// Whether the live distances to the edges are shown and can be typed over (a circle is being placed).
+    pub fn edge_typing(&self) -> bool {
+        self.tool == SkTool::Circle && self.drawing.is_none() && self.edge_dims.is_some()
     }
 
     pub fn begin(&mut self, start: DVec2) {
+        self.edge_edit.clear();
         let labels: &[&'static str] = match self.tool {
             SkTool::Line | SkTool::Axis => &["Length", "Angle"],
             SkTool::Rect => &["Width", "Height"],
@@ -348,6 +434,9 @@ impl SketchMode {
 
     pub fn type_char(&mut self, ch: char) {
         let ch = if ch == ',' { '.' } else { ch };
+        if self.edge_typing() && self.edge_edit.type_char(ch) {
+            return;
+        }
         if self.drawing.is_none() {
             if let Some(p) = &mut self.place {
                 if ch.is_ascii_digit() || ch == '.' || ch == '-' {
@@ -399,6 +488,9 @@ impl SketchMode {
     }
 
     pub fn backspace(&mut self) {
+        if self.edge_typing() && self.edge_edit.backspace() {
+            return;
+        }
         if let (None, Some(p)) = (&self.drawing, &mut self.place) {
             p.fields[p.active].pop();
         }
@@ -408,6 +500,10 @@ impl SketchMode {
     }
 
     pub fn tab(&mut self) {
+        if self.edge_typing() {
+            self.edge_edit.tab();
+            return;
+        }
         if self.drawing.is_none() && self.tool != SkTool::None {
             match &mut self.place {
                 None => {

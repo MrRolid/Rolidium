@@ -444,6 +444,7 @@ mod coverage {
     const EXTRA: &[&str] = &[
         "Click the flat rectangular face the copies go into (Pick the face)",
         "Into a face needs a hole or a pin: click its round face first",
+        "The hole would lie outside the body", "The pin would not touch the body", "The shift must be numbers",
         "Plane through the axis of the helix and the point", "Plane square to the curve", "Plane square to the axis of the helix",
         "Plane square to the edge", "Plane of the round edge", "Plane parallel to XY", "Plane parallel to XZ", "Plane parallel to YZ", "Free plane",
         "Mirror the body itself", "The body is mirrored where it is.", "Keep the original", "The mirror image is a new body.",

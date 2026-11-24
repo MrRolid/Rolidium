@@ -30,6 +30,7 @@ mod busy;
 mod combinetool;
 mod curvetools;
 mod dock;
+mod edgeedit;
 mod edgepull;
 mod editbench;
 mod feedback;
@@ -47,6 +48,7 @@ mod pickcache;
 mod planeat;
 mod planemove;
 mod planepick;
+mod probe;
 mod properties;
 mod remesh;
 mod revolve;
@@ -285,6 +287,10 @@ pub struct App {
     edit_bench: Option<editbench::EditBench>,
     viewport_rect: Rect,
     hover_obj: Option<Obj>,
+    /// A hole or a pin that is being dragged on its face (Select tool), with its live distances to the edges.
+    hole_drag: Option<edgeedit::HoleDrag>,
+    /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
+    probe: Option<probe::Probe>,
     entity_sel: Option<(SketchId, EntityId)>,
     edge_sel: Vec<(BodyId, u32)>,
     body_sel: Option<BodyId>,
@@ -520,6 +526,8 @@ impl App {
             edit_bench: None,
             viewport_rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)),
             hover_obj: None,
+            hole_drag: None,
+            probe: probe::Probe::from_env(),
             entity_sel: None,
             edge_sel: Vec::new(),
             body_sel: None,
@@ -1159,6 +1167,7 @@ impl App {
         }
         layers.extend(self.combine_layers());
         layers.extend(self.link_layers());
+        layers.extend(self.hole_drag_layers());
         layers.extend(self.loft_layers());
         layers.extend(self.curve_layers());
         if let Some(l) = self.revolve_layer() {
@@ -1682,6 +1691,18 @@ impl App {
         }
         sm.outline = outline;
         if let [(b, f)] = prev_sel[..] {
+            if let Some(solid) = self.doc.body(b).map(|x| &x.solid) {
+                if let Ok(es) = solid.face_edges(FaceId(f)) {
+                    sm.straight = es
+                        .into_iter()
+                        .filter_map(|e| solid.edge_info(e).ok())
+                        .filter(|i| i.kind == rolidium_kernel::EdgeKind::Line)
+                        .map(|i| (plane.to_2d(i.start), plane.to_2d(i.end)))
+                        .collect();
+                }
+            }
+        }
+        if let [(b, f)] = prev_sel[..] {
             if let Some(meta) = self.entry(b).and_then(|m| m.faces.get(f as usize)) {
                 if body.is_some() {
                     sm.focus = meta.centroid;
@@ -1904,6 +1925,36 @@ impl App {
         if modifiers.command {
             return;
         }
+        if self.tool == Tool::Pattern && self.link_ui.pick == Some(linktool::LinkPick::Point) {
+            match key {
+                Key::Enter if self.confirm_second_typed() => return,
+                Key::Backspace if self.link_ui.second_edit.backspace() => {
+                    self.layers_changed = true;
+                    return;
+                }
+                Key::Escape if self.link_ui.second_edit.on => {
+                    self.link_ui.second_edit.clear();
+                    self.layers_changed = true;
+                    return;
+                }
+                _ => {}
+            }
+        }
+        if self.hole_drag.is_some() {
+            match key {
+                Key::Escape => self.cancel_hole_drag(),
+                Key::Enter => self.commit_hole_drag(),
+                Key::Backspace => {
+                    if let Some(h) = &mut self.hole_drag {
+                        h.edit.backspace();
+                        h.update(h.cur, 0.0);
+                    }
+                    self.layers_changed = true;
+                }
+                _ => {}
+            }
+            return;
+        }
         if key == Key::Delete {
             return self.delete_selected();
         }
@@ -1976,9 +2027,23 @@ impl App {
                     if let Some(sm) = &mut self.sk {
                         sm.drawing = None;
                         sm.place = None;
+                        sm.edge_edit.clear();
                     }
                     self.entity_sel = None;
                     self.layers_changed = true;
+                }
+                Key::Enter
+                    if self
+                        .sk
+                        .as_ref()
+                        .is_some_and(|sm| sm.edge_typing() && sm.edge_edit.any_typed()) =>
+                {
+                    // the circle is placed where the typed distances to the edges put its centre
+                    if let Some(sm) = &mut self.sk {
+                        if let Some(s) = sm.snap {
+                            sm.begin(s.pos);
+                        }
+                    }
                 }
                 Key::Enter => {
                     let place = self.sk.as_ref().and_then(|sm| {
@@ -2435,6 +2500,20 @@ impl App {
     }
 
     fn typed_char(&mut self, ch: char, rect: Rect) {
+        if let Some(h) = &mut self.hole_drag {
+            h.edit.type_char(ch);
+            h.update(h.cur, 0.0);
+            self.layers_changed = true;
+            return;
+        }
+        if self.tool == Tool::Pattern
+            && self.link_ui.pick == Some(linktool::LinkPick::Point)
+            && self.link_ui.second.is_some()
+        {
+            self.link_ui.second_edit.type_char(ch);
+            self.layers_changed = true;
+            return;
+        }
         if self.line3_typed(ch) {
             return;
         }
@@ -2808,6 +2887,8 @@ impl App {
             }
         }
         self.paint_sketch_overlay(ui, rect);
+        self.hole_drag_paint(ui, rect);
+        self.second_paint(ui, rect);
         self.empty_hint_paint(ui, rect);
         self.plane_move_paint(ui, rect);
         self.plane_at_paint(ui, rect);
@@ -2944,6 +3025,7 @@ impl App {
                 self.move_input(resp, pointer, rect, raw_face);
             }
             Tool::Select => {
+                self.hole_drag_input(resp, pointer, rect, hovered_face);
                 if resp.clicked_by(PointerButton::Primary) {
                     let add = ctx.input(|i| i.modifiers.command || i.modifiers.shift);
                     select(self, add);
@@ -3092,6 +3174,7 @@ impl App {
             let base = self.sk.as_ref().unwrap().compute_snap(raw, mpp, g, &points);
             self.apply_aids(base, raw, mpp, pointer, rect, &points)
         });
+        let snap = self.edge_dims_snap(snap, hit.map(|h| h.0), rect);
         if let Some(sm) = &mut self.sk {
             sm.snap = snap;
             if snap.is_none() {
@@ -3133,11 +3216,112 @@ impl App {
         }
     }
 
+    /// The straight shapes of the sketches in a plane (lines, axes, the sides of rectangles): what the live distances are measured to, besides the edges of the face.
+    fn sketch_segments(&self, plane: &PlaneDef, body: Option<BodyId>) -> Vec<(DVec2, DVec2)> {
+        let mut v = Vec::new();
+        for s in self
+            .doc
+            .sketches()
+            .iter()
+            .filter(|s| s.visible && s.plane.same_plane(plane) && s.target == body)
+        {
+            for (_, e) in s.sketch.entities() {
+                match *e {
+                    Entity::Line { a, b } | Entity::Axis { a, b } => v.push((a, b)),
+                    Entity::Rect { a, b } => {
+                        let c = Entity::rect_corners(a, b);
+                        v.extend((0..4).map(|i| (c[i], c[(i + 1) % 4])));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        v
+    }
+
+    /// While a circle is placed: the live distances to the two nearest straight edges at the snapped point, the snaps to equal distance and to the middle
+    /// of an edge, and the typed distances (which put the point where they say). Returns the snap that is used.
+    fn edge_dims_snap(&mut self, snap: Option<Snap>, raw: Option<DVec2>, rect: Rect) -> Option<Snap> {
+        let Some(sm) = &self.sk else { return snap };
+        if sm.tool != SkTool::Circle {
+            return snap;
+        }
+        let plane = sm.plane;
+        // the circle is drawn: the centre is fixed, its distances are shown
+        let centre = sm.drawing.as_ref().map(|d| d.start);
+        let Some(at) = centre.or(snap.map(|s| s.pos)) else {
+            if let Some(sm) = &mut self.sk {
+                sm.edge_dims = None;
+                sm.edge_snap = None;
+            }
+            return snap;
+        };
+        let mut segs = sm.straight.clone();
+        segs.extend(self.sketch_segments(&plane, sm.body));
+        let dims = rolidium_doc::rolidium_sketch::edgedims::nearest_edges(at, &segs);
+        let mut out = snap;
+        let mut edge_snap = None;
+        let mut final_at = at;
+        if centre.is_none() {
+            if let (Some(d), Some(s), Some(raw)) = (&dims, snap, raw) {
+                let mpp = self.mm_per_px(&plane, raw, rect);
+                let free = matches!(s.label, SnapLabel::Free | SnapLabel::Grid);
+                let sm = self.sk.as_ref().unwrap();
+                let (ta, tb) = sm.edge_edit.values();
+                let mut pos = s.pos;
+                let mut label = s.label;
+                if free {
+                    let (p2, k) = d.snap(pos, 8.0 * mpp);
+                    if let Some(k) = k {
+                        pos = p2;
+                        edge_snap = Some(k);
+                        label = match k {
+                            rolidium_doc::rolidium_sketch::edgedims::EdgeSnap::Equal => {
+                                SnapLabel::EqualDistance
+                            }
+                            rolidium_doc::rolidium_sketch::edgedims::EdgeSnap::Middle(_) => {
+                                SnapLabel::EdgeMiddle
+                            }
+                        };
+                    }
+                }
+                if ta.is_some() || tb.is_some() {
+                    pos = d.place(ta, tb);
+                    edge_snap = None;
+                }
+                final_at = pos;
+                out = Some(Snap {
+                    pos,
+                    label,
+                    horizontal: false,
+                    vertical: false,
+                });
+            }
+        }
+        let dims = if final_at != at {
+            rolidium_doc::rolidium_sketch::edgedims::nearest_edges(final_at, &segs)
+        } else {
+            dims
+        };
+        if let Some(sm) = &mut self.sk {
+            sm.edge_dims = dims;
+            sm.edge_snap = edge_snap;
+        }
+        out
+    }
+
     fn paint_sketch_overlay(&self, ui: &egui::Ui, rect: Rect) {
         let Some(sm) = &self.sk else { return };
         let painter = ui.painter().with_clip_rect(rect);
         let Some(snap) = sm.snap else { return };
         let plane = sm.plane;
+        // the live distances of a circle to the two nearest edges
+        if sm.tool == SkTool::Circle {
+            if let Some(d) = &sm.edge_dims {
+                let at = sm.drawing.as_ref().map_or(snap.pos, |d| d.start);
+                self.paint_edge_dims(ui, rect, &plane, at, d, &sm.edge_edit, sm.edge_snap);
+            }
+        }
         // rubber band
         if let Some(e) = sm.effective(snap.pos) {
             for pl in e.polylines() {
@@ -3834,7 +4018,9 @@ impl eframe::App for App {
     /// Tab belongs to the dimension fields in sketch mode, not to keyboard navigation of the buttons, so it is
     /// taken out of the input before egui sees it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
-        if self.sk.is_none() || ctx.memory(|m| m.focused()).is_some() {
+        let second = self.tool == Tool::Pattern && self.link_ui.pick == Some(linktool::LinkPick::Point);
+        if (self.sk.is_none() && self.hole_drag.is_none() && !second) || ctx.memory(|m| m.focused()).is_some()
+        {
             return;
         }
         let mut pressed = false;
@@ -3851,7 +4037,13 @@ impl eframe::App for App {
             _ => true,
         });
         if pressed {
-            if let Some(sm) = &mut self.sk {
+            if let Some(h) = &mut self.hole_drag {
+                h.edit.tab();
+                self.layers_changed = true;
+            } else if second && self.sk.is_none() {
+                self.link_ui.second_edit.tab();
+                self.layers_changed = true;
+            } else if let Some(sm) = &mut self.sk {
                 sm.tab();
             }
         }
@@ -4456,6 +4648,7 @@ impl eframe::App for App {
                                     self.link_sources_ui(ui, b, Some(kind.unwrap_or(FaceKind::Other)));
                                 }
                                 self.properties_ui(ui);
+                                self.edge_distance_ui(ui);
                                 if let Some((s, i)) = self.region_sel {
                                     if let Some(r) = self
                                         .regions
@@ -4509,6 +4702,7 @@ impl eframe::App for App {
         prof!("derived_window", self.derived_window(&ctx));
         prof!("dialogs", self.dialogs(&ctx));
         self.autosave_tick();
+        self.probe_tick(&ctx);
 
         if self.show_debug || self.bench.is_some() {
             let tris: usize = self.meshes.iter().map(|m| m.mesh.triangle_count()).sum();

@@ -130,6 +130,9 @@ pub struct LinkUi {
     pub margin: f64,
     /// The mouse handle of the spacing is being dragged.
     pub handle_drag: bool,
+    /// While the place of the second piece is chosen: the point under the pointer on the face, its live distances to the nearest edges, and the typed ones.
+    pub second: Option<SecondHover>,
+    pub second_edit: super::edgeedit::EdgeEdit,
     /// The panel of patterns and mirrors of the shapes of the sketch that is open (`Linear`, `Circular` or `Mirror`).
     pub sk_open: Option<LinkMode>,
     pub sk_count: u32,
@@ -145,6 +148,18 @@ pub struct LinkUi {
     /// The preview of the copies in the model area (line pairs in 3D) and what it was made for.
     pub sk_preview: Vec<Vec3>,
     pub sk_key: String,
+}
+
+/// The point where the second piece would go.
+#[derive(Clone)]
+pub struct SecondHover {
+    pub plane: PlaneDef,
+    /// The place (after the snaps and the typed distances), in the plane of the face.
+    pub at: DVec2,
+    pub dims: Option<rolidium_doc::rolidium_sketch::edgedims::EdgeDims>,
+    pub snap: Option<rolidium_doc::rolidium_sketch::edgedims::EdgeSnap>,
+    pub body: BodyId,
+    pub face: u32,
 }
 
 fn dv(v: Vec3) -> DVec3 {
@@ -439,6 +454,7 @@ impl App {
             self.hover_body = hover;
             self.layers_changed = true;
         }
+        self.update_second_hover(resp);
         if self.spacing_handle(resp) {
             return;
         }
@@ -590,10 +606,97 @@ impl App {
     }
 
     /// Whether a face is the round face of a hole or a pin of a body that has more than the round part itself (a plain cylinder is a body to repeat).
-    fn is_feature_face(&self, body: BodyId, face: u32) -> bool {
+    pub(super) fn is_feature_face(&self, body: BodyId, face: u32) -> bool {
         self.doc.body(body).is_some_and(|b| {
             b.solid.face_count() > 3 && b.solid.cylinder_info(FaceId(face)).ok().flatten().is_some()
         })
+    }
+
+    /// While the second piece is chosen: the place under the pointer with its live distances to the two nearest edges of the face, the snaps and the
+    /// typed distances.
+    pub(super) fn second_paint(&self, ui: &egui::Ui, rect: Rect) {
+        if !matches!(self.tool, Tool::Pattern) || self.link_ui.pick != Some(LinkPick::Point) {
+            return;
+        }
+        if let Some(h) = &self.link_ui.second {
+            if let Some(d) = &h.dims {
+                self.paint_edge_dims(ui, rect, &h.plane, h.at, d, &self.link_ui.second_edit, h.snap);
+            }
+        }
+    }
+
+    fn update_second_hover(&mut self, resp: &egui::Response) {
+        use rolidium_doc::rolidium_sketch::edgedims::nearest_edges;
+        if self.link_ui.pick != Some(LinkPick::Point) {
+            if self.link_ui.second.take().is_some() {
+                self.link_ui.second_edit.clear();
+                self.layers_changed = true;
+            }
+            return;
+        }
+        let (Some((b, f)), Some(pointer)) = (self.hovered_face(), resp.hover_pos()) else {
+            self.link_ui.second = None;
+            return;
+        };
+        let rect = resp.rect;
+        let aspect = rect.width() / rect.height().max(1.0);
+        let (o, d) = self.camera.ray(Self::ndc(pointer, rect), aspect);
+        let Some(raw3) = self.ray_face_point(b, f, o, d) else {
+            self.link_ui.second = None;
+            return;
+        };
+        let Some(solid) = self.doc.body(b).map(|x| &x.solid) else {
+            return;
+        };
+        let Ok(info) = solid.face_info(FaceId(f)) else {
+            return;
+        };
+        if info.kind != FaceKind::Plane {
+            // a curved face: the point only, no distances
+            self.link_ui.second = None;
+            return;
+        }
+        let plane = PlaneDef::from_face(info.origin, info.normal);
+        let edges: Vec<(DVec2, DVec2)> = solid
+            .face_edges(FaceId(f))
+            .map(|es| {
+                es.into_iter()
+                    .filter_map(|e| solid.edge_info(e).ok())
+                    .filter(|i| i.kind == rolidium_kernel::EdgeKind::Line)
+                    .map(|i| (plane.to_2d(i.start), plane.to_2d(i.end)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let raw = plane.to_2d(raw3);
+        let mpp = self.mm_per_px(&plane, raw, rect);
+        let dims = nearest_edges(raw, &edges);
+        let (mut at, mut snap) = (raw, None);
+        if let Some(dm) = &dims {
+            let (p, k) = dm.snap(raw, 8.0 * mpp);
+            if k.is_some() {
+                (at, snap) = (p, k);
+            }
+            let (ta, tb) = self.link_ui.second_edit.values();
+            if ta.is_some() || tb.is_some() {
+                at = dm.place(ta, tb);
+                snap = None;
+            }
+        }
+        let dims = if at != raw {
+            nearest_edges(at, &edges)
+        } else {
+            dims
+        };
+        let now = SecondHover {
+            plane,
+            at,
+            dims,
+            snap,
+            body: b,
+            face: f,
+        };
+        self.link_ui.second = Some(now);
+        self.layers_changed = true;
     }
 
     /// The point of the second piece of a row: the point of the face under the pointer; the direction and the spacing are read from it.
@@ -604,9 +707,41 @@ impl App {
         let rect = resp.rect;
         let aspect = rect.width() / rect.height().max(1.0);
         let (o, d) = self.camera.ray(Self::ndc(pointer, rect), aspect);
-        let Some(to) = self.ray_face_point(b, f, o, d) else {
+        let Some(mut to) = self.ray_face_point(b, f, o, d) else {
             return false;
         };
+        // the snaps and the typed distances moved the place
+        if let Some(h) = self
+            .link_ui
+            .second
+            .as_ref()
+            .filter(|h| h.body == b && h.face == f)
+        {
+            to = h.plane.to_3d(h.at);
+        }
+        self.link_ui.second_edit.clear();
+        self.set_second_piece(to)
+    }
+
+    /// Enter with distances typed while the second piece is chosen: the piece goes where the live distances say.
+    pub(super) fn confirm_second_typed(&mut self) -> bool {
+        let Some(h) = self.link_ui.second.clone() else {
+            return false;
+        };
+        if !self.link_ui.second_edit.any_typed() {
+            return false;
+        }
+        self.link_ui.second_edit.clear();
+        if self.set_second_piece(h.plane.to_3d(h.at)) {
+            self.link_ui.pick = None;
+            self.link_ui.second = None;
+            self.layers_changed = true;
+        }
+        true
+    }
+
+    /// Reads the direction and the spacing of the row from the place of the second piece.
+    fn set_second_piece(&mut self, to: DVec3) -> bool {
         // the place of the first piece: the axis of the hole, or the centre of the box of the sources
         let from = match self.link_ui.feature {
             Some((fb, ff)) => self
@@ -1399,7 +1534,7 @@ impl App {
                         LinkPick::Target => tr("Click the body in the view"),
                         LinkPick::Plane => tr("Click a flat face, a straight edge, an axis or a line of a sketch in the view"),
                         LinkPick::Point => tr("Click the place of the second piece on a face"),
-                        LinkPick::RectFace => tr("Click the flat rectangular face of the same body"),
+                        LinkPick::RectFace => tr("Click the flat rectangular face of the same body, or a rectangle of a sketch"),
                         _ => tr("Click a straight edge or a face in the view"),
                     },
                 );
@@ -1822,6 +1957,14 @@ impl App {
 impl App {
     /// The centre of the sources (for the handle), in the model.
     fn sources_centre(&self) -> Option<DVec3> {
+        if let Some((b, f)) = self.link_ui.feature {
+            // a hole or a pin: the point of its axis
+            return self
+                .doc
+                .body(b)
+                .and_then(|x| x.solid.cylinder_info(FaceId(f)).ok().flatten())
+                .map(|c| c.base);
+        }
         let (mut lo, mut hi) = (DVec3::splat(f64::MAX), DVec3::splat(f64::MIN));
         for b in self.link_sources() {
             if let Some(m) = self.entry(b) {
@@ -1878,6 +2021,23 @@ impl App {
             crate::theme::rgb(255, 200, 100),
             egui::Stroke::new(1.5, Color32::BLACK),
         );
+        // a click on the dot (no drag) turns the arrow to the next direction: X, Y, Z, -X, -Y, -Z
+        if resp.clicked_by(PointerButton::Primary) && over {
+            let order = [
+                (DVec3::X, "X"),
+                (DVec3::Y, "Y"),
+                (DVec3::Z, "Z"),
+                (-DVec3::X, "-X"),
+                (-DVec3::Y, "-Y"),
+                (-DVec3::Z, "-Z"),
+            ];
+            let cur = order.iter().position(|(v, _)| v.dot(dir) > 0.9999);
+            let (v, n) = order[cur.map_or(0, |i| (i + 1) % order.len())];
+            let p = &mut self.link_ui.p;
+            (p.dir, p.dir_label) = (v, n.to_string());
+            self.layers_changed = true;
+            return true;
+        }
         if resp.drag_started_by(PointerButton::Primary) && over {
             self.link_ui.handle_drag = true;
         }

@@ -21,6 +21,10 @@ pub struct DimPanel {
     /// The fields of the right column for the selected shape, and what they belong to.
     sel_key: String,
     sel_fields: Vec<String>,
+    /// The distances of the selected circle or hole to its two nearest edges: what they belong to, and the fields.
+    pub(super) edge_key: String,
+    pub(super) edge_text: [String; 2],
+    pub(super) edge_ctx: Option<super::edgeedit::EdgeCtx>,
 }
 
 enum Target {
