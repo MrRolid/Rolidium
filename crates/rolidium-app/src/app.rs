@@ -293,6 +293,13 @@ pub struct App {
     hover_obj: Option<Obj>,
     /// A hole or a pin that is being dragged on its face (Select tool), with its live distances to the edges.
     hole_drag: Option<edgeedit::HoleDrag>,
+    /// `ROLIDIUM_ASYNC_PICK=1`: what is under the pointer comes only from the read-back of the graphics card, as it did before 0.2.2 (a diagnostic switch for the tests).
+    async_pick_only: bool,
+    /// The presses and releases of the primary button with what was under the pointer (only with the probe).
+    click_log: Vec<String>,
+    click_total: u64,
+    /// The pick ID found on the processor in this frame (see `cpu_pick_id`), if any.
+    sync_pick: Option<u32>,
     /// A shape of a sketch that is being dragged.
     shape_drag: Option<shapedrag::ShapeDrag>,
     /// A hole that was moved and is to be selected again when the move is done.
@@ -538,6 +545,10 @@ impl App {
             viewport_rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)),
             hover_obj: None,
             hole_drag: None,
+            async_pick_only: std::env::var_os("ROLIDIUM_ASYNC_PICK").is_some(),
+            click_log: Vec::new(),
+            click_total: 0,
+            sync_pick: None,
             shape_drag: None,
             reselect: None,
             sk_press: None,
@@ -2676,11 +2687,56 @@ impl App {
         }
 
         let ray = pointer.map(|p| self.camera.ray(Self::ndc(p, rect), aspect));
+        // What is under the pointer is found now on the processor whenever it matters: at a press, a release, a click, a double click and the start of a drag
+        // (at the place where the button went down) always, and on every frame when the shown meshes are not huge. The read-back of the graphics card
+        // answers for the place the pointer was a few frames ago, so it is only used for the highlight of a big scene, never for what a click takes.
+        let (pressed, released, press_origin) = ctx.input(|i| {
+            (
+                i.pointer.primary_pressed(),
+                i.pointer.primary_released(),
+                i.pointer.press_origin(),
+            )
+        });
+        let click_frame = pressed
+            || released
+            || resp.clicked()
+            || resp.double_clicked()
+            || resp.drag_started()
+            || resp.secondary_clicked();
+        let pick_pointer = if pressed || resp.drag_started() {
+            press_origin.or(pointer)
+        } else {
+            pointer
+        };
+        let small_scene = self.meshes.iter().map(|m| m.mesh.triangle_count()).sum::<usize>() < 300_000;
+        self.sync_pick = None;
+        if resp.hovered() && (click_frame || small_scene) && !self.async_pick_only {
+            if let Some(at) = pick_pointer {
+                let id = self.cpu_pick_id(at, rect);
+                self.hover_id = id;
+                self.sync_pick = Some(id);
+            }
+        }
         let mut hovered_face = if resp.hovered() { self.hovered_face() } else { None };
+        if self.probe.is_some() && (released || pressed) {
+            let line = format!(
+                "{} at {:?} face {:?} clicked {} hovered {}",
+                if pressed { "press" } else { "release" },
+                pick_pointer.map(|p| (p.x.round(), p.y.round())),
+                hovered_face,
+                resp.clicked(),
+                resp.hovered()
+            );
+            self.click_total += u64::from(pressed);
+            self.click_log.push(line);
+            if self.click_log.len() > 400 {
+                self.click_log.remove(0);
+            }
+        }
         let prev_hover_region = self.hover_region;
         let prev_obj = self.hover_obj;
         let t_pointer = Instant::now();
-        self.hover_obj = match (resp.hovered(), pointer, self.pull.is_some()) {
+        self.hover_obj = match (resp.hovered(), pick_pointer, self.pull.is_some()) {
             (true, Some(p), false) => {
                 let entities = self.sk.as_ref().is_none_or(|s| s.tool == SkTool::None);
                 let hit = self.pick_object_d(p, rect, self.sk.is_none(), entities);
@@ -2782,7 +2838,7 @@ impl App {
             let r = self.render_state.renderer.read();
             match r.callback_resources.get::<Resources>() {
                 Some(res) => {
-                    self.hover_id = res.renderer.pick_result();
+                    self.hover_id = self.sync_pick.unwrap_or_else(|| res.renderer.pick_result());
                     (res.renderer.pick_busy(), res.renderer.pick_serial())
                 }
                 None => (false, 0),

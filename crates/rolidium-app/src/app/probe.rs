@@ -172,6 +172,8 @@ impl App {
             "circles": self.probe_circles(),
             "shapes": self.probe_shapes(),
             "drawing": self.sk.as_ref().is_some_and(|m| m.drawing.is_some()),
+            "click_total": self.click_total,
+            "click_log": self.click_log.iter().rev().take(120).collect::<Vec<_>>(),
             "shape_drag": self.shape_drag.is_some(),
             "hole_drag": self.hole_drag.is_some(),
         })

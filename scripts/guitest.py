@@ -45,6 +45,49 @@ def click(x=None, y=None):
     time.sleep(0.25)
 
 
+_presses = 0
+_presses_base = None
+
+
+def set_press_base(v):
+    global _presses_base
+    _presses_base = v
+
+
+def fast_click(x, y):
+    """The pointer goes to the place and the button is pressed and released at once, with no waiting for anything the program says; then the next two frames are
+    waited for (the probe is written at every frame in ROLIDIUM_PROBE_IDLE mode, otherwise a fixed short time passes)."""
+    global _presses
+    _presses += 1   # the number of presses the program has to have seen when this click is handled
+    f0 = None
+    try:
+        q = json.load(open(PROBE))
+        f0 = q["frame"]
+        if _presses_base is None:
+            set_press_base(q.get("click_total", 0) - (_presses - 1))
+    except Exception:
+        pass
+    xtst.XTestFakeMotionEvent(D, 0, int(x), int(y), 0)
+    x11.XFlush(D)
+    time.sleep(0.01)   # the motion reaches the window before the button does (10 ms: not a wait for any answer of the program)
+    xtst.XTestFakeButtonEvent(D, 1, 1, 0)
+    xtst.XTestFakeButtonEvent(D, 1, 0, 0)
+    x11.XFlush(D)
+    if f0 is None:
+        time.sleep(0.15)
+        return
+    t0 = time.time()
+    while time.time() - t0 < 5.0:
+        time.sleep(0.004)
+        try:
+            q = json.load(open(PROBE))
+            if q["frame"] >= f0 + 3 and q.get("click_total", 0) >= _presses_base + _presses:   # the click was handled (a press was seen) and a frame came after it
+                time.sleep(0.03)
+                return
+        except Exception:
+            pass
+
+
 def keycode(name):
     return x11.XKeysymToKeycode(D, ctypes.c_ulong(x11.XStringToKeysym(name.encode())))
 
@@ -218,12 +261,8 @@ def scale_check(scale):
     for name, want in (("top", (0, 0, 1)), ("front", (0, -1, 0))):
         x, y = screen(p, name)
         move(x, y)
-        h = None
-        for _ in range(40):   # the read-back of what is under the pointer takes a few frames, more at a big window and a slow drawing
-            time.sleep(0.25)
-            h = probe()["hover"]
-            if h and h["normal"] and all(abs(a - b) < 0.02 for a, b in zip(h["normal"], want)):
-                break
+        time.sleep(0.5)
+        h = probe()["hover"]
         check(h and h["normal"] and all(abs(a - b) < 0.02 for a, b in zip(h["normal"], want)), f"the pointer on '{name}' hovers the face with the normal {want}: {h}")
     x, y = screen(p, "edge")
     move(x, y)
@@ -232,14 +271,7 @@ def scale_check(scale):
     check(q["hover_obj"] is not None and "Edge" in q["hover_obj"], f"the pointer on the edge hovers the edge: {q['hover_obj']}")
     shot("01-hover")
     # a sketch on the top face: a circle by two clicks, centre at (30, 20), radius 6 (the grid step is 1 mm)
-    x, y = screen(p, "top")
-    move(x, y)
-    for _ in range(40):   # a click takes the face the read-back of the pick reported: wait until it is the one aimed at
-        time.sleep(0.25)
-        h = probe()["hover"]
-        if h and h["normal"] and abs(h["normal"][2] - 1) < 0.02:
-            break
-    click()
+    fast_click(*screen(p, "top"))   # at once after the move: what is under the pointer must be found for this place, not taken from an older one
     settle(0.4)
     key("k")
     settle(0.4)
@@ -260,3 +292,68 @@ def scale_check(scale):
     check(len(cs) == 2 and close(cs[1]["x"], 0, 0.01) and close(cs[1]["y"], 0, 0.01), f"the centre snapped to the corner of the face (0, 0): {cs}")
     shot("02-circles")
     finish()
+
+
+def rapid_clicks(scale):
+    """50 clicks at once after a move each, at different places of 20 little bodies and of the background, in a random order, with no waiting for the pick of the
+    program: every click takes the body under the place it was made at (or nothing over the background), none is lost."""
+    import random
+    time.sleep(1.5)
+    focus_app_window()
+    # the view is quiet when the places of the points of two readings are the same
+    p = probe()
+    for _ in range(40):
+        time.sleep(0.5)
+        q = probe()
+        if q["points"] == p["points"]:
+            break
+        p = q
+    check(close(p["ppp"], scale, 0.01), f"the scale of the interface is {scale}: {p['ppp']}")
+    bodies = {b["id"]: b["bbox"] for b in p["bodies"]}
+    check(len(bodies) == 20, f"20 bodies: {len(bodies)}")
+    targets = [(f"p{i}", None) for i in range(20)] + [(f"v{i}", None) for i in range(4)]
+    vx, vy, vw, vh = p["viewport"]
+    # places of the background, inside the model area (the corners of the view, where no body is)
+    for k, (fx, fy) in enumerate(((0.06, 0.08), (0.94, 0.08), (0.06, 0.92), (0.94, 0.92))):
+        p["points"][f"v{k}"] = [vx + vw * fx, vy + vh * fy]
+    rnd = random.Random(7)
+    seq = []
+    last = None
+    while len(seq) < 50:
+        t = rnd.choice(targets)[0]
+        if t != last:
+            seq.append(t)
+            last = t
+    wrong, lost = [], []
+    for name in seq:
+        x, y = screen(p, name)
+        fast_click(x, y)
+        q = probe()
+        sel = q["selection"]
+        # the face that was taken opens a panel next to it (Face: Move by, Distance...), which would cover some of the next places: Esc closes it, and the frames that
+        # follow are waited for (egui looks for what is under the pointer in the layout of the frame before)
+        key("Escape")
+        if name.startswith("v"):
+            if sel:
+                wrong.append((name, sel))
+            continue
+        cx, cy = P_XY[name]
+        want = next(i for i, bb in bodies.items() if bb[0] - 1e-6 <= cx <= bb[3] + 1e-6 and bb[1] - 1e-6 <= cy <= bb[4] + 1e-6)
+        if not sel:
+            lost.append(name)
+            print("lost", name, "sent", (x, y), "log", q.get("click_log", [])[:3])
+        elif sel[0][0] != want:
+            wrong.append((name, sel, want))
+            print("click", name, "sent", (x, y), "log", q.get("click_log", [])[:2])
+    if wrong or lost:
+        print("viewport", p["viewport"])
+        for w in wrong[:6]:
+            print("wrong", w, "at", screen(p, w[0]), "wanted bbox", bodies.get(w[2]) if len(w) > 2 else None, "got bbox", bodies.get(w[1][0][0]))
+        print("click log (newest first):", *probe().get("click_log", [])[:30], sep="\n  ")
+    shot("01-after-50-clicks")
+    check(not lost, f"no click was lost: {lost}")
+    check(not wrong, f"no click took another place: {wrong}")
+    finish()
+
+
+P_XY = {f"p{j * 5 + i}": (5 + 14 * i, 5 + 14 * j) for j in range(4) for i in range(5)}

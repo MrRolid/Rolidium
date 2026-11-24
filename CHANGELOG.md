@@ -29,6 +29,8 @@ features is visible. 0.2.0 is the first public release.
 - A hole or a pin stays selected after it was moved (by dragging, by the fields or by typed numbers), so it can be dragged or changed in the panel at once.
 - Window tests t12 to t17: the scale of the interface 1.0, 1.5, 2.25 and 3.0 (the window of 1280 x 800 points, 2880 x 1800 pixels at 2.25), drawing by click and by drag, a frame after every click and the first click into a window that was never focused, dragging of shapes with Undo, the corners that follow a dragged rectangle, and the selection after a move of a hole.
 
+- **A click is made for the place it was made at.** What is under the pointer is found on the processor (the nearest triangle, through the box hierarchy of each mesh) at every press, release, click, double click and start of a drag (at the place where the button went down), and on every frame when the shown meshes are under 300 000 triangles. Before, the click used the read-back of the graphics card, which answers for the place the pointer was a few frames ago: a click made at once after a move was skipped or hit the old place (more often with a big window, a high interface scale or a slow drawing). Window tests t18 make 50 fast clicks at the scales 1.0 and 2.25 and in a window of 2880 x 1800: none is lost, none takes another place (with `ROLIDIUM_ASYNC_PICK=1`, the old behaviour, they fail).
+
 ### Fixed
 - `rolidium cli render` no longer draws hidden bodies (the tools of holes that a pattern repeats).
 

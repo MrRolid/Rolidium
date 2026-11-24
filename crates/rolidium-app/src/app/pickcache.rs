@@ -103,6 +103,47 @@ impl Bvh {
         Bvh { nodes, order, mesh }
     }
 
+    /// The nearest triangle hit by the ray `o + t d` (d a unit vector): the distance and the number of the triangle.
+    pub fn nearest(&self, o: Vec3, d: Vec3) -> Option<(f32, usize)> {
+        if self.nodes.is_empty() {
+            return None;
+        }
+        let inv = Vec3::new(1.0 / d.x, 1.0 / d.y, 1.0 / d.z);
+        let mut best: Option<(f32, usize)> = None;
+        let mut stack = [0usize; 64];
+        let mut sp = 1;
+        while sp > 0 {
+            sp -= 1;
+            let idx = stack[sp];
+            let node = &self.nodes[idx];
+            let t1 = (node.lo - o) * inv;
+            let t2 = (node.hi - o) * inv;
+            let (tmin, tmax) = (t1.min(t2), t1.max(t2));
+            let near = tmin.x.max(tmin.y).max(tmin.z).max(0.0);
+            let far = tmax.x.min(tmax.y).min(tmax.z).min(best.map_or(f32::MAX, |b| b.0));
+            if near > far {
+                continue;
+            }
+            if node.count > 0 {
+                for k in 0..node.count {
+                    let tri = self.order[(node.first + k) as usize] as usize;
+                    let t = &self.mesh.indices[tri * 3..tri * 3 + 3];
+                    let p = |i: u32| self.mesh.positions[i as usize];
+                    if let Some(h) = super::pick::ray_triangle(o, d, p(t[0]), p(t[1]), p(t[2])) {
+                        if best.is_none_or(|b| h < b.0) {
+                            best = Some((h, tri));
+                        }
+                    }
+                }
+            } else if sp + 2 <= stack.len() {
+                stack[sp] = idx + 1;
+                stack[sp + 1] = node.right as usize;
+                sp += 2;
+            }
+        }
+        best
+    }
+
     /// True if a triangle is hit by the ray `o + t d` (d a unit vector) at a distance below `max`.
     pub fn hit_before(&self, o: Vec3, d: Vec3, max: f32) -> bool {
         if self.nodes.is_empty() {

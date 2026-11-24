@@ -88,6 +88,45 @@ pub(super) fn ray_triangle(o: Vec3, d: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Optio
 }
 
 impl App {
+    /// The pick ID (body slot and face) of the surface under the point `p` of the window, found now on the processor: the nearest triangle of the shown
+    /// meshes (through the hierarchy of boxes when it is ready, else by looking at every triangle). The read-back of the graphics card answers for the
+    /// place the pointer was a few frames ago; a click must never use that.
+    pub(super) fn cpu_pick_id(&self, p: Pos2, rect: Rect) -> u32 {
+        let aspect = rect.width() / rect.height().max(1.0);
+        let (o, d) = self.camera.ray(Self::ndc(p, rect), aspect);
+        let mut best: Option<(f32, usize, usize)> = None;
+        for (slot, m) in self.meshes.iter().enumerate() {
+            let ready = self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh);
+            let hit = match ready.as_ref().and_then(|s| s.get()) {
+                Some(b) => b.nearest(o, d),
+                None => {
+                    let mut near: Option<(f32, usize)> = None;
+                    for (t, tri) in m.mesh.indices.as_chunks::<3>().0.iter().enumerate() {
+                        let q = |i: u32| m.mesh.positions[i as usize];
+                        if let Some(h) = ray_triangle(o, d, q(tri[0]), q(tri[1]), q(tri[2])) {
+                            if near.is_none_or(|b| h < b.0) {
+                                near = Some((h, t));
+                            }
+                        }
+                    }
+                    near
+                }
+            };
+            if let Some((h, t)) = hit {
+                if best.is_none_or(|b| h < b.0) {
+                    best = Some((h, slot, t));
+                }
+            }
+        }
+        match best {
+            Some((_, slot, t)) => {
+                let face = self.meshes[slot].mesh.tri_face.get(t).copied().unwrap_or(0);
+                rolidium_render::encode_pick(slot as u32, face)
+            }
+            None => ID_NONE,
+        }
+    }
+
     /// Nearest edge or sketch shape within a few pixels of the pointer.
     /// `edges`/`entities` select which kinds may be picked.
     pub(super) fn pick_object(&self, pointer: Pos2, rect: Rect, edges: bool, entities: bool) -> Option<Obj> {
