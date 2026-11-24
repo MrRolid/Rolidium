@@ -52,6 +52,7 @@ pub mod bench;
 pub mod describe;
 pub mod entry;
 mod links_cmd;
+pub mod mesh_cmd;
 pub mod mcp;
 pub mod phases;
 pub mod soft;
@@ -85,6 +86,8 @@ pub struct Runner {
     pub quiet: bool,
     /// `body N` of the line being run: the body (1-based) the command works on instead of the first one.
     target_body: Option<usize>,
+    /// Triangle meshes (STL) next to the document.
+    pub meshes: Vec<mesh_cmd::MeshBody>,
 }
 
 impl Default for Runner {
@@ -184,6 +187,7 @@ impl Runner {
             file: None,
             quiet: false,
             target_body: None,
+            meshes: Vec::new(),
         }
     }
 
@@ -1531,6 +1535,24 @@ impl Runner {
                     };
                 }
                 self.render_png(Path::new(path), width, height, view)?;
+            }
+            "import-stl" | "mesh-info" | "mesh-check" => {
+                self.run_mesh_command(&w)?;
+            }
+            "mesh-repair" | "mesh-regions" | "mesh-pull" => {
+                self.run_mesh_command(&w)?;
+            }
+            "mesh-hole" | "mesh-undo" | "mesh-redo" => {
+                self.run_mesh_command(&w)?;
+            }
+            "mesh-scale" | "mesh-move" | "mesh-rotate" => {
+                self.run_mesh_command(&w)?;
+            }
+            "mesh-mirror" | "mesh-pattern" | "mesh-save" => {
+                self.run_mesh_command(&w)?;
+            }
+            "mesh-open" | "export-mesh-stl" => {
+                self.run_mesh_command(&w)?;
             }
             "linear-pattern" | "circular-pattern" | "mirror" | "links" => {
                 self.run_links_command(&w)?;

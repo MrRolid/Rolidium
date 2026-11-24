@@ -74,6 +74,23 @@ The server uses one thread per core less one for the calculations that can share
 | `new_document` | Start an empty document |
 | `open_document` | Open a .rolidium file (a path under the root directory of the server) |
 | `save_document` | Save the document as a .rolidium file under the root directory |
+| `import_stl` | Import an STL file (binary or ASCII) as a mesh, with units (mm, `inch`, `scale k`); answers with the size and the check of the mesh |
+| `mesh_info` | Triangles, size and volume of a mesh |
+| `mesh_check` | Holes, normals that disagree, edges of more than two triangles, degenerate triangles, loose pieces |
+| `mesh_repair` | Join duplicate vertices and turn the triangles so that neighbours agree about the outside |
+| `mesh_regions` | Planar walls and round holes or pins of a mesh, numbered |
+| `mesh_pull` | Pull a planar wall of a mesh along its normal; the neighbouring walls stretch (refused with the reason when it cannot be clean) |
+| `mesh_hole` | Change the diameter of a round hole or pin of a mesh |
+| `mesh_undo` | Undo the last mesh_pull or mesh_hole |
+| `mesh_redo` | Redo what mesh_undo took back |
+| `mesh_scale` | Scale a mesh by different factors in x, y and z |
+| `mesh_move` | Move a mesh |
+| `mesh_rotate` | Turn a mesh about x, y or z |
+| `mesh_mirror` | Mirror a mesh in the plane of x, y or z |
+| `mesh_pattern` | Repeat a mesh along a line (one mesh of count pieces) |
+| `export_mesh_stl` | Write a mesh as an STL file |
+| `mesh_save` | Save a mesh in the compact form of Rolidium |
+| `mesh_open` | Open a mesh saved with mesh_save |
 | `export_stl` | Write a body as a binary STL file (for 3D printing) |
 | `export_step` | Write a body as a STEP file (for other CAD programs) |
 | `import_step` | Add the solids of a STEP file as new bodies |

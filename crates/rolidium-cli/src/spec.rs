@@ -156,6 +156,15 @@ const fn files(mut cmd: Cmd) -> Cmd {
     cmd
 }
 
+const MESH: Param = p(
+    "mesh",
+    Kind::Int,
+    "Number of the mesh (1, 2, ... in the order of import). Default: the last one.",
+)
+.opt()
+.word("mesh")
+.range(1.0, 100000.0);
+
 const COORD: (f64, f64) = (-1.0e6, 1.0e6);
 
 pub static COMMANDS: &[Cmd] = &[
@@ -180,6 +189,137 @@ pub static COMMANDS: &[Cmd] = &[
         "save_document",
         "Save the document as a .rolidium file under the root directory. Without a path the file it was opened from or last saved to is used.",
         &[p("path", Kind::Path, "File to write, for example part.rolidium").opt()],
+        false,
+        "",
+    )),
+    files(c(
+        "import-stl",
+        "import_stl",
+        "Import a triangle mesh from an STL file (binary or ASCII) as a MESH, not as a solid: it is not converted to B-rep (a mesh can be checked, repaired, moved, turned, mirrored, scaled, repeated and exported, and a planar wall or a round hole can be edited with mesh_pull and mesh_hole). STL has no units: the numbers are millimetres, or `inch`, or `scale k` (one unit of the file is k mm). The answer gives the number of triangles, the size and the check of the mesh (holes, normals that disagree, edges of more than two triangles).",
+        &[
+            p("path", Kind::Path, "The STL file"),
+            p("inch", Kind::Flag, "The numbers of the file are inches").opt().word("inch"),
+            p("scale", Kind::Num, "One unit of the file is this many mm").opt().word("scale").range(1.0e-6, 1.0e6),
+            p("weld", Kind::Flag, "Join vertices closer than 0.0001 mm").opt().word("weld"),
+        ],
+        false,
+        "",
+    )),
+    c("mesh-info", "mesh_info", "Number of triangles, size and volume of a mesh.", &[MESH], false, ""),
+    c("mesh-check", "mesh_check", "Check a mesh: number of triangles, open edges (holes), edges where the normals disagree, edges of more than two triangles, degenerate triangles, loose pieces, a mesh turned inside out.", &[MESH], false, ""),
+    c("mesh-repair", "mesh_repair", "Repair a mesh: join duplicate vertices, turn the triangles so that neighbours agree about the outside (a piece that is inside out is turned too). Holes are not filled.", &[MESH], false, ""),
+    c("mesh-regions", "mesh_regions", "Find the planar walls (#1, #2, ...) and the round holes and pins of a mesh and list them (normal, area, diameter, axis). The numbers are used by mesh_pull and mesh_hole; after an edit the list is made again.", &[MESH], false, ""),
+    c(
+        "mesh-pull",
+        "mesh_pull",
+        "Pull a planar wall of a mesh along its normal by a distance (out is positive). The neighbouring walls stretch, so a box stays a box; refused with the reason when a neighbour is not square to the wall, the mesh is not closed, or the move would turn a wall over. One step of mesh_undo.",
+        &[
+            p("wall", Kind::Int, "Number of the wall from mesh_regions").range(1.0, 1.0e7),
+            p("distance", Kind::Num, "Distance").unit("mm").range(-1.0e5, 1.0e5),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    c(
+        "mesh-hole",
+        "mesh_hole",
+        "Change the diameter of a round hole or pin of a mesh (its vertices move radially). Refused with the reason when it is not round enough or the neighbouring triangles would be turned over. One step of mesh_undo.",
+        &[
+            p("hole", Kind::Int, "Number of the hole or pin from mesh_regions").range(1.0, 1.0e7),
+            p("diameter", Kind::Num, "The new diameter").unit("mm").range(0.001, 1.0e5),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    c("mesh-undo", "mesh_undo", "Undo the last mesh_pull or mesh_hole (the vertices that were moved are put back; the mesh is not copied).", &[MESH], false, ""),
+    c("mesh-redo", "mesh_redo", "Redo what mesh_undo took back.", &[MESH], false, ""),
+    c(
+        "mesh-scale",
+        "mesh_scale",
+        "Scale a mesh about the corner of its box by different factors in x, y and z (a negative factor mirrors).",
+        &[
+            p("sx", Kind::Num, "Factor along x").range(-1.0e4, 1.0e4),
+            p("sy", Kind::Num, "Factor along y").range(-1.0e4, 1.0e4),
+            p("sz", Kind::Num, "Factor along z").range(-1.0e4, 1.0e4),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    c(
+        "mesh-move",
+        "mesh_move",
+        "Move a mesh by a shift in x, y and z (millimetres).",
+        &[
+            p("dx", Kind::Num, "Shift along x").unit("mm").range(COORD.0, COORD.1),
+            p("dy", Kind::Num, "Shift along y").unit("mm").range(COORD.0, COORD.1),
+            p("dz", Kind::Num, "Shift along z").unit("mm").range(COORD.0, COORD.1),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    c(
+        "mesh-rotate",
+        "mesh_rotate",
+        "Turn a mesh about an axis through the origin parallel to x, y or z.",
+        &[
+            p("axis", AXIS, "x, y or z"),
+            p("angle", Kind::Num, "Angle").unit("degrees").range(-360.0, 360.0),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    c(
+        "mesh-mirror",
+        "mesh_mirror",
+        "Mirror a mesh in the plane of x, y or z through the origin (the triangles are turned so that the outside stays outside).",
+        &[p("plane", AXIS, "x, y or z"), MESH],
+        false,
+        "",
+    ),
+    c(
+        "mesh-pattern",
+        "mesh_pattern",
+        "Repeat a mesh along a line: the mesh and count - 1 copies one step apart, as one mesh (at most 1000 pieces).",
+        &[
+            p("count", Kind::Int, "Number of pieces, the original included").range(1.0, 1000.0),
+            p("dx", Kind::Num, "Step along x").unit("mm").range(COORD.0, COORD.1),
+            p("dy", Kind::Num, "Step along y").unit("mm").range(COORD.0, COORD.1),
+            p("dz", Kind::Num, "Step along z").unit("mm").range(COORD.0, COORD.1),
+            MESH,
+        ],
+        false,
+        "",
+    ),
+    files(c(
+        "export-mesh-stl",
+        "export_mesh_stl",
+        "Write a mesh as an STL file (binary, or text with `ascii`). Units are mm.",
+        &[
+            p("path", Kind::Path, "File to write"),
+            p("ascii", Kind::Flag, "Write text STL").opt().word("ascii"),
+            MESH,
+        ],
+        false,
+        "",
+    )),
+    files(c(
+        "mesh-save",
+        "mesh_save",
+        "Save a mesh in the compact form of Rolidium (deflated coordinate planes: a good deal smaller than the binary STL).",
+        &[p("path", Kind::Path, "File to write"), MESH],
+        false,
+        "",
+    )),
+    files(c(
+        "mesh-open",
+        "mesh_open",
+        "Open a mesh saved with mesh_save as a new mesh.",
+        &[p("path", Kind::Path, "The file")],
         false,
         "",
     )),

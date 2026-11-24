@@ -22,7 +22,7 @@ pub struct TriMesh {
 
 pub(crate) type V3 = [f64; 3];
 
-pub(crate) fn sub(a: V3, b: V3) -> V3 {
+pub fn sub(a: V3, b: V3) -> V3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 pub(crate) fn add(a: V3, b: V3) -> V3 {
@@ -37,7 +37,7 @@ pub(crate) fn dot(a: V3, b: V3) -> f64 {
 pub(crate) fn cross(a: V3, b: V3) -> V3 {
     [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
-pub(crate) fn len(a: V3) -> f64 {
+pub fn len(a: V3) -> f64 {
     dot(a, a).sqrt()
 }
 pub(crate) fn unit(a: V3) -> V3 {

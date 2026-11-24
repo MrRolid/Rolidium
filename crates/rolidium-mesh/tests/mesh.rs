@@ -69,7 +69,7 @@ fn pulling_the_top_wall_5_mm_gives_a_clean_taller_plate_and_undo_restores_it() {
     assert!((hi[2] - lo[2] - 15.0).abs() < 1e-5);
     // the wall pulled is a ring (the plate less the hole): the volume grows by its area times 5
     let want = 5.0 * top.area;
-    assert!((top.area - (60.0 * 40.0 - polygon_area(2.5, 48))).abs() < 120.0);
+    assert!((top.area - (60.0 * 40.0 - polygon_area(2.5, 48))).abs() < 1.0);
     assert!((m.signed_volume() - v0 - want).abs() < 1e-3 * want, "{} against {want}", m.signed_volume() - v0);
     assert!(check(&m).is_clean());
     // the record holds only the moved vertices, not the mesh

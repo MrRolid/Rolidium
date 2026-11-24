@@ -50,18 +50,22 @@ pub fn box_mesh(w: f32, d: f32, h: f32, n: usize) -> TriMesh {
 pub fn plate_with_hole(w: f64, d: f64, t: f64, r: f64, seg: usize) -> TriMesh {
     let mut m = TriMesh::default();
     let (cx, cy) = (w / 2.0, d / 2.0);
-    let mut push = |m: &mut TriMesh, p: [f64; 3]| -> u32 {
+    let push = |m: &mut TriMesh, p: [f64; 3]| -> u32 {
         m.positions.push([p[0] as f32, p[1] as f32, p[2] as f32]);
         (m.positions.len() - 1) as u32
     };
-    let mut rings: Vec<(Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>)> = Vec::new();
     // outer ring points on the perimeter in the directions of the hole points (45 degrees plus steps: the corners are among them)
     let mut outer_top = Vec::new();
     let mut outer_bot = Vec::new();
     let mut inner_top = Vec::new();
     let mut inner_bot = Vec::new();
     for i in 0..seg {
-        let a = TAU / 8.0 + TAU * i as f64 / seg as f64;
+        // the directions run round in four arcs, each starting at a corner of the rectangle, so the corners are points of the ring
+        let phi = (d / w).atan();
+        let arcs = [(-phi, phi), (phi, std::f64::consts::PI - phi), (std::f64::consts::PI - phi, std::f64::consts::PI + phi), (std::f64::consts::PI + phi, TAU - phi)];
+        let per = seg / 4;
+        let (a0, a1) = arcs[i / per];
+        let a = a0 + (a1 - a0) * (i % per) as f64 / per as f64;
         let (c, s) = (a.cos(), a.sin());
         // the point of the perimeter in this direction
         let k = (w / 2.0 / c.abs().max(1e-12)).min(d / 2.0 / s.abs().max(1e-12));
@@ -72,7 +76,6 @@ pub fn plate_with_hole(w: f64, d: f64, t: f64, r: f64, seg: usize) -> TriMesh {
         inner_top.push(push(&mut m, [hx, hy, t]));
         inner_bot.push(push(&mut m, [hx, hy, 0.0]));
     }
-    rings.push((outer_top.clone(), outer_bot.clone(), inner_top.clone(), inner_bot.clone()));
     for i in 0..seg {
         let j = (i + 1) % seg;
         // top (normal +z), bottom (-z), outer wall (outwards), hole wall (towards the axis)

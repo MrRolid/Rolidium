@@ -19,6 +19,7 @@ path = "src/mcp_main.rs"
 
 [dependencies]
 rolidium-kernel = { path = "../rolidium-kernel" }
+rolidium-mesh = { path = "../rolidium-mesh" }
 rolidium-doc = { path = "../rolidium-doc" }
 rolidium-render = { path = "../rolidium-render" }
 glam.workspace = true
