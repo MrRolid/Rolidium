@@ -639,6 +639,18 @@ A hole is cut out of the body again at every place, a pin is fused into it. The 
         "",
     ),
     c(
+        "move-feature",
+        "move_feature",
+        "Move a hole or a pin of a body: `face` is its cylindrical face (#N), `dx dy dz` the shift in mm. With `edges d1 d2` the hole is put so that its distances to the two nearest straight edges of the face it opens in are d1 and d2 (the numbers are for the edges in the order they are nearest now). The hole is filled and cut out again at the new place; a hole that would leave the body is refused.",
+        &[
+            p("face", Kind::Text, "The face of the hole or the pin: #N (face id from describe_model)"),
+            p("shift", Kind::Words, "dx dy dz, or: edges d1 d2"),
+            BODY,
+        ],
+        true,
+        "",
+    ),
+    c(
         "mirror",
         "mirror_body",
         "Mirror a body in a plane: `x`, `y` or `z` is the plane of that coordinate (through the origin, or moved by `at` mm, or through the point given with `through`), or give `normal nx ny nz`. \

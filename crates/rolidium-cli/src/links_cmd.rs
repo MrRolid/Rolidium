@@ -483,6 +483,47 @@ impl Runner {
                     .map_err(err)?;
                 self.report_link("repeat-feature");
             }
+            "move-feature" => {
+                let sel = w
+                    .get(1)
+                    .ok_or("move-feature needs the face of the hole or the pin (#N) and the shift")?;
+                let id = self.first_body()?;
+                let solid = self.doc.body(id).ok_or("the body is missing")?.solid.clone();
+                let face = crate::select_face(&solid, sel)?;
+                let mut c = Cursor { w, i: 2 };
+                let delta = if c.eat("edges") {
+                    let (d1, d2) = (c.num("the first distance")?, c.num("the second distance")?);
+                    let rim = solid
+                        .feature_rim(face)
+                        .map_err(|e| e.to_string())?
+                        .ok_or("the hole does not open in a flat face")?;
+                    let at = rim.centre;
+                    let plane = rolidium_doc::rolidium_sketch::PlaneDef::from_face(rim.origin, rim.normal);
+                    let edges: Vec<_> = rim
+                        .edges
+                        .iter()
+                        .map(|(a, b)| (plane.to_2d(*a), plane.to_2d(*b)))
+                        .collect();
+                    let dims =
+                        rolidium_doc::rolidium_sketch::edgedims::nearest_edges(plane.to_2d(at), &edges)
+                            .ok_or("the hole has no straight edge near it")?;
+                    let p = dims.place(Some(d1), Some(d2));
+                    plane.to_3d(p) - at
+                } else {
+                    c.vec3("the shift")?
+                };
+                self.doc
+                    .apply(Command::MoveFeature {
+                        body: id,
+                        face,
+                        delta,
+                    })
+                    .map_err(err)?;
+                self.say(format!(
+                    "moved the hole or the pin by ({:.3}, {:.3}, {:.3})",
+                    delta.x, delta.y, delta.z
+                ));
+            }
             "mirror" => {
                 let mut c = Cursor { w, i: 1 };
                 let normal = match c.peek() {

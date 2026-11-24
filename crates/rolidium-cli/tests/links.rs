@@ -176,3 +176,31 @@ fn an_auxiliary_axis_makes_no_region_and_serves_as_the_axis_of_a_mirror_and_a_pa
     let e = r.run_line("mirror plane-of 1 1").unwrap_err();
     assert!(e.contains("not a line"), "{e}");
 }
+
+#[test]
+fn a_hole_is_moved_by_a_shift_or_to_given_distances_from_the_edges() {
+    let mut r = run(PLATE);
+    let v0 = r.doc.bodies()[0].solid.volume().unwrap();
+    let f = hole_face(&r);
+    r.run_line(&format!("move-feature {f} 10 20 0")).unwrap();
+    let s = &r.doc.bodies()[0].solid;
+    assert!(!s
+        .contains_point(rolidium_kernel::DVec3::new(15.0, 25.0, 2.0))
+        .unwrap());
+    assert!(s
+        .contains_point(rolidium_kernel::DVec3::new(5.0, 5.0, 2.0))
+        .unwrap());
+    assert!((s.volume().unwrap() - v0).abs() < 1e-6);
+    // 12 mm from the two nearest edges
+    let mut r = run(PLATE);
+    let f = hole_face(&r);
+    r.run_line(&format!("move-feature {f} edges 12 12")).unwrap();
+    assert!(!r.doc.bodies()[0]
+        .solid
+        .contains_point(rolidium_kernel::DVec3::new(12.0, 12.0, 2.0))
+        .unwrap());
+    // a hole that would leave the plate is refused
+    let f = hole_face(&r);
+    let e = r.run_line(&format!("move-feature {f} 500 0 0")).unwrap_err();
+    assert!(e.contains("outside"), "{e}");
+}

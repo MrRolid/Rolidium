@@ -710,3 +710,71 @@ fn the_pieces_follow_a_rectangle_of_a_sketch_and_the_numbers_can_be_changed() {
         2.0,
     );
 }
+
+#[test]
+fn a_hole_and_a_pin_are_moved_and_the_distances_to_the_edges_are_read() {
+    let mut d = Document::new();
+    let plate = add_solid(&mut d, "Plate", plate_with_hole(100.0, 60.0, 4.0, 5.0, 5.0, 1.5));
+    let s = d.body(plate).unwrap().solid.clone();
+    let hole = hole_face(&s);
+    let v0 = volume(&d, plate);
+    // the rim: the top face with its four straight edges, the axis of the hole meets it at (5, 5, 4) (or at z = 0: the bigger face wins, both are equal)
+    let rim = s.feature_rim(hole).unwrap().unwrap();
+    assert_eq!(rim.edges.len(), 4);
+    assert!(
+        (rim.centre.x - 5.0).abs() < 1e-6 && (rim.centre.y - 5.0).abs() < 1e-6,
+        "{:?}",
+        rim.centre
+    );
+    d.apply(Command::MoveFeature {
+        body: plate,
+        face: hole,
+        delta: DVec3::new(10.0, 7.0, 0.0),
+    })
+    .unwrap();
+    assert!(
+        (volume(&d, plate) - v0).abs() < 1e-6,
+        "{} against {v0}",
+        volume(&d, plate)
+    );
+    holes_at(&d, plate, &[(15.0, 12.0)], 2.0);
+    assert!(d
+        .body(plate)
+        .unwrap()
+        .solid
+        .contains_point(DVec3::new(5.0, 5.0, 2.0))
+        .unwrap());
+    // a hole that would leave the plate is refused and the plate is not changed
+    let face = hole_face(&d.body(plate).unwrap().solid);
+    let e = d
+        .apply(Command::MoveFeature {
+            body: plate,
+            face,
+            delta: DVec3::new(500.0, 0.0, 0.0),
+        })
+        .unwrap_err();
+    assert!(e.to_string().contains("outside"), "{e}");
+    assert!((volume(&d, plate) - v0).abs() < 1e-6);
+    // a pin of 3 mm diameter and 6 mm height on the plate moves 20 mm
+    let plate_s = Solid::cuboid(DVec3::ZERO, DVec3::new(100.0, 60.0, 4.0)).unwrap();
+    let pin = Solid::cylinder(1.5, 6.0, DVec3::new(10.0, 10.0, 4.0), DVec3::Z).unwrap();
+    let with_pin = plate_s.boolean(&pin, BooleanOp::Fuse).unwrap().solid;
+    let mut d = Document::new();
+    let b = add_solid(&mut d, "Plate", with_pin);
+    let v = volume(&d, b);
+    let s = d.body(b).unwrap().solid.clone();
+    let face = s
+        .faces()
+        .find(|f| s.cylinder_info(*f).unwrap().is_some_and(|c| !c.is_hole))
+        .unwrap();
+    d.apply(Command::MoveFeature {
+        body: b,
+        face,
+        delta: DVec3::new(20.0, 0.0, 0.0),
+    })
+    .unwrap();
+    assert!((volume(&d, b) - v).abs() < 1e-6);
+    let s = &d.body(b).unwrap().solid;
+    assert!(s.contains_point(DVec3::new(30.0, 10.0, 7.0)).unwrap());
+    assert!(!s.contains_point(DVec3::new(10.0, 10.0, 7.0)).unwrap());
+}

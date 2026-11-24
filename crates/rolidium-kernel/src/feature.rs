@@ -20,8 +20,24 @@ pub struct FeatureTool {
     /// A point of the axis at the lower end of the feature.
     pub base: DVec3,
     pub radius: f64,
+    /// The length of the feature along its axis (without what the tool reaches out).
+    pub length: f64,
     /// The faces of the body that make the feature.
     pub faces: Vec<FaceId>,
+}
+
+/// The flat face a hole or a pin stands in, and its straight edges: what the distances of the feature to the edges are measured to.
+#[derive(Debug, Clone)]
+pub struct FeatureRim {
+    pub face: FaceId,
+    /// Outward normal of the face.
+    pub normal: DVec3,
+    /// A point of the face.
+    pub origin: DVec3,
+    /// Where the axis of the feature meets the plane of the face.
+    pub centre: DVec3,
+    /// The straight edges of the face (pairs of end points).
+    pub edges: Vec<(DVec3, DVec3)>,
 }
 
 /// How far the tool reaches out of a hole, or into the body for a pin (mm).
@@ -223,7 +239,81 @@ impl Solid {
             axis,
             base: base + axis * z_lo,
             radius: c.radius,
+            length: z_hi - z_lo,
             faces: members.iter().map(|m| m.0).collect(),
         })
+    }
+
+    /// The flat face (the biggest one square to the axis) next to the round faces of a hole or a pin, with its straight edges. `None` when there is none.
+    pub fn feature_rim(&self, face: FaceId) -> Result<Option<FeatureRim>> {
+        let ft = self.feature_tool_with(face, 0.0)?;
+        let axis = ft.axis;
+        let mut best: Option<(f64, FaceId, DVec3, DVec3)> = None;
+        for m in &ft.faces {
+            for n in self.neighbours_of(*m)? {
+                if ft.faces.contains(&n) {
+                    continue;
+                }
+                let fi = self.face_info(n)?;
+                if fi.kind != FaceKind::Plane || fi.normal.normalize().cross(axis).length() > 1e-6 {
+                    continue;
+                }
+                if best.as_ref().is_none_or(|b| fi.area > b.0) {
+                    best = Some((fi.area, n, fi.normal.normalize(), fi.origin));
+                }
+            }
+        }
+        let Some((_, f, normal, origin)) = best else {
+            return Ok(None);
+        };
+        let centre = ft.base + axis * ((origin - ft.base).dot(axis));
+        let edges = self
+            .face_edges(f)?
+            .into_iter()
+            .filter_map(|e| self.edge_info(e).ok())
+            .filter(|i| i.kind == crate::EdgeKind::Line)
+            .map(|i| (i.start, i.end))
+            .collect();
+        Ok(Some(FeatureRim {
+            face: f,
+            normal,
+            origin,
+            centre,
+            edges,
+        }))
+    }
+
+    /// The hole or the pin of the round face `face` moved by `delta`: the hole is filled and cut out again at the new place (the pin is taken off and
+    /// fused on again). The flat part of `delta` along the axis changes the depth of a blind hole, and that is allowed.
+    pub fn move_feature(&self, face: FaceId, delta: DVec3) -> Result<Solid> {
+        let exact = self.feature_tool_with(face, 0.0)?;
+        let over = self.feature_tool(face)?;
+        let restored = self
+            .boolean_checked(
+                &exact.solid,
+                if exact.is_hole {
+                    crate::BooleanOp::Fuse
+                } else {
+                    crate::BooleanOp::Cut
+                },
+            )?
+            .solid;
+        let moved = over.solid.moved(delta, DVec3::ZERO, DVec3::Z, 0.0)?.solid;
+        if exact.is_hole {
+            let common = restored
+                .boolean(&moved, crate::BooleanOp::Common)
+                .ok()
+                .and_then(|r| r.solid.volume().ok())
+                .unwrap_or(0.0);
+            if common < 1e-9 {
+                return Err(KernelError::Invalid("The hole would lie outside the body".into()));
+            }
+            Ok(restored.boolean_checked(&moved, crate::BooleanOp::Cut)?.solid)
+        } else {
+            if restored.distance_to(&moved).map(|d| d > 1e-6).unwrap_or(false) {
+                return Err(KernelError::Invalid("The pin would not touch the body".into()));
+            }
+            Ok(restored.boolean_checked(&moved, crate::BooleanOp::Fuse)?.solid)
+        }
     }
 }

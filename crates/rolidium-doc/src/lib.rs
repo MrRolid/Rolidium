@@ -292,6 +292,12 @@ pub enum Command {
         /// place of the feature and the face (`rect_fill`).
         rect: Option<(RectTarget, RectFill)>,
     },
+    /// Moves a hole or a pin of a body by `delta` (the round face names it): the hole is filled and cut out again at the new place.
+    MoveFeature {
+        body: BodyId,
+        face: FaceId,
+        delta: DVec3,
+    },
     /// Changes what a pattern into the corners (or a grid) of a rectangle keeps: corners or a grid, the distances of the pieces to the nearest edges.
     EditLinkFill {
         link: LinkId,
@@ -2609,6 +2615,20 @@ impl Job {
                 if !warnings.is_empty() {
                     c.notice = Some(warnings);
                 }
+                Ok(c)
+            }
+            Command::MoveFeature { body, face, delta } => {
+                if !delta.is_finite() {
+                    return Err(KernelError::Invalid("The shift must be numbers".into()).into());
+                }
+                let b = st
+                    .bodies
+                    .iter_mut()
+                    .find(|b| b.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
+                b.solid = b.solid.move_feature(*face, *delta)?;
+                let mut c = self.done(st, "Move a hole or a pin");
+                c.touched_body = Some(*body);
                 Ok(c)
             }
             Command::EditLinkFill { link, fill, near } => {

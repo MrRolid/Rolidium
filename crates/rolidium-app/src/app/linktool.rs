@@ -120,6 +120,10 @@ pub struct LinkUi {
     pub feature: Option<(BodyId, u32)>,
     /// The flat rectangular face of the corners or the grid, and what is made on it.
     pub rect_face: Option<u32>,
+    /// A rectangle of a sketch the corners or the grid follow (instead of a face).
+    pub rect_sketch: Option<(SketchId, rolidium_doc::rolidium_sketch::EntityId)>,
+    /// A link that follows a rectangle is being changed: the distances of the pieces to the nearest edges (along the two sides).
+    pub near: Option<(f64, f64)>,
     pub grid: bool,
     pub columns: u32,
     pub rows: u32,
@@ -321,6 +325,8 @@ impl App {
         self.link_ui.editing = None;
         self.link_ui.feature = None;
         self.link_ui.rect_face = None;
+        self.link_ui.rect_sketch = None;
+        self.link_ui.near = None;
         if self.link_ui.columns == 0 {
             (self.link_ui.columns, self.link_ui.rows, self.link_ui.margin) = (3, 2, 5.0);
         }
@@ -379,6 +385,27 @@ impl App {
         self.leave_sketch();
         self.link_ui.p = LinkParams::from_link(&l);
         self.link_ui.editing = Some(id);
+        self.link_ui.near = l.fill.as_ref().map(|f| (f.sides.near_a, f.sides.near_b));
+        if l.fill.is_some() {
+            self.link_ui.p.mode = LinkMode::Fill;
+        }
+        if let Some(f) = &l.fill {
+            match f.fill {
+                rolidium_doc::RectFill::Corners => self.link_ui.grid = false,
+                rolidium_doc::RectFill::Grid {
+                    columns,
+                    rows,
+                    margin,
+                } => {
+                    (
+                        self.link_ui.grid,
+                        self.link_ui.columns,
+                        self.link_ui.rows,
+                        self.link_ui.margin,
+                    ) = (true, columns, rows, margin)
+                }
+            }
+        }
         self.link_ui.pick = None;
         self.tool = if l.kind.title() == "Mirror" {
             Tool::Mirror
@@ -436,6 +463,27 @@ impl App {
                     self.layers_changed = true;
                 }
             }
+            Some(LinkPick::RectFace) if matches!(self.hover_obj, Some(Obj::Entity(..))) => {
+                // a rectangle of a sketch
+                if let Some(Obj::Entity(s, e)) = self.hover_obj {
+                    let is_rect = self
+                        .doc
+                        .sketch(s)
+                        .and_then(|sk| sk.sketch.entity(e).copied())
+                        .is_some_and(|x| matches!(x, Entity::Rect { .. }));
+                    if is_rect {
+                        self.link_ui.rect_sketch = Some((s, e));
+                        self.link_ui.rect_face = None;
+                        self.link_ui.pick = None;
+                        self.layers_changed = true;
+                    } else {
+                        self.set_status(
+                            "Click the flat rectangular face, or a rectangle of a sketch",
+                            true,
+                        );
+                    }
+                }
+            }
             Some(LinkPick::RectFace) => {
                 let ok = self.hovered_face().and_then(|(b, f)| {
                     let (fb, _) = self.link_ui.feature?;
@@ -445,10 +493,14 @@ impl App {
                 match ok {
                     Some(f) => {
                         self.link_ui.rect_face = Some(f);
+                        self.link_ui.rect_sketch = None;
                         self.link_ui.pick = None;
                         self.layers_changed = true;
                     }
-                    None => self.set_status("Click the flat rectangular face of the same body", true),
+                    None => self.set_status(
+                        "Click the flat rectangular face of the same body, or a rectangle of a sketch",
+                        true,
+                    ),
                 }
             }
             Some(p @ (LinkPick::Direction | LinkPick::Direction2 | LinkPick::Axis | LinkPick::Plane)) => {
@@ -514,7 +566,7 @@ impl App {
         if let Some(pick) = u.pick {
             return match pick {
                 LinkPick::Point => tr("Click the place of the second piece on a face."),
-                LinkPick::RectFace => tr("Click the flat rectangular face of the same body."),
+                LinkPick::RectFace => tr("Click the flat rectangular face of the same body, or a rectangle of a sketch."),
                 LinkPick::Plane => tr("Click a flat face, a straight edge, an axis or a line of a sketch, or the plane of a sketch for the mirror plane."),
                 LinkPick::Axis => tr("Click a round edge, a cylindrical face, a straight edge, a face, or an axis or a line of a sketch for the axis (or press X, Y, Z)."),
                 LinkPick::Target => tr("Click the body the pieces are added to or cut out of."),
@@ -532,7 +584,8 @@ impl App {
             LinkMode::Linear => tr("Row: click an edge or a face for the direction (or press X, Y, Z), or click the place of the second piece."),
             LinkMode::Circular => tr("Round an axis: click the centre: a round edge, a cylindrical face, a straight edge, an axis of a sketch (or press X, Y, Z), then set the number."),
             LinkMode::Mirror => tr("Mirror: click the plane: a flat face, a straight edge, an axis or a line of a sketch, or choose a base plane."),
-            LinkMode::Fill => tr("Into a face: click the flat rectangular face (Pick the face), choose the corners or a grid, then Apply."),
+            LinkMode::Fill if u.feature.is_none() => tr("Into a face: first click the round face of a hole or a pin."),
+            LinkMode::Fill => tr("Into a face: click the flat rectangular face or a rectangle of a sketch (Pick the face), choose the corners or a grid, then Apply."),
         }
     }
 
@@ -953,6 +1006,22 @@ impl App {
     fn link_command(&self) -> Option<Command> {
         let sources = self.link_sources();
         let p = &self.link_ui.p;
+        if let (Some(id), Some(near)) = (self.link_ui.editing, self.link_ui.near) {
+            let u = &self.link_ui;
+            return Some(Command::EditLinkFill {
+                link: id,
+                fill: if u.grid {
+                    rolidium_doc::RectFill::Grid {
+                        columns: u.columns.max(1),
+                        rows: u.rows.max(1),
+                        margin: u.margin,
+                    }
+                } else {
+                    rolidium_doc::RectFill::Corners
+                },
+                near: Some(near),
+            });
+        }
         if let Some(id) = self.link_ui.editing {
             return Some(Command::EditLink {
                 link: id,
@@ -963,7 +1032,11 @@ impl App {
         if let Some((body, face)) = self.link_ui.feature {
             let u = &self.link_ui;
             let rect = if p.mode == LinkMode::Fill {
-                let f = u.rect_face?;
+                let target = match (u.rect_sketch, u.rect_face) {
+                    (Some((s, e)), _) => rolidium_doc::RectTarget::Sketch(s, e),
+                    (None, Some(f)) => rolidium_doc::RectTarget::Face(FaceId(f)),
+                    (None, None) => return None,
+                };
                 let fill = if u.grid {
                     rolidium_doc::RectFill::Grid {
                         columns: u.columns.max(1),
@@ -973,7 +1046,7 @@ impl App {
                 } else {
                     rolidium_doc::RectFill::Corners
                 };
-                Some((rolidium_doc::RectTarget::Face(FaceId(f)), fill))
+                Some((target, fill))
             } else {
                 None
             };
@@ -1016,7 +1089,13 @@ impl App {
             return;
         }
         let feature = self.link_ui.feature.is_some() && self.link_ui.editing.is_none();
-        let why = if feature && self.link_ui.p.mode == LinkMode::Fill && self.link_ui.rect_face.is_none() {
+        let why = if self.link_ui.p.mode == LinkMode::Fill && !feature && self.link_ui.editing.is_none() {
+            Some("Into a face needs a hole or a pin: click its round face first")
+        } else if feature
+            && self.link_ui.p.mode == LinkMode::Fill
+            && self.link_ui.rect_face.is_none()
+            && self.link_ui.rect_sketch.is_none()
+        {
             Some("Click the flat rectangular face the copies go into (Pick the face)")
         } else if feature {
             None
@@ -1043,6 +1122,7 @@ impl App {
             self.move_sel.clear();
             self.link_ui.feature = None;
             self.link_ui.rect_face = None;
+            self.link_ui.rect_sketch = None;
             self.link_ui.pick = None;
             self.tool = Tool::Select;
         }
@@ -1086,7 +1166,11 @@ impl App {
                 .map(|x| trf("a hole or a pin of {}", std::slice::from_ref(&x.name)))
         });
         let has_feature = feature_label.is_some();
-        let rect_label = self.link_ui.rect_face.map(|f| format!("#{f}"));
+        let rect_label = self
+            .link_ui
+            .rect_face
+            .map(|f| format!("#{f}"))
+            .or_else(|| self.link_ui.rect_sketch.map(|_| tr("a rectangle of a sketch")));
         let bodies = self.doc.bodies().to_vec();
         let sketches = self.doc.sketches().to_vec();
         let error = editing
@@ -1107,9 +1191,7 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut p.mode, LinkMode::Linear, tr("Along a line"));
                     ui.selectable_value(&mut p.mode, LinkMode::Circular, tr("Round an axis"));
-                    if has_feature {
-                        ui.selectable_value(&mut p.mode, LinkMode::Fill, tr("Into a face"));
-                    }
+                    ui.selectable_value(&mut p.mode, LinkMode::Fill, tr("Into a face"));
                 });
             }
             let pick_btn = |ui: &mut egui::Ui, st: &mut Option<LinkPick>, what: LinkPick, label: &str| {
@@ -1202,6 +1284,12 @@ impl App {
                     });
                 }
                 LinkMode::Fill => {
+                    if !has_feature && editing.is_none() {
+                        ui.colored_label(
+                            crate::theme::rgb(255, 200, 100),
+                            tr("Into a face: first click the round face of a hole or a pin in the view."),
+                        );
+                    }
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut ui_state.grid, false, tr("The four corners"));
                         ui.radio_value(&mut ui_state.grid, true, tr("A grid"));
@@ -1216,11 +1304,21 @@ impl App {
                             ui.add(egui::DragValue::new(&mut ui_state.margin).range(0.0..=1000.0).speed(0.2).suffix(" mm"));
                         });
                     }
-                    ui.horizontal(|ui| {
-                        pick_btn(ui, &mut ui_state.pick, LinkPick::RectFace, &tr("Pick the face"));
-                        ui.label(rect_label.clone().unwrap_or_else(|| tr("click the flat rectangular face")));
-                    });
-                    ui.weak(tr("The copies keep the distances from the two nearest edges that the hole has. The face is read when you press Apply: a later change of the plate does not move them."));
+                    if let Some((na, nb)) = ui_state.near.as_mut() {
+                        // a link that follows a rectangle: the distances of the pieces to the edges
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Distance from the edges"));
+                            ui.add(egui::DragValue::new(na).range(0.0..=10000.0).speed(0.1).suffix(" mm"));
+                            ui.add(egui::DragValue::new(nb).range(0.0..=10000.0).speed(0.1).suffix(" mm"));
+                        });
+                        ui.weak(tr("The pieces follow the rectangle: pull an edge of the plate or change the rectangle of the sketch and the distances stay."));
+                    } else {
+                        ui.horizontal(|ui| {
+                            pick_btn(ui, &mut ui_state.pick, LinkPick::RectFace, &tr("Pick the face"));
+                            ui.label(rect_label.clone().unwrap_or_else(|| tr("click the flat rectangular face, or a rectangle of a sketch")));
+                        });
+                        ui.weak(tr("The copies keep the distances from the two nearest edges that the hole has, also when the plate or the rectangle of the sketch is changed later."));
+                    }
                 }
                 LinkMode::Mirror => {
                     ui.label(tr("Mirror plane"));
