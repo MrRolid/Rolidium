@@ -277,6 +277,23 @@ def drop_files(*paths):
     os.rename(tmp, target)
 
 
+def steady(name, timeout=20.0):
+    """The screen place of a named point once the view has stopped moving (a turn of the view to a sketch takes a while on a slow machine)."""
+    last, same, t0 = None, 0, time.time()
+    while time.time() - t0 < timeout:
+        q = probe()
+        v = q["points"].get(name) or q["widgets"].get(name)
+        if v and last and abs(v[0] - last[0]) < 0.6 and abs(v[1] - last[1]) < 0.6:
+            same += 1
+            if same >= 3:
+                return v
+        else:
+            same = 0
+        last = v
+        time.sleep(0.4)
+    return last
+
+
 def rss_mb():
     """The resident memory of the program (MB), from /proc."""
     out = subprocess.run(["pgrep", "-xf", os.environ["ROLIDIUM_APP_BIN"] + " " + os.environ["ROLIDIUM_MODEL"]], capture_output=True, text=True).stdout.split()

@@ -1073,3 +1073,4 @@ The diameter must be a positive number => Průměr musí být kladné číslo
 The hole is not round enough to change its diameter => Díra není dost kulatá, aby šel změnit její průměr
 The file is not an STL file (no triangles were found) => Soubor není soubor STL (nenašly se žádné trojúhelníky)
 The file contains numbers that are not finite => Soubor obsahuje čísla, která nejsou konečná
+Sketch on the wall of the mesh: what you pull from it is a new solid => Skica na stěně sítě: to, co z ní vytáhneš, je nové těleso

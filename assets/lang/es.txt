@@ -1073,3 +1073,4 @@ The diameter must be a positive number => El diámetro debe ser un número posit
 The hole is not round enough to change its diameter => El agujero no es lo bastante redondo para cambiar su diámetro
 The file is not an STL file (no triangles were found) => El archivo no es un archivo STL (no se encontraron triángulos)
 The file contains numbers that are not finite => El archivo contiene números que no son finitos
+Sketch on the wall of the mesh: what you pull from it is a new solid => Boceto en la pared de la malla: lo que extruyas de él es un sólido nuevo

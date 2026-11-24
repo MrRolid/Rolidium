@@ -1733,6 +1733,11 @@ impl App {
                 }
             }
         }
+        // a wall of a mesh: the sketch lies in its plane (and snaps to its outline), but belongs to no body: what is pulled from it is a new solid
+        let on_mesh = body.is_some_and(|b| self.doc.mesh(b).is_some());
+        if on_mesh {
+            body = None;
+        }
         let existing = self
             .doc
             .sketches()
@@ -1766,7 +1771,7 @@ impl App {
         }
         if let [(b, f)] = prev_sel[..] {
             if let Some(meta) = self.entry(b).and_then(|m| m.faces.get(f as usize)) {
-                if body.is_some() {
+                if body.is_some() || on_mesh {
                     sm.focus = meta.centroid;
                 }
             }
@@ -1779,7 +1784,9 @@ impl App {
         self.hover_region = None;
         self.layers_changed = true;
         self.set_status(
-            if body.is_some() {
+            if on_mesh {
+                tr("Sketch on the wall of the mesh: what you pull from it is a new solid")
+            } else if body.is_some() {
                 tr("Sketch on the selected face")
             } else {
                 trf("Sketch on the base plane ({})", &[plane_name(&plane).to_string()])
