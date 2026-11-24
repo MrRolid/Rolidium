@@ -46,6 +46,7 @@ def click(x=None, y=None):
 
 
 _presses = 0
+_waits = []
 _presses_base = None
 
 
@@ -77,12 +78,15 @@ def fast_click(x, y):
         time.sleep(0.15)
         return
     t0 = time.time()
-    while time.time() - t0 < 5.0:
+    while time.time() - t0 < 30.0:
         time.sleep(0.004)
         try:
             q = json.load(open(PROBE))
-            if q["frame"] >= f0 + 3 and q.get("click_total", 0) >= _presses_base + _presses:   # the click was handled (a press was seen) and a frame came after it
+            log = q.get("click_log") or [""]
+            want = "press at Some((%s, %s))" % (round(x / q["ppp"]) + 0.0, round(y / q["ppp"]) + 0.0)
+            if q["frame"] >= f0 + 3 and log[0].startswith(want):   # the newest press of the program is at the place of this click, and a frame came after it
                 time.sleep(0.03)
+                _waits.append(time.time() - t0)
                 return
         except Exception:
             pass
@@ -334,7 +338,12 @@ def rapid_clicks(scale):
         sel = q["selection"]
         # the face that was taken opens a panel next to it (Face: Move by, Distance...), which would cover some of the next places: Esc closes it, and the frames that
         # follow are waited for (egui looks for what is under the pointer in the layout of the frame before)
+        f_before = probe()["frame"]
         key("Escape")
+        for _ in range(400):   # two frames after the key: it must not be handled in the same frame as the next click (which it would then undo)
+            time.sleep(0.01)
+            if probe()["frame"] >= f_before + 2:
+                break
         if name.startswith("v"):
             if sel:
                 wrong.append((name, sel))
@@ -352,6 +361,7 @@ def rapid_clicks(scale):
         for w in wrong[:6]:
             print("wrong", w, "at", screen(p, w[0]), "wanted bbox", bodies.get(w[2]) if len(w) > 2 else None, "got bbox", bodies.get(w[1][0][0]))
         print("click log (newest first):", *probe().get("click_log", [])[:30], sep="\n  ")
+    print("slowest wait for a click to be handled: %.2f s, mean %.2f s" % (max(_waits or [0]), sum(_waits) / max(1, len(_waits))))
     shot("01-after-50-clicks")
     check(not lost, f"no click was lost: {lost}")
     check(not wrong, f"no click took another place: {wrong}")
