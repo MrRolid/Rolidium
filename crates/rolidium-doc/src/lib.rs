@@ -2689,7 +2689,7 @@ impl Job {
                 let mut first = None;
                 let pieces: Vec<(DVec3, DVec3, DVec3, f64)> = match kind {
                     LinkKind::Mirror(_) => vec![(DVec3::ZERO, DVec3::ZERO, DVec3::Z, 0.0)],
-                    k => placements_of(k).map_err(|e| KernelError::Invalid(e))?,
+                    k => placements_of(k).map_err(KernelError::Invalid)?,
                 };
                 for src in sources {
                     let mp = st
