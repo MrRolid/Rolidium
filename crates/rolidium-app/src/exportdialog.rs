@@ -31,6 +31,11 @@ pub struct ExportDialog {
     dev_text: String,
     ang_text: String,
     ascii: bool,
+    /// How many bodies and meshes are selected (the option to export only them is offered when there are some), and whether it is chosen.
+    pub selected: usize,
+    pub only_selected: bool,
+    /// The triangles of the meshes (STL) that go into the file as they are: they are added to the count of the solids.
+    pub extra_triangles: usize,
     /// Triangle count for `stats_for`.
     pub stats: Option<(StlParams, usize)>,
     pub stats_requested: Option<StlParams>,
@@ -90,6 +95,9 @@ impl ExportDialog {
             dev_text: format!("{}", s.deviation),
             ang_text: format!("{}", s.angle_deg),
             ascii: s.ascii,
+            selected: 0,
+            only_selected: false,
+            extra_triangles: 0,
             stats: None,
             stats_requested: None,
             browser: None,
@@ -225,6 +233,17 @@ impl ExportDialog {
                     ui.radio_value(&mut self.ascii, false, tr("Binary (smaller)"));
                     ui.radio_value(&mut self.ascii, true, tr("ASCII (readable)"));
                 });
+                if self.selected > 0 {
+                    let before = self.only_selected;
+                    ui.checkbox(
+                        &mut self.only_selected,
+                        trf("Only the selected bodies ({} selected)", &[self.selected.to_string()]),
+                    );
+                    if before != self.only_selected {
+                        self.stats = None;
+                        self.stats_requested = None;
+                    }
+                }
                 ui.separator();
                 let params = self.params();
                 match params {
@@ -248,7 +267,10 @@ impl ExportDialog {
                             Some((_, tris)) => {
                                 ui.label(trf(
                                     "Triangles: {}   Estimated file size: {}",
-                                    &[tris.to_string(), human(estimate_bytes(tris, p.ascii))],
+                                    &[
+                                        (tris + self.extra_triangles).to_string(),
+                                        human(estimate_bytes(tris + self.extra_triangles, p.ascii)),
+                                    ],
                                 ));
                             }
                             None => {

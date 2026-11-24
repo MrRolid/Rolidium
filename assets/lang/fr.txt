@@ -1074,3 +1074,4 @@ The hole is not round enough to change its diameter => Le trou n'est pas assez r
 The file is not an STL file (no triangles were found) => Le fichier n'est pas un fichier STL (aucun triangle trouvé)
 The file contains numbers that are not finite => Le fichier contient des nombres non finis
 Sketch on the wall of the mesh: what you pull from it is a new solid => Esquisse sur la paroi du maillage : ce que tu en tires est un nouveau solide
+Only the selected bodies ({} selected) => Seulement les corps sélectionnés (sélectionnés : {})

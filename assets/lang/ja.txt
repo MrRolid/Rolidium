@@ -1074,3 +1074,4 @@ The hole is not round enough to change its diameter => 穴が十分に丸くな�
 The file is not an STL file (no triangles were found) => このファイルはSTLファイルではありません（三角形が見つかりませんでした）
 The file contains numbers that are not finite => ファイルに有限でない数値が含まれています
 Sketch on the wall of the mesh: what you pull from it is a new solid => メッシュの壁上のスケッチ：そこから引き出したものは新しいソリッドになります
+Only the selected bodies ({} selected) => 選択したボディのみ（選択数：{}）

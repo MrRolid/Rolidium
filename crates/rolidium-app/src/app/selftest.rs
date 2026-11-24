@@ -3000,7 +3000,111 @@ impl App {
                 st.wait_frames = 6;
                 shot(&mut st, ctx, "circular-holes");
             }
+            // a mesh (STL): a plate with a hole is added, its walls and holes are found, a wall is pulled and a hole changed through the commands of a face, Undo, the
+            // file of the document is written and read again, and the selected mesh alone is exported
             148 => {
+                self.replace_document(Document::new(), None);
+                let mesh = Arc::new(rolidium_mesh::gen::plate_with_hole(60.0, 40.0, 10.0, 2.5, 48));
+                let c = self.doc.apply(Command::AddMeshes {
+                    meshes: vec![rolidium_doc::NewMesh {
+                        name: "plate".into(),
+                        mesh,
+                        verified: true,
+                    }],
+                });
+                check(&mut st, "a mesh is added to the document", c.is_ok());
+                self.request_meshes();
+                st.wait_frames = 3;
+            }
+            149 => {
+                let Some(mb) = self.doc.meshes().first().cloned() else {
+                    check(&mut st, "the mesh is in the document", false);
+                    st.step = 154;
+                    self.selftest = Some(st);
+                    return;
+                };
+                // the walls and holes are found in the background: wait for them
+                let Some(regions) = rolidium_doc::display::regions_of(&mb.mesh) else {
+                    self.selftest = Some(st);
+                    return;
+                };
+                check(
+                    &mut st,
+                    "6 walls and a hole of 5 mm are found in the mesh",
+                    regions.planes.len() == 6
+                        && regions.cylinders.len() == 1
+                        && near(regions.cylinders[0].radius * 2.0, 5.0),
+                );
+                self.request_meshes();
+                st.wait_frames = 3;
+            }
+            150 => {
+                let Some(mb) = self.doc.meshes().first().cloned() else {
+                    st.step = 154;
+                    self.selftest = Some(st);
+                    return;
+                };
+                let faces = self.entry(mb.id).map_or(0, |e| e.faces.len());
+                check(&mut st, "the display of the mesh has its walls and holes as faces", faces == 8);
+                self.selection = vec![(mb.id, 1)];
+                self.submit(Command::PullFace {
+                    body: mb.id,
+                    face: FaceId(1),
+                    distance: 5.0,
+                    mode: PullMode::Auto,
+                });
+                st.wait_frames = 3;
+            }
+            151 => {
+                let Some(mb) = self.doc.meshes().first().cloned() else {
+                    st.step = 154;
+                    self.selftest = Some(st);
+                    return;
+                };
+                let top = mb.mesh.bounding_box().map_or(0.0, |b| b.1[2]);
+                check(&mut st, "the top wall of the mesh was pulled by 5 mm", near(top, 15.0));
+                self.doc.undo();
+                self.request_meshes();
+                st.wait_frames = 3;
+            }
+            152 => {
+                let Some(mb) = self.doc.meshes().first().cloned() else {
+                    st.step = 154;
+                    self.selftest = Some(st);
+                    return;
+                };
+                let top = mb.mesh.bounding_box().map_or(0.0, |b| b.1[2]);
+                check(&mut st, "Undo brings the mesh back", near(top, 10.0));
+                // the file of the document with the mesh, written and read again
+                let bytes = rolidium_doc::file::save_to_bytes(&self.doc, None, "selftest");
+                let back = bytes.ok().and_then(|b| rolidium_doc::file::load_from_bytes(&b).ok());
+                check(
+                    &mut st,
+                    "the mesh is saved in the file of the document and comes back the same",
+                    back.is_some_and(|l| l.state.meshes.len() == 1 && *l.state.meshes[0].mesh == *mb.mesh),
+                );
+                // only the selected mesh is exported
+                self.body_sel = Some(mb.id);
+                self.export.only_selected = true;
+                self.export.open = true;
+                self.export_to(
+                    PathBuf::from("rolidium-selftest-mesh.stl"),
+                    StlParams {
+                        deviation: 0.02,
+                        angle_deg: 10.0,
+                        ascii: false,
+                    },
+                );
+                self.export.open = false;
+                self.export.only_selected = false;
+                st.wait_frames = 3;
+            }
+            153 => {
+                let size = std::fs::metadata("rolidium-selftest-mesh.stl").map_or(0, |m| m.len());
+                check(&mut st, "the mesh was exported as a binary STL of 384 triangles", size == 84 + 50 * 384);
+                let _ = std::fs::remove_file("rolidium-selftest-mesh.stl");
+            }
+            154 => {
                 let txt = std::fs::read_to_string("rolidium-selftest-export.stl").unwrap_or_default();
                 check(
                     &mut st,

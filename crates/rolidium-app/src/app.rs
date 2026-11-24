@@ -1624,19 +1624,26 @@ impl App {
 
     /// The meshes (STL) that are shown: they are exported as they are.
     fn visible_meshes(&self) -> Vec<Arc<rolidium_mesh::TriMesh>> {
+        let only = self.export_only();
         self.doc
             .meshes()
             .iter()
-            .filter(|m| m.visible)
+            .filter(|m| m.visible && only.as_ref().is_none_or(|ids| ids.contains(&m.id)))
             .map(|m| m.mesh.clone())
             .collect()
     }
 
+    /// The bodies and meshes the export is limited to (the selected ones, when the person chose that), else all that are shown.
+    fn export_only(&self) -> Option<Vec<BodyId>> {
+        (self.export.only_selected && self.export.open).then(|| self.marked_bodies())
+    }
+
     fn visible_solids(&self) -> Vec<rolidium_kernel::Solid> {
+        let only = self.export_only();
         self.doc
             .bodies()
             .iter()
-            .filter(|b| b.visible)
+            .filter(|b| b.visible && only.as_ref().is_none_or(|ids| ids.contains(&b.id)))
             .map(|b| b.solid.clone())
             .collect()
     }
@@ -1660,6 +1667,12 @@ impl App {
 
     fn handle_export_dialog(&mut self, ctx: &egui::Context) {
         let busy = !self.idle();
+        let marked = self.marked_bodies().len();
+        self.export.selected = marked;
+        if marked == 0 {
+            self.export.only_selected = false;
+        }
+        self.export.extra_triangles = self.visible_meshes().iter().map(|m| m.triangles.len()).sum();
         let recent = self.settings.recent_dirs.clone();
         match self.export.ui(ctx, busy, &recent) {
             DialogAction::None => {}
@@ -1677,8 +1690,9 @@ impl App {
                 let d = self.settings.export_dir.clone();
                 self.settings.remember_dir(&d);
                 self.settings.save();
-                self.export.open = false;
+                // the selection the person chose is still in force while the work is handed over
                 self.export_to(path, params);
+                self.export.open = false;
             }
         }
         if !self.export.open {
