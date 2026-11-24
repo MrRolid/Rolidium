@@ -356,6 +356,29 @@ impl App {
     }
 
     /// Labels of the rows the panel shows for the current selection (used by the self-test).
+    /// The rows of the panel next to the selection with the text in their fields (for the scripted tests).
+    pub(super) fn panel_fields(&self) -> Vec<(String, String)> {
+        let Some((key, target, _)) = self.dim_target() else {
+            return Vec::new();
+        };
+        let fresh = self.dim.key == key;
+        target
+            .rows()
+            .into_iter()
+            .enumerate()
+            .map(|(i, (_, label))| {
+                (
+                    label,
+                    if fresh {
+                        self.dim.fields.get(i).cloned().unwrap_or_default()
+                    } else {
+                        String::new()
+                    },
+                )
+            })
+            .collect()
+    }
+
     pub(super) fn panel_rows(&self) -> Vec<String> {
         self.dim_target()
             .map(|(_, t, _)| t.rows().into_iter().map(|(_, l)| l).collect())

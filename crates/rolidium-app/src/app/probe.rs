@@ -177,10 +177,24 @@ impl App {
             "shape_drag": self.shape_drag.is_some(),
             "hole_drag": self.hole_drag.is_some(),
             "meshes": self.probe_meshes(),
+            "panel": self.panel_fields(),
+            "face": self.probe_face(),
             "mesh_job": self.mesh_ui.job.as_ref().map(|j| round3(j.fraction() as f64)),
             "stl_dialog": self.probe_dialog(),
             "dropped": self.mesh_ui.dropped,
         })
+    }
+
+    /// The facts about the one selected face (a wall or a hole of a mesh, a face of a body).
+    fn probe_face(&self) -> Value {
+        let [(b, f)] = self.selection[..] else {
+            return Value::Null;
+        };
+        let Some(meta) = self.entry(b).and_then(|m| m.faces.get(f as usize)) else {
+            return Value::Null;
+        };
+        json!({"body": b, "face": f, "kind": format!("{:?}", meta.kind), "area": round3(meta.area), "diameter": meta.cyl_diameter.map(round3),
+               "normal": [round3(meta.normal.x), round3(meta.normal.y), round3(meta.normal.z)], "mesh": self.doc.mesh(b).is_some()})
     }
 
     /// The dialog of the STL import: the files, the units and the check.

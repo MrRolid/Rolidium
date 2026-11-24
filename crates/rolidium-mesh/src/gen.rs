@@ -100,6 +100,38 @@ pub fn plate_with_hole(w: f64, d: f64, t: f64, r: f64, seg: usize) -> TriMesh {
     m
 }
 
+/// A plate `nx` x `ny` cells of `cell` mm and `t` thick with a round hole of radius `r` in the middle of every cell (`seg` points round each hole): one wall on the top
+/// with `nx * ny` holes in it, and as many round walls. The cells are made one by one and welded; the points on the edges that two cells share are the same.
+pub fn plate_with_holes(nx: usize, ny: usize, cell: f64, t: f64, r: f64, seg: usize) -> TriMesh {
+    let one = plate_with_hole(cell, cell, t, r, seg);
+    let mut out = TriMesh::default();
+    let near = |a: f32, b: f64| (a as f64 - b).abs() < 1e-4;
+    for j in 0..ny {
+        for i in 0..nx {
+            let base = out.positions.len() as u32;
+            let (dx, dy) = (i as f64 * cell, j as f64 * cell);
+            out.positions.extend(
+                one.positions
+                    .iter()
+                    .map(|p| [(p[0] as f64 + dx) as f32, (p[1] as f64 + dy) as f32, p[2]]),
+            );
+            for tri in &one.triangles {
+                // a triangle of the outer wall of the cell lies on one side of the cell; on a side that another cell shares it is inside the plate
+                let on = |f: &dyn Fn(&[f32; 3]) -> bool| tri.iter().all(|v| f(&one.positions[*v as usize]));
+                let inside = (i > 0 && on(&|p| near(p[0], 0.0)))
+                    || (i + 1 < nx && on(&|p| near(p[0], cell)))
+                    || (j > 0 && on(&|p| near(p[1], 0.0)))
+                    || (j + 1 < ny && on(&|p| near(p[1], cell)));
+                if !inside {
+                    out.triangles.push([tri[0] + base, tri[1] + base, tri[2] + base]);
+                }
+            }
+        }
+    }
+    crate::check::merge_vertices(&mut out, 1e-4);
+    out
+}
+
 /// A sphere of about `triangles` triangles (a latitude and longitude grid), radius `r`.
 pub fn sphere(r: f64, triangles: usize) -> TriMesh {
     let n = ((triangles as f64 / 2.0).sqrt()).max(3.0) as usize; // n longitude, n latitude
