@@ -36,7 +36,7 @@ impl App {
         let facts = Facts {
             closed_shape: self.regions.iter().any(|r| !r.regions.is_empty()),
             pull_tool: self.tool == Tool::Pull || self.pull.is_some(),
-            body: !self.doc.bodies().is_empty(),
+            body: !self.doc.bodies().is_empty() || !self.doc.meshes().is_empty(),
         };
         if self.guide.observe(facts) {
             self.settings.guide_mask = self.guide.mask;
@@ -126,7 +126,11 @@ impl App {
         self.settings.guide_enabled = true;
         self.settings.guide_mask = 0;
         self.settings.save();
-        if self.doc.bodies().is_empty() && self.sk.is_none() && self.settings.new_doc_sketch {
+        if self.doc.bodies().is_empty()
+            && self.doc.meshes().is_empty()
+            && self.sk.is_none()
+            && self.settings.new_doc_sketch
+        {
             self.start_first_steps(0.0);
         }
     }

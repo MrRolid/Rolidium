@@ -214,6 +214,18 @@
     "animation": null
   },
   {
+    "id": "import_stl",
+    "title": "Import STL",
+    "shortcut": "",
+    "text": "Reads one or more STL files (triangle meshes, as made for 3D printing) into the document as meshes. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale) and the check of the mesh with buttons that repair it. You can also drop STL files into the window.",
+    "tips": [
+      "A mesh is not a solid: you can pull its flat walls, change the diameter of its holes, move, turn, mirror, scale and copy it.",
+      "Large meshes (millions of triangles) open in a few seconds."
+    ],
+    "illustration": "import_stl.svg",
+    "animation": null
+  },
+  {
     "id": "import_step",
     "title": "Import STEP",
     "shortcut": "",

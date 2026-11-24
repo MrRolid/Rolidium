@@ -41,6 +41,7 @@ mod jointool;
 mod linktool;
 mod lofttool;
 mod measuretool;
+mod meshtool;
 mod movetool;
 mod panel;
 mod pick;
@@ -308,6 +309,8 @@ pub struct App {
     sk_press: Option<(Pos2, bool)>,
     /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
     probe: Option<probe::Probe>,
+    /// Triangle meshes (STL): the import dialog and the search for walls and holes.
+    mesh_ui: meshtool::MeshUi,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
     entity_sel: Option<(SketchId, EntityId)>,
     edge_sel: Vec<(BodyId, u32)>,
@@ -553,6 +556,7 @@ impl App {
             reselect: None,
             sk_press: None,
             probe: probe::Probe::from_env(),
+            mesh_ui: meshtool::MeshUi::default(),
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
             edge_sel: Vec::new(),
@@ -728,6 +732,13 @@ impl App {
             self.set_status("Still working on the previous operation", true);
             return;
         }
+        let command = match self.mesh_translate(command) {
+            Ok(c) => c,
+            Err(why) => {
+                self.set_status(why, true);
+                return;
+            }
+        };
         let job = self.doc.plan(command);
         self.cancel_remesh();
         if self.worker.send(Work::Command(job)) {
@@ -745,7 +756,8 @@ impl App {
             .filter(|b| b.visible)
             .map(|b| (b.id, b.name.clone(), b.solid.clone(), b.color))
             .collect();
-        if self.worker.send(Work::Meshes { bodies }) {
+        let meshes = rolidium_doc::display::mesh_inputs(self.doc.state());
+        if self.worker.send(Work::Meshes { bodies, meshes }) {
             self.busy = Busy::Meshes;
         }
     }
@@ -782,6 +794,10 @@ impl App {
                             self.set_status(msg, true);
                         }
                     }
+                }
+                Done::StlRead(r) => {
+                    self.busy = Busy::No;
+                    self.stl_read(r);
                 }
                 Done::StepRead(r) => {
                     self.busy = Busy::No;
@@ -1594,13 +1610,23 @@ impl App {
 
     /// Opens the export dialog.
     fn export_stl(&mut self) {
-        if self.doc.bodies().is_empty() {
+        if self.doc.bodies().is_empty() && self.doc.meshes().is_empty() {
             self.set_status("Nothing to export", true);
             return;
         }
         self.export.stats = None;
         self.export.stats_requested = None;
         self.export.open = true;
+    }
+
+    /// The meshes (STL) that are shown: they are exported as they are.
+    fn visible_meshes(&self) -> Vec<Arc<rolidium_mesh::TriMesh>> {
+        self.doc
+            .meshes()
+            .iter()
+            .filter(|m| m.visible)
+            .map(|m| m.mesh.clone())
+            .collect()
     }
 
     fn visible_solids(&self) -> Vec<rolidium_kernel::Solid> {
@@ -1617,7 +1643,13 @@ impl App {
             return;
         }
         let solids = self.visible_solids();
-        if self.worker.send(Work::ExportStl { solids, path, params }) {
+        let meshes = self.visible_meshes();
+        if self.worker.send(Work::ExportStl {
+            solids,
+            meshes,
+            path,
+            params,
+        }) {
             self.busy = Busy::Export;
             self.set_status("Exporting STL…", false);
         }
@@ -2900,6 +2932,9 @@ impl App {
                     || self.pull.is_some()
                 {
                     ID_NONE
+                } else if self.hovered_face().is_some_and(|(b, f)| self.is_mesh_rest(b, f)) {
+                    // what no wall or hole covers is not lit by itself (it would be the whole mesh)
+                    ID_NONE
                 } else {
                     self.hover_id
                 },
@@ -3023,8 +3058,14 @@ impl App {
         let local_rect = Rect::from_min_size(Pos2::ZERO, rect.size());
         let hovered_region = self.hover_region;
         let hovered_obj = self.hover_obj;
+        let mesh_rest = hovered_face.filter(|(b, f)| self.is_mesh_rest(*b, *f));
         let select = |app: &mut App, add: bool| {
             match (hovered_obj, hovered_region, hovered_face) {
+                // the part of a mesh that no wall or hole covers: the click takes the whole mesh
+                (None, None, Some((b, _))) if mesh_rest.is_some() => {
+                    app.clear_selection();
+                    app.body_sel = Some(b);
+                }
                 (Some(Obj::Entity(s, e)), _, _) => app.pick_entity(s, e),
                 (Some(Obj::Curve(c)), _, _) => {
                     app.clear_selection();
@@ -4262,6 +4303,8 @@ impl eframe::App for App {
         icons::set_light(!ctx.global_style().visuals.dark_mode);
         prof!("refresh_curve_cache", self.refresh_curve_cache(&ctx));
         prof!("busy_tick", self.busy_tick());
+        self.handle_drops(&ctx);
+        self.mesh_tick(&ctx);
         prof!("view_tick", self.view_tick(&ctx));
         prof!("bench_tick", self.bench_tick(&ctx));
         prof!("edit_bench_tick", self.edit_bench_tick(&ctx));
@@ -4527,6 +4570,7 @@ impl eframe::App for App {
                                                         });
                                                     });
                                                 }
+                                                self.mesh_tree_rows(ui, &marked, scroll_to, &mut tree_cmd, &mut clicked);
                                             });
                                         self.tree_scroll_y = scroll_out.state.clamped_offset().y;
                                         if let Some(id) = clicked {
@@ -4542,7 +4586,7 @@ impl eframe::App for App {
                                             }
                                             self.layers_changed = true;
                                         }
-                                        if self.doc.bodies().is_empty() {
+                                        if self.doc.bodies().is_empty() && self.doc.meshes().is_empty() {
                                             ui.weak(tr("(none)"));
                                         }
                                     });
@@ -4723,6 +4767,9 @@ impl eframe::App for App {
                                     ));
                                     ui.weak(tr("F2 or a double click on the name renames it"));
                                 }
+                                if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some()) {
+                                    self.mesh_selection_ui(ui, b);
+                                }
                                 if let Some(b) = self.body_sel {
                                     self.link_sources_ui(ui, b, None);
                                 }
@@ -4832,6 +4879,7 @@ impl eframe::App for App {
         prof!("link_panel", self.link_panel(&ctx, vr));
         prof!("sketch_pattern_panel", self.sketch_pattern_panel(&ctx, vr));
         prof!("busy_overlay", self.busy_overlay(&ctx, vr));
+        self.mesh_overlay(&ctx, vr);
         prof!("measure_panel", self.measure_panel(&ctx, vr));
         prof!("loft_panel", self.loft_panel(&ctx, vr));
         prof!("helix_panel", self.helix_panel(&ctx, vr));
@@ -4853,6 +4901,7 @@ impl eframe::App for App {
         prof!("rename_window", self.rename_window(&ctx));
         prof!("derived_window", self.derived_window(&ctx));
         prof!("dialogs", self.dialogs(&ctx));
+        self.import_dialog_ui(&ctx);
         self.reselect_moved_hole();
         self.autosave_tick();
         self.probe_tick(&ctx);

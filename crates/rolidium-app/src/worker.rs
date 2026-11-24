@@ -26,7 +26,7 @@ pub struct RemeshBody {
 }
 
 use rolidium_doc::display::{entry_of, mesh_entry, MeshCache};
-pub use rolidium_doc::display::{BodyInput, FaceMeta, MeshEntry};
+pub use rolidium_doc::display::{BodyInput, FaceMeta, MeshEntry, MeshInput};
 
 /// A GPU the worker may use to render the preview picture stored in a file.
 pub struct GpuHandle {
@@ -56,6 +56,8 @@ pub enum Work {
     },
     Meshes {
         bodies: Vec<BodyInput>,
+        /// The meshes (STL) of the document with their regions.
+        meshes: Vec<MeshInput>,
     },
     /// New display meshes for the current zoom (in the background, while the person looks at the model).
     Remesh {
@@ -65,8 +67,14 @@ pub enum Work {
     },
     ExportStl {
         solids: Vec<Solid>,
+        /// The meshes (STL) of the document that are exported with the solids as they are.
+        meshes: Vec<Arc<rolidium_mesh::TriMesh>>,
         path: PathBuf,
         params: StlParams,
+    },
+    /// Reads STL files (binary or ASCII) and checks the meshes.
+    ReadStl {
+        paths: Vec<PathBuf>,
     },
     /// Triangle count for the export dialog.
     MeshStats {
@@ -95,6 +103,13 @@ pub struct StlParams {
     pub ascii: bool,
 }
 
+/// A mesh read from an STL file, as it is in the file (the unit is chosen afterwards), with the result of the check.
+pub struct StlLoaded {
+    pub name: String,
+    pub mesh: rolidium_mesh::TriMesh,
+    pub report: rolidium_mesh::check::Report,
+}
+
 /// The solids of a STEP file with their names, and the reasons why some were skipped.
 pub type StepSolids = (Vec<(Solid, String)>, Vec<String>);
 
@@ -104,6 +119,7 @@ pub enum Done {
     Saved(Result<(PathBuf, Arc<State>, bool), String>),
     Opened(Result<(PathBuf, Box<Loaded>), String>),
     StepRead(Result<StepSolids, String>),
+    StlRead(Vec<Result<StlLoaded, String>>),
     StepExported(Result<PathBuf, String>),
     /// A background job died with an internal error.
     Failed(String),
@@ -234,7 +250,8 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                     .filter(|b| b.visible)
                     .map(|b| (b.id, b.name.clone(), b.solid.clone(), b.color))
                     .collect();
-                let meshes = meshes_of(&inputs, cache)?;
+                let mut meshes = meshes_of(&inputs, cache)?;
+                meshes.extend(cache.mesh_entries(&rolidium_doc::display::mesh_inputs(&c.state)));
                 Ok((c, meshes))
             });
             // where the time went (the same stages as `rolidium-cli times`), for the log
@@ -282,7 +299,10 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                 })
                 .map(|_| path),
         ),
-        Work::Meshes { bodies } => Done::Meshes(meshes_of(&bodies, cache)),
+        Work::Meshes { bodies, meshes } => Done::Meshes(meshes_of(&bodies, cache).map(|mut v| {
+            v.extend(cache.mesh_entries(&meshes));
+            v
+        })),
         Work::MeshStats {
             solids,
             params,
@@ -343,7 +363,38 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                 mesh_entry(&(body.0, body.1.clone(), r.solid, body.3))
             })(),
         ),
-        Work::ExportStl { solids, path, params } => Done::Export((|| {
+        Work::ReadStl { paths } => Done::StlRead(std::thread::scope(|sc| {
+            let hs: Vec<_> = paths
+                .iter()
+                .map(|path| {
+                    sc.spawn(move || -> Result<StlLoaded, String> {
+                        let shown = path
+                            .file_name()
+                            .map_or_else(String::new, |n| n.to_string_lossy().to_string());
+                        let bytes = std::fs::read(path)
+                            .map_err(|e| format!("{shown}: cannot read the file ({e})"))?;
+                        let mesh = rolidium_mesh::stl::parse(&bytes).map_err(|e| format!("{shown}: {e}"))?;
+                        let report = rolidium_mesh::check::check(&mesh);
+                        let name = path
+                            .file_stem()
+                            .map_or_else(|| "Mesh".to_string(), |n| n.to_string_lossy().to_string());
+                        Ok(StlLoaded { name, mesh, report })
+                    })
+                })
+                .collect();
+            hs.into_iter()
+                .map(|h| {
+                    h.join()
+                        .unwrap_or_else(|_| Err("the file could not be read".to_string()))
+                })
+                .collect()
+        })),
+        Work::ExportStl {
+            solids,
+            meshes,
+            path,
+            params,
+        } => Done::Export((|| {
             let mut tris = 0;
             let mut all = Mesh::default();
             for s in &solids {
@@ -356,6 +407,19 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                 all.indices.extend(m.indices.iter().map(|i| i + base));
                 all.tri_face.extend(&m.tri_face);
                 tris += m.triangle_count();
+            }
+            // the meshes of the document: their triangles as they are
+            for m in &meshes {
+                let base = all.positions.len() as u32;
+                all.positions
+                    .extend(m.positions.iter().map(|p| glam::Vec3::new(p[0], p[1], p[2])));
+                all.normals
+                    .extend(std::iter::repeat_n(glam::Vec3::ZERO, m.positions.len()));
+                for t in &m.triangles {
+                    all.indices.extend([t[0] + base, t[1] + base, t[2] + base]);
+                    all.tri_face.push(0);
+                }
+                tris += m.triangles.len();
             }
             let mut buf = Vec::new();
             if params.ascii {
@@ -379,6 +443,7 @@ fn worker_loop(wrx: Receiver<Work>, wtx: Sender<(Done, f32)>, ctx: eframe::egui:
             Work::Remesh { ticket, .. } => (6, *ticket),
             Work::SaveFile { .. }
             | Work::OpenFile { .. }
+            | Work::ReadStl { .. }
             | Work::ReadStep { .. }
             | Work::ExportStep { .. } => (5, 0),
             _ => (0, 0),

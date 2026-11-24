@@ -26,12 +26,12 @@ mod generate;
 mod links;
 pub mod meshes;
 mod sketchops;
-pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use links::{
     linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
     Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams, Link, LinkId,
     LinkKind, MirrorParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
 };
+pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
 
 #[derive(Debug, thiserror::Error)]
@@ -2676,6 +2676,62 @@ impl Job {
                 }
                 Ok(c)
             }
+            Command::AddLink { kind, sources, name }
+                if !sources.is_empty()
+                    && sources.iter().all(|s| st.meshes.iter().any(|m| m.id == *s))
+                    && matches!(
+                        kind,
+                        LinkKind::Linear(..) | LinkKind::Circular(..) | LinkKind::Mirror(_)
+                    ) =>
+            {
+                // a mesh is not a solid: a pattern or a mirror of it makes plain copies (no link that follows the original)
+                let mut next = self.next_id;
+                let mut first = None;
+                let pieces: Vec<(DVec3, DVec3, DVec3, f64)> = match kind {
+                    LinkKind::Mirror(_) => vec![(DVec3::ZERO, DVec3::ZERO, DVec3::Z, 0.0)],
+                    k => placements_of(k).map_err(|e| KernelError::Invalid(e))?,
+                };
+                for src in sources {
+                    let mp = st
+                        .meshes
+                        .iter()
+                        .position(|m| m.id == *src)
+                        .ok_or(DocError::NoSuchBody)?;
+                    for (translation, pivot, axis, angle) in &pieces {
+                        let mut m = (*st.meshes[mp].mesh).clone();
+                        let mut name = st.meshes[mp].name.clone();
+                        if let LinkKind::Mirror(p) = kind {
+                            rolidium_mesh::transform::mirror(
+                                &mut m,
+                                p.origin.to_array(),
+                                p.normal.to_array(),
+                            );
+                            name = format!("{name} mirror");
+                        } else {
+                            if axis.length() > 1e-9 && angle.abs() > 1e-12 {
+                                rolidium_mesh::transform::rotate(
+                                    &mut m,
+                                    pivot.to_array(),
+                                    axis.to_array(),
+                                    *angle,
+                                );
+                            }
+                            rolidium_mesh::transform::translate(&mut m, translation.to_array());
+                        }
+                        let id = next;
+                        next += 1;
+                        first.get_or_insert(id);
+                        let mut b = st.meshes[mp].clone();
+                        b.id = id;
+                        b.name = name;
+                        b.mesh = Arc::new(m);
+                        st.meshes.push(b);
+                    }
+                }
+                let mut c = self.done(st, "Pattern");
+                c.touched_body = first;
+                Ok(c)
+            }
             Command::AddLink { kind, sources, name } => {
                 let mut next = self.next_id;
                 let id = links::create(&mut st, kind.clone(), sources.clone(), name, &mut next)?;
@@ -2960,7 +3016,9 @@ impl Job {
                 let mut first = None;
                 for (i, n) in meshes.iter().enumerate() {
                     if n.mesh.triangles.is_empty() {
-                        return Err(KernelError::Invalid(format!("the mesh '{}' has no triangles", n.name)).into());
+                        return Err(
+                            KernelError::Invalid(format!("the mesh '{}' has no triangles", n.name)).into(),
+                        );
                     }
                     let id = self.next_id + i as u64;
                     first.get_or_insert(id);
@@ -2982,7 +3040,11 @@ impl Job {
                 Ok(c)
             }
             Command::MeshPull { body, wall, distance } => {
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let m = meshes::pull(&st.meshes[mp], wall, *distance)?;
                 st.meshes[mp].mesh = Arc::new(m);
                 let mut c = self.done(st, "Pull wall");
@@ -2990,18 +3052,32 @@ impl Job {
                 Ok(c)
             }
             Command::MeshHole { body, hole, diameter } => {
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let m = meshes::hole(&st.meshes[mp], hole, *diameter)?;
                 st.meshes[mp].mesh = Arc::new(m);
                 let mut c = self.done(st, "Hole diameter");
                 c.touched_body = Some(*body);
                 Ok(c)
             }
-            Command::MeshScale { body, centre, factors } => {
+            Command::MeshScale {
+                body,
+                centre,
+                factors,
+            } => {
                 if !(factors.is_finite() && factors.min_element().abs() > 1e-9) {
-                    return Err(KernelError::Invalid("the scale factors must be non-zero numbers".into()).into());
+                    return Err(
+                        KernelError::Invalid("the scale factors must be non-zero numbers".into()).into(),
+                    );
                 }
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let mut m = (*st.meshes[mp].mesh).clone();
                 rolidium_mesh::transform::scale(&mut m, centre.to_array(), factors.to_array());
                 st.meshes[mp].mesh = Arc::new(m);
@@ -3010,7 +3086,11 @@ impl Job {
                 Ok(c)
             }
             Command::MeshRepair { body, kind } => {
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let (m, what) = meshes::repair(&st.meshes[mp], *kind);
                 let rep = rolidium_mesh::check::check(&m);
                 st.meshes[mp].verified = rep.is_closed() && rep.inconsistent_edges == 0;
@@ -3027,7 +3107,11 @@ impl Job {
                     ))
                     .into());
                 }
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let mut first = None;
                 for i in 1..*count as u64 {
                     let mut m = (*st.meshes[mp].mesh).clone();

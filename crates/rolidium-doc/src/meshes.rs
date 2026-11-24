@@ -72,7 +72,11 @@ pub(crate) fn repair(b: &MeshBody, kind: RepairKind) -> (TriMesh, String) {
     } else {
         0
     };
-    let turned = if kind.orient { check::orient_normals(&mut m) } else { 0 };
+    let turned = if kind.orient {
+        check::orient_normals(&mut m)
+    } else {
+        0
+    };
     (m, format!("{merged} vertices merged, {turned} triangles turned"))
 }
 
@@ -82,8 +86,11 @@ pub fn merged(meshes: &[&TriMesh]) -> TriMesh {
     for m in meshes {
         let base = out.positions.len() as u32;
         out.positions.extend_from_slice(&m.positions);
-        out.triangles
-            .extend(m.triangles.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]));
+        out.triangles.extend(
+            m.triangles
+                .iter()
+                .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+        );
     }
     out
 }

@@ -98,8 +98,24 @@ fn smallest_eigenvector(mut a: [[f64; 3]; 3]) -> V3 {
 /// Finds the planar walls (at least `min_triangles` triangles) and the round holes and pins. `angle_deg` is how much the normals of a planar wall may
 /// differ from the first one (a few degrees); the points of a wall must lie within `0.2 %` of the size of the mesh of its plane.
 pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
+    find_with(m, angle_deg, min_triangles, &mut |_| true).expect("nothing cancels it")
+}
+
+/// The same, reporting how far it is (0 to 1) now and then; when `progress` answers `false` the search stops and the answer is `None`.
+pub fn find_with(
+    m: &TriMesh,
+    angle_deg: f64,
+    min_triangles: usize,
+    progress: &mut dyn FnMut(f32) -> bool,
+) -> Option<Regions> {
     let n = m.triangles.len();
+    if !progress(0.0) {
+        return None;
+    }
     let adj = neighbours(m);
+    if !progress(0.25) {
+        return None;
+    }
     let normals: Vec<(V3, f64)> = (0..n).map(|t| m.normal_area(t)).collect();
     let size = m
         .bounding_box()
@@ -114,7 +130,11 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
     let mut tried = vec![0u32; n];
     let mut order: Vec<usize> = (0..n).filter(|t| normals[*t].1 > 0.0).collect();
     order.sort_by(|a, b| normals[*b].1.total_cmp(&normals[*a].1));
-    for &s in &order {
+    let order_len = order.len().max(1);
+    for (k, &s) in order.iter().enumerate() {
+        if k % 8192 == 0 && !progress(0.25 + 0.45 * k as f32 / order_len as f32) {
+            return None;
+        }
         if of[s] != 0 {
             continue;
         }
@@ -179,6 +199,9 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
     let smooth = 35f64.to_radians().cos();
     let mut seen = vec![false; n];
     for s in 0..n {
+        if s % 65536 == 0 && !progress(0.7 + 0.28 * s as f32 / n.max(1) as f32) {
+            return None;
+        }
         if seen[s] || of[s] != 0 || normals[s].1 == 0.0 {
             continue;
         }
@@ -218,7 +241,8 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
         }
     }
     out.of_triangle = of;
-    out
+    progress(1.0);
+    Some(out)
 }
 
 fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) -> Option<Cylinder> {

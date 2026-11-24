@@ -13,6 +13,7 @@ pub enum Purpose {
     Open,
     SaveAs,
     ImportStep,
+    ImportStl,
     ExportStep,
 }
 
@@ -22,6 +23,7 @@ impl Purpose {
             Purpose::Open => "Open",
             Purpose::SaveAs => "Save As",
             Purpose::ImportStep => "Import STEP",
+            Purpose::ImportStl => "Import STL",
             Purpose::ExportStep => "Export STEP",
         }
     }
@@ -33,12 +35,14 @@ impl Purpose {
         match self {
             Purpose::Open | Purpose::SaveAs => &["rolidium"],
             Purpose::ImportStep | Purpose::ExportStep => &["step", "stp"],
+            Purpose::ImportStl => &["stl"],
         }
     }
     pub fn type_label(self) -> &'static str {
         match self {
             Purpose::Open | Purpose::SaveAs => "Rolidium documents (*.rolidium)",
             Purpose::ImportStep | Purpose::ExportStep => "STEP files (*.step, *.stp)",
+            Purpose::ImportStl => "STL files (*.stl)",
         }
     }
     /// Documents are remembered separately from exported and imported exchange files.

@@ -625,7 +625,11 @@ pub fn save_to_bytes(
         let mut manifest = doc.extras.manifest.clone();
         manifest.insert(
             "format_version".into(),
-            json!(if st.meshes.is_empty() { 1 } else { FORMAT_WITH_MESHES }),
+            json!(if st.meshes.is_empty() {
+                1
+            } else {
+                FORMAT_WITH_MESHES
+            }),
         );
         manifest.insert("program_version".into(), json!(program_version));
         manifest.insert("units".into(), json!("mm"));
@@ -678,7 +682,8 @@ pub fn save_to_bytes(
         }
         // triangle meshes: the compact bytes of `rolidium-mesh` (already deflated, so stored as they are) and a small JSON of the properties
         if !st.meshes.is_empty() {
-            let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            let stored =
+                zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
             let mut list = Vec::new();
             for m in &st.meshes {
                 let bytes = rolidium_mesh::serial::encode(&m.mesh);
@@ -1005,8 +1010,14 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
     {
         let id = m["id"].as_u64().ok_or_else(|| corrupt("a mesh without an id"))?;
         let (mesh_name, meta_name) = (
-            m["mesh"].as_str().ok_or_else(|| corrupt("a mesh without triangles"))?.to_string(),
-            m["meta"].as_str().ok_or_else(|| corrupt("a mesh without data"))?.to_string(),
+            m["mesh"]
+                .as_str()
+                .ok_or_else(|| corrupt("a mesh without triangles"))?
+                .to_string(),
+            m["meta"]
+                .as_str()
+                .ok_or_else(|| corrupt("a mesh without data"))?
+                .to_string(),
         );
         let mesh = rolidium_mesh::serial::decode(&read_entry(&mut zip, &mesh_name)?)
             .map_err(|e| corrupt(format!("mesh {id}: {e}")))?;
@@ -1025,13 +1036,20 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             .unwrap_or(crate::MESH_COLOR);
         state.meshes.push(crate::MeshBody {
             id,
-            name: meta.get("name").and_then(Value::as_str).unwrap_or("Mesh").to_string(),
+            name: meta
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("Mesh")
+                .to_string(),
             mesh: Arc::new(mesh),
             color,
             visible: meta.get("visible").and_then(Value::as_bool).unwrap_or(true),
             verified: meta.get("verified").and_then(Value::as_bool).unwrap_or(false),
         });
-        take_keys(&mut meta, &["name", "color", "visible", "verified", "triangles", "vertices"]);
+        take_keys(
+            &mut meta,
+            &["name", "color", "visible", "verified", "triangles", "vertices"],
+        );
         if !meta.is_empty() {
             extras.meshes.insert(id, meta);
         }

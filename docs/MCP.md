@@ -76,6 +76,7 @@ The server uses one thread per core less one for the calculations that can share
 | `save_document` | Save the document as a .rolidium file under the root directory |
 | `import_stl` | Import an STL file (binary or ASCII) as a mesh, with units (mm, `inch`, `scale k`); answers with the size and the check of the mesh |
 | `mesh_info` | Triangles, size and volume of a mesh |
+| `mesh_to_document` | Makes a mesh a body of the document (saved in the .rolidium file, exported with the solids) |
 | `mesh_check` | Holes, normals that disagree, edges of more than two triangles, degenerate triangles, loose pieces |
 | `mesh_repair` | Join duplicate vertices and turn the triangles so that neighbours agree about the outside |
 | `mesh_regions` | Planar walls and round holes or pins of a mesh, numbered |

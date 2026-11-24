@@ -920,8 +920,12 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
         st.links[i] = link;
     }
     // bodies that are gone are not in a group
-    let alive: std::collections::HashSet<BodyId> =
-        st.bodies.iter().map(|b| b.id).chain(st.meshes.iter().map(|m| m.id)).collect();
+    let alive: std::collections::HashSet<BodyId> = st
+        .bodies
+        .iter()
+        .map(|b| b.id)
+        .chain(st.meshes.iter().map(|m| m.id))
+        .collect();
     for g in st.groups.iter_mut() {
         g.bodies.retain(|b| alive.contains(b));
     }

@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 rolidium-kernel = { path = "../rolidium-kernel" }
 rolidium-doc = { path = "../rolidium-doc" }
+rolidium-mesh = { path = "../rolidium-mesh" }
 rolidium-render = { path = "../rolidium-render" }
 rolidium-cli = { path = "../rolidium-cli" }
 rolidium-net = { path = "../rolidium-net" }

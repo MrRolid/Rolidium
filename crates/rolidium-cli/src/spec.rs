@@ -206,6 +206,7 @@ pub static COMMANDS: &[Cmd] = &[
         "",
     )),
     c("mesh-info", "mesh_info", "Number of triangles, size and volume of a mesh.", &[MESH], false, ""),
+    c("mesh-to-doc", "mesh_to_document", "Make a mesh a body of the document: it is then saved in the .rolidium file, listed by info, and exported with the other bodies by export_stl. Later edits of the mesh in this script do not change the body: add it when it is as it should be.", &[MESH], true, ""),
     c("mesh-check", "mesh_check", "Check a mesh: number of triangles, open edges (holes), edges where the normals disagree, edges of more than two triangles, degenerate triangles, loose pieces, a mesh turned inside out.", &[MESH], false, ""),
     c("mesh-repair", "mesh_repair", "Repair a mesh: join duplicate vertices, turn the triangles so that neighbours agree about the outside (a piece that is inside out is turned too). Holes are not filled.", &[MESH], false, ""),
     c("mesh-regions", "mesh_regions", "Find the planar walls (#1, #2, ...) and the round holes and pins of a mesh and list them (normal, area, diameter, axis). The numbers are used by mesh_pull and mesh_hole; after an edit the list is made again.", &[MESH], false, ""),

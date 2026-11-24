@@ -2466,6 +2466,7 @@ dependencies = [
  "rolidium-cli",
  "rolidium-doc",
  "rolidium-kernel",
+ "rolidium-mesh",
  "rolidium-net",
  "rolidium-render",
  "rqrr",

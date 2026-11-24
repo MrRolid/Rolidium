@@ -324,7 +324,7 @@ impl App {
             u.sk_open = Some(mode);
             return;
         }
-        if self.doc.bodies().is_empty() {
+        if self.doc.bodies().is_empty() && self.doc.meshes().is_empty() {
             self.set_status("There is no body to repeat or mirror", true);
             return;
         }

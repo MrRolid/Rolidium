@@ -176,7 +176,55 @@ impl App {
             "click_log": self.click_log.iter().rev().take(120).collect::<Vec<_>>(),
             "shape_drag": self.shape_drag.is_some(),
             "hole_drag": self.hole_drag.is_some(),
+            "meshes": self.probe_meshes(),
+            "mesh_job": self.mesh_ui.job.as_ref().map(|j| round3(j.fraction() as f64)),
+            "stl_dialog": self.probe_dialog(),
+            "dropped": self.mesh_ui.dropped,
         })
+    }
+
+    /// The dialog of the STL import: the files, the units and the check.
+    fn probe_dialog(&self) -> Value {
+        let Some(d) = self.mesh_ui.dialog.as_ref() else {
+            return Value::Null;
+        };
+        let items: Vec<Value> = d
+            .items
+            .iter()
+            .map(|i| {
+                let f = d.factor().unwrap_or(1.0);
+                let size = i
+                    .mesh
+                    .bounding_box()
+                    .map(|(lo, hi)| (0..3).map(|k| round3((hi[k] - lo[k]) * f)).collect::<Vec<f64>>());
+                json!({"name": i.name, "triangles": i.mesh.triangles.len(), "size": size, "clean": i.report.is_clean(), "check": super::meshtool::summary_line(&i.report), "note": i.note})
+            })
+            .collect();
+        json!({"units": format!("{:?}", d.units), "factor": d.factor(), "items": items})
+    }
+
+    /// The meshes (STL) of the document: their size, what was found in them, and how they are shown.
+    fn probe_meshes(&self) -> Vec<Value> {
+        self.doc
+            .meshes()
+            .iter()
+            .take(24)
+            .map(|m| {
+                let r = rolidium_doc::display::regions_of(&m.mesh);
+                let bb = m.mesh.bounding_box();
+                json!({
+                    "id": m.id,
+                    "name": m.name,
+                    "visible": m.visible,
+                    "triangles": m.mesh.triangles.len(),
+                    "bbox": bb.map(|(lo, hi)| json!([round3(lo[0]), round3(lo[1]), round3(lo[2]), round3(hi[0]), round3(hi[1]), round3(hi[2])])),
+                    "volume": round3(m.mesh.signed_volume()),
+                    "walls": r.as_ref().map(|r| r.planes.len()),
+                    "holes": r.as_ref().map(|r| r.cylinders.iter().map(|c| json!({"d": round3(c.radius * 2.0), "hole": c.is_hole, "x": round3(c.point[0]), "y": round3(c.point[1]), "z": round3(c.point[2])})).collect::<Vec<_>>()),
+                    "shown": self.entry(m.id).map(|e| e.mesh.triangle_count()),
+                })
+            })
+            .collect()
     }
 
     /// The live distances that are shown now (a circle being placed, a hole being dragged, the second piece being placed), for the scripts.

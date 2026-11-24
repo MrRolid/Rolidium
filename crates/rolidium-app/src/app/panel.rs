@@ -628,6 +628,7 @@ impl App {
                             .id(id)
                             .desired_width(60.0),
                     );
+                    self.probe_widget(&format!("panel_field_{i}"), r.rect);
                     if (first && i == 0 && self.dim.focus) || (i == 0 && self.dim.refocus) {
                         ctx.memory_mut(|m| m.request_focus(id));
                         // the text is selected, so a number typed at once replaces it

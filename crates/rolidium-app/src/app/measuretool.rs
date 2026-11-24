@@ -73,7 +73,11 @@ impl App {
 
     /// Why the tool cannot be used now.
     pub(super) fn measure_unavailable(&self) -> Option<&'static str> {
-        if self.doc.bodies().is_empty() && self.doc.curves().is_empty() && self.doc.sketches().is_empty() {
+        if self.doc.bodies().is_empty()
+            && self.doc.meshes().is_empty()
+            && self.doc.curves().is_empty()
+            && self.doc.sketches().is_empty()
+        {
             Some("Measuring needs a body, a curve or a sketch")
         } else {
             None

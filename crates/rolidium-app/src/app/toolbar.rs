@@ -397,7 +397,7 @@ impl App {
         } else {
             Some("Wait until the running operation finishes")
         };
-        let bodies = self.doc.bodies().len();
+        let bodies = self.doc.bodies().len() + self.doc.meshes().len();
         let regions: usize = self.regions.iter().map(|r| r.regions.len()).sum();
         ui.add_space(4.0);
         // tight rows: the whole column must fit a window 720 px high
@@ -529,7 +529,10 @@ impl App {
                     Tool::Pattern
                 };
                 let why = busy.or(
-                    if self.doc.bodies().is_empty() && !self.sk.as_ref().is_some_and(|m| m.sketch.is_some()) {
+                    if self.doc.bodies().is_empty()
+                        && self.doc.meshes().is_empty()
+                        && !self.sk.as_ref().is_some_and(|m| m.sketch.is_some())
+                    {
                         Some("There is no body to repeat or mirror")
                     } else {
                         None
@@ -644,7 +647,7 @@ impl App {
         } else {
             Some("Wait until the running operation finishes")
         };
-        let bodies = self.doc.bodies().len();
+        let bodies = self.doc.bodies().len() + self.doc.meshes().len();
         let nothing = if bodies == 0 {
             Some("There is nothing to export")
         } else {
@@ -657,12 +660,13 @@ impl App {
             .inner_margin(5.0)
             .show(ui, |ui| {
                 ui.label(egui::RichText::new(tr("File")).strong());
-                let items: [(&str, &str, Option<&'static str>, u8); 7] = [
+                let items: [(&str, &str, Option<&'static str>, u8); 8] = [
                     ("file_new", "New", busy, 0),
                     ("file_open", "Open", busy, 1),
                     ("file_save", "Save", busy, 2),
                     ("file_save_as", "Save As", busy, 3),
                     ("import_step", "Import STEP", busy, 4),
+                    ("import_stl", "Import STL", busy, 7),
                     ("export_step", "Export STEP", busy.or(nothing), 5),
                     ("export_stl", "Export STL", busy.or(nothing), 6),
                 ];
@@ -685,6 +689,7 @@ impl App {
                     Some(4) => self.import_step_dialog(),
                     Some(5) => self.export_step_dialog(),
                     Some(6) => self.export_stl(),
+                    Some(7) => self.import_stl_dialog(),
                     _ => {}
                 }
                 ui.add_enabled_ui(!self.settings.recent.is_empty() && idle, |ui| {

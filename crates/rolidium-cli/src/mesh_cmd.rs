@@ -116,6 +116,30 @@ impl Runner {
                     self.say(format!("  {l}"));
                 }
             }
+            "mesh-to-doc" => {
+                // the mesh becomes a body of the document: it is saved in the .rolidium file and exported with the solids
+                let i = self.mesh_index(w)?;
+                let m = &self.meshes[i];
+                let verified = m.verified || {
+                    let r = check::check(&m.mesh);
+                    r.is_closed() && r.inconsistent_edges == 0
+                };
+                let c = self
+                    .doc
+                    .apply(rolidium_doc::Command::AddMeshes {
+                        meshes: vec![rolidium_doc::NewMesh {
+                            name: m.name.clone(),
+                            mesh: std::sync::Arc::new(m.mesh.clone()),
+                            verified,
+                        }],
+                    })
+                    .map_err(|e| e.to_string())?;
+                self.say(format!(
+                    "mesh {} is a body of the document now (mesh {})",
+                    i + 1,
+                    c.touched_body.unwrap_or(0)
+                ));
+            }
             "mesh-info" => {
                 let i = self.mesh_index(w)?;
                 self.say(self.mesh_summary(i));

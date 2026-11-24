@@ -14,7 +14,7 @@ HEAD = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" 
 
 
 # The icons of the File block are drawn with thin lines (about half of the usual width).
-FILE_BLOCK_ICONS = {"file_new", "file_open", "file_save", "file_save_as", "import_step", "export_step", "export_stl"}
+FILE_BLOCK_ICONS = {"file_new", "file_open", "file_save", "file_save_as", "import_step", "import_stl", "export_step", "export_stl"}
 
 
 def neutral(*els):
@@ -106,6 +106,7 @@ icons = {
     "fit_all": neutral(path("M3.5 8 V3.5 H8 M16 3.5 H20.5 V8 M20.5 16 V20.5 H16 M8 20.5 H3.5 V16")) +
                accent(path("M12 8 L16 10.2 L12 12.4 L8 10.2 Z M8 10.2 V14 L12 16.2 V12.4 M16 10.2 V14 L12 16.2")),
     "export_stl": exchange("STL", ARROW_UP, 4.8, 7.0, 2.6),
+    "import_stl": exchange("STL", ARROW_DOWN, 4.8, 7.0, 2.6),
     "round": neutral(path("M3 21 V3 H21", extra=' stroke-dasharray="2 3"'), path("M14 14 L6.2 6.2"), path("M13 14 H15 M14 13 V15")) +
              accent(path("M3 21 V14 A11 11 0 0 1 14 3 H21 V21 Z", ACC_FILL)),
     "chamfer": neutral(path("M3 21 V3 H21", extra=' stroke-dasharray="2 3"'), path("M3 10 H7 M10 3 V7")) +
@@ -239,7 +240,7 @@ help_art = {
     "export_stl": scene(b0(L[0] - 18, L[1] - 24, top=A),
                         f'<g stroke="{A}" stroke-width="1.6" fill="{A}" fill-opacity=".15" stroke-linejoin="round"><rect x="{R[0]-30}" y="{R[1]-56}" width="60" height="52" rx="3"/>'
                         f'<path d="M{R[0]-30} {R[1]-30} L{R[0]} {R[1]-56} L{R[0]+30} {R[1]-30} L{R[0]} {R[1]-4} Z M{R[0]-30} {R[1]-30} H{R[0]+30} M{R[0]} {R[1]-56} V{R[1]-4}" fill="none"/></g>'),
-    **{k: scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 18, R[1] - 24, top=A)) for k in ("file_new", "file_open", "file_save", "file_save_as", "import_step", "export_step")},
+    **{k: scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 18, R[1] - 24, top=A)) for k in ("file_new", "file_open", "file_save", "file_save_as", "import_step", "import_stl", "export_step")},
     "move": scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 18 + 14, R[1] - 24 - 6, top=A)),
     "revolve": scene(rect2d(L[0] - 30, L[1] - 50, 60, 46) , rect2d(R[0] - 30, R[1] - 50, 60, 46, A, A, 0.25)),
     "eye_on": scene(b0(L[0] - 18, L[1] - 24), b0(R[0] - 18, R[1] - 24)),
@@ -297,6 +298,7 @@ tools = [
     ("file_open", "Open", "Ctrl+O", "Opens a saved .rolidium document. Rounds and chamfers can still be edited afterwards. The undo history is not saved.", ["A file can also be opened with: rolidium file.rolidium", "Recent files are listed under the File buttons."]),
     ("file_save", "Save", "Ctrl+S", "Saves the document. The previous version stays next to it as a .bak file. Saving is atomic: if it is interrupted the old file is untouched.", ["The window title shows * when there are unsaved changes.", "Unsaved work is also saved automatically every few minutes (see Settings)."]),
     ("file_save_as", "Save As", "Ctrl+Shift+S", "Saves the document under a new name.", []),
+    ("import_stl", "Import STL", "", "Reads one or more STL files (triangle meshes, as made for 3D printing) into the document as meshes. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale) and the check of the mesh with buttons that repair it. You can also drop STL files into the window.", ["A mesh is not a solid: you can pull its flat walls, change the diameter of its holes, move, turn, mirror, scale and copy it.", "Large meshes (millions of triangles) open in a few seconds."]),
     ("import_step", "Import STEP", "", "Adds the solids of a STEP file to the document as new bodies. Anything that is not a valid solid is skipped and reported.", []),
     ("export_step", "Export STEP", "", "Writes all visible bodies into one STEP file.", []),
     ("move", "Move", "M", "Select bodies (click, Ctrl+click for more, or in the tree) and drag an arrow to move along an axis or a ring to rotate about it. Type a number and press Enter for an exact value. The panel has X, Y, Z, an angle and Copy.", ["Moving snaps to the grid step; hold Shift to move freely.", "Sketches drawn on a body move with it; rounds and chamfers stay editable."]),

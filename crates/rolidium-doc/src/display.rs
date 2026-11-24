@@ -140,10 +140,155 @@ struct Cached {
     entry: MeshEntry,
 }
 
+/// A mesh (STL) body for the display, with its regions when they are known (see `rolidium_mesh::regions`).
+#[derive(Clone)]
+pub struct MeshInput {
+    pub id: BodyId,
+    pub name: String,
+    pub mesh: std::sync::Arc<rolidium_mesh::TriMesh>,
+    pub color: [f32; 3],
+    pub regions: Option<std::sync::Arc<rolidium_mesh::regions::Regions>>,
+}
+
+/// The index of a "face" of a mesh body: 0 is what no region covers, then the planar walls, then the holes and pins.
+pub fn region_face(regions: &rolidium_mesh::regions::Regions, of_triangle: u32) -> u32 {
+    use rolidium_mesh::regions::CYL_FLAG;
+    if of_triangle == 0 {
+        0
+    } else if of_triangle & CYL_FLAG != 0 {
+        1 + regions.planes.len() as u32 + (of_triangle & !CYL_FLAG) - 1
+    } else {
+        of_triangle
+    }
+}
+
+/// The display entry of a mesh body. The vertices are shared by the triangles of one region only (a vertex on the border of two regions is two vertices of the
+/// display mesh), so that a region has an identity on the graphics card and can be lit; a mesh without regions is one face. The normals are zero: the
+/// shader takes the flat normal of the triangle.
+pub fn mesh_body_entry(i: &MeshInput) -> MeshEntry {
+    use glam::Vec3;
+    let m = &*i.mesh;
+    let n_tri = m.triangles.len();
+    let nfaces = i
+        .regions
+        .as_ref()
+        .map_or(1, |r| 1 + r.planes.len() + r.cylinders.len());
+    let face_of = |t: usize| -> u32 {
+        match &i.regions {
+            Some(r) => region_face(r, r.of_triangle.get(t).copied().unwrap_or(0)),
+            None => 0,
+        }
+    };
+    let mut positions: Vec<Vec3> = m.positions.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect();
+    let mut indices: Vec<u32> = Vec::with_capacity(n_tri * 3);
+    let mut tri_face: Vec<u32> = Vec::with_capacity(n_tri);
+    if nfaces <= 1 {
+        for t in &m.triangles {
+            indices.extend_from_slice(t);
+        }
+        tri_face.resize(n_tri, 0);
+    } else {
+        let mut first_face = vec![u32::MAX; positions.len()];
+        let mut extra: HashMap<u64, u32> = HashMap::new();
+        for (t, tri) in m.triangles.iter().enumerate() {
+            let f = face_of(t);
+            tri_face.push(f);
+            for &v in tri {
+                let slot = &mut first_face[v as usize];
+                if *slot == u32::MAX {
+                    *slot = f;
+                    indices.push(v);
+                } else if *slot == f {
+                    indices.push(v);
+                } else {
+                    let key = ((v as u64) << 32) | f as u64;
+                    let at = *extra.entry(key).or_insert_with(|| {
+                        positions.push(positions[v as usize]);
+                        (positions.len() - 1) as u32
+                    });
+                    indices.push(at);
+                }
+            }
+        }
+    }
+    // the facts of the faces
+    let mut sums = vec![(Vec3::ZERO, 0u32); nfaces];
+    let mut bounds = vec![(Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)); nfaces];
+    for (t, tri) in indices.as_chunks::<3>().0.iter().enumerate() {
+        let f = tri_face[t] as usize;
+        for &v in tri {
+            let p = positions[v as usize];
+            sums[f].0 += p;
+            sums[f].1 += 1;
+            bounds[f].0 = bounds[f].0.min(p);
+            bounds[f].1 = bounds[f].1.max(p);
+        }
+    }
+    let mut faces: Vec<FaceMeta> = Vec::with_capacity(nfaces);
+    let dv = |v: [f64; 3]| DVec3::new(v[0], v[1], v[2]);
+    for f in 0..nfaces {
+        let (sum, n) = sums[f];
+        let mut meta = FaceMeta {
+            kind: FaceKind::Other,
+            normal: DVec3::ZERO,
+            origin: DVec3::ZERO,
+            area: 0.0,
+            centroid: if n > 0 { sum / n as f32 } else { Vec3::ZERO },
+            bounds: bounds[f],
+            cyl_diameter: None,
+            disc: None,
+            cap: None,
+        };
+        if let Some(r) = &i.regions {
+            if f >= 1 && f <= r.planes.len() {
+                let p = &r.planes[f - 1];
+                meta.kind = FaceKind::Plane;
+                meta.normal = dv(p.normal);
+                meta.origin = dv(p.normal) * p.offset;
+                meta.area = p.area;
+            } else if f > r.planes.len() {
+                let c = &r.cylinders[f - 1 - r.planes.len()];
+                meta.kind = FaceKind::Cylinder;
+                meta.normal = dv(c.axis);
+                meta.origin = dv(c.point);
+                meta.cyl_diameter = Some(c.radius * 2.0);
+            }
+        }
+        faces.push(meta);
+    }
+    let normals = vec![Vec3::ZERO; positions.len()];
+    let mesh = Mesh {
+        positions,
+        normals,
+        indices,
+        tri_face,
+        edges: Vec::new(),
+        deflection: 0.0,
+        face_deflection: Vec::new(),
+        face_asked: Vec::new(),
+    };
+    MeshEntry {
+        id: i.id,
+        name: i.name.clone(),
+        mesh: std::sync::Arc::new(mesh),
+        faces: std::sync::Arc::new(faces),
+        color: i.color,
+        stamp: next_stamp(),
+    }
+}
+
+struct CachedMesh {
+    /// Kept so that the address below stays the address of this mesh.
+    mesh: std::sync::Arc<rolidium_mesh::TriMesh>,
+    regions: Option<std::sync::Arc<rolidium_mesh::regions::Regions>>,
+    entry: MeshEntry,
+}
+
 /// The display entries of the bodies, made again only for the bodies whose solid is not the one they were made for.
 #[derive(Default)]
 pub struct MeshCache {
     map: HashMap<BodyId, Cached>,
+    meshes: HashMap<BodyId, CachedMesh>,
     /// How many entries were made (not taken from the cache) by the last call of `entries`.
     pub last_made: usize,
     /// Several cores for the entries to make (the default); off only to measure the single thread.
@@ -205,6 +350,41 @@ impl MeshCache {
         Ok(out)
     }
 
+    /// The entries of the mesh bodies in their order: the entry of a mesh that has not changed (and has the same regions) is the one made before.
+    pub fn mesh_entries(&mut self, inputs: &[MeshInput]) -> Vec<MeshEntry> {
+        let mut out = Vec::with_capacity(inputs.len());
+        for i in inputs {
+            let same = self.meshes.get(&i.id).is_some_and(|c| {
+                std::sync::Arc::ptr_eq(&c.mesh, &i.mesh)
+                    && match (&c.regions, &i.regions) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
+                        _ => false,
+                    }
+            });
+            if !same {
+                let entry = mesh_body_entry(i);
+                self.meshes.insert(
+                    i.id,
+                    CachedMesh {
+                        mesh: i.mesh.clone(),
+                        regions: i.regions.clone(),
+                        entry,
+                    },
+                );
+            }
+            let c = self.meshes.get_mut(&i.id).unwrap();
+            c.entry.name.clone_from(&i.name);
+            c.entry.color = i.color;
+            out.push(c.entry.clone());
+        }
+        if self.meshes.len() > inputs.len() {
+            let ids: std::collections::HashSet<BodyId> = inputs.iter().map(|b| b.id).collect();
+            self.meshes.retain(|id, _| ids.contains(id));
+        }
+        out
+    }
+
     /// The entries made by a zoom refinement replace the cached ones of the same solid.
     pub fn replace(&mut self, entry: &MeshEntry, solid: &Solid) {
         self.map.insert(
@@ -218,6 +398,7 @@ impl MeshCache {
 
     pub fn clear(&mut self) {
         self.map.clear();
+        self.meshes.clear();
     }
 }
 
@@ -242,4 +423,57 @@ pub fn small_edit_targets(doc: &crate::Document, body: BodyId) -> Option<(rolidi
         .is_ok()
     })?;
     Some((face, edge))
+}
+
+/// The regions found for meshes, kept by the address of the mesh they belong to (the mesh is kept too, so that the address stays its own). A state
+/// that Undo brings back finds its regions here; the older ones are forgotten.
+static REGIONS: std::sync::Mutex<
+    Vec<(
+        std::sync::Arc<rolidium_mesh::TriMesh>,
+        std::sync::Arc<rolidium_mesh::regions::Regions>,
+    )>,
+> = std::sync::Mutex::new(Vec::new());
+
+/// How many meshes with regions are kept.
+const REGIONS_KEPT: usize = 6;
+
+/// The regions found for this mesh, if they are known.
+pub fn regions_of(
+    mesh: &std::sync::Arc<rolidium_mesh::TriMesh>,
+) -> Option<std::sync::Arc<rolidium_mesh::regions::Regions>> {
+    let mut v = REGIONS.lock().unwrap_or_else(|e| e.into_inner());
+    let i = v.iter().position(|(m, _)| std::sync::Arc::ptr_eq(m, mesh))?;
+    let hit = v.remove(i);
+    let r = hit.1.clone();
+    v.push(hit);
+    Some(r)
+}
+
+/// Remembers the regions of a mesh.
+pub fn keep_regions(
+    mesh: &std::sync::Arc<rolidium_mesh::TriMesh>,
+    regions: std::sync::Arc<rolidium_mesh::regions::Regions>,
+) {
+    let mut v = REGIONS.lock().unwrap_or_else(|e| e.into_inner());
+    v.retain(|(m, _)| !std::sync::Arc::ptr_eq(m, mesh));
+    v.push((mesh.clone(), regions));
+    while v.len() > REGIONS_KEPT {
+        v.remove(0);
+    }
+}
+
+/// The visible meshes of a state for the display, each with the regions that are known.
+pub fn mesh_inputs(state: &crate::State) -> Vec<MeshInput> {
+    state
+        .meshes
+        .iter()
+        .filter(|m| m.visible)
+        .map(|m| MeshInput {
+            id: m.id,
+            name: m.name.clone(),
+            mesh: m.mesh.clone(),
+            color: m.color,
+            regions: regions_of(&m.mesh),
+        })
+        .collect()
 }

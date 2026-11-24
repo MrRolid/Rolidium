@@ -1,0 +1,21 @@
+# FIXTURE: import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
+# POINTS: top=10,10,10
+from guitest import *
+time.sleep(1.0)
+focus_app_window()
+p = settle(2.0)
+key("p")
+settle(0.4)
+click(*screen(p, "top"))
+p = settle()
+print("sel", p["selection"], p["status"])
+type_text("5")
+shot("01-typed")
+key("Return")
+p = settle(2.0)
+print(json.dumps(p["meshes"]), p["status"])
+shot("02-pulled")
+key("z", ctrl=True)
+p = settle(2.0)
+print(json.dumps(p["meshes"]), p["status"])
+shot("03-undone")

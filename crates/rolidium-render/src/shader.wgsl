@@ -75,7 +75,11 @@ fn body_tint(id: u32, c: vec3<f32>) -> vec3<f32> {
 
 @fragment
 fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    var n = normalize(i.normal);
+    // a mesh from an STL file has no normals (zero): the flat normal of the triangle is taken from the change of the position over the pixels
+    let flat_n = cross(dpdx(i.world), dpdy(i.world));
+    var n = i.normal;
+    if (dot(n, n) < 0.25) { n = flat_n; }
+    n = normalize(n);
     let view = normalize(g.eye.xyz - i.world);
     if (dot(n, view) < 0.0) { n = -n; }
     let key = normalize(vec3<f32>(0.4, -0.5, 0.8));

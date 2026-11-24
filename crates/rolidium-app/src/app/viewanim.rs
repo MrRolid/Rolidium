@@ -120,8 +120,10 @@ pub fn frame(points: &[Vec3], fov_y: f32) -> Option<(Vec3, f32)> {
 impl App {
     /// An empty document: a quiet hint in the middle of the view; it goes away with the first action.
     pub(super) fn empty_hint_paint(&self, ui: &egui::Ui, rect: Rect) {
-        let empty =
-            self.doc.bodies().is_empty() && self.doc.sketches().is_empty() && self.doc.curves().is_empty();
+        let empty = self.doc.bodies().is_empty()
+            && self.doc.meshes().is_empty()
+            && self.doc.sketches().is_empty()
+            && self.doc.curves().is_empty();
         // the guide has its own hints in an empty document; this quiet text is for when there is none
         if !empty
             || self.sk.is_some()

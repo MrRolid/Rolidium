@@ -384,7 +384,7 @@ impl App {
     }
 
     /// A file dialog that starts where the last one of its kind ended (documents and exports are remembered apart).
-    fn new_file_dialog(&self, purpose: Purpose, name: &str) -> FileDialog {
+    pub(super) fn new_file_dialog(&self, purpose: Purpose, name: &str) -> FileDialog {
         let dir = if purpose.is_export() {
             &self.settings.export_dir
         } else {
@@ -429,6 +429,7 @@ impl App {
                     match purpose {
                         Purpose::Open => self.perform(Pending::Open(path)),
                         Purpose::SaveAs => self.save_to(path),
+                        Purpose::ImportStl => self.start_stl_read(vec![path]),
                         Purpose::ImportStep => {
                             if self.worker.send(Work::ReadStep { path }) {
                                 self.busy = Busy::File;

@@ -1431,6 +1431,24 @@ impl Runner {
                 for r in rows {
                     self.say(r);
                 }
+                let meshes: Vec<String> = self
+                    .doc
+                    .meshes()
+                    .iter()
+                    .map(|m| {
+                        format!(
+                            "mesh {} '{}': {} triangles, {}{}",
+                            m.id,
+                            m.name,
+                            m.mesh.triangles.len(),
+                            rolidium_mesh::check::size_text(&m.mesh),
+                            if m.visible { "" } else { " (hidden)" }
+                        )
+                    })
+                    .collect();
+                for r in meshes {
+                    self.say(r);
+                }
             }
             "export-stl" => {
                 let path = w.get(1).ok_or("export-stl needs a file name")?;
@@ -1440,7 +1458,9 @@ impl Runner {
                 } else {
                     self.doc.bodies().iter().map(|b| b.id).collect()
                 };
-                if ids.is_empty() {
+                // the meshes (STL) of the document go with the solids as they are (not when one body is asked for)
+                let with_meshes = self.target_body.is_none() && !self.doc.meshes().is_empty();
+                if ids.is_empty() && !with_meshes {
                     self.first_body()?;
                 }
                 let (mut dev, mut ang, mut ascii) = (0.02_f64, 10.0_f64, false);
@@ -1480,6 +1500,19 @@ impl Runner {
                         .mesh(dev, ang.to_radians())
                         .map_err(|e| e.to_string())?;
                     mesh.append(&m);
+                }
+                if with_meshes {
+                    for m in self.doc.meshes().iter().filter(|m| m.visible) {
+                        let base = mesh.positions.len() as u32;
+                        mesh.positions
+                            .extend(m.mesh.positions.iter().map(|p| glam::Vec3::new(p[0], p[1], p[2])));
+                        mesh.normals
+                            .extend(std::iter::repeat_n(glam::Vec3::ZERO, m.mesh.positions.len()));
+                        for t in &m.mesh.triangles {
+                            mesh.indices.extend([t[0] + base, t[1] + base, t[2] + base]);
+                            mesh.tri_face.push(0);
+                        }
+                    }
                 }
                 let mut f = std::io::BufWriter::new(std::fs::File::create(path).map_err(|e| e.to_string())?);
                 if ascii {
@@ -1536,7 +1569,7 @@ impl Runner {
                 }
                 self.render_png(Path::new(path), width, height, view)?;
             }
-            "import-stl" | "mesh-info" | "mesh-check" => {
+            "import-stl" | "mesh-info" | "mesh-check" | "mesh-to-doc" => {
                 self.run_mesh_command(&w)?;
             }
             "mesh-repair" | "mesh-regions" | "mesh-pull" => {

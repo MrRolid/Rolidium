@@ -19,6 +19,7 @@ pub static ICONS: &[(&str, &str)] = &[
     ("view_iso", include_str!("../../../assets/icons/view_iso.svg")),
     ("fit_all", include_str!("../../../assets/icons/fit_all.svg")),
     ("export_stl", include_str!("../../../assets/icons/export_stl.svg")),
+    ("import_stl", include_str!("../../../assets/icons/import_stl.svg")),
     ("round", include_str!("../../../assets/icons/round.svg")),
     ("chamfer", include_str!("../../../assets/icons/chamfer.svg")),
     ("file_new", include_str!("../../../assets/icons/file_new.svg")),
@@ -98,6 +99,7 @@ pub static HELP_ART: &[(&str, &str)] = &[
         "import_step",
         include_str!("../../../assets/help/import_step.svg"),
     ),
+    ("import_stl", include_str!("../../../assets/help/import_stl.svg")),
     (
         "export_step",
         include_str!("../../../assets/help/export_step.svg"),
