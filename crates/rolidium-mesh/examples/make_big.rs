@@ -8,7 +8,14 @@ fn main() {
     let (mesh, path) = match a.get(1).map(String::as_str) {
         Some("sphere") => (gen::sphere(50.0, a[2].parse().unwrap()), a[3].clone()),
         Some("holes") => (
-            gen::plate_with_holes(a[2].parse().unwrap(), a[3].parse().unwrap(), 10.0, 4.0, 3.0, a[4].parse().unwrap()),
+            gen::plate_with_holes(
+                a[2].parse().unwrap(),
+                a[3].parse().unwrap(),
+                10.0,
+                4.0,
+                3.0,
+                a[4].parse().unwrap(),
+            ),
             a[5].clone(),
         ),
         _ => {

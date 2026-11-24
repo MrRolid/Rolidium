@@ -124,7 +124,8 @@ impl App {
             }
         }
         let n = self.pick_stats.get().2 + 1;
-        self.pick_stats.set((started.elapsed().as_secs_f32() * 1000.0, used_bvh, n));
+        self.pick_stats
+            .set((started.elapsed().as_secs_f32() * 1000.0, used_bvh, n));
         match best {
             Some((_, slot, t)) => {
                 let face = self.meshes[slot].mesh.tri_face.get(t).copied().unwrap_or(0);

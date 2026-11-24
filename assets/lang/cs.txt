@@ -1076,3 +1076,6 @@ The file contains numbers that are not finite => Soubor obsahuje čísla, která
 Sketch on the wall of the mesh: what you pull from it is a new solid => Skica na stěně sítě: to, co z ní vytáhneš, je nové těleso
 Only the selected bodies ({} selected) => Jen vybraná tělesa (vybráno: {})
 The STL files are read when the running operation is done => Soubory STL se načtou, až skončí běžící operace
+Wall of the mesh (flat) #{} => Stěna sítě (rovná) č. {}
+A part of the mesh => Část sítě
+{} of the mesh #{} => {} sítě č. {}

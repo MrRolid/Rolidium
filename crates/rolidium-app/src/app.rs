@@ -4837,10 +4837,22 @@ impl eframe::App for App {
                                 for (b, f) in &self.selection {
                                     if let Some(meta) = self.entry(*b).and_then(|m| m.faces.get(*f as usize))
                                     {
-                                        ui.label(trf(
-                                            "Face #{}: {}",
-                                            &[f.to_string(), tr(&format!("{:?}", meta.kind))],
-                                        ));
+                                        if self.doc.mesh(*b).is_some() {
+                                            // a wall or a hole of a mesh
+                                            ui.label(match meta.kind {
+                                                FaceKind::Plane => trf("Wall of the mesh (flat) #{}", &[f.to_string()]),
+                                                FaceKind::Cylinder => trf("{} of the mesh #{}", &[
+                                                    tr(if self.mesh_hole_is_pin(*b, *f) { "Pin" } else { "Hole" }),
+                                                    f.to_string(),
+                                                ]),
+                                                _ => tr("A part of the mesh"),
+                                            });
+                                        } else {
+                                            ui.label(trf(
+                                                "Face #{}: {}",
+                                                &[f.to_string(), tr(&format!("{:?}", meta.kind))],
+                                            ));
+                                        }
                                         // a hole, a pin or a round face of a body: the diameter for information (a hole or pin is changed in the panel next to it)
                                         if let Some(d) = meta.cyl_diameter.or(meta.disc.map(|(_, d)| d)) {
                                             ui.label(trf("Diameter: {} mm", &[fmt_num(d)]));

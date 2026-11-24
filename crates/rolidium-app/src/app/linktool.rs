@@ -1939,7 +1939,10 @@ impl App {
                 self.group_rows(ui, st, sub, cmd, depth + 1);
             }
             for bid in &g.bodies {
-                let (name, visible) = match (st.bodies.iter().find(|b| b.id == *bid), st.meshes.iter().find(|m| m.id == *bid)) {
+                let (name, visible) = match (
+                    st.bodies.iter().find(|b| b.id == *bid),
+                    st.meshes.iter().find(|m| m.id == *bid),
+                ) {
                     (Some(b), _) => (b.name.clone(), b.visible),
                     (None, Some(m)) => (format!("▦ {}", m.name), m.visible),
                     _ => continue,

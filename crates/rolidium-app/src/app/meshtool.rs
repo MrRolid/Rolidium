@@ -817,6 +817,14 @@ impl App {
         }
     }
 
+    /// True if the round "face" of a mesh is a pin (its wall faces outwards), not a hole.
+    pub(super) fn mesh_hole_is_pin(&self, body: BodyId, face: u32) -> bool {
+        match self.mesh_region(body, face) {
+            Ok(MeshRegion::Hole(c)) => !c.is_hole,
+            _ => false,
+        }
+    }
+
     /// The "face" 0 of a mesh is what no wall or hole covers.
     pub(super) fn is_mesh_rest(&self, body: BodyId, face: u32) -> bool {
         face == 0 && self.doc.mesh(body).is_some()

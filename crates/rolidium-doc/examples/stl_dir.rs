@@ -21,10 +21,16 @@ fn main() {
     println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
     for (i, p) in files.iter().enumerate() {
         let label = format!("file {}", i + 1);
-        let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        let ext = p
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
         let size = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
         if ext != "stl" {
-            println!("| {label} (.{ext}) | {:.1} MB | not an STL file: skipped | | | | | | | | | |", size as f64 / 1e6);
+            println!(
+                "| {label} (.{ext}) | {:.1} MB | not an STL file: skipped | | | | | | | | | |",
+                size as f64 / 1e6
+            );
             continue;
         }
         let bytes = std::fs::read(p).unwrap();
@@ -32,7 +38,10 @@ fn main() {
         let mesh = match stl::parse(&bytes) {
             Ok(m) => m,
             Err(e) => {
-                println!("| {label} | {:.1} MB | {e} | | | | | | | | | |", size as f64 / 1e6);
+                println!(
+                    "| {label} | {:.1} MB | {e} | | | | | | | | | |",
+                    size as f64 / 1e6
+                );
                 continue;
             }
         };

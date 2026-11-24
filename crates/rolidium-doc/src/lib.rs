@@ -3050,7 +3050,11 @@ impl Job {
                     meshes::carry_regions(
                         &st.meshes[mp].mesh,
                         &m,
-                        meshes::Change::Wall { first_triangle: *first, normal: wall.normal, distance: *distance },
+                        meshes::Change::Wall {
+                            first_triangle: *first,
+                            normal: wall.normal,
+                            distance: *distance,
+                        },
                     );
                 }
                 st.meshes[mp].mesh = m;
@@ -3069,7 +3073,10 @@ impl Job {
                     meshes::carry_regions(
                         &st.meshes[mp].mesh,
                         &m,
-                        meshes::Change::Hole { first_triangle: *first, diameter: *diameter },
+                        meshes::Change::Hole {
+                            first_triangle: *first,
+                            diameter: *diameter,
+                        },
                     );
                 }
                 st.meshes[mp].mesh = m;

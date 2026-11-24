@@ -307,13 +307,23 @@ fn a_finely_divided_ball_has_no_walls_and_a_plate_with_many_holes_has_six_walls_
     use rolidium_mesh::{check, gen, regions};
     let ball = gen::sphere(50.0, 200_000);
     let r = regions::find(&ball, 3.0, 4);
-    assert_eq!(r.planes.len(), 0, "the flat spots of a smooth surface are no walls");
+    assert_eq!(
+        r.planes.len(),
+        0,
+        "the flat spots of a smooth surface are no walls"
+    );
     let plate = gen::plate_with_holes(6, 5, 10.0, 4.0, 3.0, 48);
-    assert!(check::check(&plate).is_clean(), "the plate made of cells is one closed mesh");
+    assert!(
+        check::check(&plate).is_clean(),
+        "the plate made of cells is one closed mesh"
+    );
     let r = regions::find(&plate, 3.0, 4);
     assert_eq!(r.planes.len(), 6, "top, bottom and the four sides");
     assert_eq!(r.cylinders.len(), 30, "a hole in every cell");
-    assert!(r.cylinders.iter().all(|c| c.is_hole && (c.radius - 3.0).abs() < 0.05));
+    assert!(r
+        .cylinders
+        .iter()
+        .all(|c| c.is_hole && (c.radius - 3.0).abs() < 0.05));
 }
 
 #[test]

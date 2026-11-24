@@ -1076,3 +1076,6 @@ The file contains numbers that are not finite => ファイルに有限でない�
 Sketch on the wall of the mesh: what you pull from it is a new solid => メッシュの壁上のスケッチ：そこから引き出したものは新しいソリッドになります
 Only the selected bodies ({} selected) => 選択したボディのみ（選択数：{}）
 The STL files are read when the running operation is done => 実行中の操作が終わったらSTLファイルを読み込みます
+Wall of the mesh (flat) #{} => メッシュの壁（平面）No.{}
+A part of the mesh => メッシュの一部
+{} of the mesh #{} => メッシュの{} No.{}

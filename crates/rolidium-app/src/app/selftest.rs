@@ -3045,7 +3045,11 @@ impl App {
                     return;
                 };
                 let faces = self.entry(mb.id).map_or(0, |e| e.faces.len());
-                check(&mut st, "the display of the mesh has its walls and holes as faces", faces == 8);
+                check(
+                    &mut st,
+                    "the display of the mesh has its walls and holes as faces",
+                    faces == 8,
+                );
                 self.selection = vec![(mb.id, 1)];
                 self.submit(Command::PullFace {
                     body: mb.id,
@@ -3062,7 +3066,11 @@ impl App {
                     return;
                 };
                 let top = mb.mesh.bounding_box().map_or(0.0, |b| b.1[2]);
-                check(&mut st, "the top wall of the mesh was pulled by 5 mm", near(top, 15.0));
+                check(
+                    &mut st,
+                    "the top wall of the mesh was pulled by 5 mm",
+                    near(top, 15.0),
+                );
                 self.doc.undo();
                 self.request_meshes();
                 st.wait_frames = 3;
@@ -3077,7 +3085,9 @@ impl App {
                 check(&mut st, "Undo brings the mesh back", near(top, 10.0));
                 // the file of the document with the mesh, written and read again
                 let bytes = rolidium_doc::file::save_to_bytes(&self.doc, None, "selftest");
-                let back = bytes.ok().and_then(|b| rolidium_doc::file::load_from_bytes(&b).ok());
+                let back = bytes
+                    .ok()
+                    .and_then(|b| rolidium_doc::file::load_from_bytes(&b).ok());
                 check(
                     &mut st,
                     "the mesh is saved in the file of the document and comes back the same",
@@ -3101,7 +3111,11 @@ impl App {
             }
             153 => {
                 let size = std::fs::metadata("rolidium-selftest-mesh.stl").map_or(0, |m| m.len());
-                check(&mut st, "the mesh was exported as a binary STL of 384 triangles", size == 84 + 50 * 384);
+                check(
+                    &mut st,
+                    "the mesh was exported as a binary STL of 384 triangles",
+                    size == 84 + 50 * 384,
+                );
                 let _ = std::fs::remove_file("rolidium-selftest-mesh.stl");
             }
             154 => {

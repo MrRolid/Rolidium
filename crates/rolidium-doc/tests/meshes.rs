@@ -238,8 +238,19 @@ fn the_walls_and_holes_after_a_pull_and_a_hole_edit_need_no_new_search() {
     let (mut d, id) = doc_with(gen::plate_with_hole(60.0, 40.0, 10.0, 2.5, 48), "plate");
     let m0 = d.mesh(id).unwrap().mesh.clone();
     keep_regions(&m0, Arc::new(regions::find(&m0, 3.0, 4)));
-    let top = regions_of(&m0).unwrap().planes.iter().find(|p| p.normal[2] > 0.99).unwrap().clone();
-    d.apply(Command::MeshPull { body: id, wall: Arc::new(top), distance: 5.0 }).unwrap();
+    let top = regions_of(&m0)
+        .unwrap()
+        .planes
+        .iter()
+        .find(|p| p.normal[2] > 0.99)
+        .unwrap()
+        .clone();
+    d.apply(Command::MeshPull {
+        body: id,
+        wall: Arc::new(top),
+        distance: 5.0,
+    })
+    .unwrap();
     let m1 = d.mesh(id).unwrap().mesh.clone();
     let carried = regions_of(&m1).expect("the regions came with the edit");
     let fresh = regions::find(&m1, 3.0, 4);
@@ -248,13 +259,31 @@ fn the_walls_and_holes_after_a_pull_and_a_hole_edit_need_no_new_search() {
         let c = carried
             .planes
             .iter()
-            .find(|c| c.triangles.first() == f.triangles.first() || (c.normal == f.normal && c.triangles.len() == f.triangles.len()))
+            .find(|c| {
+                c.triangles.first() == f.triangles.first()
+                    || (c.normal == f.normal && c.triangles.len() == f.triangles.len())
+            })
             .expect("the same wall");
-        assert!((c.offset - f.offset).abs() < 1e-3, "offset {} against {}", c.offset, f.offset);
-        assert!((c.area - f.area).abs() < 1e-2, "area {} against {}", c.area, f.area);
+        assert!(
+            (c.offset - f.offset).abs() < 1e-3,
+            "offset {} against {}",
+            c.offset,
+            f.offset
+        );
+        assert!(
+            (c.area - f.area).abs() < 1e-2,
+            "area {} against {}",
+            c.area,
+            f.area
+        );
     }
     let hole = carried.cylinders[0].clone();
-    d.apply(Command::MeshHole { body: id, hole: Arc::new(hole), diameter: 7.0 }).unwrap();
+    d.apply(Command::MeshHole {
+        body: id,
+        hole: Arc::new(hole),
+        diameter: 7.0,
+    })
+    .unwrap();
     let m2 = d.mesh(id).unwrap().mesh.clone();
     let carried = regions_of(&m2).expect("and again");
     assert!((carried.cylinders[0].radius - 3.5).abs() < 1e-9);

@@ -1076,3 +1076,6 @@ The file contains numbers that are not finite => El archivo contiene números qu
 Sketch on the wall of the mesh: what you pull from it is a new solid => Boceto en la pared de la malla: lo que extruyas de él es un sólido nuevo
 Only the selected bodies ({} selected) => Solo los cuerpos seleccionados (seleccionados: {})
 The STL files are read when the running operation is done => Los archivos STL se leerán cuando termine la operación en curso
+Wall of the mesh (flat) #{} => Pared de la malla (plana) n.º {}
+A part of the mesh => Una parte de la malla
+{} of the mesh #{} => {} de la malla n.º {}

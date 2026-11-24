@@ -104,18 +104,27 @@ pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Chan
     };
     let mut r: rolidium_mesh::regions::Regions = (*old_regions).clone();
     match change {
-        Change::Wall { first_triangle, normal, distance } => {
-            let Some(p) = r
-                .planes
-                .iter_mut()
-                .find(|p| p.triangles.first() == Some(&first_triangle) && rolidium_mesh::dot(p.normal, normal) > 0.999)
-            else {
+        Change::Wall {
+            first_triangle,
+            normal,
+            distance,
+        } => {
+            let Some(p) = r.planes.iter_mut().find(|p| {
+                p.triangles.first() == Some(&first_triangle) && rolidium_mesh::dot(p.normal, normal) > 0.999
+            }) else {
                 return;
             };
             p.offset += distance;
         }
-        Change::Hole { first_triangle, diameter } => {
-            let Some(c) = r.cylinders.iter_mut().find(|c| c.triangles.first() == Some(&first_triangle)) else {
+        Change::Hole {
+            first_triangle,
+            diameter,
+        } => {
+            let Some(c) = r
+                .cylinders
+                .iter_mut()
+                .find(|c| c.triangles.first() == Some(&first_triangle))
+            else {
                 return;
             };
             c.radius = diameter / 2.0;
@@ -130,6 +139,13 @@ pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Chan
 /// What an edit changed in the regions.
 #[derive(Clone, Copy)]
 pub(crate) enum Change {
-    Wall { first_triangle: u32, normal: [f64; 3], distance: f64 },
-    Hole { first_triangle: u32, diameter: f64 },
+    Wall {
+        first_triangle: u32,
+        normal: [f64; 3],
+        distance: f64,
+    },
+    Hole {
+        first_triangle: u32,
+        diameter: f64,
+    },
 }

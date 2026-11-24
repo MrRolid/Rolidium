@@ -237,7 +237,10 @@ impl ExportDialog {
                     let before = self.only_selected;
                     ui.checkbox(
                         &mut self.only_selected,
-                        trf("Only the selected bodies ({} selected)", &[self.selected.to_string()]),
+                        trf(
+                            "Only the selected bodies ({} selected)",
+                            &[self.selected.to_string()],
+                        ),
                     );
                     if before != self.only_selected {
                         self.stats = None;
