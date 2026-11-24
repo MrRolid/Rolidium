@@ -205,3 +205,50 @@ def _on_error(kind, value, tb):
 
 
 sys.excepthook = _on_error
+
+
+def scale_check(scale):
+    """The interface scale (pixels per point): a point placed by a click lies under the pointer, the snaps to the grid and to the corner of the face work, and the
+    face and the edge under the pointer are the ones that were aimed at. The model is a plate 100 x 60 x 10 and the program runs with WINIT_X11_SCALE_FACTOR."""
+    time.sleep(1.0)
+    focus_app_window()
+    p = settle()
+    check(close(p["ppp"], scale, 0.01), f"the scale of the interface is {scale}: {p['ppp']}")
+    # the faces and the edge under the pointer (Select tool): the top face, the front face, an edge
+    for name, want in (("top", (0, 0, 1)), ("front", (0, -1, 0))):
+        x, y = screen(p, name)
+        move(x, y)
+        h = None
+        for _ in range(40):   # the read-back of what is under the pointer takes a few frames, more at a big window and a slow drawing
+            time.sleep(0.25)
+            h = probe()["hover"]
+            if h and h["normal"] and all(abs(a - b) < 0.02 for a, b in zip(h["normal"], want)):
+                break
+        check(h and h["normal"] and all(abs(a - b) < 0.02 for a, b in zip(h["normal"], want)), f"the pointer on '{name}' hovers the face with the normal {want}: {h}")
+    x, y = screen(p, "edge")
+    move(x, y)
+    time.sleep(0.5)
+    q = probe()
+    check(q["hover_obj"] is not None and "Edge" in q["hover_obj"], f"the pointer on the edge hovers the edge: {q['hover_obj']}")
+    shot("01-hover")
+    # a sketch on the top face: a circle by two clicks, centre at (30, 20), radius 6 (the grid step is 1 mm)
+    click(*screen(p, "top"))
+    key("k")
+    settle(0.4)
+    key("c")
+    p = settle(0.4)
+    check(p["sketching"] == "Circle", f"the Circle tool is on: {p['sketching']}")
+    click(*screen(p, "c1"))
+    click(*screen(p, "c2"))
+    p = settle(0.5)
+    c = p["circles"][0] if p["circles"] else None
+    check(c is not None and close(c["x"], 30, 0.6) and close(c["y"], 20, 0.6) and close(c["r"], 6, 0.6), f"the circle lies where it was clicked, (30, 20) r 6: {c}")
+    # the corner of the face: a click 3 pixels from it snaps to the vertex
+    cx, cy = screen(p, "corner")
+    click(cx + 3, cy - 2)
+    click(*screen(p, "c3"))
+    p = settle(0.5)
+    cs = p["circles"]
+    check(len(cs) == 2 and close(cs[1]["x"], 0, 0.01) and close(cs[1]["y"], 0, 0.01), f"the centre snapped to the corner of the face (0, 0): {cs}")
+    shot("02-circles")
+    finish()

@@ -16,6 +16,8 @@ pub struct Probe {
     last: Option<Instant>,
     frame: u64,
     ppp: f32,
+    /// `ROLIDIUM_PROBE_IDLE=1`: the probe does not wake the window and is written at every frame, so that the frame counter shows the frames the program draws by itself.
+    idle: bool,
 }
 
 impl Probe {
@@ -40,6 +42,7 @@ impl Probe {
             last: None,
             frame: 0,
             ppp: 1.0,
+            idle: std::env::var_os("ROLIDIUM_PROBE_IDLE").is_some(),
         })
     }
 }
@@ -59,7 +62,7 @@ impl App {
         let Some(mut p) = self.probe.take() else { return };
         p.frame += 1;
         p.ppp = ctx.pixels_per_point();
-        if p.last.is_none_or(|t| t.elapsed() >= Duration::from_millis(120)) {
+        if p.idle || p.last.is_none_or(|t| t.elapsed() >= Duration::from_millis(120)) {
             p.last = Some(Instant::now());
             let v = self.probe_json(&p);
             self.probe_widgets.borrow_mut().clear();
@@ -68,7 +71,9 @@ impl App {
                 let _ = std::fs::rename(&tmp, &p.path);
             }
         }
-        ctx.request_repaint_after(Duration::from_millis(120));
+        if !p.idle {
+            ctx.request_repaint_after(Duration::from_millis(120));
+        }
         self.probe = Some(p);
     }
 
@@ -139,6 +144,7 @@ impl App {
         let edge_dims = self.probe_edge_dims();
         json!({
             "frame": p.frame,
+            "ppp": p.ppp,
             "viewport": [(r.min.x * ppp).round(), (r.min.y * ppp).round(), (r.width() * ppp).round(), (r.height() * ppp).round()],
             "status": self.status.text,
             "status_error": self.status.error,
@@ -164,6 +170,10 @@ impl App {
             "widgets": self.probe_widgets.borrow().iter().map(|(n, r)| (n.clone(), json!([(r.center().x * ppp).round(), (r.center().y * ppp).round()]))).collect::<serde_json::Map<String, Value>>(),
             "derived_ask": self.derived_ask.is_some(),
             "circles": self.probe_circles(),
+            "shapes": self.probe_shapes(),
+            "drawing": self.sk.as_ref().is_some_and(|m| m.drawing.is_some()),
+            "shape_drag": self.shape_drag.is_some(),
+            "hole_drag": self.hole_drag.is_some(),
         })
     }
 
@@ -181,6 +191,13 @@ impl App {
                 "snap": snap.map(|s| format!("{s:?}")),
             })
         };
+        if let Some(h) = &self.shape_drag {
+            if let Some(d) = &h.dims {
+                let mut v = pack(d, h.at, &h.edit, h.snap);
+                v["what"] = json!("shape");
+                return v;
+            }
+        }
         if let Some(h) = &self.hole_drag {
             if let Some(d) = &h.dims {
                 let mut v = pack(d, h.cur, &h.edit, h.snap);
@@ -207,6 +224,42 @@ impl App {
 }
 
 impl App {
+    /// Every shape of the sketches with its numbers, for the scripts.
+    fn probe_shapes(&self) -> Vec<Value> {
+        let mut v = Vec::new();
+        for s in self.doc.sketches() {
+            for (id, e) in s.sketch.entities() {
+                let j = match *e {
+                    Entity::Circle { center, radius } => {
+                        json!({"kind": "circle", "x": round3(center.x), "y": round3(center.y), "r": round3(radius)})
+                    }
+                    Entity::Arc {
+                        center,
+                        radius,
+                        start,
+                        sweep,
+                    } => {
+                        json!({"kind": "arc", "x": round3(center.x), "y": round3(center.y), "r": round3(radius), "start": round3(start), "sweep": round3(sweep)})
+                    }
+                    Entity::Line { a, b } => {
+                        json!({"kind": "line", "a": [round3(a.x), round3(a.y)], "b": [round3(b.x), round3(b.y)]})
+                    }
+                    Entity::Axis { a, b } => {
+                        json!({"kind": "axis", "a": [round3(a.x), round3(a.y)], "b": [round3(b.x), round3(b.y)]})
+                    }
+                    Entity::Rect { a, b } => {
+                        json!({"kind": "rect", "a": [round3(a.x), round3(a.y)], "b": [round3(b.x), round3(b.y)]})
+                    }
+                };
+                let mut j = j;
+                j["sketch"] = json!(s.id);
+                j["id"] = json!(id);
+                v.push(j);
+            }
+        }
+        v
+    }
+
     /// The circles of the sketches (centre and radius), for the scripts.
     fn probe_circles(&self) -> Vec<Value> {
         let mut v = Vec::new();

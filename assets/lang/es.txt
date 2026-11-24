@@ -76,9 +76,7 @@ horizontal => horizontal
 vertical => vertical
 
 # ---- hints ----
-Click to finish, or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Haz clic para terminar o escribe un tamaño (Tab: siguiente campo, Enter: confirmar, Esc: cancelar la forma).
 Sketch: L line, R rectangle, C circle. V faces the sketch, D or P leaves. => Boceto: L línea, R rectángulo, C círculo. V orienta la vista al boceto, D o P lo abandona.
-Click to place the first point. Esc/right click cancels, D or P leaves the sketch. => Haz clic para colocar el primer punto. Esc o clic derecho cancela, D o P abandona el boceto.
 Up to: click a face, an edge, a vertex or a point on a face. Esc cancels. => Hasta: haz clic en una cara, una arista, un vértice o un punto de una cara. Esc cancela.
 Pull: type the distance (negative removes material). Enter applies, Esc cancels. => Estirar: escribe la distancia (un valor negativo quita material). Enter aplica, Esc cancela.
 Pull: drag along the normal (snaps to faces, vertices and the grid; hold Shift for free movement), or type a number. => Estirar: arrastra a lo largo de la normal (se ajusta a caras, vértices y a la cuadrícula; mantén Shift para mover libremente) o escribe un número.
@@ -1017,3 +1015,8 @@ The hole stays where it is => El agujero se queda donde está
 The hole would lie outside the body => El agujero quedaría fuera del cuerpo
 The pin would not touch the body => El pasador no tocaría el cuerpo
 The shift must be numbers => El desplazamiento debe ser números
+Click to finish (or release the button after a drag), or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Haz clic para terminar (o suelta el botón tras arrastrar), o escribe un tamaño (Tab: siguiente campo, Enter: confirmar, Esc: cancelar la forma).
+Click, or press and drag, to place the first point. Esc/right click cancels, D or P leaves the sketch. => Haz clic, o pulsa y arrastra, para colocar el primer punto. Esc/clic derecho cancela, D o P sale del boceto.
+Drag the shape, or type a number (Tab switches, Enter confirms, Esc cancels) => Arrastra la forma o escribe un número (Tab cambia, Enter confirma, Esc cancela)
+Press Enter to put the shape at the typed numbers, Esc to cancel => Pulsa Enter para poner la forma en los números escritos, Esc cancela
+The shape stays where it is => La forma se queda donde está

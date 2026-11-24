@@ -76,9 +76,7 @@ horizontal => horizontal
 vertical => vertical
 
 # ---- hints ----
-Click to finish, or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Cliquez pour terminer, ou saisissez une taille (Tab : champ suivant, Entrée : valider, Échap : annuler la forme).
 Sketch: L line, R rectangle, C circle. V faces the sketch, D or P leaves. => Esquisse : L ligne, R rectangle, C cercle. V met l'esquisse de face, D ou P quitte.
-Click to place the first point. Esc/right click cancels, D or P leaves the sketch. => Cliquez pour placer le premier point. Échap/clic droit annule, D ou P quitte l'esquisse.
 Up to: click a face, an edge, a vertex or a point on a face. Esc cancels. => Jusqu'à : cliquez sur une face, une arête, un sommet ou un point d'une face. Échap annule.
 Pull: type the distance (negative removes material). Enter applies, Esc cancels. => Tirer : saisissez la distance (une valeur négative enlève de la matière). Entrée applique, Échap annule.
 Pull: drag along the normal (snaps to faces, vertices and the grid; hold Shift for free movement), or type a number. => Tirer : faites glisser selon la normale (aimantation aux faces, sommets et à la grille ; Maj pour un déplacement libre), ou saisissez un nombre.
@@ -1017,3 +1015,8 @@ The hole stays where it is => Le trou reste où il est
 The hole would lie outside the body => Le trou serait hors du corps
 The pin would not touch the body => Le tenon ne toucherait pas le corps
 The shift must be numbers => Le déplacement doit être des nombres
+Click to finish (or release the button after a drag), or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Clique pour terminer (ou relâche le bouton après un glissement), ou saisis une taille (Tab : champ suivant, Entrée : confirmer, Échap : annuler la forme).
+Click, or press and drag, to place the first point. Esc/right click cancels, D or P leaves the sketch. => Clique, ou appuie et glisse, pour placer le premier point. Échap/clic droit annule, D ou P quitte l'esquisse.
+Drag the shape, or type a number (Tab switches, Enter confirms, Esc cancels) => Fais glisser la forme ou saisis un nombre (Tab change, Entrée confirme, Échap annule)
+Press Enter to put the shape at the typed numbers, Esc to cancel => Appuie sur Entrée pour placer la forme aux nombres saisis, Échap annule
+The shape stays where it is => La forme reste où elle est

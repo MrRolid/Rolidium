@@ -280,9 +280,63 @@ impl App {
             let v = |s: &str| parse_num(s).filter(|x| *x >= 0.0);
             let (a, b) = (v(&self.dim.edge_text[0]), v(&self.dim.edge_text[1]));
             match Self::edge_move_command(&ctx, a, b) {
-                Some(cmd) => self.submit(cmd),
+                Some(cmd) => {
+                    if let EdgeSubject::Hole { body, face } = &ctx.subject {
+                        let at = ctx.dims.place(a, b);
+                        let radius = self
+                            .doc
+                            .body(*body)
+                            .and_then(|x| x.solid.cylinder_info(*face).ok().flatten())
+                            .map_or(0.0, |c| c.radius);
+                        self.reselect = self.hole_target(*body, *face, ctx.plane.to_3d(at), radius);
+                    }
+                    self.submit(cmd)
+                }
                 None => self.set_status("Please enter a number", true),
             }
+        }
+    }
+}
+
+/// A hole or a pin that was moved: it is selected again at its new place when the move is done (the faces have other numbers then).
+#[derive(Clone, Copy)]
+pub struct HoleTarget {
+    pub body: BodyId,
+    /// A point of its axis and the direction of the axis.
+    pub point: DVec3,
+    pub dir: DVec3,
+    pub radius: f64,
+    /// The revision of the document when the move was asked for.
+    pub rev: u64,
+}
+
+impl App {
+    /// After a hole or a pin was moved: selects its round face again, so that it can be dragged or changed in the panel at once.
+    pub(super) fn reselect_moved_hole(&mut self) {
+        let Some(t) = self.reselect else { return };
+        if self.doc.revision() == t.rev {
+            return;
+        }
+        if !self.idle() {
+            return;
+        }
+        self.reselect = None;
+        let Some(solid) = self.doc.body(t.body).map(|b| &b.solid) else {
+            return;
+        };
+        let found = solid.faces().take(600).find(|f| {
+            solid.cylinder_info(*f).ok().flatten().is_some_and(|c| {
+                let d = c.axis.normalize();
+                let off = c.base - t.point;
+                (c.radius - t.radius).abs() < 1e-5
+                    && d.cross(t.dir.normalize()).length() < 1e-6
+                    && (off - d * off.dot(d)).length() < 1e-4
+            })
+        });
+        if let Some(f) = found {
+            self.clear_selection();
+            self.selection = vec![(t.body, f.0)];
+            self.layers_changed = true;
         }
     }
 }
@@ -313,7 +367,11 @@ impl App {
         rect: Rect,
         hovered_face: Option<(BodyId, u32)>,
     ) {
-        if self.hole_drag.is_none() && resp.drag_started_by(PointerButton::Primary) && self.idle() {
+        if self.hole_drag.is_none()
+            && self.shape_drag.is_none()
+            && resp.drag_started_by(PointerButton::Primary)
+            && self.idle()
+        {
             let Some((b, f)) = hovered_face.filter(|(b, f)| self.is_feature_face(*b, *f)) else {
                 return;
             };
@@ -428,6 +486,7 @@ impl App {
             self.set_status("The hole stays where it is", false);
             return;
         }
+        self.reselect = self.hole_target(h.body, h.face, h.plane.to_3d(h.cur), h.radius);
         self.submit(Command::MoveFeature {
             body: h.body,
             face: h.face,
@@ -436,6 +495,25 @@ impl App {
     }
 
     /// The outline of the hole at the place it is dragged to (and the edges it is measured to).
+    /// What to select after the hole or pin of `face` was put on the axis through `point` (parallel to its own).
+    fn hole_target(&self, body: BodyId, face: FaceId, point: DVec3, radius: f64) -> Option<HoleTarget> {
+        let dir = self
+            .doc
+            .body(body)?
+            .solid
+            .cylinder_info(face)
+            .ok()
+            .flatten()?
+            .axis;
+        Some(HoleTarget {
+            body,
+            point,
+            dir,
+            radius,
+            rev: self.doc.revision(),
+        })
+    }
+
     pub(super) fn hole_drag_layers(&self) -> Vec<PreviewDraw> {
         let Some(h) = &self.hole_drag else {
             return Vec::new();

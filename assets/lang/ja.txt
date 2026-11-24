@@ -76,9 +76,7 @@ horizontal => 水平
 vertical => 垂直
 
 # ---- hints ----
-Click to finish, or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => クリックで確定、またはサイズを入力します (Tab: 次の欄、Enter: 確定、Esc: 図形を取消)。
 Sketch: L line, R rectangle, C circle. V faces the sketch, D or P leaves. => スケッチ: L 直線、R 長方形、C 円。V でスケッチに正対、D または P で終了します。
-Click to place the first point. Esc/right click cancels, D or P leaves the sketch. => クリックして最初の点を置きます。Esc/右クリックで取消、D または P でスケッチを終了します。
 Up to: click a face, an edge, a vertex or a point on a face. Esc cancels. => ここまで: 面、エッジ、頂点、または面上の点をクリックします。Esc で取消します。
 Pull: type the distance (negative removes material). Enter applies, Esc cancels. => プル: 距離を入力します (負の値で材料を除去)。Enter で適用、Esc で取消します。
 Pull: drag along the normal (snaps to faces, vertices and the grid; hold Shift for free movement), or type a number. => プル: 法線方向にドラッグします (面や頂点、グリッドにスナップ。Shift を押すと自由に移動)。または数値を入力します。
@@ -1017,3 +1015,8 @@ The hole stays where it is => 穴はそのままです
 The hole would lie outside the body => 穴がボディの外に出てしまいます
 The pin would not touch the body => ピンがボディに触れなくなります
 The shift must be numbers => 移動量は数値でなければなりません
+Click to finish (or release the button after a drag), or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => クリックで終了（ドラッグ後はボタンを放す）、またはサイズを入力（Tab：次の欄、Enter：確定、Esc：形状を取消）。
+Click, or press and drag, to place the first point. Esc/right click cancels, D or P leaves the sketch. => クリック、または押してドラッグして最初の点を置きます。Esc/右クリックで取消、DまたはPでスケッチを終了。
+Drag the shape, or type a number (Tab switches, Enter confirms, Esc cancels) => 形状をドラッグするか数値を入力（Tabで切替、Enterで確定、Escで取消）
+Press Enter to put the shape at the typed numbers, Esc to cancel => Enterで入力した数値に形状を置き、Escで取消
+The shape stays where it is => 形状はそのままです

@@ -19,6 +19,9 @@ for t in "${TESTS[@]}"; do
   W=$(mktemp -d -p "$ROOT/target/tmp" "gui-$t-XXXX")
   FIXTURE=$(sed -n 's/^# FIXTURE: *//p' "$py" | head -1)
   POINTS=$(sed -n 's/^# POINTS: *//p' "$py" | head -1)
+  SCALE=$(sed -n 's/^# SCALE: *//p' "$py" | head -1)        # the scale of the interface (pixels per point), WINIT_X11_SCALE_FACTOR
+  SCREEN=$(sed -n 's/^# SCREEN: *//p' "$py" | head -1)      # the size of the virtual screen, default 1280x800
+  EXTRA=$(sed -n 's/^# ENV: *//p' "$py" | head -1)          # more environment variables for the program, NAME=value separated by spaces
   MODEL="$W/model.rolidium"
   if [ -n "$FIXTURE" ]; then
     IFS=';' read -ra CMDS <<< "$FIXTURE"
@@ -29,9 +32,11 @@ for t in "${TESTS[@]}"; do
   echo "== $t"
   mkdir -p "$W/rolidium"; printf 'check_updates=no\nsound=false\nlanguage=en\n' > "$W/rolidium/settings.conf"
   # the HOME is empty: no settings, no autosave from other runs
-  xvfb-run -a -s "-screen 0 1280x800x24" bash -c "
+  xvfb-run -a -s "-screen 0 ${SCREEN:-1280x800}x24" bash -c "
     export HOME='$W' XDG_CONFIG_HOME='$W' XDG_STATE_HOME='$W/state' XDG_DATA_HOME='$W/data'
     export ROLIDIUM_APP_BIN='$BIN' ROLIDIUM_PROBE='$W/probe.json' ROLIDIUM_PROBE_POINTS='$POINTS' GUI_SHOTS='$SHOTS' ROLIDIUM_MODEL='$MODEL' ROLIDIUM_WORK='$W'
+    ${SCALE:+export WINIT_X11_SCALE_FACTOR='$SCALE'}
+    ${EXTRA:+export $EXTRA}
     '$BIN' '$MODEL' >'$W/app.log' 2>&1 &
     APP=\$!
     for i in \$(seq 1 80); do [ -s '$W/probe.json' ] && break; sleep 0.25; done

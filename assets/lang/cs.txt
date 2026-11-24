@@ -76,9 +76,7 @@ horizontal => vodorovně
 vertical => svisle
 
 # ---- hints ----
-Click to finish, or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Kliknutím dokončíš, nebo napiš rozměr (Tab: další pole, Enter: potvrdit, Esc: zrušit tvar).
 Sketch: L line, R rectangle, C circle. V faces the sketch, D or P leaves. => Skica: L úsečka, R obdélník, C kružnice. V natočí pohled kolmo, D nebo P skicu opustí.
-Click to place the first point. Esc/right click cancels, D or P leaves the sketch. => Kliknutím umístíš první bod. Esc nebo pravé tlačítko ruší, D nebo P skicu opustí.
 Up to: click a face, an edge, a vertex or a point on a face. Esc cancels. => Až k: klikni na plochu, hranu, vrchol nebo bod na ploše. Esc ruší.
 Pull: type the distance (negative removes material). Enter applies, Esc cancels. => Tažení: napiš vzdálenost (záporná ubírá materiál). Enter provede, Esc zruší.
 Pull: drag along the normal (snaps to faces, vertices and the grid; hold Shift for free movement), or type a number. => Tažení: táhni po normále (přichytává se k plochám, vrcholům a mřížce; s Shift volně), nebo napiš číslo.
@@ -1017,3 +1015,8 @@ The hole stays where it is => Otvor zůstává, kde je
 The hole would lie outside the body => Otvor by ležel mimo těleso
 The pin would not touch the body => Čep by se tělesa nedotýkal
 The shift must be numbers => Posun musí být čísla
+Click to finish (or release the button after a drag), or type a size (Tab: next field, Enter: confirm, Esc: cancel shape). => Klikni pro dokončení (nebo po tažení pusť tlačítko), nebo napiš rozměr (Tab: další pole, Enter: potvrdit, Esc: zrušit tvar).
+Click, or press and drag, to place the first point. Esc/right click cancels, D or P leaves the sketch. => Klikni, nebo stiskni a táhni, pro první bod. Esc/pravé tlačítko zruší, D nebo P opustí skicu.
+Drag the shape, or type a number (Tab switches, Enter confirms, Esc cancels) => Táhni tvar, nebo napiš číslo (Tab přepíná, Enter potvrdí, Esc zruší)
+Press Enter to put the shape at the typed numbers, Esc to cancel => Enterem dáš tvar na napsaná čísla, Esc zruší
+The shape stays where it is => Tvar zůstává, kde je

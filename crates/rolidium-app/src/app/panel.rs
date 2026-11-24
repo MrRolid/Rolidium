@@ -516,7 +516,7 @@ impl App {
     }
 
     pub(super) fn show_dim_panel(&mut self, ctx: &egui::Context, rect: Rect) {
-        if self.hole_drag.is_some() {
+        if self.hole_drag.is_some() || self.shape_drag.is_some() {
             return;
         }
         let Some((key, target, anchor)) = self.dim_target() else {

@@ -53,6 +53,7 @@ mod properties;
 mod remesh;
 mod revolve;
 mod selftest;
+mod shapedrag;
 mod snap;
 mod sources;
 mod toolbar;
@@ -165,6 +166,9 @@ impl PullState {
             .unwrap_or(if self.typed.is_empty() { self.d_mouse } else { 0.0 })
     }
 }
+
+/// A movement of less than this many physical pixels between the press and the release of the button is a click.
+pub(crate) const SKETCH_CLICK_PX: f32 = 4.0;
 
 struct Status {
     text: String,
@@ -289,6 +293,12 @@ pub struct App {
     hover_obj: Option<Obj>,
     /// A hole or a pin that is being dragged on its face (Select tool), with its live distances to the edges.
     hole_drag: Option<edgeedit::HoleDrag>,
+    /// A shape of a sketch that is being dragged.
+    shape_drag: Option<shapedrag::ShapeDrag>,
+    /// A hole that was moved and is to be selected again when the move is done.
+    reselect: Option<edgeedit::HoleTarget>,
+    /// Where the button went down in the sketch mode, and whether that placed the first point of a shape.
+    sk_press: Option<(Pos2, bool)>,
     /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
     probe: Option<probe::Probe>,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
@@ -528,6 +538,9 @@ impl App {
             viewport_rect: Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)),
             hover_obj: None,
             hole_drag: None,
+            shape_drag: None,
+            reselect: None,
+            sk_press: None,
             probe: probe::Probe::from_env(),
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
@@ -1170,6 +1183,7 @@ impl App {
         layers.extend(self.combine_layers());
         layers.extend(self.link_layers());
         layers.extend(self.hole_drag_layers());
+        layers.extend(self.shape_drag_layers());
         layers.extend(self.loft_layers());
         layers.extend(self.curve_layers());
         if let Some(l) = self.revolve_layer() {
@@ -1942,6 +1956,21 @@ impl App {
                 _ => {}
             }
         }
+        if self.shape_drag.is_some() {
+            match key {
+                Key::Escape => self.cancel_shape_drag(),
+                Key::Enter => self.commit_shape_drag(),
+                Key::Backspace => {
+                    if let Some(h) = &mut self.shape_drag {
+                        h.edit.backspace();
+                        h.update(h.raw, 0.0);
+                    }
+                    self.layers_changed = true;
+                }
+                _ => {}
+            }
+            return;
+        }
         if self.hole_drag.is_some() {
             match key {
                 Key::Escape => self.cancel_hole_drag(),
@@ -2508,6 +2537,12 @@ impl App {
             self.layers_changed = true;
             return;
         }
+        if let Some(h) = &mut self.shape_drag {
+            h.edit.type_char(ch);
+            h.update(h.raw, 0.0);
+            self.layers_changed = true;
+            return;
+        }
         if self.tool == Tool::Pattern
             && self.link_ui.pick == Some(linktool::LinkPick::Point)
             && self.link_ui.second.is_some()
@@ -2717,6 +2752,22 @@ impl App {
         resp.context_menu(|ui| self.context_menu_ui(ui));
 
         self.handle_keys(&ctx, rect);
+        // Whatever a click, a release or a key did shows in the next frame too (the status line and the panels are drawn before the model area): a
+        // frame always follows an input, also when the pointer does not move afterwards.
+        if ctx.input(|i| {
+            i.pointer.any_pressed()
+                || i.pointer.any_released()
+                || i.events.iter().any(|e| {
+                    matches!(
+                        e,
+                        egui::Event::Key { pressed: true, .. }
+                            | egui::Event::Text(_)
+                            | egui::Event::WindowFocused(_)
+                    )
+                })
+        }) {
+            ctx.request_repaint();
+        }
 
         // Hand the frame to the renderer
         let size_px = [
@@ -2890,6 +2941,7 @@ impl App {
         }
         self.paint_sketch_overlay(ui, rect);
         self.hole_drag_paint(ui, rect);
+        self.shape_drag_paint(ui, rect);
         self.second_paint(ui, rect);
         self.empty_hint_paint(ui, rect);
         self.plane_move_paint(ui, rect);
@@ -3027,6 +3079,7 @@ impl App {
                 self.move_input(resp, pointer, rect, raw_face);
             }
             Tool::Select => {
+                self.shape_drag_input(resp, pointer, rect);
                 self.hole_drag_input(resp, pointer, rect, hovered_face);
                 if resp.clicked_by(PointerButton::Primary) {
                     let add = ctx.input(|i| i.modifiers.command || i.modifiers.shift);
@@ -3185,6 +3238,9 @@ impl App {
             }
         }
         let _ = pointer;
+        if self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None) {
+            self.shape_drag_input(resp, pointer, rect);
+        }
         if resp.clicked_by(PointerButton::Primary) && self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None)
         {
             match self.hover_obj {
@@ -3193,27 +3249,61 @@ impl App {
             }
             self.layers_changed = true;
         }
-        if resp.clicked_by(PointerButton::Primary) {
-            if let Some(s) = snap {
-                let drawing = self.sk.as_ref().is_some_and(|m| m.drawing.is_some());
-                if drawing {
-                    self.finish_drawing();
-                } else if let Some(sm) = &mut self.sk {
-                    if sm.tool == SkTool::None {
-                        self.status = Status {
-                            text: tr("Choose a tool first: L line, R rectangle, C circle"),
-                            error: false,
-                        };
-                    } else {
-                        sm.place = None;
-                        sm.begin(s.pos);
-                    }
+        // The Select tool of the sketch mode (no drawing tool): a click on empty space says to choose a tool.
+        if resp.clicked_by(PointerButton::Primary) && snap.is_some() {
+            if let Some(sm) = &self.sk {
+                if sm.tool == SkTool::None {
+                    self.status = Status {
+                        text: tr("Choose a tool first: L line, R rectangle, C circle"),
+                        error: false,
+                    };
                 }
             }
         }
+        self.sketch_press_release(resp, snap);
         if resp.clicked_by(PointerButton::Secondary) {
             if let Some(sm) = &mut self.sk {
                 sm.drawing = None;
+            }
+        }
+    }
+
+    /// Drawing with the mouse in two ways: a click (the button goes down and up within 4 physical pixels, however long it takes) places a point
+    /// and the next click ends the shape, or the button goes down at the first point, the pointer is dragged and the button goes up at the last.
+    /// Egui's own click is not used: it is lost when the pointer moves a little or the button is held longer than 0.8 s.
+    fn sketch_press_release(&mut self, resp: &egui::Response, snap: Option<Snap>) {
+        let ctx = resp.ctx.clone();
+        let (pressed, released, latest) = ctx.input(|i| {
+            (
+                i.pointer.primary_pressed(),
+                i.pointer.primary_released(),
+                i.pointer.latest_pos(),
+            )
+        });
+        let ppp = ctx.pixels_per_point();
+        let tool_on = self.sk.as_ref().is_some_and(|m| m.tool != SkTool::None);
+        if pressed && tool_on && resp.hovered() {
+            if let (Some(s), Some(pos)) = (snap, latest) {
+                let drawing = self.sk.as_ref().is_some_and(|m| m.drawing.is_some());
+                self.sk_press = Some((pos, !drawing));
+                if !drawing {
+                    if let Some(sm) = &mut self.sk {
+                        sm.place = None;
+                        sm.begin(s.pos);
+                    }
+                    self.layers_changed = true;
+                }
+            }
+        }
+        if released {
+            if let Some((pos, started)) = self.sk_press.take() {
+                let moved = latest.map_or(0.0, |l| (l - pos).length() * ppp);
+                let drawing = self.sk.as_ref().is_some_and(|m| m.drawing.is_some());
+                // the first point was placed by the press: a click leaves it so (the next click ends the shape), a drag ends the shape here
+                if drawing && (!started || moved >= SKETCH_CLICK_PX) {
+                    self.finish_drawing();
+                }
+                self.layers_changed = true;
             }
         }
     }
@@ -3979,13 +4069,13 @@ impl App {
         if let Some(sm) = &self.sk {
             return match (&sm.drawing, sm.tool) {
                 (Some(_), _) => tr(
-                    "Click to finish, or type a size (Tab: next field, Enter: confirm, Esc: cancel shape).",
+                    "Click to finish (or release the button after a drag), or type a size (Tab: next field, Enter: confirm, Esc: cancel shape).",
                 ),
                 (None, SkTool::None) => {
                     tr("Sketch: L line, R rectangle, C circle. V faces the sketch, D or P leaves.")
                 }
                 (None, _) => {
-                    tr("Click to place the first point. Esc/right click cancels, D or P leaves the sketch.")
+                    tr("Click, or press and drag, to place the first point. Esc/right click cancels, D or P leaves the sketch.")
                 }
             };
         }
@@ -4021,7 +4111,8 @@ impl eframe::App for App {
     /// taken out of the input before egui sees it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         let second = self.tool == Tool::Pattern && self.link_ui.pick == Some(linktool::LinkPick::Point);
-        if (self.sk.is_none() && self.hole_drag.is_none() && !second) || ctx.memory(|m| m.focused()).is_some()
+        if (self.sk.is_none() && self.hole_drag.is_none() && self.shape_drag.is_none() && !second)
+            || ctx.memory(|m| m.focused()).is_some()
         {
             return;
         }
@@ -4040,6 +4131,9 @@ impl eframe::App for App {
         });
         if pressed {
             if let Some(h) = &mut self.hole_drag {
+                h.edit.tab();
+                self.layers_changed = true;
+            } else if let Some(h) = &mut self.shape_drag {
                 h.edit.tab();
                 self.layers_changed = true;
             } else if second && self.sk.is_none() {
@@ -4703,6 +4797,7 @@ impl eframe::App for App {
         prof!("rename_window", self.rename_window(&ctx));
         prof!("derived_window", self.derived_window(&ctx));
         prof!("dialogs", self.dialogs(&ctx));
+        self.reselect_moved_hole();
         self.autosave_tick();
         self.probe_tick(&ctx);
 
