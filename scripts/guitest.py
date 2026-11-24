@@ -283,7 +283,9 @@ def scale_check(scale):
     p = settle(0.5)
     c = p["circles"][0] if p["circles"] else None
     check(c is not None and close(c["x"], 30, 0.6) and close(c["y"], 20, 0.6) and close(c["r"], 6, 0.6), f"the circle lies where it was clicked, (30, 20) r 6: {c}")
-    # the corner of the face: a click 3 pixels from it snaps to the vertex
+    # the corner of the face: a click 3 pixels from it snaps to the vertex (Esc first: the panel of the finished circle opens next to it and could cover the corner)
+    key("Escape")
+    p = settle(0.6)
     cx, cy = screen(p, "corner")
     click(cx + 3, cy - 2)
     click(*screen(p, "c3"))
