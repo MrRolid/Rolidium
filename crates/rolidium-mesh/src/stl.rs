@@ -40,7 +40,11 @@ fn weld(raw: &[[f32; 3]]) -> TriMesh {
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(raw.len() / 5 + 16);
     let mut triangles: Vec<[u32; 3]> = Vec::with_capacity(raw.len() / 3);
     let mut id = |p: [f32; 3]| -> u32 {
-        let key = [(p[0] + 0.0).to_bits(), (p[1] + 0.0).to_bits(), (p[2] + 0.0).to_bits()];
+        let key = [
+            (p[0] + 0.0).to_bits(),
+            (p[1] + 0.0).to_bits(),
+            (p[2] + 0.0).to_bits(),
+        ];
         *map.entry(key).or_insert_with(|| {
             positions.push(p);
             (positions.len() - 1) as u32
@@ -142,7 +146,10 @@ pub fn write_ascii(m: &TriMesh, name: &str) -> String {
     let mut s = format!("solid {name}\n");
     for t in 0..m.triangles.len() {
         let (n, _) = m.normal_area(t);
-        s.push_str(&format!("facet normal {:e} {:e} {:e}\n outer loop\n", n[0], n[1], n[2]));
+        s.push_str(&format!(
+            "facet normal {:e} {:e} {:e}\n outer loop\n",
+            n[0], n[1], n[2]
+        ));
         for i in m.triangles[t] {
             let p = m.positions[i as usize];
             s.push_str(&format!("  vertex {:e} {:e} {:e}\n", p[0], p[1], p[2]));

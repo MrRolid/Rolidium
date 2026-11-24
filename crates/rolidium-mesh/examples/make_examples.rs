@@ -9,7 +9,15 @@ fn main() {
     // a plate 60 x 40 x 10 mm with a round hole of 5 mm diameter (a little box of the kind the edits of the program are tried on)
     let plate = gen::plate_with_hole(60.0, 40.0, 10.0, 2.5, 48);
     std::fs::write(dir.join("plate-with-hole.stl"), stl::write_binary(&plate)).unwrap();
-    std::fs::write(dir.join("plate-with-hole-ascii.stl"), stl::write_ascii(&plate, "plate")).unwrap();
+    std::fs::write(
+        dir.join("plate-with-hole-ascii.stl"),
+        stl::write_ascii(&plate, "plate"),
+    )
+    .unwrap();
     // a cube of 20 mm, each face divided in 4 x 4 squares
-    std::fs::write(dir.join("cube-20.stl"), stl::write_binary(&gen::box_mesh(20.0, 20.0, 20.0, 4))).unwrap();
+    std::fs::write(
+        dir.join("cube-20.stl"),
+        stl::write_binary(&gen::box_mesh(20.0, 20.0, 20.0, 4)),
+    )
+    .unwrap();
 }

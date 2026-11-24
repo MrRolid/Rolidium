@@ -14,6 +14,8 @@ pub struct MeshBody {
     pub regions: Option<regions::Regions>,
     pub undo: Vec<edit::Undo>,
     pub redo: Vec<edit::Undo>,
+    /// The mesh was checked and is closed and consistent (the edits keep it so, and do not check again).
+    pub verified: bool,
 }
 
 fn num(w: &[&str], i: usize, what: &str) -> Result<f64, String> {
@@ -101,13 +103,16 @@ impl Runner {
                     regions: None,
                     undo: Vec::new(),
                     redo: Vec::new(),
+                    verified: false,
                 });
                 let i = self.meshes.len() - 1;
                 self.say(self.mesh_summary(i));
                 if merged > 0 {
                     self.say(format!("{merged} vertices merged"));
                 }
-                for l in check::check(&self.meshes[i].mesh).lines() {
+                let rep = check::check(&self.meshes[i].mesh);
+                self.meshes[i].verified = rep.is_closed() && rep.inconsistent_edges == 0;
+                for l in rep.lines() {
                     self.say(format!("  {l}"));
                 }
             }
@@ -134,7 +139,10 @@ impl Runner {
                 let merged = check::merge_vertices(m, (size * 1e-6).max(1e-6));
                 let turned = check::orient_normals(m);
                 self.meshes[i].regions = None;
-                self.say(format!("repair: {merged} vertices merged, {turned} triangles turned"));
+                self.meshes[i].verified = false;
+                self.say(format!(
+                    "repair: {merged} vertices merged, {turned} triangles turned"
+                ));
                 for l in check::check(&self.meshes[i].mesh).lines() {
                     self.say(format!("  {l}"));
                 }
@@ -145,7 +153,11 @@ impl Runner {
                     let r = self.regions_of(i);
                     (r.planes.clone(), r.cylinders.clone())
                 };
-                self.say(format!("{} planar wall(s), {} round hole(s) or pin(s)", planes.len(), cyls.len()));
+                self.say(format!(
+                    "{} planar wall(s), {} round hole(s) or pin(s)",
+                    planes.len(),
+                    cyls.len()
+                ));
                 for (k, p) in planes.iter().enumerate().take(40) {
                     self.say(format!(
                         "  wall #{}: normal ({:.3}, {:.3}, {:.3}) at {:.3}, area {:.2} mm2, {} triangles",
@@ -183,7 +195,10 @@ impl Runner {
                     .get(k.wrapping_sub(1))
                     .cloned()
                     .ok_or_else(|| format!("there is no wall #{k}: list them with mesh-regions"))?;
-                let undo = edit::pull_plane(&mut self.meshes[i].mesh, &wall, d).map_err(|e| e.to_string())?;
+                let v = !self.meshes[i].verified;
+                let undo = edit::pull_plane_with(&mut self.meshes[i].mesh, &wall, d, v)
+                    .map_err(|e| e.to_string())?;
+                self.meshes[i].verified = true;
                 self.mesh_changed(i, undo);
                 self.say(format!("wall #{k} pulled by {d} mm: {}", self.mesh_summary(i)));
             }
@@ -197,7 +212,10 @@ impl Runner {
                     .get(k.wrapping_sub(1))
                     .cloned()
                     .ok_or_else(|| format!("there is no hole or pin #{k}: list them with mesh-regions"))?;
-                let undo = edit::set_diameter(&mut self.meshes[i].mesh, &cyl, dia).map_err(|e| e.to_string())?;
+                let v = !self.meshes[i].verified;
+                let undo = edit::set_diameter_with(&mut self.meshes[i].mesh, &cyl, dia, v)
+                    .map_err(|e| e.to_string())?;
+                self.meshes[i].verified = true;
                 self.mesh_changed(i, undo);
                 self.say(format!("diameter of #{k} is {dia} mm now"));
             }
@@ -220,11 +238,19 @@ impl Runner {
             }
             "mesh-scale" => {
                 let i = self.mesh_index(w)?;
-                let f = [num(w, 1, "the factor x")?, num(w, 2, "the factor y")?, num(w, 3, "the factor z")?];
+                let f = [
+                    num(w, 1, "the factor x")?,
+                    num(w, 2, "the factor y")?,
+                    num(w, 3, "the factor z")?,
+                ];
                 if f.iter().any(|v| *v == 0.0) {
                     return Err("a factor must not be zero".into());
                 }
-                let c = self.meshes[i].mesh.bounding_box().map(|(lo, _)| lo).unwrap_or([0.0; 3]);
+                let c = self.meshes[i]
+                    .mesh
+                    .bounding_box()
+                    .map(|(lo, _)| lo)
+                    .unwrap_or([0.0; 3]);
                 transform::scale(&mut self.meshes[i].mesh, c, f);
                 self.meshes[i].regions = None;
                 self.say(self.mesh_summary(i));
@@ -272,6 +298,7 @@ impl Runner {
                 self.meshes[i].mesh = m;
                 self.meshes[i].regions = None;
                 self.meshes[i].undo.clear();
+                self.meshes[i].verified = false;
                 self.say(self.mesh_summary(i));
             }
             "export-mesh-stl" => {
@@ -307,6 +334,7 @@ impl Runner {
                     regions: None,
                     undo: Vec::new(),
                     redo: Vec::new(),
+                    verified: false,
                 });
                 let i = self.meshes.len() - 1;
                 self.say(self.mesh_summary(i));

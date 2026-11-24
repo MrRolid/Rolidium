@@ -66,7 +66,11 @@ pub fn linear_pattern(m: &TriMesh, count: usize, step: V3) -> TriMesh {
         translate(&mut c, crate::mul(step, i as f64));
         let base = out.positions.len() as u32;
         out.positions.extend_from_slice(&c.positions);
-        out.triangles.extend(c.triangles.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]));
+        out.triangles.extend(
+            c.triangles
+                .iter()
+                .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+        );
     }
     out
 }

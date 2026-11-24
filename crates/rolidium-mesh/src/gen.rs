@@ -28,7 +28,11 @@ pub fn box_mesh(w: f32, d: f32, h: f32, n: usize) -> TriMesh {
     for (o, u, v) in faces {
         let at = |i: usize, j: usize| {
             let (s, t) = (i as f32 / n as f32, j as f32 / n as f32);
-            [o[0] + u[0] * s + v[0] * t, o[1] + u[1] * s + v[1] * t, o[2] + u[2] * s + v[2] * t]
+            [
+                o[0] + u[0] * s + v[0] * t,
+                o[1] + u[1] * s + v[1] * t,
+                o[2] + u[2] * s + v[2] * t,
+            ]
         };
         for i in 0..n {
             for j in 0..n {
@@ -62,7 +66,12 @@ pub fn plate_with_hole(w: f64, d: f64, t: f64, r: f64, seg: usize) -> TriMesh {
     for i in 0..seg {
         // the directions run round in four arcs, each starting at a corner of the rectangle, so the corners are points of the ring
         let phi = (d / w).atan();
-        let arcs = [(-phi, phi), (phi, std::f64::consts::PI - phi), (std::f64::consts::PI - phi, std::f64::consts::PI + phi), (std::f64::consts::PI + phi, TAU - phi)];
+        let arcs = [
+            (-phi, phi),
+            (phi, std::f64::consts::PI - phi),
+            (std::f64::consts::PI - phi, std::f64::consts::PI + phi),
+            (std::f64::consts::PI + phi, TAU - phi),
+        ];
         let per = seg / 4;
         let (a0, a1) = arcs[i / per];
         let a = a0 + (a1 - a0) * (i % per) as f64 / per as f64;
@@ -100,7 +109,11 @@ pub fn sphere(r: f64, triangles: usize) -> TriMesh {
         let th = std::f64::consts::PI * i as f64 / n as f64;
         for j in 0..n {
             let ph = TAU * j as f64 / n as f64;
-            m.positions.push([(r * th.sin() * ph.cos()) as f32, (r * th.sin() * ph.sin()) as f32, (r * th.cos()) as f32]);
+            m.positions.push([
+                (r * th.sin() * ph.cos()) as f32,
+                (r * th.sin() * ph.sin()) as f32,
+                (r * th.cos()) as f32,
+            ]);
         }
     }
     m.positions.push([0.0, 0.0, -r as f32]);

@@ -68,7 +68,10 @@ pub(crate) fn sorted_edges(m: &TriMesh) -> Vec<(u64, u32)> {
         for k in 0..3 {
             let (a, b) = (tri[k], tri[(k + 1) % 3]);
             let (lo, hi) = if a < b { (a, b) } else { (b, a) };
-            v.push((((lo as u64) << 32) | hi as u64, (t as u32) << 1 | u32::from(a < b)));
+            v.push((
+                ((lo as u64) << 32) | hi as u64,
+                (t as u32) << 1 | u32::from(a < b),
+            ));
         }
     }
     v.sort_unstable();
@@ -234,7 +237,11 @@ pub fn orient_normals(m: &mut TriMesh) -> usize {
         let mut stack = vec![start as u32];
         while let Some(t) = stack.pop() {
             let tt = m.triangles[t as usize];
-            let cur = if flipped[t as usize] { [tt[0], tt[2], tt[1]] } else { tt };
+            let cur = if flipped[t as usize] {
+                [tt[0], tt[2], tt[1]]
+            } else {
+                tt
+            };
             for &o in &adj[t as usize] {
                 if seen[o as usize] {
                     continue;

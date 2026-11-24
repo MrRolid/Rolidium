@@ -6,7 +6,6 @@
 
 use crate::regions::{Cylinder, Plane};
 use crate::{add, cross, dot, len, mul, sub, TriMesh, V3};
-use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum EditError {
@@ -40,31 +39,29 @@ impl Undo {
     }
 }
 
-fn vertex_triangles(m: &TriMesh, verts: &BTreeMap<u32, ()>) -> BTreeMap<u32, Vec<u32>> {
-    let mut map: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
-    for (t, tri) in m.triangles.iter().enumerate() {
-        for v in tri {
-            if verts.contains_key(v) {
-                map.entry(*v).or_default().push(t as u32);
+/// The vertices of a region, and the triangles outside it that touch one of them.
+fn surroundings(m: &TriMesh, region: &[u32]) -> (Vec<u32>, Vec<u32>) {
+    let mut is_vertex = vec![false; m.positions.len()];
+    let mut verts: Vec<u32> = Vec::new();
+    for &t in region {
+        for &v in &m.triangles[t as usize] {
+            if !is_vertex[v as usize] {
+                is_vertex[v as usize] = true;
+                verts.push(v);
             }
         }
     }
-    map
-}
-
-/// The triangles outside `region` that touch one of its vertices, and the vertices of the region.
-fn surroundings(m: &TriMesh, region: &[u32]) -> (BTreeMap<u32, ()>, Vec<u32>) {
-    let mut verts: BTreeMap<u32, ()> = BTreeMap::new();
+    let mut inside = vec![false; m.triangles.len()];
     for &t in region {
-        for &v in &m.triangles[t as usize] {
-            verts.insert(v, ());
-        }
+        inside[t as usize] = true;
     }
-    let inside: std::collections::HashSet<u32> = region.iter().copied().collect();
-    let touching = vertex_triangles(m, &verts);
-    let mut outside: Vec<u32> = touching.values().flatten().copied().filter(|t| !inside.contains(t)).collect();
-    outside.sort_unstable();
-    outside.dedup();
+    let outside: Vec<u32> = m
+        .triangles
+        .iter()
+        .enumerate()
+        .filter(|(t, tri)| !inside[*t] && tri.iter().any(|v| is_vertex[*v as usize]))
+        .map(|(t, _)| t as u32)
+        .collect();
     (verts, outside)
 }
 
@@ -79,7 +76,19 @@ fn check_closed(m: &TriMesh) -> Result<(), EditError> {
 
 /// Moves a planar wall by `distance` along its (outward) normal. The walls that touch it must be square to it; they stretch.
 pub fn pull_plane(m: &mut TriMesh, wall: &Plane, distance: f64) -> Result<Undo, EditError> {
-    check_closed(m)?;
+    pull_plane_with(m, wall, distance, true)
+}
+
+/// The same; `verify` is false when the mesh was checked before (an edit keeps it closed, so a program checks once, not at every edit).
+pub fn pull_plane_with(
+    m: &mut TriMesh,
+    wall: &Plane,
+    distance: f64,
+    verify: bool,
+) -> Result<Undo, EditError> {
+    if verify {
+        check_closed(m)?;
+    }
     let (verts, outside) = surroundings(m, &wall.triangles);
     let n = wall.normal;
     let normals_before: Vec<V3> = outside.iter().map(|t| m.normal_area(*t as usize).0).collect();
@@ -87,7 +96,7 @@ pub fn pull_plane(m: &mut TriMesh, wall: &Plane, distance: f64) -> Result<Undo, 
         return Err(EditError::NeighbourNotSquare);
     }
     let mut undo = Undo::default();
-    for v in verts.keys() {
+    for v in &verts {
         undo.moved.push((*v, m.positions[*v as usize]));
         let p = m.vertex(*v);
         m.set_vertex(*v, add(p, mul(n, distance)));
@@ -105,15 +114,26 @@ pub fn pull_plane(m: &mut TriMesh, wall: &Plane, distance: f64) -> Result<Undo, 
 
 /// Changes the diameter of a round hole or pin: its vertices move radially to the new radius.
 pub fn set_diameter(m: &mut TriMesh, cyl: &Cylinder, diameter: f64) -> Result<Undo, EditError> {
+    set_diameter_with(m, cyl, diameter, true)
+}
+
+pub fn set_diameter_with(
+    m: &mut TriMesh,
+    cyl: &Cylinder,
+    diameter: f64,
+    verify: bool,
+) -> Result<Undo, EditError> {
     if !(diameter.is_finite() && diameter > 1e-6) {
         return Err(EditError::BadDiameter);
     }
-    check_closed(m)?;
+    if verify {
+        check_closed(m)?;
+    }
     let r = diameter / 2.0;
     let (verts, outside) = surroundings(m, &cyl.triangles);
     let normals_before: Vec<V3> = outside.iter().map(|t| m.normal_area(*t as usize).0).collect();
     let mut undo = Undo::default();
-    for v in verts.keys() {
+    for v in &verts {
         let p = m.vertex(*v);
         let rel = sub(p, cyl.point);
         let along = dot(rel, cyl.axis);

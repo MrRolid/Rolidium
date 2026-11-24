@@ -136,7 +136,10 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
                 if ao == 0.0 || dot(no, n0) < cos_t {
                     continue;
                 }
-                if m.corners(o as usize).iter().any(|c| (dot(n0, *c) - off0).abs() > dtol) {
+                if m.corners(o as usize)
+                    .iter()
+                    .any(|c| (dot(n0, *c) - off0).abs() > dtol)
+                {
                     continue;
                 }
                 region.push(o);
@@ -156,6 +159,20 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
             for t in claimed {
                 of[t as usize] = id;
             }
+        }
+    }
+    // a finely divided hole makes strips of a few degrees that look like little planes: the planes that are small against the whole surface are
+    // dissolved first, the round holes are looked for among the triangles that are left, and a small plane that is no part of a hole comes back
+    let total: f64 = normals.iter().map(|x| x.1).sum();
+    let small_limit = total * 0.005;
+    let all = std::mem::take(&mut out.planes);
+    let (big, small): (Vec<Plane>, Vec<Plane>) = all.into_iter().partition(|p| p.area >= small_limit);
+    of.iter_mut().for_each(|x| *x = 0);
+    for p in big {
+        out.planes.push(p);
+        let id = out.planes.len() as u32;
+        for t in &out.planes.last().unwrap().triangles {
+            of[*t as usize] = id;
         }
     }
     // round holes and pins: smooth patches of the triangles that are left
@@ -191,6 +208,15 @@ pub fn find(m: &TriMesh, angle_deg: f64, min_triangles: usize) -> Regions {
             }
         }
     }
+    for p in small {
+        if p.triangles.iter().all(|t| of[*t as usize] == 0) {
+            out.planes.push(p);
+            let id = out.planes.len() as u32;
+            for t in &out.planes.last().unwrap().triangles {
+                of[*t as usize] = id;
+            }
+        }
+    }
     out.of_triangle = of;
     out
 }
@@ -210,13 +236,20 @@ fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) ->
     if len(axis) < 0.5 {
         return None;
     }
-    let off: f64 = patch.iter().map(|t| dot(normals[*t as usize].0, axis).abs() * normals[*t as usize].1).sum::<f64>()
+    let off: f64 = patch
+        .iter()
+        .map(|t| dot(normals[*t as usize].0, axis).abs() * normals[*t as usize].1)
+        .sum::<f64>()
         / patch.iter().map(|t| normals[*t as usize].1).sum::<f64>();
     if off > 0.06 {
         return None;
     }
     // a circle through the points projected on the plane square to the axis (algebraic fit)
-    let a1 = if axis[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let a1 = if axis[0].abs() < 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
     let u = unit(cross(axis, a1));
     let w = cross(axis, u);
     let mut pts: Vec<(f64, f64, f64)> = Vec::new();
@@ -226,8 +259,12 @@ fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) ->
         }
     }
     let k = pts.len() as f64;
-    let (mx, my) = (pts.iter().map(|p| p.0).sum::<f64>() / k, pts.iter().map(|p| p.1).sum::<f64>() / k);
-    let (mut suu, mut svv, mut suv, mut suuu, mut svvv, mut suvv, mut svuu) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    let (mx, my) = (
+        pts.iter().map(|p| p.0).sum::<f64>() / k,
+        pts.iter().map(|p| p.1).sum::<f64>() / k,
+    );
+    let (mut suu, mut svv, mut suv, mut suuu, mut svvv, mut suvv, mut svuu) =
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
     for p in &pts {
         let (x, y) = (p.0 - mx, p.1 - my);
         suu += x * x;
@@ -245,7 +282,11 @@ fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) ->
     let (b1, b2) = (0.5 * (suuu + suvv), 0.5 * (svvv + svuu));
     let (cx, cy) = ((b1 * svv - b2 * suv) / det, (suu * b2 - suv * b1) / det);
     let centre = (cx + mx, cy + my);
-    let radius = (pts.iter().map(|p| ((p.0 - centre.0).powi(2) + (p.1 - centre.1).powi(2)).sqrt()).sum::<f64>()) / k;
+    let radius = (pts
+        .iter()
+        .map(|p| ((p.0 - centre.0).powi(2) + (p.1 - centre.1).powi(2)).sqrt())
+        .sum::<f64>())
+        / k;
     let resid = pts
         .iter()
         .map(|p| (((p.0 - centre.0).powi(2) + (p.1 - centre.1).powi(2)).sqrt() - radius).abs())
@@ -262,7 +303,9 @@ fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) ->
     if sector.iter().filter(|s| **s).count() < 8 {
         return None;
     }
-    let (zlo, zhi) = pts.iter().fold((f64::MAX, f64::MIN), |a, p| (a.0.min(p.2), a.1.max(p.2)));
+    let (zlo, zhi) = pts
+        .iter()
+        .fold((f64::MAX, f64::MIN), |a, p| (a.0.min(p.2), a.1.max(p.2)));
     let point = [
         u[0] * centre.0 + w[0] * centre.1,
         u[1] * centre.0 + w[1] * centre.1,
@@ -272,7 +315,14 @@ fn fit_cylinder(m: &TriMesh, patch: &[u32], normals: &[(V3, f64)], size: f64) ->
     let mut inward = 0.0;
     for &t in patch {
         let c = m.corners(t as usize);
-        let mid = mul([c[0][0] + c[1][0] + c[2][0], c[0][1] + c[1][1] + c[2][1], c[0][2] + c[1][2] + c[2][2]], 1.0 / 3.0);
+        let mid = mul(
+            [
+                c[0][0] + c[1][0] + c[2][0],
+                c[0][1] + c[1][1] + c[2][1],
+                c[0][2] + c[1][2] + c[2][2],
+            ],
+            1.0 / 3.0,
+        );
         let radial = sub(mid, point);
         let radial = sub(radial, mul(axis, dot(radial, axis)));
         inward += dot(normals[t as usize].0, radial) * normals[t as usize].1;

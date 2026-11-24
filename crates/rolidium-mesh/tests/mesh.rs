@@ -19,12 +19,19 @@ const TAU: f64 = 2.0 * PI;
 #[test]
 fn the_cube_of_the_scale_test_goes_through_stl_in_both_forms() {
     let cube = box_mesh(20.0, 20.0, 20.0, 1);
-    for bytes in [stl::write_binary(&cube), stl::write_ascii(&cube, "cube").into_bytes()] {
+    for bytes in [
+        stl::write_binary(&cube),
+        stl::write_ascii(&cube, "cube").into_bytes(),
+    ] {
         let m = stl::parse(&bytes).unwrap();
         assert_eq!(m.triangles.len(), 12);
         assert_eq!(m.positions.len(), 8, "the vertices are welded");
         let (lo, hi) = m.bounding_box().unwrap();
-        assert!((hi[0] - lo[0] - 20.0).abs() < 1e-6 && (hi[1] - lo[1] - 20.0).abs() < 1e-6 && (hi[2] - lo[2] - 20.0).abs() < 1e-6);
+        assert!(
+            (hi[0] - lo[0] - 20.0).abs() < 1e-6
+                && (hi[1] - lo[1] - 20.0).abs() < 1e-6
+                && (hi[2] - lo[2] - 20.0).abs() < 1e-6
+        );
         assert!(check(&m).is_clean());
         assert!((m.signed_volume() - 8000.0).abs() < 1e-3);
     }
@@ -49,7 +56,11 @@ fn the_plate_is_clean_and_its_walls_and_its_hole_are_found() {
     let r = check(&m);
     assert!(r.is_clean(), "{:?}", r.lines());
     let reg = find(&m, 3.0, 4);
-    let top = reg.planes.iter().find(|p| p.normal[2] > 0.99).expect("the top wall");
+    let top = reg
+        .planes
+        .iter()
+        .find(|p| p.normal[2] > 0.99)
+        .expect("the top wall");
     assert!((top.offset - 10.0).abs() < 1e-5);
     let hole = reg.cylinders.iter().find(|c| c.is_hole).expect("the hole");
     assert!((hole.radius - 2.5).abs() < 0.02, "{}", hole.radius);
@@ -70,7 +81,11 @@ fn pulling_the_top_wall_5_mm_gives_a_clean_taller_plate_and_undo_restores_it() {
     // the wall pulled is a ring (the plate less the hole): the volume grows by its area times 5
     let want = 5.0 * top.area;
     assert!((top.area - (60.0 * 40.0 - polygon_area(2.5, 48))).abs() < 1.0);
-    assert!((m.signed_volume() - v0 - want).abs() < 1e-3 * want, "{} against {want}", m.signed_volume() - v0);
+    assert!(
+        (m.signed_volume() - v0 - want).abs() < 1e-3 * want,
+        "{} against {want}",
+        m.signed_volume() - v0
+    );
     assert!(check(&m).is_clean());
     // the record holds only the moved vertices, not the mesh
     assert!(undo.moved.len() < m.positions.len());
@@ -94,7 +109,10 @@ fn the_hole_grows_from_5_to_6_mm() {
     assert!((reg2.cylinders.iter().find(|c| c.is_hole).unwrap().radius - 3.0).abs() < 0.02);
     undo.apply(&mut m);
     assert!((m.signed_volume() - v0).abs() < 1e-6);
-    assert_eq!(set_diameter(&mut m, hole, -1.0).unwrap_err(), EditError::BadDiameter);
+    assert_eq!(
+        set_diameter(&mut m, hole, -1.0).unwrap_err(),
+        EditError::BadDiameter
+    );
 }
 
 #[test]
@@ -146,7 +164,10 @@ fn the_check_finds_holes_and_turned_normals_and_the_repair_mends_them() {
     let r = check(&holed);
     assert!(r.open_edges > 0 && !r.is_closed(), "{:?}", r.lines());
     let wall = find(&holed, 3.0, 2).planes[0].clone();
-    assert_eq!(pull_plane(&mut holed, &wall, 1.0).unwrap_err(), EditError::NotClean);
+    assert_eq!(
+        pull_plane(&mut holed, &wall, 1.0).unwrap_err(),
+        EditError::NotClean
+    );
 }
 
 #[test]
@@ -180,7 +201,12 @@ fn a_mesh_is_saved_small_and_comes_back_the_same() {
     let s = sphere(10.0, 20_000);
     let b = serial::encode(&s);
     assert_eq!(serial::decode(&b).unwrap(), s);
-    println!("sphere of {} triangles: {} bytes, binary STL {} bytes", s.triangles.len(), b.len(), stl::write_binary(&s).len());
+    println!(
+        "sphere of {} triangles: {} bytes, binary STL {} bytes",
+        s.triangles.len(),
+        b.len(),
+        stl::write_binary(&s).len()
+    );
 }
 
 #[test]
@@ -189,7 +215,10 @@ fn scale_mirror_rotate_and_pattern() {
     transform::scale(&mut m, [0.0; 3], [2.0, 1.0, 0.5]);
     assert!((m.signed_volume() - 6000.0).abs() < 1e-3);
     transform::scale(&mut m, [0.0; 3], [-1.0, 1.0, 1.0]);
-    assert!((m.signed_volume() - 6000.0).abs() < 1e-3, "a mirrored scale keeps the outside outside");
+    assert!(
+        (m.signed_volume() - 6000.0).abs() < 1e-3,
+        "a mirrored scale keeps the outside outside"
+    );
     let mut b = box_mesh(10.0, 10.0, 10.0, 1);
     transform::mirror(&mut b, [0.0; 3], [1.0, 0.0, 0.0]);
     assert!(b.bounding_box().unwrap().1[0] <= 1e-6 && (b.signed_volume() - 1000.0).abs() < 1e-3);
@@ -239,4 +268,36 @@ fn two_million_triangles_are_read_in_seconds() {
         decoded
     );
     assert!(read.as_secs_f64() < 10.0);
+}
+
+/// Edits of a plate of 2 million triangles (the top wall of 1 million triangles pulled 5 mm, the hole widened), with Undo: `--release -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn edits_of_a_big_mesh_move_only_what_they_touch() {
+    let m0 = plate_with_hole(60.0, 40.0, 10.0, 2.5, 120_000);
+    let mut m = m0.clone();
+    println!("{} triangles", m.triangles.len());
+    let t = std::time::Instant::now();
+    let reg = find(&m, 3.0, 64);
+    let found = t.elapsed();
+    let top = reg.planes.iter().find(|p| p.normal[2] > 0.99).unwrap();
+    let hole = reg.cylinders.iter().find(|c| c.is_hole).unwrap();
+    let t = std::time::Instant::now();
+    let undo = rolidium_mesh::edit::pull_plane_with(&mut m, top, 5.0, false).unwrap();
+    let pulled = t.elapsed();
+    let t = std::time::Instant::now();
+    let redo = undo.apply(&mut m);
+    let undone = t.elapsed();
+    let t = std::time::Instant::now();
+    let u2 = set_diameter(&mut m, hole, 6.0).unwrap();
+    let widened = t.elapsed();
+    println!(
+        "regions {found:?}; pull {pulled:?} (moved {} of {} vertices, record {} KB); undo {undone:?}; hole {widened:?} (moved {})",
+        undo.moved.len(),
+        m.positions.len(),
+        undo.moved.len() * 16 / 1000,
+        u2.moved.len()
+    );
+    redo.apply(&mut m);
+    assert!(check(&m).signed_volume > 0.0);
 }
