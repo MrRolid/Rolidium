@@ -1075,3 +1075,4 @@ The file is not an STL file (no triangles were found) => Die Datei ist keine STL
 The file contains numbers that are not finite => Die Datei enthält Zahlen, die nicht endlich sind
 Sketch on the wall of the mesh: what you pull from it is a new solid => Skizze auf der Wand des Netzes: was du daraus ziehst, ist ein neuer Volumenkörper
 Only the selected bodies ({} selected) => Nur die ausgewählten Körper (ausgewählt: {})
+The STL files are read when the running operation is done => Die STL-Dateien werden gelesen, wenn die laufende Operation fertig ist

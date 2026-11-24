@@ -76,6 +76,8 @@ pub struct MeshUi {
     rebuild: bool,
     /// How many files the person dropped into the window (for the scripted tests).
     pub dropped: u64,
+    /// Files dropped while the program was busy: they are read as soon as it is not.
+    queued: Vec<PathBuf>,
     /// The scale factors typed for the selected mesh, and whether they are one factor.
     pub scale: [String; 3],
     pub uniform: bool,
@@ -352,7 +354,8 @@ impl App {
             return;
         }
         if !self.idle() {
-            self.set_status("Wait until the running operation finishes", true);
+            self.mesh_ui.queued.extend(paths);
+            self.set_status("The STL files are read when the running operation is done", false);
             return;
         }
         if self.worker.send(Work::ReadStl { paths }) {
@@ -637,6 +640,10 @@ impl App {
                     ctx.request_repaint_after(std::time::Duration::from_millis(100))
                 }
             }
+        }
+        if self.idle() && !self.mesh_ui.queued.is_empty() && self.mesh_ui.dialog.is_none() {
+            let paths = std::mem::take(&mut self.mesh_ui.queued);
+            self.start_stl_read(paths);
         }
         if self.mesh_ui.rebuild && self.idle() {
             self.mesh_ui.rebuild = false;
