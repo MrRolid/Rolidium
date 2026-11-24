@@ -1,4 +1,4 @@
-# The `.rolidium` file format (format version 1)
+# The `.rolidium` file format (format version 1, and 2 for a file with a mesh)
 
 A `.rolidium` file is a **zip archive** (deflate). All text is UTF-8 JSON, units are millimetres, angles radians.
 
@@ -7,6 +7,8 @@ manifest.json               required
 bodies/<id>.brep            required per body: OpenCASCADE binary BREP of the solid (without display triangulation; older files may carry it, it is ignored)
 bodies/<id>.json            required per body: metadata
 sketches/<id>.json          one per sketch
+meshes/<id>.rmesh           (format 2) one per triangle mesh (STL): the compact form of the triangles, see "Meshes"
+meshes/<id>.json            (format 2) one per mesh: its properties
 preview.png                 optional, 320 x 240 isometric picture (only when a GPU adapter was available)
 <anything else>             kept as it is (see "Unknown content")
 ```
@@ -77,7 +79,7 @@ directory (`cam/`, ...) and may add fields.
 ## Versions
 
 * The undo history is **not** saved.
-* A file with a **newer** `format_version` than the program knows is refused with a clear message and is not touched.
+* A file with a **newer** `format_version` than the program knows is refused with a clear message and is not touched. (A program of the versions up to 0.2.2 says: "This file was saved by a newer Rolidium (file format 2; this program understands up to 1). It was not opened and not changed. Please update Rolidium." This was tried with 0.2.1: the file is not opened and not changed.)
 * **Older** versions are read by `migrate` (in `crates/rolidium-doc/src/file.rs`): one step per version, applied before the file is
   interpreted. Version 1 is the first, so there is nothing to migrate yet.
 * Changing the meaning of existing fields needs a new `format_version`; adding fields does not.
@@ -168,3 +170,19 @@ Opening a file recalculates nothing: the bodies are stored as they were, and the
 
 A sketch may have `"anchor": { "curve": 8, "end": "start" | "end", "plane": "axis_plane" | "normal_to_tangent" | "normal_to_axis" | "parallel_xy" | "parallel_xz" | "parallel_yz" | "free", "normal": [..], "x_dir": [..] }` in `sketches/<id>.json` (`normal` and `x_dir` only for `free`). The plane of the sketch is calculated from the end of the curve whenever the curve changes, so the `plane` stored in the file is the last result. An anchor whose curve is not in the file is dropped when the file is opened (the sketch stays where it was). A program that does not know the key keeps it unchanged.
 
+
+## Meshes (format version 2, added in program version 0.3.0)
+
+A document that has a triangle mesh (an imported STL file) is written as `"format_version": 2`; a document without a mesh is still written as version 1, so that a program of the earlier versions opens it. The manifest has
+
+```json
+"meshes": [ { "id": 5, "mesh": "meshes/5.rmesh", "meta": "meshes/5.json" } ]
+```
+
+The ids are of the same series as the ids of the bodies (a group lists a mesh in its `"bodies"` like a body). `meshes/<id>.json`:
+
+```json
+{ "name": "bracket", "color": [0.8, 0.75, 0.66], "visible": true, "verified": true, "triangles": 2000000, "vertices": 1000000 }
+```
+
+`verified` says that the mesh was checked and is closed and consistent (the edits of a wall or a hole then need no new check). Unknown fields are kept like those of a body. `meshes/<id>.rmesh` is the welded indexed mesh in a compact form (stored in the zip as it is, it is already deflated): the 5 bytes `RMSH1`, then a zlib stream of: the number of vertices (u32 LE), the number of triangles (u32 LE), the coordinates (3 f32 per vertex, taken as u32 bit patterns) as four **byte planes** (all the first bytes, then all the second bytes, and so on), and the vertex indices of the triangles as differences to the previous index (zigzag coded) in four byte planes. A mesh from a printer is mostly neighbouring numbers, so the planes pack well: a sphere of 2 million triangles is 3 MB (the binary STL is 99 MB); a mesh of scattered numbers is bigger. The regions (walls and holes) are not stored: they are found again, in the background, when the file is opened.
