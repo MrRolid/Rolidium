@@ -232,6 +232,51 @@ def hover_normal(candidates, want):
     raise RuntimeError(f"no face with the normal {want} under the candidate points")
 
 
+def box_triangles(w, d, h, ox=0.0, oy=0.0, oz=0.0, n=1):
+    """The triangles of a box (counter-clockwise seen from outside), every wall divided into n x n squares of two triangles, as triples of (x, y, z)."""
+    faces = [((0, 0, 0), (0, d, 0), (w, 0, 0)), ((0, 0, h), (w, 0, 0), (0, d, 0)), ((0, 0, 0), (w, 0, 0), (0, 0, h)),
+             ((0, d, 0), (0, 0, h), (w, 0, 0)), ((0, 0, 0), (0, 0, h), (0, d, 0)), ((w, 0, 0), (0, d, 0), (0, 0, h))]
+    out = []
+    for o, e1, e2 in faces:
+        def pt(i, j):
+            return tuple(o[k] + e1[k] * i / n + e2[k] * j / n + (ox, oy, oz)[k] for k in range(3))
+        for i in range(n):
+            for j in range(n):
+                out.append((pt(i, j), pt(i + 1, j), pt(i + 1, j + 1)))
+                out.append((pt(i, j), pt(i + 1, j + 1), pt(i, j + 1)))
+    return out
+
+
+def write_stl(path, tris, ascii_=False):
+    """Writes triangles into a binary (or ASCII) STL file."""
+    import struct
+    if ascii_:
+        with open(path, "w") as f:
+            f.write("solid t\n")
+            for t in tris:
+                f.write("facet normal 0 0 0\n outer loop\n")
+                for p in t:
+                    f.write("  vertex %r %r %r\n" % tuple(p))
+                f.write(" endloop\nendfacet\n")
+            f.write("endsolid t\n")
+        return
+    with open(path, "wb") as f:
+        f.write(b"test".ljust(80, b" "))
+        f.write(struct.pack("<I", len(tris)))
+        for t in tris:
+            f.write(struct.pack("<12fH", 0, 0, 0, *[c for p in t for c in p], 0))
+
+
+def drop_files(*paths):
+    """The files are put into the window the way the window system does it (the program reads the names from the file named in ROLIDIUM_DROP; a real
+    drag and drop of the window system cannot be made by a script, the program handles both with the same code)."""
+    target = os.environ["ROLIDIUM_DROP"]
+    tmp = target + ".new"
+    with open(tmp, "w") as f:
+        f.write("\n".join(paths) + "\n")
+    os.rename(tmp, target)
+
+
 def finish():
     if _failures:
         print(f"{len(_failures)} check(s) failed")

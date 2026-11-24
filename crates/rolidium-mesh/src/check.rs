@@ -153,15 +153,34 @@ fn components(m: &TriMesh, edges: &[(u64, u32)]) -> (Vec<u32>, usize) {
 /// vertices nobody uses. Returns how many vertices were merged.
 pub fn merge_vertices(m: &mut TriMesh, tol: f64) -> usize {
     let before = m.positions.len();
-    let q = |c: f32| (c as f64 / tol).round() as i64;
+    // cells of the size `tol`: a vertex within `tol` of another is in the same cell or in one of the 26 next to it
+    let cell = |c: f32| (c as f64 / tol).floor() as i64;
     let mut map: HashMap<[i64; 3], u32> = HashMap::new();
     let mut remap: Vec<u32> = Vec::with_capacity(before);
     let mut positions: Vec<[f32; 3]> = Vec::new();
+    let tol2 = tol * tol;
     for p in &m.positions {
-        let k = [q(p[0]), q(p[1]), q(p[2])];
-        let id = *map.entry(k).or_insert_with(|| {
+        let k = [cell(p[0]), cell(p[1]), cell(p[2])];
+        let mut found = None;
+        'look: for dx in -1..=1i64 {
+            for dy in -1..=1i64 {
+                for dz in -1..=1i64 {
+                    if let Some(&i) = map.get(&[k[0] + dx, k[1] + dy, k[2] + dz]) {
+                        let q = positions[i as usize];
+                        let d2 = (0..3).map(|a| (q[a] as f64 - p[a] as f64).powi(2)).sum::<f64>();
+                        if d2 <= tol2 {
+                            found = Some(i);
+                            break 'look;
+                        }
+                    }
+                }
+            }
+        }
+        let id = found.unwrap_or_else(|| {
             positions.push(*p);
-            (positions.len() - 1) as u32
+            let id = (positions.len() - 1) as u32;
+            map.insert(k, id);
+            id
         });
         remap.push(id);
     }
