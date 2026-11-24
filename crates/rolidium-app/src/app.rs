@@ -2039,6 +2039,8 @@ impl App {
             // F2 renames the selected body
             if let Some(b) = self.body_sel.and_then(|b| self.doc.body(b)) {
                 self.rename = Some((ItemId::Body(b.id), b.name.clone()));
+            } else if let Some(m) = self.body_sel.and_then(|b| self.doc.mesh(b)) {
+                self.rename = Some((ItemId::Body(m.id), m.name.clone()));
             } else if let Some(l) = self
                 .link_sel
                 .and_then(|id| self.doc.state().links.iter().find(|l| l.id == id))

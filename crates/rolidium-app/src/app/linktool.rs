@@ -1939,16 +1939,18 @@ impl App {
                 self.group_rows(ui, st, sub, cmd, depth + 1);
             }
             for bid in &g.bodies {
-                let Some(b) = st.bodies.iter().find(|b| b.id == *bid) else {
-                    continue;
+                let (name, visible) = match (st.bodies.iter().find(|b| b.id == *bid), st.meshes.iter().find(|m| m.id == *bid)) {
+                    (Some(b), _) => (b.name.clone(), b.visible),
+                    (None, Some(m)) => (format!("▦ {}", m.name), m.visible),
+                    _ => continue,
                 };
                 let on = self.marked_bodies().contains(bid);
                 let r = ui.selectable_label(
                     on,
-                    if b.visible {
-                        b.name.clone()
+                    if visible {
+                        name.clone()
                     } else {
-                        format!("{}  ({})", b.name, tr("hidden"))
+                        format!("{}  ({})", name, tr("hidden"))
                     },
                 );
                 let r = r.interact(egui::Sense::click_and_drag());
@@ -1962,7 +1964,7 @@ impl App {
                     self.layers_changed = true;
                 }
                 if r.double_clicked() {
-                    self.rename = Some((ItemId::Body(*bid), b.name.clone()));
+                    self.rename = Some((ItemId::Body(*bid), name.trim_start_matches("▦ ").to_string()));
                 }
             }
         });

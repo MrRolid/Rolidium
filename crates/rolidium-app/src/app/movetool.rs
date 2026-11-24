@@ -526,6 +526,7 @@ impl App {
                                 .hint_text("0"),
                         );
                         ui.label("mm");
+                        self.probe_widget(&format!("move_field_{i}"), r.rect);
                         if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                             apply = true;
                         }
@@ -539,6 +540,7 @@ impl App {
                             .hint_text("0"),
                     );
                     ui.label("°");
+                    self.probe_widget("move_field_3", r.rect);
                     if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                         apply = true;
                     }
@@ -546,12 +548,17 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label(tr("Axis"));
                     for (i, n) in ["X", "Y", "Z"].iter().enumerate() {
-                        ui.selectable_value(&mut self.move_ui.axis, i, *n);
+                        let r = ui.selectable_value(&mut self.move_ui.axis, i, *n);
+                        self.probe_widget(&format!("move_axis_{i}"), r.rect);
                     }
                 });
-                ui.checkbox(&mut self.move_ui.copy, tr("Copy"))
+                let r = ui
+                    .checkbox(&mut self.move_ui.copy, tr("Copy"))
                     .on_hover_text(tr("Move a copy and leave the original where it is"));
-                if ui.button(tr("Apply")).clicked() {
+                self.probe_widget("move_copy", r.rect);
+                let r = ui.button(tr("Apply"));
+                self.probe_widget("move_apply", r.rect);
+                if r.clicked() {
                     apply = true;
                 }
             },

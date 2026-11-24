@@ -232,6 +232,7 @@ impl App {
                     "id": m.id,
                     "name": m.name,
                     "visible": m.visible,
+                    "group": self.doc.state().groups.iter().find(|g| g.bodies.contains(&m.id)).map(|g| g.name.clone()),
                     "triangles": m.mesh.triangles.len(),
                     "bbox": bb.map(|(lo, hi)| json!([round3(lo[0]), round3(lo[1]), round3(lo[2]), round3(hi[0]), round3(hi[1]), round3(hi[2])])),
                     "volume": round3(m.mesh.signed_volume()),

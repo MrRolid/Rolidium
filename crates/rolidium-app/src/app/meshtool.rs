@@ -125,7 +125,9 @@ impl App {
         let meshes: Vec<rolidium_doc::MeshBody> = self.doc.meshes().to_vec();
         for m in &meshes {
             ui.horizontal(|ui| {
-                if icons::eye_button(ui, m.visible).clicked() {
+                let eye = icons::eye_button(ui, m.visible);
+                self.probe_widget(&format!("mesh_eye_{}", m.id), eye.rect);
+                if eye.clicked() {
                     *tree_cmd = Some((
                         Command::SetVisible {
                             target: ItemId::Body(m.id),
