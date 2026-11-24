@@ -31,7 +31,7 @@ for t in "${TESTS[@]}"; do
   # the HOME is empty: no settings, no autosave from other runs
   xvfb-run -a -s "-screen 0 1280x800x24" bash -c "
     export HOME='$W' XDG_CONFIG_HOME='$W' XDG_STATE_HOME='$W/state' XDG_DATA_HOME='$W/data'
-    export ROLIDIUM_PROBE='$W/probe.json' ROLIDIUM_PROBE_POINTS='$POINTS' GUI_SHOTS='$SHOTS' ROLIDIUM_MODEL='$MODEL' ROLIDIUM_WORK='$W'
+    export ROLIDIUM_APP_BIN='$BIN' ROLIDIUM_PROBE='$W/probe.json' ROLIDIUM_PROBE_POINTS='$POINTS' GUI_SHOTS='$SHOTS' ROLIDIUM_MODEL='$MODEL' ROLIDIUM_WORK='$W'
     '$BIN' '$MODEL' >'$W/app.log' 2>&1 &
     APP=\$!
     for i in \$(seq 1 80); do [ -s '$W/probe.json' ] && break; sleep 0.25; done

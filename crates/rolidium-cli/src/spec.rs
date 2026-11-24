@@ -540,7 +540,7 @@ Fails with an explanation when the swept body would cut through itself (profile 
         "revolve",
         "revolve_region",
         "Revolve a closed region of the current sketch about an axis through the origin parallel to X, Y or Z (in the coordinates of the model, not of the sketch) by an angle. \
-The axis must not pass through the region.",
+The axis must not pass through the region. Instead of x, y or z write `axis-of S N`: the line or the auxiliary axis N of the sketch S (as in describe_model) is the axis.",
         &[
             p("region", Kind::Int, "Region index in the current sketch").range(0.0, 10000.0),
             p("axis", AXIS, "x, y or z"),

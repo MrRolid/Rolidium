@@ -322,3 +322,13 @@ fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_sh
     r.run_line(&format!("render {} 800 600 top", shot.display())).unwrap();
     assert_eq!(see_through_regions(&shot, 50), 4);
 }
+
+#[test]
+fn a_revolve_takes_an_auxiliary_axis_of_the_sketch_as_its_axis() {
+    // a rectangle 10 x 20 at x 30..40, an axis along y through x = 10 (in the plane of the sketch): revolved a full turn it makes a ring of the volume
+    // pi (40 - 10)^2 20 - pi (30 - 10)^2 20 = pi 20 (900 - 400)
+    let r = run("sketch xy\nrect 30 0 40 20\naxis 10 -5 10 30\nrevolve 0 axis-of 1 2 360\n");
+    let v = r.doc.bodies()[0].solid.volume().unwrap();
+    let want = std::f64::consts::PI * 20.0 * (900.0 - 400.0);
+    assert!((v - want).abs() < 0.5, "{v} against {want}");
+}

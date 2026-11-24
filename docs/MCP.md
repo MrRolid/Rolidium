@@ -81,6 +81,8 @@ The server uses one thread per core less one for the calculations that can share
 | `rename_body` | Change the name of a body (free text, may repeat) |
 | `start_sketch` | Choose where the next sketch shapes (line, rect, circle, arc) are drawn: a base plane (xy, xz or yz, optionally moved along … |
 | `sketch_line` | Draw a straight line in the current sketch |
+| `sketch_axis` | Draw an auxiliary axis (dash-dotted, no region); `plane-of S N`, `axis-of S N`, `direction-of S N` use it in a mirror or a pattern |
+| `move_feature` | Move a hole or a pin of a body by a shift, or to given distances from the two nearest edges |
 | `sketch_rectangle` | Draw an axis-aligned rectangle in the current sketch from one corner to the opposite one (a closed region) |
 | `sketch_circle` | Draw a circle in the current sketch (a closed region) |
 | `sketch_arc` | Draw a circular arc in the current sketch through three points: start, a point on the arc, end |

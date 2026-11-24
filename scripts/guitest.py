@@ -166,8 +166,9 @@ def hover_cylinder(p, candidates):
         x, y = screen(probe(), name)
         move(x, y)
         time.sleep(0.35)
-        h = probe().get("hover")
-        if h and h["kind"] == "Cylinder":
+        q = probe()
+        h = q.get("hover")
+        if h and h["kind"] == "Cylinder" and q.get("hover_obj") is None:
             return x, y
     raise RuntimeError("no round face under the candidate points")
 

@@ -1192,15 +1192,37 @@ impl Runner {
             }
             "revolve" => {
                 let id = self.sketch.ok_or("there is no current sketch")?;
+                // `axis-of S N` (a line or an auxiliary axis of the sketch S, shape N) stands for the axis
+                let expanded: Vec<String> = if w.iter().any(|t| *t == "axis-of") {
+                    self.expand_sketch_lines(&w)?
+                } else {
+                    w.iter().map(|t| t.to_string()).collect()
+                };
+                let w: Vec<&str> = expanded.iter().map(String::as_str).collect();
+                let num = |i: usize| -> Result<f64, String> {
+                    w.get(i)
+                        .ok_or_else(|| "a number is missing".to_string())?
+                        .parse::<f64>()
+                        .map_err(|_| format!("'{}' is not a number", w[i]))
+                };
                 let region = num(1)? as usize;
-                let axis = match *w.get(2).ok_or("revolve needs an axis (x, y or z)")? {
+                let mut next = 3;
+                let (mut axis_point, axis) = (DVec3::ZERO, match *w.get(2).ok_or("revolve needs an axis (x, y or z)")? {
                     "x" => DVec3::X,
                     "y" => DVec3::Y,
                     "z" => DVec3::Z,
+                    t if t.parse::<f64>().is_ok() => {
+                        next = 5;
+                        DVec3::new(num(2)?, num(3)?, num(4)?)
+                    }
                     o => return Err(format!("unknown axis '{o}'")),
-                };
-                let angle = num(3)?.to_radians();
-                let mode = match w.get(4).copied() {
+                });
+                if w.get(next) == Some(&"through") {
+                    axis_point = DVec3::new(num(next + 1)?, num(next + 2)?, num(next + 3)?);
+                    next += 4;
+                }
+                let angle = num(next)?.to_radians();
+                let mode = match w.get(next + 1).copied() {
                     None | Some("auto") => PullMode::Auto,
                     Some("add") => PullMode::Add,
                     Some("cut") => PullMode::Cut,
@@ -1211,7 +1233,7 @@ impl Runner {
                     .apply(Command::Revolve {
                         sketch: id,
                         region,
-                        axis_point: DVec3::ZERO,
+                        axis_point,
                         axis_dir: axis,
                         angle,
                         mode,

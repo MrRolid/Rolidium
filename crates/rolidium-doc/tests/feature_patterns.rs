@@ -778,3 +778,52 @@ fn a_hole_and_a_pin_are_moved_and_the_distances_to_the_edges_are_read() {
     assert!(s.contains_point(DVec3::new(30.0, 10.0, 7.0)).unwrap());
     assert!(!s.contains_point(DVec3::new(10.0, 10.0, 7.0)).unwrap());
 }
+
+#[test]
+fn an_auxiliary_axis_is_saved_and_opened_and_is_no_shape_of_a_pattern_of_all_shapes() {
+    use rolidium_sketch::{DVec2, Entity};
+    let mut d = Document::new();
+    let plane = rolidium_sketch::PlaneDef::base();
+    let c = d
+        .apply(Command::AddEntity {
+            target: SketchTarget::New { plane, body: None },
+            entity: Entity::Circle {
+                center: DVec2::new(10.0, 0.0),
+                radius: 2.0,
+            },
+        })
+        .unwrap();
+    let sk = c.created_sketch.unwrap();
+    d.apply(Command::AddEntity {
+        target: SketchTarget::Existing(sk),
+        entity: Entity::Axis {
+            a: DVec2::new(0.0, -10.0),
+            b: DVec2::new(0.0, 10.0),
+        },
+    })
+    .unwrap();
+    // the whole sketch is mirrored in the axis: the circle gets an image, the axis does not (it would lie on itself)
+    d.apply(Command::SketchMirror {
+        sketch: sk,
+        entities: vec![],
+        a: DVec2::new(0.0, 0.0),
+        b: DVec2::new(0.0, 1.0),
+        keep: true,
+    })
+    .unwrap();
+    let es = d.sketch(sk).unwrap().sketch.entities().to_vec();
+    assert_eq!(es.len(), 3, "{es:?}");
+    assert_eq!(es.iter().filter(|(_, e)| e.is_axis()).count(), 1);
+    // saved and opened
+    let bytes = file::save_to_bytes(&d, None, "test").unwrap();
+    let e = Document::from_loaded(file::load_from_bytes(&bytes).unwrap());
+    let back = e.sketch(sk).unwrap().sketch.entities().to_vec();
+    assert_eq!(back.len(), 3);
+    assert_eq!(back.iter().filter(|(_, x)| x.is_axis()).count(), 1);
+    // the plane through the axis, square to the sketch, and the axis in space
+    let axis = es.iter().find(|(_, x)| x.is_axis()).unwrap().1;
+    let pl = sketch_mirror_plane(&rolidium_sketch::PlaneDef::base(), &axis).unwrap();
+    assert!(pl.dir.dot(DVec3::X).abs() > 0.999999 && pl.origin.x.abs() < 1e-9, "{pl:?}");
+    let ln = sketch_line_in_space(&rolidium_sketch::PlaneDef::base(), &axis).unwrap();
+    assert!(ln.dir.dot(DVec3::Y).abs() > 0.999999);
+}

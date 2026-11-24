@@ -59,6 +59,7 @@ geometry itself is never affected.
     { "type": "line",   "a": [x,y], "b": [x,y] },
     { "type": "rect",   "a": [x,y], "b": [x,y] },
     { "type": "circle", "center": [x,y], "radius": r },
+    { "type": "axis",   "a": [x,y], "b": [x,y] },      // an auxiliary axis (added after 0.2.1): the line through a and b, no region, no profile
     { "type": "arc", "center": [x,y], "radius": r, "start": a0, "sweep": da }   // radians, sweep > 0 counter-clockwise
   ]
 }
@@ -140,9 +141,13 @@ Manifest keys (all optional): `link_counter`, `group_counter` (numbering of new 
   "count": 4, "spacing": 20.0, "by_total": false, // linear: the spacing is the distance of two pieces, or the whole length
   "second": null,              // linear: { "axis", "count", "spacing", "by_total" } of the second direction of a grid
   "angle_deg": 60.0, "full": true,                // circular: angle between pieces, or the whole circle divided evenly
-  "origin": [0,0,0], "normal": [1,0,0]            // mirror: the plane
+  "origin": [0,0,0], "normal": [1,0,0],           // mirror: the plane
+  "keep_orientation": false,   // circular: the copies are carried round the axis without turning
+  "fill": { ... }              // optional (added after 0.2.1): the pattern follows a rectangle, see below
 }
 ```
+
+`fill` (a pattern of a hole or a pin into the corners or a grid of a rectangle): `"rect"` is `{"face": {"origin", "normal", "near"}}` (a flat rectangular face of the target body, found again by its plane and the point `near`) or `{"sketch": {"id", "entity"}}` (a rectangle of a sketch); `"how"` is `{"corners": true}` or `{"columns", "rows", "margin"}`; `sign_a`, `near_a`, `sign_b`, `near_b` are the sides and the distances of the original to the nearest edges along the two directions of the rectangle (the directions are the two sides, the one with the smaller dominant axis first), `at` the point of the source on its plane. When the target body or the rectangle changes, the source is placed again at those distances and the pieces are calculated again from `links/<id>.base.brep`. A program that does not know `fill` opens the link as a plain row or grid.
 
 A loft and a sweep (`"type": "loft"` and `"sweep"`) have `"mode"` and `"target"` as above (a new body, or added to / cut from the target) and
 

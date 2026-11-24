@@ -4,7 +4,7 @@
 """Pattern tool, Into a face: click a hole, choose the corners and the face, Apply. Then pull the front edge of the plate (the one the hole is near) 20 mm
 out with the Pull tool: the holes on that side follow and stay 6 mm from the edge (the original too), the link stays and no question about removing it comes."""
 # FIXTURE: box 100 60 10; sketch xy -1; circle 6 6 8; pull-region 0 12 cut
-# POINTS: w1=2,6,5;w2=10,6,5;w3=6,2,5;w4=6,10,5;w5=3.2,8.8,5;w6=8.8,8.8,5;top=50,30,10;s1=50,0,5;s2=30,0,5;s3=70,0,5;s4=50,0,3;s5=40,0,6;s6=60,0,6;s7=80,0,5
+# POINTS: w0=10.00,6.00,7;w1=9.46,8.00,7;w2=8.00,9.46,7;w3=6.00,10.00,7;w4=4.00,9.46,7;w5=2.54,8.00,7;w6=2.00,6.00,7;w7=2.54,4.00,7;w8=4.00,2.54,7;w9=6.00,2.00,7;w10=8.00,2.54,7;w11=9.46,4.00,7;w12=10.00,6.00,5.5;w13=9.46,8.00,5.5;w14=8.00,9.46,5.5;w15=6.00,10.00,5.5;w16=4.00,9.46,5.5;w17=2.54,8.00,5.5;w18=2.00,6.00,5.5;w19=2.54,4.00,5.5;w20=4.00,2.54,5.5;w21=6.00,2.00,5.5;w22=8.00,2.54,5.5;w23=9.46,4.00,5.5;top=50,30,10;s1=50,0,5;s2=30,0,5;s3=70,0,5;s4=50,0,3;s5=40,0,6;s6=60,0,6;s7=80,0,5
 from guitest import *
 
 time.sleep(1.0)
@@ -13,7 +13,7 @@ p = settle()
 check(has_hole_at(p, 6, 6), f"a hole at (6, 6): {holes_of(p)}")
 key("t")
 settle(0.4)
-hx, hy = hover_cylinder(p, ["w5", "w6", "w2", "w4", "w1", "w3"])
+hx, hy = hover_cylinder(p, [f"w{i}" for i in range(24)])
 click(hx, hy)
 p = settle()
 click(*screen(p, "tab_fill"))

@@ -339,3 +339,35 @@ fn arcs_close_regions_with_lines() {
     );
     assert!(Entity::arc_through(DVec2::ZERO, DVec2::new(1.0, 0.0), DVec2::new(2.0, 0.0)).is_none());
 }
+
+#[test]
+fn an_auxiliary_axis_makes_no_region_and_does_not_close_a_profile() {
+    // a rectangle with an axis through it and another axis that closes nothing: still one region, the axis is no shape of the outline
+    let ax = Entity::Axis {
+        a: v(5.0, -5.0),
+        b: v(5.0, 15.0),
+    };
+    let s = sketch(&[rect(0.0, 0.0, 10.0, 10.0), ax]);
+    let r = s.regions();
+    assert_eq!(r.len(), 1);
+    assert!((r[0].area() - 100.0).abs() < 1e-9, "the axis does not split the rectangle");
+    // an axis alone, and three lines that would close with an axis as the third side
+    assert!(sketch(&[ax]).regions().is_empty());
+    let open = sketch(&[
+        line(0.0, 0.0, 10.0, 0.0),
+        line(10.0, 0.0, 10.0, 10.0),
+        Entity::Axis {
+            a: v(10.0, 10.0),
+            b: v(0.0, 0.0),
+        },
+    ]);
+    assert!(open.regions().is_empty());
+    // a line and an axis are the same line drawn two ways
+    let l = line(0.0, 0.0, 3.0, 4.0);
+    assert_eq!(l.as_axis().as_line(), l);
+    assert!(l.as_axis().is_axis() && !l.is_axis());
+    let (p, d) = ax.axis_line().unwrap();
+    assert_eq!(p, v(5.0, -5.0));
+    assert!((d - v(0.0, 1.0)).length() < 1e-12);
+    assert!(circle(0.0, 0.0, 1.0).axis_line().is_none());
+}

@@ -153,6 +153,7 @@ impl App {
             "selection": self.selection.iter().map(|(b, f)| json!([b, f])).collect::<Vec<_>>(),
             "entity_sel": self.entity_sel.map(|(s, e)| json!([s, e])),
             "hover": hover,
+            "hover_obj": self.hover_obj.map(|o| format!("{o:?}")),
             "link_pick": format!("{:?}", self.link_ui.pick),
             "link_dir": [self.link_ui.p.dir.x, self.link_ui.p.dir.y, self.link_ui.p.dir.z],
             "link_count": self.link_ui.p.count,

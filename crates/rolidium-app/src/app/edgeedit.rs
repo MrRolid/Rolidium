@@ -266,6 +266,7 @@ impl App {
                         .desired_width(60.0),
                 );
                 ui.label("mm");
+                self.probe_widget(if i == 0 { "edge_dist_0" } else { "edge_dist_1" }, r.rect);
                 if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
                     apply = true;
                 }
@@ -357,6 +358,12 @@ impl App {
             let centre0 = plane.to_2d(rim.centre);
             self.selection = vec![(b, f)];
             self.body_sel = None;
+            // the panel of the hole next to it has the keyboard focus: while the hole is dragged the typed numbers are the distances
+            resp.ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
             self.hole_drag = Some(HoleDrag {
                 body: b,
                 face: FaceId(f),

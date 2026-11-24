@@ -166,7 +166,7 @@ impl Runner {
 
     /// Runs the commands of this module. `Ok(false)`: the word is not one of them.
     /// `plane-of S N`, `axis-of S N` and `direction-of S N` (the line or the auxiliary axis N of the sketch S) become the numbers a command takes.
-    fn expand_sketch_lines(&self, w: &[&str]) -> Result<Vec<String>, String> {
+    pub(crate) fn expand_sketch_lines(&self, w: &[&str]) -> Result<Vec<String>, String> {
         let mut out: Vec<String> = Vec::new();
         let mut i = 0;
         let f = |v: f64| format!("{v}");
