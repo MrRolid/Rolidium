@@ -9,6 +9,8 @@ use rolidium_doc::{BodyId, SketchId};
 pub enum SkTool {
     None,
     Line,
+    /// An auxiliary (dash-dotted) axis: drawn as a line, makes no shape.
+    Axis,
     Rect,
     Circle,
     Arc,
@@ -172,7 +174,7 @@ impl SketchMode {
 
     pub fn begin(&mut self, start: DVec2) {
         let labels: &[&'static str] = match self.tool {
-            SkTool::Line => &["Length", "Angle"],
+            SkTool::Line | SkTool::Axis => &["Length", "Angle"],
             SkTool::Rect => &["Width", "Height"],
             SkTool::Circle => &["Diameter"],
             SkTool::Arc => &["Radius"],
@@ -273,14 +275,16 @@ impl SketchMode {
         let delta = mouse - d.start;
         let f = |i: usize| d.fields.get(i).and_then(parse);
         match self.tool {
-            SkTool::Line => {
+            SkTool::Line | SkTool::Axis => {
                 let len = f(0).map(f64::abs).unwrap_or(delta.length());
                 let ang = f(1)
                     .map(f64::to_radians)
                     .unwrap_or_else(|| delta.y.atan2(delta.x));
-                Some(Entity::Line {
-                    a: d.start,
-                    b: d.start + DVec2::new(ang.cos(), ang.sin()) * len,
+                let (a, b) = (d.start, d.start + DVec2::new(ang.cos(), ang.sin()) * len);
+                Some(if self.tool == SkTool::Axis {
+                    Entity::Axis { a, b }
+                } else {
+                    Entity::Line { a, b }
                 })
             }
             SkTool::Rect => {
@@ -316,7 +320,9 @@ impl SketchMode {
             return Vec::new();
         }
         let live: Vec<f64> = match self.effective(mouse) {
-            Some(Entity::Line { a, b }) => vec![a.distance(b), (b - a).to_angle().to_degrees()],
+            Some(Entity::Line { a, b } | Entity::Axis { a, b }) => {
+                vec![a.distance(b), (b - a).to_angle().to_degrees()]
+            }
             Some(Entity::Rect { a, b }) => vec![(b.x - a.x).abs(), (b.y - a.y).abs()],
             Some(Entity::Circle { radius, .. }) => vec![radius * 2.0],
             Some(Entity::Arc { radius, .. }) if self.arc_end.is_some() => vec![radius],

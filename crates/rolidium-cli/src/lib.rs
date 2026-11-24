@@ -1056,7 +1056,7 @@ impl Runner {
                     f(pl.normal)
                 ));
             }
-            "line" | "rect" | "circle" | "arc" => {
+            "line" | "axis" | "rect" | "circle" | "arc" => {
                 let entity = match w[0] {
                     "arc" => Entity::arc_through(
                         DVec2::new(num(1)?, num(2)?),
@@ -1065,6 +1065,10 @@ impl Runner {
                     )
                     .ok_or("the three points of an arc must not lie in a line")?,
                     "line" => Entity::Line {
+                        a: DVec2::new(num(1)?, num(2)?),
+                        b: DVec2::new(num(3)?, num(4)?),
+                    },
+                    "axis" => Entity::Axis {
                         a: DVec2::new(num(1)?, num(2)?),
                         b: DVec2::new(num(3)?, num(4)?),
                     },

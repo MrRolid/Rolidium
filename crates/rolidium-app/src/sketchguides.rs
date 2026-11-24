@@ -353,7 +353,7 @@ pub fn tangent_dirs(p: DVec2, ents: &[rolidium_doc::rolidium_sketch::Entity]) ->
     for e in ents {
         match *e {
             Entity::Line { a, b } => out.extend(line(a, b)),
-            Entity::Rect { .. } | Entity::Circle { .. } => {}
+            Entity::Rect { .. } | Entity::Circle { .. } | Entity::Axis { .. } => {}
             Entity::Arc {
                 center,
                 radius,

@@ -75,7 +75,7 @@ impl App {
             let mut lines: Vec<(Vec3, Vec3)> = Vec::new();
             for (_, e) in sd.sketch.entities() {
                 match *e {
-                    Entity::Line { a, b } => {
+                    Entity::Line { a, b } | Entity::Axis { a, b } => {
                         lines.push((sd.plane.to_3d(a).as_vec3(), sd.plane.to_3d(b).as_vec3()))
                     }
                     Entity::Rect { a, b } => {

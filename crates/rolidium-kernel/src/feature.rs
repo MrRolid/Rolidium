@@ -113,6 +113,11 @@ impl Solid {
 
     /// Reads the hole or the pin that the round face `face` belongs to and makes its tool (see the module).
     pub fn feature_tool(&self, face: FaceId) -> Result<FeatureTool> {
+        self.feature_tool_with(face, OVERSHOOT)
+    }
+
+    /// The same with the tool reaching out `overshoot` mm (0: the tool is exactly the hole, or the pin).
+    pub fn feature_tool_with(&self, face: FaceId, overshoot: f64) -> Result<FeatureTool> {
         let not = |why: &str| KernelError::Invalid(why.to_string());
         let c = self.cylinder_info(face)?.ok_or_else(|| {
             not("This is not a whole round hole or pin. Click the cylindrical face of a hole or of a pin, or repeat the whole body")
@@ -180,13 +185,13 @@ impl Solid {
             // an end piece reaches further: the radius at that end is kept (a cylinder) or continued along the cone
             let slope = (piece.r_hi - piece.r_lo) / h;
             if ext_lo && (piece.z_lo - z_lo).abs() < 1e-6 {
-                z0 -= OVERSHOOT;
-                h += OVERSHOOT;
-                piece.r_lo -= slope * OVERSHOOT;
+                z0 -= overshoot;
+                h += overshoot;
+                piece.r_lo -= slope * overshoot;
             }
             if ext_hi && (piece.z_hi - z_hi).abs() < 1e-6 {
-                h += OVERSHOOT;
-                piece.r_hi += slope * OVERSHOOT;
+                h += overshoot;
+                piece.r_hi += slope * overshoot;
             }
             if piece.r_lo <= 1e-6 || piece.r_hi <= 1e-6 {
                 return Err(not(

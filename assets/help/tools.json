@@ -286,6 +286,18 @@
     "animation": null
   },
   {
+    "id": "axis",
+    "title": "Auxiliary axis",
+    "shortcut": "X",
+    "text": "Draws a dash-dotted line in the sketch that makes no shape: click two points. It is the axis of a mirror, of a circular pattern or of a revolve, in the sketch and in 3D (a mirror in 3D uses the plane through the axis that stands square to the sketch). An ordinary line can be made an auxiliary axis, and back, with the switch in the right column.",
+    "tips": [
+      "In Pattern (T) and Mirror (B) click the axis or any line of a sketch in the view; no button is needed.",
+      "An auxiliary axis is not part of a profile or of a path."
+    ],
+    "illustration": "axis.svg",
+    "animation": null
+  },
+  {
     "id": "pattern",
     "title": "Pattern",
     "shortcut": "T",

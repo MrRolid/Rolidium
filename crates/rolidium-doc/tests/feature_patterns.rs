@@ -222,7 +222,7 @@ fn four_corners_of_a_plate_100_by_60_with_a_hole_5_mm_from_the_edges() {
         face: hole,
         kind: linear(1, 0.0, DVec3::X, None),
         name: String::new(),
-        rect: Some((top, RectFill::Corners)),
+        rect: Some((RectTarget::Face(top), RectFill::Corners)),
     })
     .unwrap();
     assert!(
@@ -247,7 +247,7 @@ fn four_corners_of_a_plate_100_by_60_with_a_hole_5_mm_from_the_edges() {
         face: hole_face(&s),
         kind: linear(1, 0.0, DVec3::X, None),
         name: String::new(),
-        rect: Some((top_face(&s), RectFill::Corners)),
+        rect: Some((RectTarget::Face(top_face(&s)), RectFill::Corners)),
     })
     .unwrap();
     let s = &e.body(plate).unwrap().solid;
@@ -267,7 +267,7 @@ fn four_corners_of_a_plate_100_by_60_with_a_hole_5_mm_from_the_edges() {
         kind: linear(1, 0.0, DVec3::X, None),
         name: String::new(),
         rect: Some((
-            top_face(&s),
+            RectTarget::Face(top_face(&s)),
             RectFill::Grid {
                 columns: 3,
                 rows: 2,
@@ -454,4 +454,259 @@ fn a_feature_links_are_saved_and_opened_and_a_feature_that_is_not_round_is_refus
         rect: None,
     });
     assert!(e.unwrap_err().to_string().contains("whole round hole"));
+}
+
+/// The flat face of a body with this outward normal that lies on this coordinate along it.
+fn side_face(s: &Solid, normal: DVec3, at: f64) -> FaceId {
+    s.faces()
+        .find(|f| {
+            let i = s.face_info(*f).unwrap();
+            i.kind == FaceKind::Plane
+                && i.normal.dot(normal) > 0.99
+                && (i.origin.dot(normal) - at).abs() < 1e-6
+        })
+        .unwrap()
+}
+
+fn holes_at(d: &Document, body: BodyId, at: &[(f64, f64)], z: f64) {
+    let s = &d.body(body).unwrap().solid;
+    for (x, y) in at {
+        assert!(
+            !s.contains_point(DVec3::new(*x, *y, z)).unwrap(),
+            "a hole is expected at ({x}, {y})"
+        );
+    }
+}
+
+fn corner_plate() -> (Document, BodyId) {
+    let mut d = Document::new();
+    let plate = add_solid(&mut d, "Plate", plate_with_hole(100.0, 60.0, 4.0, 5.0, 5.0, 1.5));
+    let s = d.body(plate).unwrap().solid.clone();
+    d.apply(Command::AddFeatureLink {
+        body: plate,
+        face: hole_face(&s),
+        kind: linear(1, 0.0, DVec3::X, None),
+        name: String::new(),
+        rect: Some((RectTarget::Face(top_face(&s)), RectFill::Corners)),
+    })
+    .unwrap();
+    (d, plate)
+}
+
+#[test]
+fn pulling_an_edge_of_the_plate_keeps_the_holes_5_mm_from_the_edges() {
+    // the right edge (x = 100) is pulled 20 mm out: the two holes on the right move with it, the link stays and no question about it comes
+    let (mut d, plate) = corner_plate();
+    let right = side_face(&d.body(plate).unwrap().solid, DVec3::X, 100.0);
+    let v_before = volume(&d, plate);
+    d.apply(Command::PullFace {
+        body: plate,
+        face: right,
+        distance: 20.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    assert_eq!(d.state().links.len(), 1, "the link is kept");
+    assert!(
+        d.state().links[0].error.is_none(),
+        "{:?}",
+        d.state().links[0].error
+    );
+    holes_at(
+        &d,
+        plate,
+        &[(5.0, 5.0), (115.0, 5.0), (5.0, 55.0), (115.0, 55.0)],
+        2.0,
+    );
+    let s = &d.body(plate).unwrap().solid;
+    assert!(
+        s.contains_point(DVec3::new(95.0, 5.0, 2.0)).unwrap(),
+        "the old place of a hole is material again"
+    );
+    // the volume: 120 x 60 x 4 less four holes
+    let want = 120.0 * 60.0 * 4.0 - 4.0 * hole_volume(1.5, 4.0);
+    assert!(
+        (volume(&d, plate) - want).abs() < 1e-3,
+        "{} against {want} ({v_before})",
+        volume(&d, plate)
+    );
+    // the edge the original hole is near (x = 0) is pulled 20 mm out: the original moves, the plate has still four holes, 5 mm from the edges
+    let (mut d, plate) = corner_plate();
+    let left = side_face(&d.body(plate).unwrap().solid, -DVec3::X, 0.0);
+    d.apply(Command::PullFace {
+        body: plate,
+        face: left,
+        distance: 20.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    holes_at(
+        &d,
+        plate,
+        &[(-15.0, 5.0), (95.0, 5.0), (-15.0, 55.0), (95.0, 55.0)],
+        2.0,
+    );
+    let want = 120.0 * 60.0 * 4.0 - 4.0 * hole_volume(1.5, 4.0);
+    assert!(
+        (volume(&d, plate) - want).abs() < 1e-3,
+        "{} against {want}",
+        volume(&d, plate)
+    );
+    // the far edge in y is pulled 10 mm: the holes in the far row follow
+    let (mut d, plate) = corner_plate();
+    let back = side_face(&d.body(plate).unwrap().solid, DVec3::Y, 60.0);
+    d.apply(Command::PullFace {
+        body: plate,
+        face: back,
+        distance: 10.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    holes_at(
+        &d,
+        plate,
+        &[(5.0, 5.0), (95.0, 5.0), (5.0, 65.0), (95.0, 65.0)],
+        2.0,
+    );
+    // the link can be removed afterwards and the plate is an ordinary body
+    d.apply(Command::Unlink {
+        link: d.state().links[0].id,
+    })
+    .unwrap();
+    assert!(d.state().links.is_empty());
+}
+
+#[test]
+fn the_pieces_follow_a_rectangle_of_a_sketch_and_the_numbers_can_be_changed() {
+    use rolidium_sketch::{DVec2, Entity};
+    // a plate 200 x 100 x 4 with a hole at (35, 35); the rectangle of a sketch on the top face, from (30, 30) to (130, 80): the hole is 5 mm from
+    // two of its sides, so the pieces go to its four corners
+    let mut d = Document::new();
+    let plate = add_solid(
+        &mut d,
+        "Plate",
+        plate_with_hole(200.0, 100.0, 4.0, 35.0, 35.0, 1.5),
+    );
+    let s = d.body(plate).unwrap().solid.clone();
+    let plane = rolidium_sketch::PlaneDef::from_face(DVec3::new(0.0, 0.0, 4.0), DVec3::Z);
+    let c = d
+        .apply(Command::AddEntity {
+            target: SketchTarget::New {
+                plane,
+                body: Some(plate),
+            },
+            entity: Entity::Rect {
+                a: DVec2::new(30.0, 30.0),
+                b: DVec2::new(130.0, 80.0),
+            },
+        })
+        .unwrap();
+    let sk = c.created_sketch.unwrap();
+    let ent = d.sketch(sk).unwrap().sketch.entities()[0].0;
+    d.apply(Command::AddFeatureLink {
+        body: plate,
+        face: hole_face(&s),
+        kind: linear(1, 0.0, DVec3::X, None),
+        name: String::new(),
+        rect: Some((RectTarget::Sketch(sk, ent), RectFill::Corners)),
+    })
+    .unwrap();
+    holes_at(
+        &d,
+        plate,
+        &[(35.0, 35.0), (125.0, 35.0), (35.0, 75.0), (125.0, 75.0)],
+        2.0,
+    );
+    // the rectangle is made wider (the right side moves from 130 to 160): the holes on the right follow, the link stays
+    d.apply(Command::ReplaceEntity {
+        sketch: sk,
+        entity: ent,
+        new: Entity::Rect {
+            a: DVec2::new(30.0, 30.0),
+            b: DVec2::new(160.0, 80.0),
+        },
+    })
+    .unwrap();
+    assert_eq!(d.state().links.len(), 1);
+    assert!(
+        d.state().links[0].error.is_none(),
+        "{:?}",
+        d.state().links[0].error
+    );
+    holes_at(
+        &d,
+        plate,
+        &[(35.0, 35.0), (155.0, 35.0), (35.0, 75.0), (155.0, 75.0)],
+        2.0,
+    );
+    assert!(d
+        .body(plate)
+        .unwrap()
+        .solid
+        .contains_point(DVec3::new(125.0, 35.0, 2.0))
+        .unwrap());
+    // the distance from the edges is changed in the link: 8 mm instead of 5
+    let id = d.state().links[0].id;
+    d.apply(Command::EditLinkFill {
+        link: id,
+        fill: RectFill::Corners,
+        near: Some((8.0, 8.0)),
+    })
+    .unwrap();
+    holes_at(
+        &d,
+        plate,
+        &[(38.0, 38.0), (152.0, 38.0), (38.0, 72.0), (152.0, 72.0)],
+        2.0,
+    );
+    // the same as a grid: 3 columns x 2 rows
+    d.apply(Command::EditLinkFill {
+        link: id,
+        fill: RectFill::Grid {
+            columns: 3,
+            rows: 2,
+            margin: 8.0,
+        },
+        near: None,
+    })
+    .unwrap();
+    holes_at(
+        &d,
+        plate,
+        &[
+            (38.0, 38.0),
+            (95.0, 38.0),
+            (152.0, 38.0),
+            (38.0, 72.0),
+            (95.0, 72.0),
+            (152.0, 72.0),
+        ],
+        2.0,
+    );
+    // save and open: the link still follows
+    let bytes = rolidium_doc::file::save_to_bytes(&d, None, "test").unwrap();
+    let mut e = Document::from_loaded(rolidium_doc::file::load_from_bytes(&bytes).unwrap());
+    assert_eq!(e.state().links.len(), 1);
+    e.apply(Command::ReplaceEntity {
+        sketch: sk,
+        entity: ent,
+        new: Entity::Rect {
+            a: DVec2::new(30.0, 30.0),
+            b: DVec2::new(170.0, 80.0),
+        },
+    })
+    .unwrap();
+    holes_at(
+        &e,
+        plate,
+        &[
+            (38.0, 38.0),
+            (100.0, 38.0),
+            (162.0, 38.0),
+            (38.0, 72.0),
+            (100.0, 72.0),
+            (162.0, 72.0),
+        ],
+        2.0,
+    );
 }

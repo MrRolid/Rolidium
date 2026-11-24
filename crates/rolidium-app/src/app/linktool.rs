@@ -461,6 +461,23 @@ impl App {
                 if self.link_ui.editing.is_some() {
                     return;
                 }
+                // a line or an axis of a sketch is the direction, the axis or the mirror plane at once, with no button
+                if matches!(self.hover_obj, Some(Obj::Entity(..)))
+                    && (self.link_ui.feature.is_some() || !self.link_sources().is_empty())
+                {
+                    let what = match self.link_ui.p.mode {
+                        LinkMode::Linear => Some(LinkPick::Direction),
+                        LinkMode::Circular => Some(LinkPick::Axis),
+                        LinkMode::Mirror => Some(LinkPick::Plane),
+                        LinkMode::Fill => None,
+                    };
+                    if let Some(w) = what {
+                        if self.pick_sketch_line(w) {
+                            self.layers_changed = true;
+                            return;
+                        }
+                    }
+                }
                 // the round face of a hole or a pin is a thing to repeat in its own body
                 if let Some((b, f)) = self.hovered_face() {
                     if self.is_feature_face(b, f) {
@@ -498,10 +515,10 @@ impl App {
             return match pick {
                 LinkPick::Point => tr("Click the place of the second piece on a face."),
                 LinkPick::RectFace => tr("Click the flat rectangular face of the same body."),
-                LinkPick::Plane => tr("Click a flat face, a straight edge or the plane of a sketch for the mirror plane."),
-                LinkPick::Axis => tr("Click a round edge, a cylindrical face, a straight edge or a face for the axis (or press X, Y, Z)."),
+                LinkPick::Plane => tr("Click a flat face, a straight edge, an axis or a line of a sketch, or the plane of a sketch for the mirror plane."),
+                LinkPick::Axis => tr("Click a round edge, a cylindrical face, a straight edge, a face, or an axis or a line of a sketch for the axis (or press X, Y, Z)."),
                 LinkPick::Target => tr("Click the body the pieces are added to or cut out of."),
-                LinkPick::Direction | LinkPick::Direction2 => tr("Click a straight edge or a face for the direction."),
+                LinkPick::Direction | LinkPick::Direction2 => tr("Click a straight edge, a face, or a line of a sketch for the direction."),
             };
         }
         if !have {
@@ -513,8 +530,8 @@ impl App {
         }
         match u.p.mode {
             LinkMode::Linear => tr("Row: click an edge or a face for the direction (or press X, Y, Z), or click the place of the second piece."),
-            LinkMode::Circular => tr("Round an axis: click the centre: a round edge, a cylindrical face, a straight edge (or press X, Y, Z), then set the number."),
-            LinkMode::Mirror => tr("Mirror: click the plane: a flat face, a straight edge, or choose a base plane or the plane of a sketch."),
+            LinkMode::Circular => tr("Round an axis: click the centre: a round edge, a cylindrical face, a straight edge, an axis of a sketch (or press X, Y, Z), then set the number."),
+            LinkMode::Mirror => tr("Mirror: click the plane: a flat face, a straight edge, an axis or a line of a sketch, or choose a base plane."),
             LinkMode::Fill => tr("Into a face: click the flat rectangular face (Pick the face), choose the corners or a grid, then Apply."),
         }
     }
@@ -577,8 +594,59 @@ impl App {
         }
     }
 
+    /// A line or an auxiliary axis of a sketch under the pointer as a direction, an axis or a mirror plane (the plane through the line
+    /// that stands square to the plane of the sketch); the centre of a circle or an arc of a sketch as an axis square to the sketch.
+    fn pick_sketch_line(&mut self, what: LinkPick) -> bool {
+        let Some(Obj::Entity(s, id)) = self.hover_obj else {
+            return false;
+        };
+        let Some((plane, e)) = self
+            .doc
+            .sketch(s)
+            .and_then(|sk| sk.sketch.entity(id).map(|e| (sk.plane, *e)))
+        else {
+            return false;
+        };
+        let n = plane.normal.normalize();
+        let p = &mut self.link_ui.p;
+        if let Some(line) = rolidium_doc::sketch_line_in_space(&plane, &e) {
+            let label = if e.is_axis() {
+                tr("an auxiliary axis")
+            } else {
+                tr("a line of a sketch")
+            };
+            match what {
+                LinkPick::Direction => (p.dir, p.dir_label) = (line.dir, label),
+                LinkPick::Direction2 => (p.dir2, p.dir2_label) = (line.dir, label),
+                LinkPick::Axis => (p.axis, p.axis_label) = (line, label),
+                LinkPick::Plane => {
+                    let Some(pl) = rolidium_doc::sketch_mirror_plane(&plane, &e) else {
+                        return false;
+                    };
+                    (p.plane, p.plane_label) = (pl, label);
+                }
+                LinkPick::Target | LinkPick::Point | LinkPick::RectFace => return false,
+            }
+            return true;
+        }
+        if let (LinkPick::Axis, Entity::Circle { center, .. } | Entity::Arc { center, .. }) = (what, e) {
+            (p.axis, p.axis_label) = (
+                Axis {
+                    origin: plane.to_3d(center),
+                    dir: n,
+                },
+                tr("the centre of a circle of a sketch"),
+            );
+            return true;
+        }
+        false
+    }
+
     /// Sets a direction, an axis or a plane from the edge or the face under the pointer. `true` when something was taken.
     fn pick_link_geometry(&mut self, what: LinkPick) -> bool {
+        if self.pick_sketch_line(what) {
+            return true;
+        }
         // a round edge: its centre and the axis of the circle (an axis of a pattern)
         if let (Some(Obj::Edge(b, e)), LinkPick::Axis) = (self.hover_obj, what) {
             if let Some(pl) = self.edge_polyline(b, e).filter(|p| p.len() >= 8) {
@@ -905,7 +973,7 @@ impl App {
                 } else {
                     rolidium_doc::RectFill::Corners
                 };
-                Some((FaceId(f), fill))
+                Some((rolidium_doc::RectTarget::Face(FaceId(f)), fill))
             } else {
                 None
             };
@@ -1231,7 +1299,7 @@ impl App {
                     crate::theme::rgb(255, 200, 100),
                     match pk {
                         LinkPick::Target => tr("Click the body in the view"),
-                        LinkPick::Plane => tr("Click a flat face, a straight edge or the plane of a sketch in the view"),
+                        LinkPick::Plane => tr("Click a flat face, a straight edge, an axis or a line of a sketch in the view"),
                         LinkPick::Point => tr("Click the place of the second piece on a face"),
                         LinkPick::RectFace => tr("Click the flat rectangular face of the same body"),
                         _ => tr("Click a straight edge or a face in the view"),
@@ -1755,6 +1823,32 @@ impl App {
             return;
         };
         let one = self.entity_sel.filter(|(s, _)| *s == sk).map(|(_, e)| e);
+        // the lines and the auxiliary axes of the sketch (a mirror line, a direction), and the centres of its circles and arcs
+        let (lines, centres): (Vec<(String, glam::DVec2, f64)>, Vec<(String, glam::DVec2)>) = self
+            .doc
+            .sketch(sk)
+            .map(|sd| {
+                let mut lines = Vec::new();
+                let mut centres = Vec::new();
+                for (id, e) in sd.sketch.entities() {
+                    if let Some((a, d)) = e.axis_line() {
+                        let name = if e.is_axis() {
+                            tr("Auxiliary axis")
+                        } else {
+                            tr("Line")
+                        };
+                        lines.push((format!("{name} {id}"), a, d.y.atan2(d.x).to_degrees()));
+                        if e.is_axis() {
+                            centres.push((format!("{name} {id}"), a));
+                        }
+                    }
+                    if let Entity::Circle { center, .. } | Entity::Arc { center, .. } = e {
+                        centres.push((format!("{} {id}", tr("Circle")), *center));
+                    }
+                }
+                (lines, centres)
+            })
+            .unwrap_or_default();
         let mut u = std::mem::take(&mut self.link_ui);
         let mut docks = std::mem::take(&mut self.docks);
         let mut apply = false;
@@ -1788,6 +1882,17 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.label(tr("Direction"));
                             ui.add(egui::DragValue::new(&mut u.sk_angle).speed(1.0).suffix("°"));
+                            if !lines.is_empty() {
+                                egui::ComboBox::from_id_salt("sk_dir_from")
+                                    .selected_text(tr("From a line"))
+                                    .show_ui(ui, |ui| {
+                                        for (n, _, ang) in &lines {
+                                            if ui.selectable_label(false, n).clicked() {
+                                                u.sk_angle = *ang;
+                                            }
+                                        }
+                                    });
+                            }
                         });
                         ui.horizontal(|ui| {
                             ui.label(tr("Pieces"));
@@ -1806,6 +1911,17 @@ impl App {
                             ui.label(tr("Centre"));
                             ui.add(egui::DragValue::new(&mut u.sk_cx).speed(0.5));
                             ui.add(egui::DragValue::new(&mut u.sk_cy).speed(0.5));
+                            if !centres.is_empty() {
+                                egui::ComboBox::from_id_salt("sk_centre_from")
+                                    .selected_text(tr("From a shape"))
+                                    .show_ui(ui, |ui| {
+                                        for (n, c) in &centres {
+                                            if ui.selectable_label(false, n).clicked() {
+                                                (u.sk_cx, u.sk_cy) = (c.x, c.y);
+                                            }
+                                        }
+                                    });
+                            }
                         });
                         ui.horizontal(|ui| {
                             ui.label(tr("Pieces"));
@@ -1829,6 +1945,17 @@ impl App {
                             ui.label(tr("Direction"));
                             ui.add(egui::DragValue::new(&mut u.sk_angle).speed(1.0).suffix("°"));
                         });
+                        if !lines.is_empty() {
+                            egui::ComboBox::from_id_salt("sk_mirror_from")
+                                .selected_text(tr("Mirror line: a line or an axis of the sketch"))
+                                .show_ui(ui, |ui| {
+                                    for (n, a, ang) in &lines {
+                                        if ui.selectable_label(false, n).clicked() {
+                                            (u.sk_cx, u.sk_cy, u.sk_angle) = (a.x, a.y, *ang);
+                                        }
+                                    }
+                                });
+                        }
                         ui.checkbox(&mut u.sk_keep, tr("Keep the original"));
                     }
                 }

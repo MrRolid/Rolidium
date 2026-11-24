@@ -122,6 +122,8 @@ impl Seg2 {
 
 fn entity_segs(e: &Entity) -> Vec<Seg2> {
     match *e {
+        // an auxiliary axis is no part of a path
+        Entity::Axis { .. } => Vec::new(),
         Entity::Line { a, b } => vec![Seg2::Line { a, b }],
         Entity::Rect { a, b } => {
             let (p0, p1, p2, p3) = (a, DVec2::new(b.x, a.y), b, DVec2::new(a.x, b.y));

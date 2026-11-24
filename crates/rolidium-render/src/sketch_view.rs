@@ -4,7 +4,7 @@
 
 use crate::PreviewDraw;
 use glam::Vec3;
-use rolidium_sketch::{PlaneDef, Region, Sketch};
+use rolidium_sketch::{DVec2, Entity, PlaneDef, Region, Sketch};
 
 /// A region lifted into 3D: filled triangles and closed outline polylines.
 #[derive(Debug, Clone, Default)]
@@ -37,6 +37,10 @@ pub fn region_geometry(plane: &PlaneDef, r: &Region) -> RegionGeom {
 pub fn sketch_lines(plane: &PlaneDef, s: &Sketch) -> Vec<Vec3> {
     let mut out = Vec::new();
     for (_, e) in s.entities() {
+        if let Entity::Axis { a, b } = *e {
+            dash_dot(plane, a, b, &mut out);
+            continue;
+        }
         for pl in e.polylines() {
             for w in pl.windows(2) {
                 out.push(v3(plane, w[0]));
@@ -45,6 +49,33 @@ pub fn sketch_lines(plane: &PlaneDef, s: &Sketch) -> Vec<Vec3> {
         }
     }
     out
+}
+
+/// An auxiliary axis as dashes and dots (dash, gap, dot, gap); the pattern shrinks for a short axis so that it always shows.
+fn dash_dot(plane: &PlaneDef, a: DVec2, b: DVec2, out: &mut Vec<Vec3>) {
+    let len = a.distance(b);
+    if len < 1e-9 {
+        return;
+    }
+    let k = (len / 40.0).clamp(0.15, 1.0);
+    let pattern = [
+        (8.0 * k, true),
+        (2.0 * k, false),
+        (1.2 * k, true),
+        (2.0 * k, false),
+    ];
+    let dir = (b - a) / len;
+    let (mut t, mut i) = (0.0_f64, 0);
+    while t < len - 1e-9 {
+        let (l, on) = pattern[i % 4];
+        let t1 = (t + l).min(len);
+        if on {
+            out.push(v3(plane, a + dir * t));
+            out.push(v3(plane, a + dir * t1));
+        }
+        t = t1;
+        i += 1;
+    }
 }
 
 pub fn fill_layer(geoms: &[&RegionGeom], color: [f32; 4]) -> PreviewDraw {

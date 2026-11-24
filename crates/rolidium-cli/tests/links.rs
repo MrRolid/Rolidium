@@ -135,3 +135,44 @@ fn a_hole_is_repeated_in_the_same_body_from_scripts() {
     let e = r.run_line("repeat-feature top linear 2 10 1 0 0").unwrap_err();
     assert!(e.contains("whole round hole"), "{e}");
 }
+
+#[test]
+fn an_auxiliary_axis_makes_no_region_and_serves_as_the_axis_of_a_mirror_and_a_pattern() {
+    // an axis is no shape: a sketch of one axis and one circle has one region
+    let mut r = run("sketch xy\naxis 50 -10 50 70\ncircle 20 20 10\n");
+    assert_eq!(r.doc.sketches()[0].sketch.entities().len(), 2);
+    assert_eq!(r.doc.sketches()[0].sketch.regions().len(), 1);
+    assert!(r.doc.sketches()[0].sketch.entities()[0].1.is_axis());
+    // a pattern of "all the shapes" does not repeat the axis
+    r.run_line("sketch-mirror 50 0 0 1 keep").unwrap();
+    assert_eq!(r.doc.sketches()[0].sketch.entities().len(), 3);
+    // a mirror through the axis in 3D: the plane goes through the axis, square to the sketch (x = 50)
+    let mut r = run("sketch xy\naxis 50 -10 50 70\nbox 10 10 10\nmove 10 0 0 body 1\n");
+    r.run_line("mirror plane-of 1 1 keep body 1").unwrap();
+    assert_eq!(r.doc.bodies().len(), 2);
+    let (lo, hi) = r.doc.bodies()[1].solid.bounding_box().unwrap();
+    assert!(
+        (lo.x - 80.0).abs() < 1e-6 && (hi.x - 90.0).abs() < 1e-6,
+        "{lo:?} {hi:?}"
+    );
+    // the hole of the plate mirrored by the axis, in the same body
+    let mut r = run(PLATE);
+    r.run_script("sketch xy\naxis 50 -10 50 70").unwrap();
+    let v0 = r.doc.bodies()[0].solid.volume().unwrap();
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} mirror plane-of 1 1"))
+        .unwrap();
+    let hole = std::f64::consts::PI * 1.5 * 1.5 * 4.0;
+    assert!((v0 - r.doc.bodies()[0].solid.volume().unwrap() - hole).abs() < 1e-3);
+    assert!(!r.doc.bodies()[0]
+        .solid
+        .contains_point(rolidium_kernel::DVec3::new(95.0, 5.0, 2.0))
+        .unwrap());
+    // a circular pattern round the axis (a line in the plane of the sketch, along y)
+    let r = run("sketch xy\naxis 0 -10 0 70\nbox 10 10 10\nmove 30 0 0 body 1\ncircular-pattern 4 full axis-of 1 1 body 1\n");
+    assert_eq!(r.doc.bodies().len(), 4);
+    // a line that is no line gives a clear message
+    let mut r = run("sketch xy\ncircle 0 0 10\nbox 10 10 10\n");
+    let e = r.run_line("mirror plane-of 1 1").unwrap_err();
+    assert!(e.contains("not a line"), "{e}");
+}

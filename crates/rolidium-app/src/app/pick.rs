@@ -353,7 +353,7 @@ impl App {
         {
             for (_, e) in s.sketch.entities() {
                 match *e {
-                    Entity::Line { a, b } => segments.push((a, b)),
+                    Entity::Line { a, b } | Entity::Axis { a, b } => segments.push((a, b)),
                     Entity::Rect { a, b } => {
                         let c = Entity::rect_corners(a, b);
                         for i in 0..4 {

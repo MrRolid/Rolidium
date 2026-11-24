@@ -23,6 +23,25 @@ pub struct Axis {
     pub dir: DVec3,
 }
 
+/// A line or an auxiliary axis of a sketch as a line in space (a point and the unit direction); `None` for any other shape.
+pub fn sketch_line_in_space(plane: &rolidium_sketch::PlaneDef, e: &Entity) -> Option<Axis> {
+    let (a, d) = e.axis_line()?;
+    let o = plane.to_3d(a);
+    let dir = (plane.to_3d(a + d) - o).normalize_or_zero();
+    (dir != DVec3::ZERO).then_some(Axis { origin: o, dir })
+}
+
+/// The mirror plane that a line or an auxiliary axis of a sketch gives: the plane through the line that stands square to the plane of the sketch
+/// (`dir` is the normal of the plane).
+pub fn sketch_mirror_plane(plane: &rolidium_sketch::PlaneDef, e: &Entity) -> Option<Axis> {
+    let l = sketch_line_in_space(plane, e)?;
+    let normal = l.dir.cross(plane.normal.normalize()).normalize_or_zero();
+    (normal != DVec3::ZERO).then_some(Axis {
+        origin: l.origin,
+        dir: normal,
+    })
+}
+
 /// Where the pieces of a pattern go.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PatternMode {
@@ -162,6 +181,8 @@ pub struct Link {
     pub warnings: Vec<String>,
     /// For a loft or a sweep: the state of the sketches and curves it depends on when it was last calculated (see `generate::stamp`).
     pub stamp: u64,
+    /// For a pattern into the corners (or a grid) of a rectangle: what it follows, so that it is made again when the rectangle changes.
+    pub fill: Option<FillRule>,
 }
 
 /// A group of bodies in the right column. Groups nest; a body belongs to one group at most.
@@ -600,6 +621,24 @@ pub(crate) fn create(
     name: &str,
     next: &mut u64,
 ) -> Result<LinkId, DocError> {
+    create_with(st, kind, sources, name, next, None)
+}
+
+/// A number that changes when something a link depends on besides its source bodies changes (the sketches and curves of a loft or a sweep,
+/// the rectangle a pattern into the corners follows).
+pub(crate) fn stamp_of(st: &State, link: &Link) -> u64 {
+    generate::stamp(st, &link.kind) ^ rule_stamp(st, link).rotate_left(17)
+}
+
+/// Makes a link that follows a rectangle (see [`FillRule`]).
+pub(crate) fn create_with(
+    st: &mut State,
+    kind: LinkKind,
+    sources: Vec<BodyId>,
+    name: &str,
+    next: &mut u64,
+    fill: Option<FillRule>,
+) -> Result<LinkId, DocError> {
     // a loft or a sweep depends on the bodies, sketches and curves its profiles and path name, not on the bodies the caller lists
     let sources = if kind.generates() {
         let d = generate::deps(&kind);
@@ -662,10 +701,11 @@ pub(crate) fn create(
         error: None,
         warnings: Vec::new(),
         stamp: 0,
+        fill,
     };
     let out = calculate(st, &link)?;
     apply(st, &mut link, out, next);
-    link.stamp = generate::stamp(st, &link.kind);
+    link.stamp = stamp_of(st, &link);
     // the sketches a loft or a sweep was made from are its sources: they are hidden, the link keeps them (Delete link shows them again)
     for sk in generate::deps(&link.kind).sketches {
         if let Some(s) = st.sketches.iter_mut().find(|s| s.id == sk) {
@@ -717,9 +757,11 @@ pub(crate) fn edit(
             return Err(bad("The kind of the link and the body it works on cannot be changed; remove the link and make a new one"));
         }
         link.kind = k;
+        // numbers typed by hand: the link no longer follows a rectangle
+        link.fill = None;
         let out = calculate(st, &link)?;
         apply(st, &mut link, out, next);
-        link.stamp = generate::stamp(st, &link.kind);
+        link.stamp = stamp_of(st, &link);
         link.seen = link
             .sources
             .iter()
@@ -728,6 +770,49 @@ pub(crate) fn edit(
             .collect();
     }
     st.links[pos] = link;
+    Ok(())
+}
+
+/// Changes what a pattern into the corners (or a grid) keeps and calculates it again. On failure the state is not changed.
+pub(crate) fn edit_fill(
+    st: &mut State,
+    id: LinkId,
+    fill: RectFill,
+    near: Option<(f64, f64)>,
+    next: &mut u64,
+) -> Result<(), DocError> {
+    let pos = st
+        .links
+        .iter()
+        .position(|l| l.id == id)
+        .ok_or(DocError::NoSuchLink)?;
+    let mut link = st.links[pos].clone();
+    let Some(rule) = link.fill.as_mut() else {
+        return Err(bad("This link does not follow a rectangle"));
+    };
+    rule.fill = fill;
+    if let Some((a, b)) = near {
+        if !(a.is_finite() && b.is_finite()) || a < 0.0 || b < 0.0 {
+            return Err(bad(
+                "The distances from the edges must be numbers that are not negative",
+            ));
+        }
+        rule.sides.near_a = a;
+        rule.sides.near_b = b;
+    }
+    let mut trial = st.clone();
+    follow(&mut trial, &mut link)?;
+    let out = calculate(&trial, &link)?;
+    apply(&mut trial, &mut link, out, next);
+    link.stamp = stamp_of(&trial, &link);
+    link.seen = link
+        .sources
+        .iter()
+        .filter_map(|s| trial.bodies.iter().find(|b| b.id == *s))
+        .map(|b| b.solid.clone())
+        .collect();
+    trial.links[pos] = link;
+    *st = trial;
     Ok(())
 }
 
@@ -789,7 +874,7 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             .collect();
         let missing = now.iter().any(|o| o.is_none());
         let same = !missing
-            && generate::stamp(st, &link.kind) == link.stamp
+            && stamp_of(st, link) == link.stamp
             && now.len() == link.seen.len()
             && now
                 .iter()
@@ -809,7 +894,8 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             st.links[i] = link;
             continue;
         }
-        match calculate(st, &link) {
+        let followed = follow(st, &mut link).and_then(|_| calculate(st, &link));
+        match followed {
             Ok(out) => {
                 apply(st, &mut link, out, next);
                 if !link.warnings.is_empty() {
@@ -830,7 +916,7 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             .filter_map(|s| st.bodies.iter().find(|b| b.id == *s))
             .map(|b| b.solid.clone())
             .collect();
-        link.stamp = generate::stamp(st, &link.kind);
+        link.stamp = stamp_of(st, &link);
         st.links[i] = link;
     }
     // bodies that are gone are not in a group
@@ -910,10 +996,57 @@ pub enum RectFill {
     Grid { columns: u32, rows: u32, margin: f64 },
 }
 
-/// The pattern that puts the copies of something that lies at `source` into the corners of the flat rectangular `face` (or in a grid over it): the
-/// original keeps its place and the copies are placed with the distances to the two nearest edges that it has. `source` may lie anywhere (it is projected
-/// on the plane of the face).
-pub fn rect_fill(solid: &Solid, face: FaceId, source: DVec3, fill: RectFill) -> Result<LinkKind, DocError> {
+/// A rectangle in space: the corner `o`, the unit directions `a` and `b` (`b` = normal x `a`) and the extent along them.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RectGeom {
+    pub o: DVec3,
+    pub a: DVec3,
+    pub b: DVec3,
+    pub n: DVec3,
+    pub amin: f64,
+    pub amax: f64,
+    pub bmin: f64,
+    pub bmax: f64,
+}
+
+/// A direction with the sign that makes its biggest component positive (the same direction whichever way an edge runs).
+fn canonical(d: DVec3) -> DVec3 {
+    let d = d.normalize();
+    let k = if d.x.abs() >= d.y.abs() && d.x.abs() >= d.z.abs() {
+        d.x
+    } else if d.y.abs() >= d.z.abs() {
+        d.y
+    } else {
+        d.z
+    };
+    if k < 0.0 {
+        -d
+    } else {
+        d
+    }
+}
+
+/// The index of the biggest component of a direction.
+fn dominant(d: DVec3) -> usize {
+    if d.x.abs() >= d.y.abs() && d.x.abs() >= d.z.abs() {
+        0
+    } else if d.y.abs() >= d.z.abs() {
+        1
+    } else {
+        2
+    }
+}
+
+/// The two directions of a rectangle in a fixed order, so that the same rectangle gives the same `a` and `b` after it was changed.
+fn rect_axes(n: DVec3, side: DVec3) -> (DVec3, DVec3) {
+    let a0 = canonical(side);
+    let b0 = canonical(n.cross(a0));
+    let a = if dominant(b0) < dominant(a0) { b0 } else { a0 };
+    (a, n.cross(a).normalize())
+}
+
+/// The rectangle of a flat face with four straight sides (a hole in it does not matter).
+pub(crate) fn rect_of_face(solid: &Solid, face: FaceId) -> Result<RectGeom, DocError> {
     let info = solid.face_info(face)?;
     if info.kind != rolidium_kernel::FaceKind::Plane {
         return Err(bad("Click a flat rectangular face (or a rectangle of a sketch)"));
@@ -930,8 +1063,7 @@ pub fn rect_fill(solid: &Solid, face: FaceId, source: DVec3, fill: RectFill) -> 
             "The face is not a rectangle (it needs four straight sides). Click a rectangular face",
         ));
     }
-    let a = (lines[0].end - lines[0].start).normalize();
-    let b = n.cross(a).normalize();
+    let (a, b) = rect_axes(n, lines[0].end - lines[0].start);
     // the four sides must be along a and b, and the face must fill the rectangle they make
     let pts: Vec<DVec3> = lines.iter().flat_map(|l| [l.start, l.end]).collect();
     let o = pts[0];
@@ -956,65 +1088,296 @@ pub fn rect_fill(solid: &Solid, face: FaceId, source: DVec3, fill: RectFill) -> 
     if area <= 1e-9 || info.area > area * (1.0 + 1e-6) {
         return Err(bad("The face is not a rectangle"));
     }
-    let (sa, sb) = ((source - o).dot(a), (source - o).dot(b));
-    let (da0, da1, db0, db1) = (sa - amin, amax - sa, sb - bmin, bmax - sb);
-    if da0.min(da1) < -1e-6 || db0.min(db1) < -1e-6 {
+    Ok(RectGeom {
+        o,
+        a,
+        b,
+        n,
+        amin,
+        amax,
+        bmin,
+        bmax,
+    })
+}
+
+/// The rectangle of a sketch (an axis-aligned rectangle of the plane of the sketch).
+pub(crate) fn rect_of_sketch(
+    st: &State,
+    sketch: SketchId,
+    entity: rolidium_sketch::EntityId,
+) -> Result<RectGeom, DocError> {
+    let sk = st
+        .sketches
+        .iter()
+        .find(|s| s.id == sketch)
+        .ok_or(DocError::NoSuchSketch)?;
+    let Some(Entity::Rect { a, b }) = sk.sketch.entity(entity).copied() else {
         return Err(bad(
-            "The hole does not lie inside the face: click the face the hole is in",
+            "The rectangle of the sketch is gone (or it is not a rectangle)",
         ));
+    };
+    let corners: Vec<DVec3> = Entity::rect_corners(a, b)
+        .iter()
+        .map(|c| sk.plane.to_3d(*c))
+        .collect();
+    let n = sk.plane.normal.normalize();
+    let (ax, bx) = rect_axes(n, corners[1] - corners[0]);
+    let o = corners[0];
+    let (mut amin, mut amax, mut bmin, mut bmax) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
+    for p in &corners {
+        let (x, y) = ((*p - o).dot(ax), (*p - o).dot(bx));
+        amin = amin.min(x);
+        amax = amax.max(x);
+        bmin = bmin.min(y);
+        bmax = bmax.max(y);
     }
-    let (sign_a, near_a) = if da0 <= da1 { (1.0, da0) } else { (-1.0, da1) };
-    let (sign_b, near_b) = if db0 <= db1 { (1.0, db0) } else { (-1.0, db1) };
-    let (nc, nr, len_a, len_b) = match fill {
-        RectFill::Corners => (2, 2, (amax - amin) - 2.0 * near_a, (bmax - bmin) - 2.0 * near_b),
-        RectFill::Grid {
-            columns,
-            rows,
-            margin,
-        } => {
-            let la = if sign_a > 0.0 {
-                (amax - margin) - sa
-            } else {
-                sa - (amin + margin)
-            };
-            let lb = if sign_b > 0.0 {
-                (bmax - margin) - sb
-            } else {
-                sb - (bmin + margin)
-            };
-            (columns.max(1), rows.max(1), la, lb)
+    Ok(RectGeom {
+        o,
+        a: ax,
+        b: bx,
+        n,
+        amin,
+        amax,
+        bmin,
+        bmax,
+    })
+}
+
+/// Where the nearest edges of a rectangle are to a point, and the sides they are on.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EdgeSides {
+    /// +1: the nearest edge along `a` is the one at the smallest coordinate, -1: at the biggest.
+    pub sign_a: f64,
+    pub near_a: f64,
+    pub sign_b: f64,
+    pub near_b: f64,
+}
+
+impl RectGeom {
+    /// The distances of a point to the nearest edges along `a` and along `b`.
+    pub(crate) fn sides_of(&self, p: DVec3) -> Result<EdgeSides, DocError> {
+        let (sa, sb) = ((p - self.o).dot(self.a), (p - self.o).dot(self.b));
+        let (da0, da1, db0, db1) = (sa - self.amin, self.amax - sa, sb - self.bmin, self.bmax - sb);
+        if da0.min(da1) < -1e-6 || db0.min(db1) < -1e-6 {
+            return Err(bad(
+                "The hole does not lie inside the face: click the face the hole is in",
+            ));
         }
-    };
-    // the columns run along the longer side of the rectangle, the rows along the shorter
-    let (nc, nr) = if matches!(fill, RectFill::Grid { .. }) && (amax - amin) < (bmax - bmin) {
-        (nr, nc)
-    } else {
-        (nc, nr)
-    };
-    if (nc > 1 && len_a <= 1e-9) || (nr > 1 && len_b <= 1e-9) {
-        return Err(bad(
-            "The pieces do not fit into the face with this distance from the edges",
-        ));
+        let (sign_a, near_a) = if da0 <= da1 { (1.0, da0) } else { (-1.0, da1) };
+        let (sign_b, near_b) = if db0 <= db1 { (1.0, db0) } else { (-1.0, db1) };
+        Ok(EdgeSides {
+            sign_a,
+            near_a,
+            sign_b,
+            near_b,
+        })
     }
-    Ok(LinkKind::Linear(
-        LinearParams {
-            axis: Axis {
-                origin: source,
-                dir: a * sign_a,
-            },
-            count: nc,
-            spacing: len_a,
-            by_total: true,
-            second: Some(Direction2 {
+
+    /// The point of the plane of the rectangle that has the given distances to the nearest edges (the height above the plane is that of `like`).
+    pub(crate) fn place(&self, sides: EdgeSides, like: DVec3) -> DVec3 {
+        let sa = if sides.sign_a > 0.0 {
+            self.amin + sides.near_a
+        } else {
+            self.amax - sides.near_a
+        };
+        let sb = if sides.sign_b > 0.0 {
+            self.bmin + sides.near_b
+        } else {
+            self.bmax - sides.near_b
+        };
+        self.o + self.a * sa + self.b * sb + self.n * (like - self.o).dot(self.n)
+    }
+
+    /// The pattern that puts the copies of something at `source` (with these distances to the nearest edges) into the corners of the rectangle or into a grid.
+    pub(crate) fn fill_kind(
+        &self,
+        source: DVec3,
+        sides: EdgeSides,
+        fill: RectFill,
+    ) -> Result<LinkKind, DocError> {
+        let EdgeSides {
+            sign_a,
+            near_a,
+            sign_b,
+            near_b,
+        } = sides;
+        let (sa, sb) = ((source - self.o).dot(self.a), (source - self.o).dot(self.b));
+        let (amin, amax, bmin, bmax) = (self.amin, self.amax, self.bmin, self.bmax);
+        let (nc, nr, len_a, len_b) = match fill {
+            RectFill::Corners => (2, 2, (amax - amin) - 2.0 * near_a, (bmax - bmin) - 2.0 * near_b),
+            RectFill::Grid {
+                columns,
+                rows,
+                margin,
+            } => {
+                let la = if sign_a > 0.0 {
+                    (amax - margin) - sa
+                } else {
+                    sa - (amin + margin)
+                };
+                let lb = if sign_b > 0.0 {
+                    (bmax - margin) - sb
+                } else {
+                    sb - (bmin + margin)
+                };
+                (columns.max(1), rows.max(1), la, lb)
+            }
+        };
+        // the columns run along the longer side of the rectangle, the rows along the shorter
+        let (nc, nr) = if matches!(fill, RectFill::Grid { .. }) && (amax - amin) < (bmax - bmin) {
+            (nr, nc)
+        } else {
+            (nc, nr)
+        };
+        if (nc > 1 && len_a <= 1e-9) || (nr > 1 && len_b <= 1e-9) {
+            return Err(bad(
+                "The pieces do not fit into the face with this distance from the edges",
+            ));
+        }
+        Ok(LinkKind::Linear(
+            LinearParams {
                 axis: Axis {
                     origin: source,
-                    dir: b * sign_b,
+                    dir: self.a * sign_a,
                 },
-                count: nr,
-                spacing: len_b,
+                count: nc,
+                spacing: len_a,
                 by_total: true,
-            }),
-        },
-        PatternMode::New,
-    ))
+                second: Some(Direction2 {
+                    axis: Axis {
+                        origin: source,
+                        dir: self.b * sign_b,
+                    },
+                    count: nr,
+                    spacing: len_b,
+                    by_total: true,
+                }),
+            },
+            PatternMode::New,
+        ))
+    }
+}
+
+/// The pattern that puts the copies of something that lies at `source` into the corners of the flat rectangular `face` (or in a grid over it): the
+/// original keeps its place and the copies are placed with the distances to the two nearest edges that it has. `source` may lie anywhere (it is projected
+/// on the plane of the face).
+pub fn rect_fill(solid: &Solid, face: FaceId, source: DVec3, fill: RectFill) -> Result<LinkKind, DocError> {
+    let g = rect_of_face(solid, face)?;
+    let sides = g.sides_of(source)?;
+    g.fill_kind(source, sides, fill)
+}
+
+/// The rectangle a pattern into the corners (or a grid) is made for, as the person points at it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RectTarget {
+    /// A flat rectangular face of the body the feature is in.
+    Face(FaceId),
+    /// A rectangle of a sketch.
+    Sketch(SketchId, rolidium_sketch::EntityId),
+}
+
+/// What a pattern into the corners (or a grid) of a rectangle remembers, so that it follows the rectangle: the distances of the original to the nearest
+/// edges and on which sides they are.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FillRule {
+    pub rect: RectRef,
+    pub fill: RectFill,
+    pub sides: EdgeSides,
+    /// A point of the source (the tool) at the last calculation: where it stands.
+    pub at: DVec3,
+}
+
+/// The rectangle a [`FillRule`] follows.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RectRef {
+    /// A flat rectangular face of the body the pieces go into: found again by its plane (a point and the normal) and the point on it.
+    Face {
+        origin: DVec3,
+        normal: DVec3,
+        near: DVec3,
+    },
+    /// A rectangle of a sketch.
+    Sketch {
+        sketch: SketchId,
+        entity: rolidium_sketch::EntityId,
+    },
+}
+
+/// The rectangle of the rule in the current state: a flat rectangular face of the solid `base` on the plane of the rule (the one nearest to the point),
+/// or the rectangle of the sketch.
+pub(crate) fn rect_of_rule(st: &State, base: Option<&Solid>, r: &RectRef) -> Result<RectGeom, DocError> {
+    match r {
+        RectRef::Sketch { sketch, entity } => rect_of_sketch(st, *sketch, *entity),
+        RectRef::Face { origin, normal, near } => {
+            let solid = base.ok_or_else(|| bad("The link lost the body it works on"))?;
+            let n = normal.normalize();
+            let mut best: Option<(f64, RectGeom)> = None;
+            for f in solid.faces() {
+                let Ok(i) = solid.face_info(f) else { continue };
+                if i.kind != rolidium_kernel::FaceKind::Plane
+                    || i.normal.normalize().dot(n) < 1.0 - 1e-6
+                    || (i.origin - *origin).dot(n).abs() > 1e-5
+                {
+                    continue;
+                }
+                let Ok(g) = rect_of_face(solid, f) else { continue };
+                let (x, y) = ((*near - g.o).dot(g.a), (*near - g.o).dot(g.b));
+                let out = (g.amin - x)
+                    .max(x - g.amax)
+                    .max(0.0)
+                    .hypot((g.bmin - y).max(y - g.bmax).max(0.0));
+                if best.as_ref().is_none_or(|(d, _)| out < *d) {
+                    best = Some((out, g));
+                }
+            }
+            best.map(|b| b.1)
+                .ok_or_else(|| bad("The rectangular face the pieces follow is gone"))
+        }
+    }
+}
+
+/// Places the source of a link with a [`FillRule`] and makes the pattern again from the rectangle as it is now.
+pub(crate) fn follow(st: &mut State, link: &mut Link) -> Result<(), DocError> {
+    let Some(mut rule) = link.fill.clone() else {
+        return Ok(());
+    };
+    let g = rect_of_rule(st, link.base.as_ref(), &rule.rect)?;
+    let want = g.place(rule.sides, rule.at);
+    let shift = want - rule.at;
+    if shift.length() > 1e-9 {
+        for s in &link.sources {
+            if let Some(b) = st.bodies.iter_mut().find(|b| b.id == *s) {
+                b.solid = b.solid.moved(shift, DVec3::ZERO, DVec3::Z, 0.0)?.solid;
+            }
+        }
+    }
+    rule.at = want;
+    let kind = g.fill_kind(want, rule.sides, rule.fill)?;
+    link.kind = kind.with_mode(link.kind.mode());
+    link.fill = Some(rule);
+    Ok(())
+}
+
+/// A number that changes when what a link follows besides its sources changes (the rectangle of a sketch).
+pub(crate) fn rule_stamp(st: &State, link: &Link) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    if let Some(FillRule {
+        rect: RectRef::Sketch { sketch, entity },
+        ..
+    }) = &link.fill
+    {
+        let e = st
+            .sketches
+            .iter()
+            .find(|s| s.id == *sketch)
+            .and_then(|s| s.sketch.entity(*entity).copied());
+        format!("{e:?}").hash(&mut h);
+        st.sketches
+            .iter()
+            .find(|s| s.id == *sketch)
+            .map(|s| format!("{:?}", s.plane))
+            .hash(&mut h);
+    }
+    h.finish()
 }

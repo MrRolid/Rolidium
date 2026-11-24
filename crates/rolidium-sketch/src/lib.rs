@@ -33,6 +33,13 @@ pub enum Entity {
         center: DVec2,
         radius: f64,
     },
+    /// An auxiliary axis (drawn dash-dotted): the straight line through `a` and `b`. It makes no regions, is no part of a profile or a
+    /// path, and serves as the axis of a mirror, a circular pattern or a revolve. The two points only give the line a direction and a
+    /// drawn length.
+    Axis {
+        a: DVec2,
+        b: DVec2,
+    },
     /// Circular arc: from angle `start` (radians) by `sweep` (positive counter-clockwise).
     Arc {
         center: DVec2,
@@ -64,7 +71,9 @@ pub const MIN_SIZE: f64 = 1e-6;
 impl Entity {
     pub fn validate(&self) -> Result<(), SketchError> {
         let finite = match *self {
-            Entity::Line { a, b } | Entity::Rect { a, b } => a.is_finite() && b.is_finite(),
+            Entity::Line { a, b } | Entity::Rect { a, b } | Entity::Axis { a, b } => {
+                a.is_finite() && b.is_finite()
+            }
             Entity::Circle { center, radius } => center.is_finite() && radius.is_finite(),
             Entity::Arc {
                 center,
@@ -77,7 +86,7 @@ impl Entity {
             return Err(SketchError::NotFinite);
         }
         let ok = match *self {
-            Entity::Line { a, b } => a.distance(b) > MIN_SIZE,
+            Entity::Line { a, b } | Entity::Axis { a, b } => a.distance(b) > MIN_SIZE,
             Entity::Rect { a, b } => (a.x - b.x).abs() > MIN_SIZE && (a.y - b.y).abs() > MIN_SIZE,
             Entity::Circle { radius, .. } => radius > MIN_SIZE,
             Entity::Arc { radius, sweep, .. } => {
@@ -91,6 +100,37 @@ impl Entity {
         }
     }
 
+    /// An auxiliary axis (no region, no profile, no path).
+    pub fn is_axis(&self) -> bool {
+        matches!(self, Entity::Axis { .. })
+    }
+
+    /// The line through the two ends of a line or an axis: a point and the unit direction.
+    pub fn axis_line(&self) -> Option<(DVec2, DVec2)> {
+        match *self {
+            Entity::Line { a, b } | Entity::Axis { a, b } if a.distance(b) > MIN_SIZE => {
+                Some((a, (b - a).normalize()))
+            }
+            _ => None,
+        }
+    }
+
+    /// The same line as an auxiliary axis (a line becomes an axis; anything else is not changed).
+    pub fn as_axis(&self) -> Entity {
+        match *self {
+            Entity::Line { a, b } => Entity::Axis { a, b },
+            e => e,
+        }
+    }
+
+    /// The same axis as an ordinary line.
+    pub fn as_line(&self) -> Entity {
+        match *self {
+            Entity::Axis { a, b } => Entity::Line { a, b },
+            e => e,
+        }
+    }
+
     /// Corner points of a rectangle in drawing order.
     pub fn rect_corners(a: DVec2, b: DVec2) -> [DVec2; 4] {
         [a, DVec2::new(b.x, a.y), b, DVec2::new(a.x, b.y)]
@@ -99,7 +139,7 @@ impl Entity {
     /// Points other tools can snap to.
     pub fn snap_points(&self) -> Vec<(DVec2, SnapKind)> {
         match *self {
-            Entity::Line { a, b } => vec![
+            Entity::Line { a, b } | Entity::Axis { a, b } => vec![
                 (a, SnapKind::Endpoint),
                 (b, SnapKind::Endpoint),
                 ((a + b) * 0.5, SnapKind::Midpoint),
@@ -136,7 +176,7 @@ impl Entity {
     /// Drawable outline as polylines (arcs of circles are sampled finely).
     pub fn polylines(&self) -> Vec<Vec<DVec2>> {
         match *self {
-            Entity::Line { a, b } => vec![vec![a, b]],
+            Entity::Line { a, b } | Entity::Axis { a, b } => vec![vec![a, b]],
             Entity::Rect { a, b } => {
                 let c = Self::rect_corners(a, b);
                 vec![vec![c[0], c[1], c[2], c[3], c[0]]]

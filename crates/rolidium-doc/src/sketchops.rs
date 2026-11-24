@@ -68,6 +68,10 @@ fn map_entity(e: &Entity, m: Map2) -> Vec<Entity> {
             a: m.point(*a),
             b: m.point(*b),
         }],
+        Entity::Axis { a, b } => vec![Entity::Axis {
+            a: m.point(*a),
+            b: m.point(*b),
+        }],
         Entity::Circle { center, radius } => vec![Entity::Circle {
             center: m.point(*center),
             radius: *radius,
@@ -133,7 +137,11 @@ fn step_of(count: u32, spacing: f64, by_total: bool) -> f64 {
 fn chosen(sk: &SketchDoc, ids: &[EntityId]) -> Result<Vec<Entity>, DocError> {
     let all = sk.sketch.entities();
     let list: Vec<Entity> = if ids.is_empty() {
-        all.iter().map(|(_, e)| *e).collect()
+        // an auxiliary axis is not a shape to repeat
+        all.iter()
+            .filter(|(_, e)| !e.is_axis())
+            .map(|(_, e)| *e)
+            .collect()
     } else {
         ids.iter()
             .map(|i| {
@@ -245,7 +253,12 @@ pub(crate) fn mirror(
     };
     if !keep {
         let drop: Vec<EntityId> = if ids.is_empty() {
-            sk.sketch.entities().iter().map(|(i, _)| *i).collect()
+            sk.sketch
+                .entities()
+                .iter()
+                .filter(|(_, e)| !e.is_axis())
+                .map(|(i, _)| *i)
+                .collect()
         } else {
             ids.to_vec()
         };
@@ -268,7 +281,7 @@ pub fn entity_dims(e: &Entity) -> Vec<f64> {
         Entity::Circle { center, radius } => vec![radius * 2.0, center.x, center.y],
         Entity::Arc { radius, sweep, .. } => vec![radius, sweep.abs().to_degrees()],
         Entity::Rect { a, b } => vec![(b.x - a.x).abs(), (b.y - a.y).abs()],
-        Entity::Line { a, b } => {
+        Entity::Line { a, b } | Entity::Axis { a, b } => {
             let d = b - a;
             vec![d.length(), d.y.atan2(d.x).to_degrees()]
         }
@@ -336,15 +349,17 @@ pub fn entity_with_dims(old: &Entity, v: &[Option<f64>]) -> Option<Entity> {
                 b: a + DVec2::new(sx * w, sy * h),
             })
         }
-        Entity::Line { a, .. } => {
+        Entity::Line { a, .. } | Entity::Axis { a, .. } => {
             let l = get(0, cur[0])?.abs();
             let ang = get(1, cur[1])?.to_radians();
             if l <= 1e-9 {
                 return None;
             }
-            Some(Entity::Line {
-                a,
-                b: a + DVec2::new(ang.cos(), ang.sin()) * l,
+            let b = a + DVec2::new(ang.cos(), ang.sin()) * l;
+            Some(if old.is_axis() {
+                Entity::Axis { a, b }
+            } else {
+                Entity::Line { a, b }
             })
         }
     }

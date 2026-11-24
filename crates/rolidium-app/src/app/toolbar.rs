@@ -85,6 +85,7 @@ impl App {
             (SkTool::Rect, "rect", "Rectangle", "R"),
             (SkTool::Circle, "circle", "Circle", "C"),
             (SkTool::Arc, "arc", "Arc", "A"),
+            (SkTool::Axis, "axis", "Auxiliary axis", "X"),
         ] {
             items.push(Item {
                 act: Tb::Draw(t),

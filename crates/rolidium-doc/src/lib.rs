@@ -26,8 +26,9 @@ mod generate;
 mod links;
 mod sketchops;
 pub use links::{
-    linear_through, link_of_result, placements_of, rect_fill, Axis, CircularParams, Direction2, Group,
-    GroupId, LinearParams, Link, LinkId, LinkKind, MirrorParams, PatternMode, RectFill, MAX_PIECES,
+    linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
+    Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams, Link, LinkId,
+    LinkKind, MirrorParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
 };
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
 
@@ -289,7 +290,14 @@ pub enum Command {
         name: String,
         /// Into the corners (or a grid) of this flat rectangular face of the same body: the `kind` is then not used, the pattern is made from the
         /// place of the feature and the face (`rect_fill`).
-        rect: Option<(FaceId, RectFill)>,
+        rect: Option<(RectTarget, RectFill)>,
+    },
+    /// Changes what a pattern into the corners (or a grid) of a rectangle keeps: corners or a grid, the distances of the pieces to the nearest edges.
+    EditLinkFill {
+        link: LinkId,
+        fill: RectFill,
+        /// The distances to the nearest edges (along the two sides of the rectangle), `None`: as they were.
+        near: Option<(f64, f64)>,
     },
     PullFace {
         body: BodyId,
@@ -586,6 +594,14 @@ pub struct Job {
     next_id: u64,
 }
 
+/// The first body a link made.
+fn st_first_result(st: &State, link: LinkId) -> Option<BodyId> {
+    st.links
+        .iter()
+        .find(|l| l.id == link)
+        .and_then(|l| l.results.first().copied())
+}
+
 /// The bodies of a group and of the groups inside it.
 fn group_bodies(st: &State, group: GroupId) -> Result<Vec<BodyId>, DocError> {
     if !st.groups.iter().any(|g| g.id == group) {
@@ -788,22 +804,29 @@ impl Job {
     /// (a hand edit) is refused (see [`DocError::Derived`]) unless it is a command of the links themselves.
     fn compute(&self) -> Result<Computed, DocError> {
         let mut c = self.compute_command()?;
+        // a pull of a face of a body that patterns cut from or add to: the pull is made on the body as it was before the pattern, and the pattern is made
+        // again (the holes keep their distances to the edges)
         let link_command = matches!(
             self.command,
             Command::AddLink { .. }
                 | Command::AddFeatureLink { .. }
                 | Command::EditLink { .. }
+                | Command::EditLinkFill { .. }
                 | Command::Unlink { .. }
                 | Command::DeleteLink { .. }
         );
         if !link_command {
             if let Some((link, link_name, body, body_name)) = links::derived_edit(&self.base, &c.state) {
-                return Err(DocError::Derived {
-                    link,
-                    link_name,
-                    body,
-                    body_name,
-                });
+                if let Some(c2) = self.pull_through_link()? {
+                    c = c2;
+                } else {
+                    return Err(DocError::Derived {
+                        link,
+                        link_name,
+                        body,
+                        body_name,
+                    });
+                }
             }
         }
         let mut next = self.next_id.max(
@@ -830,6 +853,87 @@ impl Job {
             });
         }
         Ok(c)
+    }
+
+    /// A pull of a flat face of the body that a pattern cuts from or adds to (a plate with holes): the same pull is made on the body as it was before the
+    /// pattern (the face is found by its plane), and the link calculates its pieces again. `None` for anything else (the edit is refused as a hand edit
+    /// of a derived body).
+    fn pull_through_link(&self) -> Result<Option<Computed>, DocError> {
+        let Command::PullFace {
+            body,
+            face,
+            distance,
+            mode,
+        } = &self.command
+        else {
+            return Ok(None);
+        };
+        let st = &*self.base;
+        let Some(link) = st.links.iter().find(|l| {
+            !l.kind.generates()
+                && l.base.is_some()
+                && l.results == [*body]
+                && l.kind.mode().target() == Some(*body)
+        }) else {
+            return Ok(None);
+        };
+        let (Some(base), Some(b)) = (&link.base, st.bodies.iter().find(|b| b.id == *body)) else {
+            return Ok(None);
+        };
+        let Ok(fi) = b.solid.face_info(*face) else {
+            return Ok(None);
+        };
+        if fi.kind != rolidium_kernel::FaceKind::Plane {
+            return Ok(None);
+        }
+        let n = fi.normal.normalize();
+        let mut best: Option<(f64, FaceId)> = None;
+        for f in base.faces() {
+            let Ok(i) = base.face_info(f) else { continue };
+            if i.kind != rolidium_kernel::FaceKind::Plane
+                || i.normal.normalize().dot(n) < 1.0 - 1e-6
+                || (i.origin - fi.origin).dot(n).abs() > 1e-5
+            {
+                continue;
+            }
+            let d = (i.area - fi.area).abs();
+            if best.is_none_or(|(bd, _)| d < bd) {
+                best = Some((d, f));
+            }
+        }
+        let Some((_, face_b)) = best else {
+            return Ok(None);
+        };
+        let mut st2 = st.clone();
+        if let Some(bb) = st2.bodies.iter_mut().find(|x| x.id == *body) {
+            bb.solid = base.clone();
+        }
+        let job = Job {
+            command: Command::PullFace {
+                body: *body,
+                face: face_b,
+                distance: *distance,
+                mode: *mode,
+            },
+            base: Arc::new(st2),
+            base_revision: self.base_revision,
+            next_id: self.next_id,
+        };
+        let mut c = job.compute_command()?;
+        let new_base = c
+            .state
+            .bodies
+            .iter()
+            .find(|x| x.id == *body)
+            .map(|x| x.solid.clone())
+            .ok_or(DocError::NoSuchBody)?;
+        let lid = link.id;
+        for l in c.state.links.iter_mut().filter(|l| l.id == lid) {
+            l.base = Some(new_base.clone());
+            // the pieces are made again from the new body
+            l.seen = Vec::new();
+        }
+        Ok(Some(c))
     }
 
     fn compute_command(&self) -> Result<Computed, DocError> {
@@ -2393,13 +2497,53 @@ impl Job {
                     .solid
                     .clone();
                 let ft = solid.feature_tool(*face)?;
+                let mut rule = None;
                 let kind = match rect {
-                    Some((plate, fill)) => {
+                    Some((target, fill)) => {
                         let at = solid
                             .cylinder_info(*face)?
                             .map(|c| c.base)
                             .ok_or(KernelError::NotPlanar)?;
-                        rect_fill(&solid, *plate, at, *fill)?
+                        let (g, rref) = match target {
+                            RectTarget::Face(plate) => {
+                                let g = links::rect_of_face(&solid, *plate)?;
+                                let r = RectRef::Face {
+                                    origin: g.o,
+                                    normal: g.n,
+                                    near: at,
+                                };
+                                (g, r)
+                            }
+                            RectTarget::Sketch(s, e) => (
+                                links::rect_of_sketch(&st, *s, *e)?,
+                                RectRef::Sketch {
+                                    sketch: *s,
+                                    entity: *e,
+                                },
+                            ),
+                        };
+                        let sides = g.sides_of(at)?;
+                        let kind = g.fill_kind(at, sides, *fill)?;
+                        rule = Some(FillRule {
+                            rect: rref,
+                            fill: *fill,
+                            sides,
+                            at,
+                        });
+                        // the pattern starts from the body without the original (it moves with the rectangle): the hole is filled, the pin taken off
+                        let plug = solid.feature_tool_with(*face, 0.0)?.solid;
+                        let restored = solid.boolean_checked(
+                            &plug,
+                            if ft.is_hole {
+                                BooleanOp::Fuse
+                            } else {
+                                BooleanOp::Cut
+                            },
+                        )?;
+                        if let Some(b) = st.bodies.iter_mut().find(|b| b.id == *body) {
+                            b.solid = restored.solid;
+                        }
+                        kind
                     }
                     None => kind.clone(),
                 };
@@ -2424,7 +2568,14 @@ impl Job {
                     PatternMode::Add(*body)
                 };
                 let mut next = self.next_id + 1;
-                let id = links::create(&mut st, kind.with_mode(mode), vec![tool_id], name, &mut next)?;
+                let id = links::create_with(
+                    &mut st,
+                    kind.with_mode(mode),
+                    vec![tool_id],
+                    name,
+                    &mut next,
+                    rule,
+                )?;
                 let warnings = st
                     .links
                     .iter()
@@ -2458,6 +2609,13 @@ impl Job {
                 if !warnings.is_empty() {
                     c.notice = Some(warnings);
                 }
+                Ok(c)
+            }
+            Command::EditLinkFill { link, fill, near } => {
+                let mut next = self.next_id;
+                links::edit_fill(&mut st, *link, *fill, *near, &mut next)?;
+                let mut c = self.done(st, "Edit link");
+                c.touched_body = st_first_result(&c.state, *link);
                 Ok(c)
             }
             Command::EditLink { link, kind, name } => {

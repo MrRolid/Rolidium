@@ -99,7 +99,9 @@ impl Target {
                 ],
                 Entity::Arc { .. } => vec![(Row::Entity(0), tr("Radius")), (Row::Entity(1), tr("Angle"))],
                 Entity::Rect { .. } => vec![(Row::Entity(0), tr("Width")), (Row::Entity(1), tr("Height"))],
-                Entity::Line { .. } => vec![(Row::Entity(0), tr("Length")), (Row::Entity(1), tr("Angle"))],
+                Entity::Line { .. } | Entity::Axis { .. } => {
+                    vec![(Row::Entity(0), tr("Length")), (Row::Entity(1), tr("Angle"))]
+                }
             },
             Target::Edges { .. } => vec![(Row::EdgeSize, tr("Size"))],
             Target::Face {
@@ -155,6 +157,7 @@ impl Target {
                 Entity::Arc { .. } => tr("Arc"),
                 Entity::Rect { .. } => tr("Rectangle"),
                 Entity::Line { .. } => tr("Line"),
+                Entity::Axis { .. } => tr("Auxiliary axis"),
             },
             Target::Edges { edges, .. } => trf("Edges ({})", &[edges.len().to_string()]),
             Target::Face { hole, blend, .. } => match (blend, hole) {
@@ -229,7 +232,7 @@ impl App {
             let e = *sk.sketch.entity(id)?;
             let anchor = match e {
                 Entity::Circle { center, .. } | Entity::Arc { center, .. } => center,
-                Entity::Line { a, b } | Entity::Rect { a, b } => (a + b) * 0.5,
+                Entity::Line { a, b } | Entity::Rect { a, b } | Entity::Axis { a, b } => (a + b) * 0.5,
             };
             let key = format!("e:{s}:{id}:{e:?}");
             return Some((
@@ -384,6 +387,35 @@ impl App {
         }
     }
 
+    /// Makes a line an auxiliary axis, or an axis an ordinary line.
+    pub(super) fn set_entity_axis(&mut self, sketch: SketchId, entity: EntityId, axis: bool) {
+        let Some(old) = self
+            .doc
+            .sketch(sketch)
+            .and_then(|s| s.sketch.entity(entity).copied())
+        else {
+            return;
+        };
+        let new = if axis { old.as_axis() } else { old.as_line() };
+        if new == old {
+            return;
+        }
+        match self.doc.apply(Command::ReplaceEntity { sketch, entity, new }) {
+            Ok(_) => {
+                self.layers_changed = true;
+                if axis {
+                    self.set_status("The line is an auxiliary axis now", false);
+                } else {
+                    self.set_status("The axis is an ordinary line now", false);
+                }
+            }
+            Err(e) => self.set_status(
+                trf("{}. The sketch was not changed.", &[tr(&e.to_string())]),
+                true,
+            ),
+        }
+    }
+
     /// A click on a shape of a sketch: the first click selects it, a second click on the selected shape (or a double click) puts the cursor into the
     /// field of its size next to it (a closed panel opens again).
     pub(super) fn pick_entity(&mut self, s: SketchId, e: EntityId) {
@@ -444,6 +476,19 @@ impl App {
                     apply = true;
                 }
             });
+        }
+        // a line and an auxiliary axis are the same line drawn two ways
+        if let Target::Entity { entity, e, .. } = &target {
+            if matches!(e, Entity::Line { .. } | Entity::Axis { .. }) {
+                let mut axis = e.is_axis();
+                if ui
+                    .checkbox(&mut axis, tr("Auxiliary axis (dash-dotted, no shape)"))
+                    .on_hover_text(tr("An auxiliary axis forms no region and no path; it is the axis of a mirror, a pattern or a revolve"))
+                    .changed()
+                {
+                    self.set_entity_axis(sketch, *entity, axis);
+                }
+            }
         }
         if let Some(body) = self.body_following_sketch(sketch) {
             ui.weak(trf(

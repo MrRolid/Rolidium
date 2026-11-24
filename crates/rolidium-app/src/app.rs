@@ -1957,6 +1957,7 @@ impl App {
                 Key::R => self.sk.as_mut().unwrap().set_tool(SkTool::Rect),
                 Key::C => self.sk.as_mut().unwrap().set_tool(SkTool::Circle),
                 Key::A => self.sk.as_mut().unwrap().set_tool(SkTool::Arc),
+                Key::X => self.sk.as_mut().unwrap().set_tool(SkTool::Axis),
                 Key::V => self.view_normal_to_sketch(),
                 Key::N => self.begin_plane_at(),
                 // K finishes the sketch (as the main button does); D and P still work

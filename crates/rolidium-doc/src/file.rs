@@ -88,6 +88,7 @@ fn entity_json(e: &Entity) -> Value {
     match *e {
         Entity::Line { a, b } => json!({"type": "line", "a": arr2(a), "b": arr2(b)}),
         Entity::Rect { a, b } => json!({"type": "rect", "a": arr2(a), "b": arr2(b)}),
+        Entity::Axis { a, b } => json!({"type": "axis", "a": arr2(a), "b": arr2(b)}),
         Entity::Circle { center, radius } => {
             json!({"type": "circle", "center": arr2(center), "radius": radius})
         }
@@ -105,6 +106,10 @@ fn entity_json(e: &Entity) -> Value {
 fn entity_from(v: &Value) -> Result<Option<Entity>, FileError> {
     Ok(match v["type"].as_str() {
         Some("line") => Some(Entity::Line {
+            a: get2(&v["a"])?,
+            b: get2(&v["b"])?,
+        }),
+        Some("axis") => Some(Entity::Axis {
             a: get2(&v["a"])?,
             b: get2(&v["b"])?,
         }),
@@ -382,7 +387,84 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("rounded".into(), json!(rounded));
         }
     }
+    if let Some(f) = &l.fill {
+        j.insert("fill".into(), fill_json(f));
+    }
     Value::Object(j)
+}
+
+fn fill_json(f: &crate::FillRule) -> Value {
+    use crate::{RectFill, RectRef};
+    let rect = match &f.rect {
+        RectRef::Face { origin, normal, near } => {
+            json!({"face": {"origin": arr3(*origin), "normal": arr3(*normal), "near": arr3(*near)}})
+        }
+        RectRef::Sketch { sketch, entity } => json!({"sketch": {"id": sketch, "entity": entity}}),
+    };
+    let how = match f.fill {
+        RectFill::Corners => json!({"corners": true}),
+        RectFill::Grid {
+            columns,
+            rows,
+            margin,
+        } => json!({"columns": columns, "rows": rows, "margin": margin}),
+    };
+    json!({
+        "rect": rect,
+        "how": how,
+        "sign_a": f.sides.sign_a,
+        "near_a": f.sides.near_a,
+        "sign_b": f.sides.sign_b,
+        "near_b": f.sides.near_b,
+        "at": arr3(f.at),
+    })
+}
+
+fn fill_from(v: &Value) -> Result<Option<crate::FillRule>, FileError> {
+    use crate::{EdgeSides, FillRule, RectFill, RectRef};
+    if !v.is_object() {
+        return Ok(None);
+    }
+    let r = &v["rect"];
+    let rect = if r["face"].is_object() {
+        RectRef::Face {
+            origin: get3(&r["face"]["origin"])?,
+            normal: get3(&r["face"]["normal"])?,
+            near: get3(&r["face"]["near"])?,
+        }
+    } else if r["sketch"].is_object() {
+        RectRef::Sketch {
+            sketch: r["sketch"]["id"]
+                .as_u64()
+                .ok_or_else(|| corrupt("a link without a sketch"))?,
+            entity: r["sketch"]["entity"]
+                .as_u64()
+                .ok_or_else(|| corrupt("a link without a shape"))? as u32,
+        }
+    } else {
+        return Ok(None);
+    };
+    let h = &v["how"];
+    let fill = if h["columns"].is_u64() {
+        RectFill::Grid {
+            columns: h["columns"].as_u64().unwrap_or(1) as u32,
+            rows: h["rows"].as_u64().unwrap_or(1) as u32,
+            margin: get_f(&h["margin"])?,
+        }
+    } else {
+        RectFill::Corners
+    };
+    Ok(Some(FillRule {
+        rect,
+        fill,
+        sides: EdgeSides {
+            sign_a: get_f(&v["sign_a"])?,
+            near_a: get_f(&v["near_a"])?,
+            sign_b: get_f(&v["sign_b"])?,
+            near_b: get_f(&v["near_b"])?,
+        },
+        at: get3(&v["at"])?,
+    }))
 }
 
 /// A link from its JSON; `None` when its kind is not known to this program (the entry is then kept as it is).
@@ -493,13 +575,13 @@ fn link_from(
     {
         return Ok(None);
     }
-    let stamp = crate::generate::stamp(state, &kind);
+    let fill = fill_from(&j["fill"])?;
     let seen = sources
         .iter()
         .filter_map(|s| bodies.iter().find(|b| b.id == *s))
         .map(|b| b.solid.clone())
         .collect();
-    Ok(Some(crate::Link {
+    let mut link = crate::Link {
         id,
         name: j["name"].as_str().unwrap_or("Link").to_string(),
         kind,
@@ -509,8 +591,11 @@ fn link_from(
         seen,
         error: j["error"].as_str().map(str::to_string),
         warnings: Vec::new(),
-        stamp,
-    }))
+        stamp: 0,
+        fill,
+    };
+    link.stamp = crate::links::stamp_of(state, &link);
+    Ok(Some(link))
 }
 
 pub fn save_to_bytes(

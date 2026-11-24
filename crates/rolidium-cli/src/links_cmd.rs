@@ -165,8 +165,73 @@ impl Runner {
     }
 
     /// Runs the commands of this module. `Ok(false)`: the word is not one of them.
+    /// `plane-of S N`, `axis-of S N` and `direction-of S N` (the line or the auxiliary axis N of the sketch S) become the numbers a command takes.
+    fn expand_sketch_lines(&self, w: &[&str]) -> Result<Vec<String>, String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut i = 0;
+        let f = |v: f64| format!("{v}");
+        while i < w.len() {
+            let what = w[i];
+            if !matches!(what, "plane-of" | "axis-of" | "direction-of") {
+                out.push(w[i].to_string());
+                i += 1;
+                continue;
+            }
+            let (s, n) = (
+                number(
+                    w.get(i + 1)
+                        .ok_or(format!("{what} needs the sketch and the shape"))?,
+                )?,
+                number(
+                    w.get(i + 2)
+                        .ok_or(format!("{what} needs the sketch and the shape"))?,
+                )?,
+            );
+            let sk = self
+                .doc
+                .sketches()
+                .get((s as usize).wrapping_sub(1))
+                .ok_or_else(|| format!("there is no sketch {s}"))?;
+            let e = sk
+                .sketch
+                .entities()
+                .get((n as usize).wrapping_sub(1))
+                .map(|(_, e)| *e)
+                .ok_or_else(|| format!("sketch {s} has no shape {n}"))?;
+            let bad = || format!("shape {n} of sketch {s} is not a line or an auxiliary axis");
+            match what {
+                "plane-of" => {
+                    let p = rolidium_doc::sketch_mirror_plane(&sk.plane, &e).ok_or_else(bad)?;
+                    out.extend(["normal".into(), f(p.dir.x), f(p.dir.y), f(p.dir.z)]);
+                    out.extend(["through".into(), f(p.origin.x), f(p.origin.y), f(p.origin.z)]);
+                }
+                "axis-of" => {
+                    let a = rolidium_doc::sketch_line_in_space(&sk.plane, &e).ok_or_else(bad)?;
+                    out.extend([f(a.dir.x), f(a.dir.y), f(a.dir.z)]);
+                    out.extend(["through".into(), f(a.origin.x), f(a.origin.y), f(a.origin.z)]);
+                }
+                _ => {
+                    let a = rolidium_doc::sketch_line_in_space(&sk.plane, &e).ok_or_else(bad)?;
+                    out.extend([f(a.dir.x), f(a.dir.y), f(a.dir.z)]);
+                }
+            }
+            i += 3;
+        }
+        Ok(out)
+    }
+
     pub(crate) fn run_links_command(&mut self, w: &[&str]) -> Result<bool, String> {
         let err = |e: rolidium_doc::DocError| e.to_string();
+        let expanded = if w
+            .iter()
+            .any(|t| matches!(*t, "plane-of" | "axis-of" | "direction-of"))
+        {
+            Some(self.expand_sketch_lines(w)?)
+        } else {
+            None
+        };
+        let refs: Vec<&str> = expanded.iter().flatten().map(String::as_str).collect();
+        let w: &[&str] = if expanded.is_some() { &refs } else { w };
         match w[0] {
             "linear-pattern" => {
                 let mut c = Cursor { w, i: 1 };
@@ -386,7 +451,7 @@ impl Runner {
                             c.peek()
                                 .ok_or("name the flat rectangular face of the body (top, #N)")?,
                         )?;
-                        rect = Some((plate, fill));
+                        rect = Some((rolidium_doc::RectTarget::Face(plate), fill));
                         LinkKind::Linear(
                             LinearParams {
                                 axis: Axis {

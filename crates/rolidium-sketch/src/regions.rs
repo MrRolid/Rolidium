@@ -83,6 +83,8 @@ fn prims_of(entities: &[(EntityId, Entity)]) -> Vec<(EntityId, Prim)> {
     let mut v = Vec::new();
     for (id, e) in entities {
         match *e {
+            // an auxiliary axis forms no region
+            Entity::Axis { .. } => {}
             Entity::Line { a, b } => v.push((*id, Prim::Line { a, b })),
             Entity::Rect { a, b } => {
                 let c = Entity::rect_corners(a, b);

@@ -273,6 +273,19 @@ Shapes drawn afterwards belong to one sketch until the next start_sketch. Plane 
         "line 0 0 10 0",
     ),
     c(
+        "axis",
+        "sketch_axis",
+        "Draw an auxiliary axis in the current sketch: a dash-dotted line that makes no region and no path. It is the axis of a mirror or a circular pattern: in a pattern or a mirror command write `plane-of S N`, `axis-of S N` or `direction-of S N` (sketch S, shape N, as in describe_model) instead of a plane, an axis or a direction. In 3D the plane of a mirror goes through the axis square to the sketch.",
+        &[
+            p("x1", Kind::Num, "Start x").unit("mm").range(COORD.0, COORD.1),
+            p("y1", Kind::Num, "Start y").unit("mm").range(COORD.0, COORD.1),
+            p("x2", Kind::Num, "End x").unit("mm").range(COORD.0, COORD.1),
+            p("y2", Kind::Num, "End y").unit("mm").range(COORD.0, COORD.1),
+        ],
+        true,
+        "axis 0 0 10 0",
+    ),
+    c(
         "rect",
         "sketch_rectangle",
         "Draw an axis-aligned rectangle in the current sketch from one corner to the opposite one (a closed region).",
