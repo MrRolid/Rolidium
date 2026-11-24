@@ -232,7 +232,15 @@ def scale_check(scale):
     check(q["hover_obj"] is not None and "Edge" in q["hover_obj"], f"the pointer on the edge hovers the edge: {q['hover_obj']}")
     shot("01-hover")
     # a sketch on the top face: a circle by two clicks, centre at (30, 20), radius 6 (the grid step is 1 mm)
-    click(*screen(p, "top"))
+    x, y = screen(p, "top")
+    move(x, y)
+    for _ in range(40):   # a click takes the face the read-back of the pick reported: wait until it is the one aimed at
+        time.sleep(0.25)
+        h = probe()["hover"]
+        if h and h["normal"] and abs(h["normal"][2] - 1) < 0.02:
+            break
+    click()
+    settle(0.4)
     key("k")
     settle(0.4)
     key("c")
