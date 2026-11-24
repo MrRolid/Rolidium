@@ -291,6 +291,7 @@ pub struct App {
     hole_drag: Option<edgeedit::HoleDrag>,
     /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
     probe: Option<probe::Probe>,
+    probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
     entity_sel: Option<(SketchId, EntityId)>,
     edge_sel: Vec<(BodyId, u32)>,
     body_sel: Option<BodyId>,
@@ -528,6 +529,7 @@ impl App {
             hover_obj: None,
             hole_drag: None,
             probe: probe::Probe::from_env(),
+            probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
             edge_sel: Vec::new(),
             body_sel: None,

@@ -45,6 +45,15 @@ impl Probe {
 }
 
 impl App {
+    /// Notes where a widget is (the middle of `r`, in points), so that a script can click it. Nothing happens without the probe.
+    pub(super) fn probe_widget(&self, name: &str, r: Rect) {
+        if self.probe.is_some() {
+            let mut w = self.probe_widgets.borrow_mut();
+            w.retain(|(n, _)| n != name);
+            w.push((name.to_string(), r));
+        }
+    }
+
     /// Called once per frame: writes the file when it is time (and keeps the window repainting so that a script always sees a recent state).
     pub(super) fn probe_tick(&mut self, ctx: &egui::Context) {
         let Some(mut p) = self.probe.take() else { return };
@@ -53,6 +62,7 @@ impl App {
         if p.last.is_none_or(|t| t.elapsed() >= Duration::from_millis(120)) {
             p.last = Some(Instant::now());
             let v = self.probe_json(&p);
+            self.probe_widgets.borrow_mut().clear();
             let tmp = p.path.with_extension("tmp");
             if std::fs::write(&tmp, v.to_string()).is_ok() {
                 let _ = std::fs::rename(&tmp, &p.path);
@@ -151,6 +161,9 @@ impl App {
             "link_plane": [self.link_ui.p.plane.origin.x, self.link_ui.p.plane.origin.y, self.link_ui.p.plane.origin.z, self.link_ui.p.plane.dir.x, self.link_ui.p.plane.dir.y, self.link_ui.p.plane.dir.z],
             "edge_dims": edge_dims,
             "points": points,
+            "widgets": self.probe_widgets.borrow().iter().map(|(n, r)| (n.clone(), json!([(r.center().x * ppp).round(), (r.center().y * ppp).round()]))).collect::<serde_json::Map<String, Value>>(),
+            "derived_ask": self.derived_ask.is_some(),
+            "circles": self.probe_circles(),
         })
     }
 
@@ -190,6 +203,21 @@ impl App {
             }
         }
         Value::Null
+    }
+}
+
+impl App {
+    /// The circles of the sketches (centre and radius), for the scripts.
+    fn probe_circles(&self) -> Vec<Value> {
+        let mut v = Vec::new();
+        for s in self.doc.sketches() {
+            for (_, e) in s.sketch.entities() {
+                if let Entity::Circle { center, radius } = e {
+                    v.push(json!({"sketch": s.id, "x": round3(center.x), "y": round3(center.y), "r": round3(*radius)}));
+                }
+            }
+        }
+        v
     }
 }
 

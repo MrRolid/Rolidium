@@ -1312,6 +1312,7 @@ impl App {
             .and_then(|id| self.doc.state().links.iter().find(|l| l.id == id))
             .and_then(|l| l.error.clone());
         let mut ui_state = std::mem::take(&mut self.link_ui);
+        let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
         docks.panel(ctx, "link", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
             let p = &mut ui_state.p;
             ui.horizontal_wrapped(|ui| {
@@ -1324,14 +1325,29 @@ impl App {
             });
             if editing.is_none() && p.mode != LinkMode::Mirror {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut p.mode, LinkMode::Linear, tr("Along a line"));
-                    ui.selectable_value(&mut p.mode, LinkMode::Circular, tr("Round an axis"));
-                    ui.selectable_value(&mut p.mode, LinkMode::Fill, tr("Into a face"));
+                    let r = ui.selectable_value(&mut p.mode, LinkMode::Linear, tr("Along a line"));
+                    probe_w.borrow_mut().push(("tab_linear", r.rect));
+                    let r = ui.selectable_value(&mut p.mode, LinkMode::Circular, tr("Round an axis"));
+                    probe_w.borrow_mut().push(("tab_circular", r.rect));
+                    let r = ui.selectable_value(&mut p.mode, LinkMode::Fill, tr("Into a face"));
+                    probe_w.borrow_mut().push(("tab_fill", r.rect));
                 });
             }
             let pick_btn = |ui: &mut egui::Ui, st: &mut Option<LinkPick>, what: LinkPick, label: &str| {
                 let on = *st == Some(what);
-                if ui.selectable_label(on, label).on_hover_text(tr("Then click a straight edge or a face in the view")).clicked() {
+                let r = ui.selectable_label(on, label).on_hover_text(tr("Then click a straight edge or a face in the view"));
+                probe_w.borrow_mut().push((
+                    match what {
+                        LinkPick::Axis => "pick_axis",
+                        LinkPick::Plane => "pick_plane",
+                        LinkPick::Point => "pick_point",
+                        LinkPick::RectFace => "pick_rect",
+                        LinkPick::Direction => "pick_direction",
+                        _ => "pick_other",
+                    },
+                    r.rect,
+                ));
+                if r.clicked() {
                     *st = if on { None } else { Some(what) };
                 }
             };
@@ -1546,7 +1562,9 @@ impl App {
                 ui.colored_label(crate::theme::rgb(255, 120, 110), format!("{}: {e}", tr("The last calculation failed; the link keeps its last result")));
             }
             ui.horizontal(|ui| {
-                if ui.button(tr("Apply")).clicked() {
+                let r = ui.button(tr("Apply"));
+                probe_w.borrow_mut().push(("link_apply", r.rect));
+                if r.clicked() {
                     apply = true;
                 }
                 if ui.button(tr("Cancel")).clicked() {
@@ -1566,6 +1584,18 @@ impl App {
         });
         self.link_ui = ui_state;
         self.docks = docks;
+        for (n, r) in probe_w.into_inner() {
+            self.probe_widget(n, r);
+        }
+        // the usual number of pieces of each kind: 3 in a row, 6 round an axis
+        if self.link_ui.p.mode != before.mode {
+            let p = &mut self.link_ui.p;
+            if p.mode == LinkMode::Circular && p.count == 3 {
+                p.count = 6;
+            } else if p.mode == LinkMode::Linear && p.count == 6 {
+                p.count = 3;
+            }
+        }
         if self.link_ui.p != before {
             self.layers_changed = true;
         }
@@ -2010,6 +2040,7 @@ impl App {
             egui::Id::new("link-handle"),
         ));
         let over = resp.hover_pos().is_some_and(|p| p.distance(b) < 11.0);
+        self.probe_widget("link_handle", Rect::from_center_size(b, Vec2::splat(12.0)));
         painter.line_segment([a, b], egui::Stroke::new(1.5, crate::theme::rgb(255, 200, 100)));
         painter.circle(
             b,
