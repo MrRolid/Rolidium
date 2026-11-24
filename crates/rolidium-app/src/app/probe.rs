@@ -178,6 +178,8 @@ impl App {
             "hole_drag": self.hole_drag.is_some(),
             "meshes": self.probe_meshes(),
             "panel": self.panel_fields(),
+            "pick": json!({"ms": round3(self.pick_stats.get().0 as f64), "bvh": self.pick_stats.get().1, "count": self.pick_stats.get().2}),
+            "triangles_shown": self.meshes.iter().map(|m| m.mesh.triangle_count()).sum::<usize>(),
             "face": self.probe_face(),
             "mesh_job": self.mesh_ui.job.as_ref().map(|j| round3(j.fraction() as f64)),
             "stl_dialog": self.probe_dialog(),

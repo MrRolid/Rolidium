@@ -92,13 +92,18 @@ impl App {
     /// meshes (through the hierarchy of boxes when it is ready, else by looking at every triangle). The read-back of the graphics card answers for the
     /// place the pointer was a few frames ago; a click must never use that.
     pub(super) fn cpu_pick_id(&self, p: Pos2, rect: Rect) -> u32 {
+        let started = Instant::now();
+        let mut used_bvh = false;
         let aspect = rect.width() / rect.height().max(1.0);
         let (o, d) = self.camera.ray(Self::ndc(p, rect), aspect);
         let mut best: Option<(f32, usize, usize)> = None;
         for (slot, m) in self.meshes.iter().enumerate() {
             let ready = self.pick_cache.borrow_mut().bvh(m.stamp, &m.mesh);
             let hit = match ready.as_ref().and_then(|s| s.get()) {
-                Some(b) => b.nearest(o, d),
+                Some(b) => {
+                    used_bvh = true;
+                    b.nearest(o, d)
+                }
                 None => {
                     let mut near: Option<(f32, usize)> = None;
                     for (t, tri) in m.mesh.indices.as_chunks::<3>().0.iter().enumerate() {
@@ -118,6 +123,8 @@ impl App {
                 }
             }
         }
+        let n = self.pick_stats.get().2 + 1;
+        self.pick_stats.set((started.elapsed().as_secs_f32() * 1000.0, used_bvh, n));
         match best {
             Some((_, slot, t)) => {
                 let face = self.meshes[slot].mesh.tri_face.get(t).copied().unwrap_or(0);

@@ -38,6 +38,12 @@ pub struct Regions {
 
 pub const CYL_FLAG: u32 = 1 << 30;
 
+/// Two neighbouring triangles whose normals differ by more than about 6 degrees have a crease between them.
+const CREASE_COS: f64 = 0.9945;
+
+/// The smallest wall that is kept when it is not a big one: this part of the surface of the whole mesh.
+const MIN_WALL_AREA: f64 = 1e-4;
+
 /// Neighbours of every triangle (through edges that two triangles share).
 pub fn neighbours(m: &TriMesh) -> Vec<Vec<u32>> {
     let mut adj: Vec<Vec<u32>> = vec![Vec::new(); m.triangles.len()];
@@ -231,8 +237,37 @@ pub fn find_with(
             }
         }
     }
-    for p in small {
-        if p.triangles.iter().all(|t| of[*t as usize] == 0) {
+    // a small patch of a smooth surface (a finely divided ball) is flat to within the tolerance, but it is no wall: a wall has a crease round it
+    let mut member = vec![u32::MAX; n];
+    let sharp = |p: &Plane, member: &mut Vec<u32>, tag: u32| -> bool {
+        for t in &p.triangles {
+            member[*t as usize] = tag;
+        }
+        let (mut border, mut creased) = (0usize, 0usize);
+        for &t in &p.triangles {
+            let mut shared = 0;
+            for &o in &adj[t as usize] {
+                shared += 1;
+                if member[o as usize] != tag {
+                    border += 1;
+                    if dot(normals[t as usize].0, normals[o as usize].0) < CREASE_COS {
+                        creased += 1;
+                    }
+                }
+            }
+            // an edge that no other triangle shares is an open border: it counts as a crease
+            let open = 3usize.saturating_sub(shared);
+            border += open;
+            creased += open;
+        }
+        border > 0 && creased * 2 >= border
+    };
+    for (k, p) in small.into_iter().enumerate() {
+        // a patch that is a hundredth of a per cent of the surface is no wall (a scanned or sculpted model has thousands of such flat spots)
+        if p.area >= total * MIN_WALL_AREA
+            && p.triangles.iter().all(|t| of[*t as usize] == 0)
+            && sharp(&p, &mut member, k as u32)
+        {
             out.planes.push(p);
             let id = out.planes.len() as u32;
             for t in &out.planes.last().unwrap().triangles {

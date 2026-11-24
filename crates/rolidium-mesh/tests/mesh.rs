@@ -301,3 +301,36 @@ fn edits_of_a_big_mesh_move_only_what_they_touch() {
     redo.apply(&mut m);
     assert!(check(&m).signed_volume > 0.0);
 }
+
+#[test]
+fn a_finely_divided_ball_has_no_walls_and_a_plate_with_many_holes_has_six_walls_and_all_the_holes() {
+    use rolidium_mesh::{check, gen, regions};
+    let ball = gen::sphere(50.0, 200_000);
+    let r = regions::find(&ball, 3.0, 4);
+    assert_eq!(r.planes.len(), 0, "the flat spots of a smooth surface are no walls");
+    let plate = gen::plate_with_holes(6, 5, 10.0, 4.0, 3.0, 48);
+    assert!(check::check(&plate).is_clean(), "the plate made of cells is one closed mesh");
+    let r = regions::find(&plate, 3.0, 4);
+    assert_eq!(r.planes.len(), 6, "top, bottom and the four sides");
+    assert_eq!(r.cylinders.len(), 30, "a hole in every cell");
+    assert!(r.cylinders.iter().all(|c| c.is_hole && (c.radius - 3.0).abs() < 0.05));
+}
+
+#[test]
+fn vertices_that_lie_across_the_border_of_a_cell_are_still_merged() {
+    use rolidium_mesh::{check, gen};
+    // the box, with one vertex of one triangle 3 millionths of a millimetre away from the rest (it lies on the other side of a cell border for some sizes)
+    for k in 0..40 {
+        let mut m = gen::box_mesh(10.0 + k as f32 * 0.37, 10.0, 10.0, 1);
+        let a = m.positions.len() as u32;
+        let t = m.triangles[0];
+        let mut p = m.positions[t[0] as usize];
+        p[0] += 3e-6;
+        m.positions.push(p);
+        m.triangles[0][0] = a;
+        let before = m.positions.len();
+        let merged = check::merge_vertices(&mut m, 2e-5);
+        assert_eq!(merged, 1, "size {k}: {before} vertices before");
+        assert!(check::check(&m).is_clean());
+    }
+}

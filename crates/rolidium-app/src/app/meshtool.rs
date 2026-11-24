@@ -371,6 +371,10 @@ impl App {
                 .collect()
         });
         if self.probe.is_some() {
+            if std::env::var_os("ROLIDIUM_DROP_POLL").is_some() {
+                // a test that counts the frames the program draws by itself (the probe does not wake it) names the files this way too: look now and then
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            }
             if let Some(f) = std::env::var_os("ROLIDIUM_DROP") {
                 if let Ok(text) = std::fs::read_to_string(&f) {
                     let _ = std::fs::remove_file(&f);
@@ -652,10 +656,17 @@ impl App {
                 let cancel = Arc::new(AtomicBool::new(false));
                 let (tx, rx) = mpsc::channel();
                 let (m2, p2, c2, ctx2) = (mesh.clone(), progress.clone(), cancel.clone(), ctx.clone());
+                // for the scripted tests: the search is made slower by this many ms at every report, so that its progress and Cancel can be tried reliably
+                let slow = std::env::var("ROLIDIUM_TEST_REGIONS_DELAY_MS")
+                    .ok()
+                    .and_then(|v| v.parse::<u64>().ok());
                 let spawned = std::thread::Builder::new()
                     .name("mesh-regions".into())
                     .spawn(move || {
                         let r = regions::find_with(&m2, 3.0, 4, &mut |f| {
+                            if let Some(ms) = slow {
+                                std::thread::sleep(std::time::Duration::from_millis(ms));
+                            }
                             p2.store((f * 1000.0) as u32, Ordering::Relaxed);
                             !c2.load(Ordering::Relaxed)
                         });

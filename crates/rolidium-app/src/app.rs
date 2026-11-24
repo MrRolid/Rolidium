@@ -309,6 +309,8 @@ pub struct App {
     sk_press: Option<(Pos2, bool)>,
     /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
     probe: Option<probe::Probe>,
+    /// The last pick under the pointer made on the processor: how long it took (ms), whether the hierarchy of boxes was used, and how many were made.
+    pick_stats: std::cell::Cell<(f32, bool, u64)>,
     /// Triangle meshes (STL): the import dialog and the search for walls and holes.
     mesh_ui: meshtool::MeshUi,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
@@ -556,6 +558,7 @@ impl App {
             reselect: None,
             sk_press: None,
             probe: probe::Probe::from_env(),
+            pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,

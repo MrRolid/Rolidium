@@ -277,6 +277,131 @@ def drop_files(*paths):
     os.rename(tmp, target)
 
 
+def rss_mb():
+    """The resident memory of the program (MB), from /proc."""
+    out = subprocess.run(["pgrep", "-xf", os.environ["ROLIDIUM_APP_BIN"] + " " + os.environ["ROLIDIUM_MODEL"]], capture_output=True, text=True).stdout.split()
+    if not out:
+        return None
+    with open(f"/proc/{out[0]}/status") as f:
+        for line in f:
+            if line.startswith("VmRSS:"):
+                return round(int(line.split()[1]) / 1024)
+    return None
+
+
+def orbit(seconds, x=640, y=400, span=140):
+    """Turns the model with the middle button for `seconds`, the pointer going to and fro without a pause; returns (frames the program drew, seconds)."""
+    move(x, y)
+    time.sleep(0.3)
+    f0, t0 = probe()["frame"], time.time()
+    xtst.XTestFakeButtonEvent(D, 2, 1, 0)
+    k = 0
+    while time.time() - t0 < seconds:
+        k += 1
+        xtst.XTestFakeMotionEvent(D, 0, int(x + span * math.sin(k / 6.0)), int(y + span * 0.3 * math.cos(k / 9.0)), 0)
+        x11.XFlush(D)
+        time.sleep(0.015)
+    xtst.XTestFakeButtonEvent(D, 2, 0, 0)
+    x11.XFlush(D)
+    q = probe()
+    return q["frame"] - f0, time.time() - t0
+
+
+def big_mesh_perf(stl, label, edit=False, cancel=False):
+    """A mesh of millions of triangles in the window: how long the reading, the import, the display and the search for walls and holes take, whether the window answers
+    meanwhile, the frames a second while the model is turned, and the time of a pick under the pointer; the numbers go to GUI_SHOTS/perf-<label>.json."""
+    res = {"label": label, "file_mb": round(os.path.getsize(stl) / 1e6, 1)}
+    time.sleep(1.0)
+    focus_app_window()
+    p = settle()
+    res["rss_start_mb"] = rss_mb()
+    t0 = time.time()
+    drop_files(stl)
+    p = wait_for(lambda q: q["stl_dialog"], "the dialog of the import is open", 180)
+    res["read_and_check_s"] = round(time.time() - t0, 2)
+    res["triangles"] = p["stl_dialog"]["items"][0]["triangles"]
+    res["check"] = p["stl_dialog"]["items"][0]["check"]
+    shot("01-dialog")
+    click(*screen(p, "stl_import_ok"))
+    t1 = time.time()
+    p = wait_for(lambda q: len(q["meshes"]) == 1 and q["meshes"][0]["shown"], "the mesh is shown", 180)
+    res["import_to_shown_s"] = round(time.time() - t1, 2)
+    res["rss_shown_mb"] = rss_mb()
+    # the search for walls and holes runs in the background: the window keeps drawing and the progress and the Cancel button are there
+    samples, frames, t2 = [], [], time.time()
+    cancel_clicked = None
+    while time.time() - t2 < 240:
+        q = probe()
+        job = q["mesh_job"]
+        if job is not None:
+            samples.append(job)
+            frames.append((time.time(), q["frame"]))
+        if cancel and job is not None and job > 0.1 and "mesh_job_cancel" in q["widgets"] and cancel_clicked is None:
+            shot("02-progress")
+            click(*screen(q, "mesh_job_cancel"))
+            cancel_clicked = time.time()
+        if q["meshes"] and (q["meshes"][0]["walls"] is not None) and job is None:
+            break
+        if cancel_clicked and job is None:
+            break
+        time.sleep(0.1)
+    res["regions_s"] = round(time.time() - t2, 2)
+    res["progress_samples"] = len(samples)
+    res["progress_max"] = max(samples) if samples else None
+    if len(frames) > 2:
+        res["frames_during_search_per_s"] = round((frames[-1][1] - frames[0][1]) / max(frames[-1][0] - frames[0][0], 1e-6), 1)
+    p = settle(0.5)
+    res["walls"] = p["meshes"][0]["walls"]
+    res["holes"] = len(p["meshes"][0]["holes"] or [])
+    res["cancelled"] = bool(cancel_clicked)
+    res["status_after_search"] = p["status"]
+    res["rss_regions_mb"] = rss_mb()
+    shot("03-shown")
+    # the frames a second while the model is turned
+    n, secs = orbit(6.0)
+    res["orbit_frames_per_s"] = round(n / secs, 1)
+    settle(0.5)
+    shot("04-turned")
+    # picks under the pointer: the time of each, and when the hierarchy of boxes is ready
+    vx, vy, vw, vh = p["viewport"]
+    picks, t3, bvh_at = [], time.time(), None
+    for k in range(24):
+        fast_click(vx + vw * (0.35 + 0.3 * ((k * 7) % 10) / 10), vy + vh * (0.35 + 0.3 * ((k * 3) % 10) / 10))
+        q = probe()
+        picks.append((q["pick"]["ms"], q["pick"]["bvh"]))
+        if q["pick"]["bvh"] and bvh_at is None:
+            bvh_at = time.time() - t1
+        time.sleep(0.4 if not q["pick"]["bvh"] else 0.05)
+    res["pick_ms_without_bvh"] = [a for a, b in picks if not b][:4]
+    res["pick_ms_with_bvh"] = sorted(a for a, b in picks if b)[len([1 for a, b in picks if b]) // 2] if any(b for a, b in picks) else None
+    res["bvh_ready_after_import_s"] = round(bvh_at, 1) if bvh_at else None
+    res["rss_end_mb"] = rss_mb()
+    if edit and p["meshes"][0]["walls"]:
+        # a pull of the top wall by 1 mm, typed
+        key("p")
+        settle(0.4)
+        x, y = screen(p, "top")
+        click(x, y)
+        p = settle(0.6)
+        type_text("1")
+        t4 = time.time()
+        key("Return")
+        q = wait_for(lambda q: q["status"].startswith("Pull") or q["status_error"], "the pull is done", 120)
+        res["pull_done_s"] = round(time.time() - t4, 2)
+        res["pull_status"] = q["status"]
+        q = wait_for(lambda q: q["meshes"][0]["walls"] is not None and q["mesh_job"] is None, "the walls are found again", 240)
+        res["walls_again_s"] = round(time.time() - t4, 2)
+        key("z", ctrl=True)
+        t5 = time.time()
+        q = wait_for(lambda q: q["status"] == "Undo", "undo", 60)
+        res["undo_s"] = round(time.time() - t5, 2)
+        shot("05-after-undo")
+    with open(f"{SHOTS}/perf-{label}.json", "w") as f:
+        json.dump(res, f, indent=1)
+    for k, v in res.items():
+        print("PERF", k, v)
+
+
 def finish():
     if _failures:
         print(f"{len(_failures)} check(s) failed")
