@@ -1540,7 +1540,8 @@ impl Runner {
         self.ensure_gpu()?;
         let mut lo = glam::Vec3::splat(f32::MAX);
         let mut hi = glam::Vec3::splat(f32::MIN);
-        for b in self.doc.bodies() {
+        // hidden bodies (the tools of holes that a pattern repeats) are not in the picture
+        for b in self.doc.bodies().iter().filter(|b| b.visible) {
             let p = b.solid.props().map_err(|e| e.to_string())?;
             lo = lo.min(p.min.as_vec3());
             hi = hi.max(p.max.as_vec3());
@@ -1560,6 +1561,7 @@ impl Runner {
             .doc
             .bodies()
             .iter()
+            .filter(|b| b.visible)
             .map(|b| {
                 b.solid
                     .view_mesh(pixel_mm, cap, None)

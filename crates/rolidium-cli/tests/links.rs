@@ -204,3 +204,121 @@ fn a_hole_is_moved_by_a_shift_or_to_given_distances_from_the_edges() {
     let e = r.run_line(&format!("move-feature {f} 500 0 0")).unwrap_err();
     assert!(e.contains("outside"), "{e}");
 }
+
+fn shots_dir() -> std::path::PathBuf {
+    let d = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/gui-shots");
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+/// The number of dark regions of at least `min` pixels inside the light plate of a picture seen from above: the holes of the plate.
+fn see_through_regions(png_path: &std::path::Path, min: usize) -> usize {
+    let dec = png::Decoder::new(std::io::BufReader::new(std::fs::File::open(png_path).unwrap()));
+    let mut reader = dec.read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size().unwrap()];
+    let info = reader.next_frame(&mut buf).unwrap();
+    let (w, h) = (info.width as usize, info.height as usize);
+    let ch = info.color_type.samples();
+    let light = |x: usize, y: usize| -> bool {
+        let i = (y * w + x) * ch;
+        buf[i] as i32 + buf[i + 1] as i32 + buf[i + 2] as i32 > 420
+    };
+    // the box of the light pixels (the plate)
+    let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
+    for y in 0..h {
+        for x in 0..w {
+            if light(x, y) {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x);
+                y1 = y1.max(y);
+            }
+        }
+    }
+    if x0 >= x1 || y0 >= y1 {
+        return 0;
+    }
+    let mut seen = vec![false; w * h];
+    let mut count = 0;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            if seen[y * w + x] || light(x, y) {
+                continue;
+            }
+            let (mut stack, mut size, mut border) = (vec![(x, y)], 0usize, false);
+            seen[y * w + x] = true;
+            while let Some((cx, cy)) = stack.pop() {
+                size += 1;
+                if cx == x0 || cy == y0 || cx == x1 || cy == y1 {
+                    border = true;
+                }
+                for (dx, dy) in [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)] {
+                    let (nx, ny) = (cx as i32 + dx, cy as i32 + dy);
+                    if nx < x0 as i32 || ny < y0 as i32 || nx > x1 as i32 || ny > y1 as i32 {
+                        continue;
+                    }
+                    let (nx, ny) = (nx as usize, ny as usize);
+                    if !seen[ny * w + nx] && !light(nx, ny) {
+                        seen[ny * w + nx] = true;
+                        stack.push((nx, ny));
+                    }
+                }
+            }
+            if !border && size >= min {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+#[test]
+fn a_part_from_a_step_file_gets_corners_and_a_circle_of_holes_and_the_picture_shows_them() {
+    // a plate of 100 x 60 x 10 with a hole of 12 mm diameter; it goes through a STEP file, and the copies are made on the imported body
+    let d = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/tmp").join(format!("links-step-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    let step = d.join("plate.step");
+    let src = "box 100 60 10\nsketch xy -1\ncircle 60 30 12\npull-region 0 12 cut\n";
+    let r = run(src);
+    let mut w = run(src);
+    w.run_line(&format!("export-step {}", step.display())).unwrap();
+    drop(r);
+    // corners: the imported hole is 54 mm from the left edge, 30 from the others; it is not a corner hole, the copies go symmetrically
+    let mut r = Runner::new();
+    r.quiet = true;
+    r.run_line(&format!("import-step {}", step.display())).unwrap();
+    assert_eq!(r.doc.bodies().len(), 1);
+    let v0 = r.doc.bodies()[0].solid.volume().unwrap();
+    let hole = std::f64::consts::PI * 36.0 * 10.0;
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} circular 6 full 0 0 1 through 40 30 0")).unwrap();
+    let removed = v0 - r.doc.bodies()[0].solid.volume().unwrap();
+    assert!((removed - 5.0 * hole).abs() < 1e-3, "{removed}");
+    // the picture from above: six holes (and one before the pattern)
+    let before = shots_dir().join("circular-pattern-before.png");
+    let after = shots_dir().join("circular-pattern-after.png");
+    let mut r0 = Runner::new();
+    r0.quiet = true;
+    r0.run_line(&format!("import-step {}", step.display())).unwrap();
+    r0.run_line(&format!("render {} 800 600 top", before.display())).unwrap();
+    r.run_line(&format!("render {} 800 600 top", after.display())).unwrap();
+    assert_eq!(see_through_regions(&before, 50), 1);
+    assert_eq!(see_through_regions(&after, 50), 6);
+    // corners on the imported plate (a hole 8 mm from two edges)
+    let step2 = d.join("plate2.step");
+    let mut w = run("box 100 60 10\nsketch xy -1\ncircle 8 8 6\npull-region 0 12 cut\n");
+    w.run_line(&format!("export-step {}", step2.display())).unwrap();
+    let mut r = Runner::new();
+    r.quiet = true;
+    r.run_line(&format!("import-step {}", step2.display())).unwrap();
+    let f = hole_face(&r);
+    r.run_line(&format!("repeat-feature {f} corners top")).unwrap();
+    let s = &r.doc.bodies()[0].solid;
+    for (x, y) in [(8.0, 8.0), (92.0, 8.0), (8.0, 52.0), (92.0, 52.0)] {
+        assert!(!s.contains_point(rolidium_kernel::DVec3::new(x, y, 5.0)).unwrap(), "no hole at {x}, {y}");
+    }
+    let shot = shots_dir().join("step-plate-corner-holes.png");
+    r.run_line(&format!("render {} 800 600 top", shot.display())).unwrap();
+    assert_eq!(see_through_regions(&shot, 50), 4);
+}
