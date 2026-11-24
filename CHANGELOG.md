@@ -6,7 +6,7 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [Unreleased]
+## [0.3.0] - Unreleased
 
 ### Added
 - Holes and pins are things to repeat: click the round face of a hole (a counterbore, a countersink or a chamfer round the same axis belong to it) or of a pin with the Pattern (`T`) or Mirror (`B`) tool, and a row, a circle of copies or a mirror image is cut out of (or fused into) the same body; a hidden tool body is made from the round faces, the result is one link and one step of Undo. Also in `rolidium cli` and MCP: `repeat-feature`.

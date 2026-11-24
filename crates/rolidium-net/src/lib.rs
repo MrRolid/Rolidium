@@ -633,8 +633,22 @@ mod tests {
             "0.2.1~dev.11.g012",
             "0.2.1",
             "0.2.2~dev.5.gfff",
+            "0.2.2",
+            "0.3.0~dev.120.g8d554d7",
+            "0.3.0~dev.121.gabcdef0",
+            "0.3.0",
         ];
-        let prog = ["0.2.0", "0.2.1-dev.10", "0.2.1-dev.11", "0.2.1", "0.2.2-dev.5"];
+        let prog = [
+            "0.2.0",
+            "0.2.1-dev.10",
+            "0.2.1-dev.11",
+            "0.2.1",
+            "0.2.2-dev.5",
+            "0.2.2",
+            "0.3.0-dev.120",
+            "0.3.0-dev.121",
+            "0.3.0",
+        ];
         let Ok(probe) = std::process::Command::new("dpkg").arg("--version").output() else {
             eprintln!("dpkg is not installed: the comparison with it is skipped");
             return;
