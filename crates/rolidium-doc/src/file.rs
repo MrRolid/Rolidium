@@ -16,8 +16,12 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// The newest file format this program can read and write.
-pub const FORMAT_VERSION: u32 = 1;
+/// The newest file format this program can read and write. Version 2 adds triangle meshes (`meshes/`); a file without a mesh is still written as
+/// version 1, so that a program of the earlier versions opens it.
+pub const FORMAT_VERSION: u32 = 2;
+
+/// The format version a file with meshes has (and the first one that has them).
+pub const FORMAT_WITH_MESHES: u32 = 2;
 
 const MAX_ENTRY: u64 = 2 << 30;
 
@@ -42,6 +46,7 @@ pub struct Extras {
     pub bodies: HashMap<BodyId, Map<String, Value>>,
     pub sketches: HashMap<SketchId, Map<String, Value>>,
     pub curves: HashMap<u64, Map<String, Value>>,
+    pub meshes: HashMap<BodyId, Map<String, Value>>,
 }
 
 /// Everything read from a file.
@@ -618,7 +623,10 @@ pub fn save_to_bytes(
             zip.write_all(data).map_err(|e| FileError::Io(e.to_string()))
         };
         let mut manifest = doc.extras.manifest.clone();
-        manifest.insert("format_version".into(), json!(FORMAT_VERSION));
+        manifest.insert(
+            "format_version".into(),
+            json!(if st.meshes.is_empty() { 1 } else { FORMAT_WITH_MESHES }),
+        );
         manifest.insert("program_version".into(), json!(program_version));
         manifest.insert("units".into(), json!("mm"));
         manifest.insert("next_id".into(), json!(doc.next_id));
@@ -667,6 +675,33 @@ pub fn save_to_bytes(
                 &serde_json::to_vec_pretty(&meta).map_err(corrupt)?,
             )?;
             bodies.push(json!({"id": b.id, "brep": format!("bodies/{}.brep", b.id), "meta": format!("bodies/{}.json", b.id)}));
+        }
+        // triangle meshes: the compact bytes of `rolidium-mesh` (already deflated, so stored as they are) and a small JSON of the properties
+        if !st.meshes.is_empty() {
+            let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            let mut list = Vec::new();
+            for m in &st.meshes {
+                let bytes = rolidium_mesh::serial::encode(&m.mesh);
+                zip.start_file(format!("meshes/{}.rmesh", m.id), stored)
+                    .map_err(|e| FileError::Io(e.to_string()))?;
+                zip.write_all(&bytes).map_err(|e| FileError::Io(e.to_string()))?;
+                let mut meta = doc.extras.meshes.get(&m.id).cloned().unwrap_or_default();
+                meta.insert("name".into(), json!(m.name));
+                meta.insert("color".into(), json!(m.color));
+                meta.insert("visible".into(), json!(m.visible));
+                meta.insert("verified".into(), json!(m.verified));
+                meta.insert("triangles".into(), json!(m.mesh.triangles.len()));
+                meta.insert("vertices".into(), json!(m.mesh.positions.len()));
+                put(
+                    &mut zip,
+                    &format!("meshes/{}.json", m.id),
+                    &serde_json::to_vec_pretty(&meta).map_err(corrupt)?,
+                )?;
+                list.push(json!({"id": m.id, "mesh": format!("meshes/{}.rmesh", m.id), "meta": format!("meshes/{}.json", m.id)}));
+            }
+            manifest.insert("meshes".into(), Value::Array(list));
+        } else {
+            manifest.remove("meshes");
         }
         let mut sketches = Vec::new();
         for s in &st.sketches {
@@ -961,6 +996,47 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
         max_id = max_id.max(id);
         state.bodies.push(body);
     }
+    // triangle meshes (format 2)
+    for m in manifest
+        .get("meshes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
+        let id = m["id"].as_u64().ok_or_else(|| corrupt("a mesh without an id"))?;
+        let (mesh_name, meta_name) = (
+            m["mesh"].as_str().ok_or_else(|| corrupt("a mesh without triangles"))?.to_string(),
+            m["meta"].as_str().ok_or_else(|| corrupt("a mesh without data"))?.to_string(),
+        );
+        let mesh = rolidium_mesh::serial::decode(&read_entry(&mut zip, &mesh_name)?)
+            .map_err(|e| corrupt(format!("mesh {id}: {e}")))?;
+        let mut meta: Map<String, Value> =
+            match serde_json::from_slice(&read_entry(&mut zip, &meta_name)?).map_err(corrupt)? {
+                Value::Object(m) => m,
+                _ => return Err(corrupt("mesh data is not an object")),
+            };
+        known.push(mesh_name);
+        known.push(meta_name);
+        let color = meta
+            .get("color")
+            .and_then(Value::as_array)
+            .filter(|a| a.len() == 3)
+            .map(|a| [0, 1, 2].map(|i| a[i].as_f64().unwrap_or(0.7) as f32))
+            .unwrap_or(crate::MESH_COLOR);
+        state.meshes.push(crate::MeshBody {
+            id,
+            name: meta.get("name").and_then(Value::as_str).unwrap_or("Mesh").to_string(),
+            mesh: Arc::new(mesh),
+            color,
+            visible: meta.get("visible").and_then(Value::as_bool).unwrap_or(true),
+            verified: meta.get("verified").and_then(Value::as_bool).unwrap_or(false),
+        });
+        take_keys(&mut meta, &["name", "color", "visible", "verified", "triangles", "vertices"]);
+        if !meta.is_empty() {
+            extras.meshes.insert(id, meta);
+        }
+        max_id = max_id.max(id);
+    }
     let mut pending_anchors: Vec<(u64, Value)> = Vec::new();
     for s in manifest
         .get("sketches")
@@ -1146,7 +1222,9 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
                 .map(|a| {
                     a.iter()
                         .filter_map(Value::as_u64)
-                        .filter(|b| state.bodies.iter().any(|x| x.id == *b))
+                        .filter(|b| {
+                            state.bodies.iter().any(|x| x.id == *b) || state.meshes.iter().any(|x| x.id == *b)
+                        })
                         .collect()
                 })
                 .unwrap_or_default(),
@@ -1190,6 +1268,7 @@ pub fn load_from_bytes(bytes: &[u8]) -> Result<Loaded, FileError> {
             "link_counter",
             "group_counter",
             "bodies",
+            "meshes",
             "sketches",
             "curves",
             "links",

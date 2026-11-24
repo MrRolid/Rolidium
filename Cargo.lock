@@ -2503,6 +2503,7 @@ version = "0.3.0"
 dependencies = [
  "glam",
  "rolidium-kernel",
+ "rolidium-mesh",
  "rolidium-sketch",
  "serde_json",
  "thiserror 2.0.21",

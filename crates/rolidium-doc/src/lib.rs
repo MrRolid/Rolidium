@@ -24,7 +24,9 @@ pub mod display;
 pub mod file;
 mod generate;
 mod links;
+pub mod meshes;
 mod sketchops;
+pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use links::{
     linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
     Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams, Link, LinkId,
@@ -181,6 +183,8 @@ pub struct SketchDoc {
 #[derive(Debug, Clone, Default)]
 pub struct State {
     pub bodies: Vec<Body>,
+    /// Triangle meshes (STL), numbered like the bodies; a group may hold them.
+    pub meshes: Vec<MeshBody>,
     pub sketches: Vec<SketchDoc>,
     pub curves: Vec<CurveDoc>,
     /// Links (patterns, mirrors) and groups of bodies.
@@ -414,6 +418,39 @@ pub enum Command {
     },
     DeleteBody {
         body: BodyId,
+    },
+    /// Adds triangle meshes (an import of STL files) as bodies of their own kind.
+    AddMeshes {
+        meshes: Vec<NewMesh>,
+    },
+    /// Moves a planar wall of a mesh along its normal (the walls next to it stretch). `wall` is a region of the mesh as it is now.
+    MeshPull {
+        body: BodyId,
+        wall: Arc<rolidium_mesh::regions::Plane>,
+        distance: f64,
+    },
+    /// Sets the diameter of a round hole or pin of a mesh.
+    MeshHole {
+        body: BodyId,
+        hole: Arc<rolidium_mesh::regions::Cylinder>,
+        diameter: f64,
+    },
+    /// Scales a mesh about `centre` by different factors in x, y and z.
+    MeshScale {
+        body: BodyId,
+        centre: DVec3,
+        factors: DVec3,
+    },
+    /// Repairs a mesh: merges the vertices that lie on each other and/or turns the triangles to agree on the outside.
+    MeshRepair {
+        body: BodyId,
+        kind: RepairKind,
+    },
+    /// `count` pieces of a mesh in a row (the mesh and `count - 1` copies, each `step` further), copies as new meshes.
+    MeshPattern {
+        body: BodyId,
+        count: u32,
+        step: DVec3,
     },
     /// Delete the shapes that border only this region (shapes shared with another region stay).
     DeleteRegionShapes {
@@ -1980,11 +2017,15 @@ impl Job {
             Command::SetVisible { target, visible } => {
                 match target {
                     ItemId::Body(id) => {
-                        st.bodies
-                            .iter_mut()
-                            .find(|b| b.id == *id)
-                            .ok_or(DocError::NoSuchBody)?
-                            .visible = *visible
+                        if let Some(m) = st.meshes.iter_mut().find(|m| m.id == *id) {
+                            m.visible = *visible;
+                        } else {
+                            st.bodies
+                                .iter_mut()
+                                .find(|b| b.id == *id)
+                                .ok_or(DocError::NoSuchBody)?
+                                .visible = *visible
+                        }
                     }
                     ItemId::Sketch(id) => {
                         st.sketches
@@ -2021,6 +2062,9 @@ impl Job {
                         for b in st.bodies.iter_mut().filter(|b| ids.contains(&b.id)) {
                             b.visible = *visible;
                         }
+                        for m in st.meshes.iter_mut().filter(|m| ids.contains(&m.id)) {
+                            m.visible = *visible;
+                        }
                     }
                 }
                 Ok(self.done(st, if *visible { "Show" } else { "Hide" }))
@@ -2032,11 +2076,15 @@ impl Job {
                 }
                 match target {
                     ItemId::Body(id) => {
-                        st.bodies
-                            .iter_mut()
-                            .find(|b| b.id == *id)
-                            .ok_or(DocError::NoSuchBody)?
-                            .name = name.to_string()
+                        if let Some(m) = st.meshes.iter_mut().find(|m| m.id == *id) {
+                            m.name = name.to_string();
+                        } else {
+                            st.bodies
+                                .iter_mut()
+                                .find(|b| b.id == *id)
+                                .ok_or(DocError::NoSuchBody)?
+                                .name = name.to_string()
+                        }
                     }
                     ItemId::Sketch(id) => {
                         st.sketches
@@ -2090,6 +2138,31 @@ impl Job {
                 let mut first = None;
                 let mut next = self.next_id;
                 for bid in bodies {
+                    if let Some(mp) = st.meshes.iter().position(|m| m.id == *bid) {
+                        let mut m = (*st.meshes[mp].mesh).clone();
+                        if axis.length() > 1e-9 && angle.abs() > 1e-12 {
+                            rolidium_mesh::transform::rotate(
+                                &mut m,
+                                pivot.to_array(),
+                                axis.to_array(),
+                                *angle,
+                            );
+                        }
+                        rolidium_mesh::transform::translate(&mut m, translation.to_array());
+                        if *copy {
+                            let id = next;
+                            next += 1;
+                            first.get_or_insert(id);
+                            let mut b = st.meshes[mp].clone();
+                            b.id = id;
+                            b.mesh = Arc::new(m);
+                            st.meshes.push(b);
+                        } else {
+                            first.get_or_insert(*bid);
+                            st.meshes[mp].mesh = Arc::new(m);
+                        }
+                        continue;
+                    }
                     let pos = st
                         .bodies
                         .iter()
@@ -2681,7 +2754,7 @@ impl Job {
                     return Err(KernelError::Invalid("select at least one body".into()).into());
                 }
                 for b in bodies {
-                    if !st.bodies.iter().any(|x| x.id == *b) {
+                    if !st.bodies.iter().any(|x| x.id == *b) && !st.meshes.iter().any(|x| x.id == *b) {
                         return Err(DocError::NoSuchBody);
                     }
                 }
@@ -2715,7 +2788,7 @@ impl Job {
                     }
                 }
                 for b in bodies {
-                    if !st.bodies.iter().any(|x| x.id == *b) {
+                    if !st.bodies.iter().any(|x| x.id == *b) && !st.meshes.iter().any(|x| x.id == *b) {
                         return Err(DocError::NoSuchBody);
                     }
                     links::remove_from_groups(&mut st, *b);
@@ -2806,6 +2879,30 @@ impl Job {
                 let mut next = self.next_id;
                 let mut first = None;
                 for bid in bodies {
+                    if let Some(mp) = st.meshes.iter().position(|m| m.id == *bid) {
+                        if *merge {
+                            return Err(KernelError::Invalid(
+                                "A mesh cannot be merged with its mirror image (a mesh is not a solid); mirror it without merging".into(),
+                            )
+                            .into());
+                        }
+                        let mut m = (*st.meshes[mp].mesh).clone();
+                        rolidium_mesh::transform::mirror(&mut m, origin.to_array(), normal.to_array());
+                        if *keep {
+                            let id = next;
+                            next += 1;
+                            first.get_or_insert(id);
+                            let mut b = st.meshes[mp].clone();
+                            b.id = id;
+                            b.name = format!("{} mirror", b.name);
+                            b.mesh = Arc::new(m);
+                            st.meshes.push(b);
+                        } else {
+                            first.get_or_insert(*bid);
+                            st.meshes[mp].mesh = Arc::new(m);
+                        }
+                        continue;
+                    }
                     let pos = st
                         .bodies
                         .iter()
@@ -2848,6 +2945,101 @@ impl Job {
                     }
                 }
                 let mut c = self.done(st, if *merge { "Mirror and merge" } else { "Mirror" });
+                c.touched_body = first;
+                Ok(c)
+            }
+            Command::DeleteBody { body } if st.meshes.iter().any(|m| m.id == *body) => {
+                st.meshes.retain(|m| m.id != *body);
+                links::remove_from_groups(&mut st, *body);
+                Ok(self.done(st, "Delete mesh"))
+            }
+            Command::AddMeshes { meshes } => {
+                if meshes.is_empty() {
+                    return Err(KernelError::Invalid("there is nothing to add".into()).into());
+                }
+                let mut first = None;
+                for (i, n) in meshes.iter().enumerate() {
+                    if n.mesh.triangles.is_empty() {
+                        return Err(KernelError::Invalid(format!("the mesh '{}' has no triangles", n.name)).into());
+                    }
+                    let id = self.next_id + i as u64;
+                    first.get_or_insert(id);
+                    st.meshes.push(MeshBody {
+                        id,
+                        name: if n.name.trim().is_empty() {
+                            "Mesh".to_string()
+                        } else {
+                            n.name.trim().to_string()
+                        },
+                        mesh: n.mesh.clone(),
+                        color: MESH_COLOR,
+                        visible: true,
+                        verified: n.verified,
+                    });
+                }
+                let mut c = self.done(st, "Import STL");
+                c.touched_body = first;
+                Ok(c)
+            }
+            Command::MeshPull { body, wall, distance } => {
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let m = meshes::pull(&st.meshes[mp], wall, *distance)?;
+                st.meshes[mp].mesh = Arc::new(m);
+                let mut c = self.done(st, "Pull wall");
+                c.touched_body = Some(*body);
+                Ok(c)
+            }
+            Command::MeshHole { body, hole, diameter } => {
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let m = meshes::hole(&st.meshes[mp], hole, *diameter)?;
+                st.meshes[mp].mesh = Arc::new(m);
+                let mut c = self.done(st, "Hole diameter");
+                c.touched_body = Some(*body);
+                Ok(c)
+            }
+            Command::MeshScale { body, centre, factors } => {
+                if !(factors.is_finite() && factors.min_element().abs() > 1e-9) {
+                    return Err(KernelError::Invalid("the scale factors must be non-zero numbers".into()).into());
+                }
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mut m = (*st.meshes[mp].mesh).clone();
+                rolidium_mesh::transform::scale(&mut m, centre.to_array(), factors.to_array());
+                st.meshes[mp].mesh = Arc::new(m);
+                let mut c = self.done(st, "Scale");
+                c.touched_body = Some(*body);
+                Ok(c)
+            }
+            Command::MeshRepair { body, kind } => {
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let (m, what) = meshes::repair(&st.meshes[mp], *kind);
+                let rep = rolidium_mesh::check::check(&m);
+                st.meshes[mp].verified = rep.is_closed() && rep.inconsistent_edges == 0;
+                st.meshes[mp].mesh = Arc::new(m);
+                let mut c = self.done(st, "Repair mesh");
+                c.touched_body = Some(*body);
+                c.notice = Some(what);
+                Ok(c)
+            }
+            Command::MeshPattern { body, count, step } => {
+                if *count < 2 || *count as usize > MAX_PIECES {
+                    return Err(KernelError::Invalid(format!(
+                        "the number of pieces must be between 2 and {MAX_PIECES}"
+                    ))
+                    .into());
+                }
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mut first = None;
+                for i in 1..*count as u64 {
+                    let mut m = (*st.meshes[mp].mesh).clone();
+                    rolidium_mesh::transform::translate(&mut m, (*step * i as f64).to_array());
+                    let id = self.next_id + i - 1;
+                    first.get_or_insert(id);
+                    let mut b = st.meshes[mp].clone();
+                    b.id = id;
+                    b.mesh = Arc::new(m);
+                    st.meshes.push(b);
+                }
+                let mut c = self.done(st, "Pattern");
                 c.touched_body = first;
                 Ok(c)
             }
@@ -2945,6 +3137,12 @@ impl Document {
     pub fn bodies(&self) -> &[Body] {
         &self.current.bodies
     }
+    pub fn meshes(&self) -> &[MeshBody] {
+        &self.current.meshes
+    }
+    pub fn mesh(&self, id: BodyId) -> Option<&MeshBody> {
+        self.current.meshes.iter().find(|m| m.id == id)
+    }
     pub fn curves(&self) -> &[CurveDoc] {
         &self.current.curves
     }
@@ -3011,6 +3209,7 @@ impl Document {
             .bodies
             .iter()
             .map(|b| b.id)
+            .chain(c.state.meshes.iter().map(|m| m.id))
             .chain(c.state.sketches.iter().map(|s| s.id))
             .chain(c.state.curves.iter().map(|s| s.id))
             .chain(c.state.links.iter().map(|l| l.id))
