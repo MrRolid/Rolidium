@@ -47,6 +47,10 @@ or the NVIDIA driver), the Vulkan loader (`libvulkan1`), `libxkbcommon0` and the
 The first build takes a few minutes and about 2 GB of disk space in `target/` (Open CASCADE itself is not compiled, only linked). The
 programs are then in `target/release/`:
 
+Development builds keep only line tables as debug information (`[profile.dev]` in `Cargo.toml`); with full debug info every test binary was
+about 600 MB. `scripts/tidy-target.sh` removes what can be rebuilt (incremental caches, old test binaries, old temporary files and window-test
+screenshots) and, if `target/` is still over 25 GB, the Windows and debug builds; `--deep` does that always. Run it at the end of a work step.
+
     ./target/release/rolidium --version
     ./target/release/rolidium                 # the application
     ./target/release/rolidium cli help        # the headless tool
