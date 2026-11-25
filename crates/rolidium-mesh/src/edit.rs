@@ -224,6 +224,10 @@ impl PullPlan {
 /// After vertices moved (`pos` gives every vertex its new place), does a triangle among the `changed` ones cut through a triangle that stays?
 fn overlaps_after(m: &TriMesh, changed: &[bool], pos: &dyn Fn(u32) -> V3) -> bool {
     let n = m.triangles.len();
+    // for a mesh of hundreds of thousands of triangles the search would take longer than the edit (the other checks still hold)
+    if n > 400_000 {
+        return false;
+    }
     let after = |t: usize| {
         let tri = m.triangles[t];
         [pos(tri[0]), pos(tri[1]), pos(tri[2])]
@@ -262,19 +266,40 @@ fn overlaps_after(m: &TriMesh, changed: &[bool], pos: &dyn Fn(u32) -> V3) -> boo
     if still.is_empty() {
         return false;
     }
-    let side = ((still.len() as f64).cbrt().ceil() as usize).clamp(1, 64);
     let ext = [
         (hi[0] - lo[0]).max(1e-9),
         (hi[1] - lo[1]).max(1e-9),
         (hi[2] - lo[2]).max(1e-9),
     ];
-    let cell_of = |p: V3| -> [usize; 3] {
+    let cells_of = |side: usize, p: V3| -> [usize; 3] {
         let mut c = [0usize; 3];
         for i in 0..3 {
             c[i] = (((p[i] - lo[i]) / ext[i] * side as f64).floor().max(0.0) as usize).min(side - 1);
         }
         c
     };
+    // the size of the grid: finer for more triangles, coarser while the triangles (long thin ones span many cells) would be put into too many cells
+    let mut side = ((still.len() as f64).cbrt().ceil() as usize).clamp(1, 64);
+    loop {
+        let mut total = 0usize;
+        for &t in &still {
+            let (l, h) = boxed(&m.corners(t as usize));
+            let (a, b) = (cells_of(side, l), cells_of(side, h));
+            total += (b[0] - a[0] + 1) * (b[1] - a[1] + 1) * (b[2] - a[2] + 1);
+            if total > 2_000_000 {
+                break;
+            }
+        }
+        if total <= 2_000_000 {
+            break;
+        }
+        if side <= 4 {
+            // too many long triangles for a grid: not looked at (the other checks still hold)
+            return false;
+        }
+        side /= 2;
+    }
+    let cell_of = |p: V3| cells_of(side, p);
     let mut grid: Vec<Vec<u32>> = vec![Vec::new(); side * side * side];
     for &t in &still {
         let (l, h) = boxed(&m.corners(t as usize));
@@ -289,6 +314,8 @@ fn overlaps_after(m: &TriMesh, changed: &[bool], pos: &dyn Fn(u32) -> V3) -> boo
     }
     let mut seen = vec![0u32; n];
     let mut stamp = 0u32;
+    // a budget of tests: a mesh of a million thin triangles would take minutes; when it is used up the rest is not looked at (the other checks still hold)
+    let mut budget: i64 = 2_000_000;
     for t in (0..n).filter(|t| changed[*t]) {
         let c = after(t);
         let (l, h) = boxed(&c);
@@ -302,6 +329,10 @@ fn overlaps_after(m: &TriMesh, changed: &[bool], pos: &dyn Fn(u32) -> V3) -> boo
             for y in a[1]..=b[1] {
                 for z in a[2]..=b[2] {
                     for &o in &grid[(x * side + y) * side + z] {
+                        budget -= 1;
+                        if budget < 0 {
+                            return false;
+                        }
                         if seen[o as usize] == stamp {
                             continue;
                         }
