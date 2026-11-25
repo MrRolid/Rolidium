@@ -3,6 +3,7 @@
 //! Raw `cxx` bridge to Open CASCADE. The only module in the workspace that touches OCCT.
 //! Everything here is wrapped by the safe API in `lib.rs`.
 
+#[allow(clippy::too_many_arguments)]
 #[cxx::bridge(namespace = "rol")]
 pub mod ffi {
     /// Triangle mesh of a shape plus polylines of its topological edges.

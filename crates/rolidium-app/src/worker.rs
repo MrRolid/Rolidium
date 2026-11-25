@@ -419,8 +419,8 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                             Err(e) => return vec![Err(format!("{shown}: {e}"))],
                         };
                         let analysis = rolidium_mesh::check::analyse(&mesh);
-                        let flat_share =
-                            (mesh.triangles.len() <= 300_000).then(|| rolidium_mesh::convert::flat_share(&mesh, 0.02));
+                        let flat_share = (mesh.triangles.len() <= 300_000)
+                            .then(|| rolidium_mesh::convert::flat_share(&mesh, 0.02));
                         vec![Ok(StlLoaded {
                             name: stem,
                             mesh,

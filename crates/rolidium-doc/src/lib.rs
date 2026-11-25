@@ -3155,9 +3155,16 @@ impl Job {
             } => {
                 let started = std::time::Instant::now();
                 if !(tolerance.is_finite() && *tolerance >= 1e-4 && *tolerance <= 5.0) {
-                    return Err(KernelError::Invalid("the accuracy of the conversion must be between 0.0001 and 5 mm".into()).into());
+                    return Err(KernelError::Invalid(
+                        "the accuracy of the conversion must be between 0.0001 and 5 mm".into(),
+                    )
+                    .into());
                 }
-                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
                 let mut mesh = st.meshes[mp].mesh.clone();
                 let stop = || rolidium_kernel::cancel_requested();
                 let mut report = rolidium_mesh::check::check(&mesh);
@@ -3186,9 +3193,14 @@ impl Job {
                 let mut made = None;
                 let mut failure = String::new();
                 // (a solid of single triangles is only tried for a mesh that is not big: it takes minutes for tens of thousands and is of little use)
-                let attempts: &[usize] = if mesh.triangles.len() <= 20_000 { &[2, 4, usize::MAX] } else { &[2, 4] };
+                let attempts: &[usize] = if mesh.triangles.len() <= 20_000 {
+                    &[2, 4, usize::MAX]
+                } else {
+                    &[2, 4]
+                };
                 for &merge_from in attempts {
-                    let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop).ok_or(KernelError::Cancelled)?;
+                    let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop)
+                        .ok_or(KernelError::Cancelled)?;
                     let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
                     match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {
                         Ok(s) => {
@@ -3198,7 +3210,10 @@ impl Job {
                         Err(KernelError::Cancelled) => return Err(KernelError::Cancelled.into()),
                         Err(e) => {
                             if std::env::var_os("ROLIDIUM_DEBUG_CONVERT").is_some() {
-                                eprintln!("convert: merge from {merge_from} failed: {e} ({} faces)", pf.faces.len());
+                                eprintln!(
+                                    "convert: merge from {merge_from} failed: {e} ({} faces)",
+                                    pf.faces.len()
+                                );
                             }
                             failure = e.to_string()
                         }
@@ -3212,7 +3227,10 @@ impl Job {
                 };
                 let mut kinds = [0usize; 6];
                 for f in solid.faces() {
-                    let k = solid.face_info(f).map(|i| i.kind).unwrap_or(rolidium_kernel::FaceKind::Other);
+                    let k = solid
+                        .face_info(f)
+                        .map(|i| i.kind)
+                        .unwrap_or(rolidium_kernel::FaceKind::Other);
                     kinds[match k {
                         rolidium_kernel::FaceKind::Plane => 0,
                         rolidium_kernel::FaceKind::Cylinder => 1,

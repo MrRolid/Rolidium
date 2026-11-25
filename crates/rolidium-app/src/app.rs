@@ -771,7 +771,13 @@ impl App {
             _ => None,
         };
         // a wall of a mesh: every way to pull it (the mouse, a number, Up to, the distance to the opposite wall) goes through the same check, with the same reason
-        if let Command::PullFace { body, face, distance, mode } = &command {
+        if let Command::PullFace {
+            body,
+            face,
+            distance,
+            mode,
+        } = &command
+        {
             if self.doc.mesh(*body).is_some() {
                 if let Some(text) = self.mesh_pull_refusal(*body, face.0, mode.apply(*distance)) {
                     self.mesh_ui.keep_face = None;
@@ -1506,7 +1512,9 @@ impl App {
         let d = p.distance() as f64;
         if let (Some(why), PullKind::Face { body, face }) = (self.mesh_ui.blocked.take(), p.kind) {
             self.clear_preview();
-            let text = self.mesh_pull_refusal(body, face, self.effective_distance(p.kind, p.distance()) as f64).unwrap_or_else(|| tr(&why.to_string()));
+            let text = self
+                .mesh_pull_refusal(body, face, self.effective_distance(p.kind, p.distance()) as f64)
+                .unwrap_or_else(|| tr(&why.to_string()));
             self.set_status(text, true);
             return;
         }

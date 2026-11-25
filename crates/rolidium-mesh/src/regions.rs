@@ -203,12 +203,23 @@ pub fn find_with(
                 }
             }
             let mean = unit(sum);
-            let normal = if len(mean) > 0.5 && dot(mean, n0) > 0.0 { mean } else { n0 };
+            let normal = if len(mean) > 0.5 && dot(mean, n0) > 0.0 {
+                mean
+            } else {
+                n0
+            };
             let offset = region
                 .iter()
                 .map(|t| {
                     let c = m.corners(*t as usize);
-                    let mid = mul([c[0][0] + c[1][0] + c[2][0], c[0][1] + c[1][1] + c[2][1], c[0][2] + c[1][2] + c[2][2]], 1.0 / 3.0);
+                    let mid = mul(
+                        [
+                            c[0][0] + c[1][0] + c[2][0],
+                            c[0][1] + c[1][1] + c[2][1],
+                            c[0][2] + c[1][2] + c[2][2],
+                        ],
+                        1.0 / 3.0,
+                    );
                     dot(normal, mid) * normals[*t as usize].1
                 })
                 .sum::<f64>()

@@ -16,6 +16,13 @@ fn main() {
             }
         }
         let l = (s[0] * s[0] + s[1] * s[1] + s[2] * s[2]).sqrt().max(1e-12);
-        println!("plane {i}: normal {:.3?} offset {:.3} area {:.1} tris {} mean-of-triangles {:.3?}", p.normal, p.offset, p.area, p.triangles.len(), [s[0] / l, s[1] / l, s[2] / l]);
+        println!(
+            "plane {i}: normal {:.3?} offset {:.3} area {:.1} tris {} mean-of-triangles {:.3?}",
+            p.normal,
+            p.offset,
+            p.area,
+            p.triangles.len(),
+            [s[0] / l, s[1] / l, s[2] / l]
+        );
     }
 }

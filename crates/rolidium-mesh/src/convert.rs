@@ -33,10 +33,20 @@ pub struct Polyfaces {
 /// Groups the triangles into flat faces and finds their loops. `tolerance` is how far a point may be from the plane of its face; with `round` the coordinates
 /// that are within a tenth of the tolerance of a multiple of 0.01 mm are moved to it. A flat group of fewer than `merge_from` triangles is not made one face: every
 /// triangle is (a triangle is always flat, so the solid can always be made). `stop` is asked now and then; when it says yes the answer is `None`.
-pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, stop: &dyn Fn() -> bool) -> Option<Polyfaces> {
+pub fn polyfaces(
+    m: &TriMesh,
+    tolerance: f64,
+    round: bool,
+    merge_from: usize,
+    stop: &dyn Fn() -> bool,
+) -> Option<Polyfaces> {
     let mut out = Polyfaces::default();
     // the vertices, rounded when asked
-    let mut points: Vec<V3> = m.positions.iter().map(|p| [p[0] as f64, p[1] as f64, p[2] as f64]).collect();
+    let mut points: Vec<V3> = m
+        .positions
+        .iter()
+        .map(|p| [p[0] as f64, p[1] as f64, p[2] as f64])
+        .collect();
     if round {
         let snap = |v: f64| {
             let r = (v * 100.0).round() / 100.0;
@@ -63,7 +73,11 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
         let mut remap = vec![0u32; points.len()];
         let mut unique: Vec<V3> = Vec::new();
         for (i, p) in points.iter().enumerate() {
-            let key = [(p[0] * 1e5).round() as i64 as u64, (p[1] * 1e5).round() as i64 as u64, (p[2] * 1e5).round() as i64 as u64];
+            let key = [
+                (p[0] * 1e5).round() as i64 as u64,
+                (p[1] * 1e5).round() as i64 as u64,
+                (p[2] * 1e5).round() as i64 as u64,
+            ];
             let id = *seen.entry(key).or_insert_with(|| {
                 unique.push(*p);
                 (unique.len() - 1) as u32
@@ -78,7 +92,10 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
             .collect();
         points = unique;
         unified = TriMesh {
-            positions: points.iter().map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]).collect(),
+            positions: points
+                .iter()
+                .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+                .collect(),
             triangles: tris,
         };
     }
@@ -86,7 +103,11 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
     let n = m.triangles.len();
     let corners = |t: usize| {
         let tri = m.triangles[t];
-        [points[tri[0] as usize], points[tri[1] as usize], points[tri[2] as usize]]
+        [
+            points[tri[0] as usize],
+            points[tri[1] as usize],
+            points[tri[2] as usize],
+        ]
     };
     let normal_area = |t: usize| {
         let c = corners(t);
@@ -224,7 +245,11 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
         for outline in outlines {
             out.faces.push(outline);
             out.triangles.push(g.len() as u32);
-            out.fallback.push(if g.len() > 1 { g.iter().map(|t| m.triangles[*t as usize]).collect() } else { Vec::new() });
+            out.fallback.push(if g.len() > 1 {
+                g.iter().map(|t| m.triangles[*t as usize]).collect()
+            } else {
+                Vec::new()
+            });
         }
     }
     // a point cannot be more tolerant than a good part of the shortest edge it ends (the kernel refuses an edge shorter than the tolerance of its ends); a face that
@@ -263,7 +288,14 @@ fn loops_of(m: &TriMesh, group: &[u32], points: &[V3], normal: V3) -> Option<Vec
             next.entry(a).or_default().push(b);
         }
     }
-    let basis_u = unit(cross(normal, if normal[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] }));
+    let basis_u = unit(cross(
+        normal,
+        if normal[0].abs() < 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
     let basis_v = cross(normal, basis_u);
     let dir = |a: u32, b: u32| {
         let d = sub(points[b as usize], points[a as usize]);
@@ -299,7 +331,9 @@ fn loops_of(m: &TriMesh, group: &[u32], points: &[V3], normal: V3) -> Option<Vec
                         }
                         a
                     };
-                    (0..outs.len()).min_by(|x, y| turn(outs[*x]).total_cmp(&turn(outs[*y]))).unwrap_or(0)
+                    (0..outs.len())
+                        .min_by(|x, y| turn(outs[*x]).total_cmp(&turn(outs[*y])))
+                        .unwrap_or(0)
                 };
                 let nx = outs.swap_remove(k);
                 prev = cur;
@@ -319,10 +353,19 @@ fn loops_of(m: &TriMesh, group: &[u32], points: &[V3], normal: V3) -> Option<Vec
 
 /// Loops with the inside on the left run counter-clockwise round the outline and clockwise round a hole: a face for every outline, with the holes inside it.
 fn split_outlines(loops: Vec<Vec<u32>>, points: &[V3], normal: V3) -> Vec<Vec<Vec<u32>>> {
-    let u = unit(cross(normal, if normal[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] }));
+    let u = unit(cross(
+        normal,
+        if normal[0].abs() < 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
     let v = cross(normal, u);
     let flat = |l: &Vec<u32>| -> Vec<(f64, f64)> {
-        l.iter().map(|i| (dot(points[*i as usize], u), dot(points[*i as usize], v))).collect()
+        l.iter()
+            .map(|i| (dot(points[*i as usize], u), dot(points[*i as usize], v)))
+            .collect()
     };
     let area = |p: &[(f64, f64)]| -> f64 {
         let mut a = 0.0;
@@ -337,7 +380,9 @@ fn split_outlines(loops: Vec<Vec<u32>>, points: &[V3], normal: V3) -> Vec<Vec<Ve
         let mut c = false;
         let mut j = p.len() - 1;
         for i in 0..p.len() {
-            if (p[i].1 > q.1) != (p[j].1 > q.1) && q.0 < (p[j].0 - p[i].0) * (q.1 - p[i].1) / (p[j].1 - p[i].1) + p[i].0 {
+            if (p[i].1 > q.1) != (p[j].1 > q.1)
+                && q.0 < (p[j].0 - p[i].0) * (q.1 - p[i].1) / (p[j].1 - p[i].1) + p[i].0
+            {
                 c = !c;
             }
             j = i;
@@ -396,7 +441,10 @@ pub fn flat_share(m: &TriMesh, tolerance: f64) -> f64 {
                 if seen[ou] || na[ou].1 == 0.0 || dot(na[ou].0, n0) < cos_t {
                     continue;
                 }
-                if m.corners(ou).iter().any(|c| (dot(n0, *c) - off0).abs() > tolerance) {
+                if m.corners(ou)
+                    .iter()
+                    .any(|c| (dot(n0, *c) - off0).abs() > tolerance)
+                {
                     continue;
                 }
                 seen[ou] = true;

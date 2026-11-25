@@ -584,8 +584,12 @@ fn hollow_box() -> rolidium_mesh::TriMesh {
     }
     let base = m.positions.len() as u32;
     m.positions.extend(inner.positions);
-    m.triangles
-        .extend(inner.triangles.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]));
+    m.triangles.extend(
+        inner
+            .triangles
+            .iter()
+            .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+    );
     m
 }
 
@@ -605,13 +609,26 @@ fn the_normals_of_the_walls_look_out_of_the_material_for_outer_walls_and_cavitie
                 s[k] += n[k] * a;
             }
         }
-        assert!(rolidium_mesh::dot(s, p.normal) > 0.0, "the wall looks the way its triangles look");
+        assert!(
+            rolidium_mesh::dot(s, p.normal) > 0.0,
+            "the wall looks the way its triangles look"
+        );
         // the point just in front of the wall is outside the material: not inside the outer box, or inside the cavity
         let c = m.corners(p.triangles[0] as usize)[0];
-        let q = [c[0] + p.normal[0] * 0.5, c[1] + p.normal[1] * 0.5, c[2] + p.normal[2] * 0.5];
-        let in_outer = (0.0..=40.0).contains(&q[0]) && (0.0..=30.0).contains(&q[1]) && (0.0..=20.0).contains(&q[2]);
-        let in_cavity = (5.0..=35.0).contains(&q[0]) && (5.0..=25.0).contains(&q[1]) && (3.0..=15.0).contains(&q[2]);
-        assert!(!in_outer || in_cavity, "in front of the wall {:?} is material", p.normal);
+        let q = [
+            c[0] + p.normal[0] * 0.5,
+            c[1] + p.normal[1] * 0.5,
+            c[2] + p.normal[2] * 0.5,
+        ];
+        let in_outer =
+            (0.0..=40.0).contains(&q[0]) && (0.0..=30.0).contains(&q[1]) && (0.0..=20.0).contains(&q[2]);
+        let in_cavity =
+            (5.0..=35.0).contains(&q[0]) && (5.0..=25.0).contains(&q[1]) && (3.0..=15.0).contains(&q[2]);
+        assert!(
+            !in_outer || in_cavity,
+            "in front of the wall {:?} is material",
+            p.normal
+        );
     }
     // the six directions of the outer box and the six of the cavity (the cavity looks the other way)
     for (axis, sign, at, outer) in [
@@ -628,10 +645,14 @@ fn the_normals_of_the_walls_look_out_of_the_material_for_outer_walls_and_cavitie
         (1, 1.0, 5.0, false),
         (1, -1.0, 25.0, false),
     ] {
-        let found = r.planes.iter().any(|p| {
-            p.normal[axis] * sign > 0.99 && (p.offset - sign * at).abs() < 1e-3
-        });
-        assert!(found, "a wall with the normal {sign} on axis {axis} at {at} (outer {outer})");
+        let found = r
+            .planes
+            .iter()
+            .any(|p| p.normal[axis] * sign > 0.99 && (p.offset - sign * at).abs() < 1e-3);
+        assert!(
+            found,
+            "a wall with the normal {sign} on axis {axis} at {at} (outer {outer})"
+        );
     }
 }
 
@@ -651,18 +672,38 @@ fn a_floor_of_one_millimetre_can_be_made_thicker_but_not_pushed_through_the_bott
     }
     let base = m.positions.len() as u32;
     m.positions.extend(inner.positions);
-    m.triangles
-        .extend(inner.triangles.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]));
+    m.triangles.extend(
+        inner
+            .triangles
+            .iter()
+            .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+    );
     let r = regions::find(&m, 3.0, 4);
-    let floor = r.planes.iter().find(|p| p.normal[2] > 0.99 && (p.offset - 1.0).abs() < 1e-3).unwrap();
+    let floor = r
+        .planes
+        .iter()
+        .find(|p| p.normal[2] > 0.99 && (p.offset - 1.0).abs() < 1e-3)
+        .unwrap();
     let plan = PullPlan::new(&m, floor);
-    assert_eq!(plan.check(&m, floor, 3.0, false), Ok(()), "the floor is thickened upwards");
-    assert_eq!(plan.check(&m, floor, -1.5, false), Err(EditError::SelfIntersects), "it would go through the bottom");
+    assert_eq!(
+        plan.check(&m, floor, 3.0, false),
+        Ok(()),
+        "the floor is thickened upwards"
+    );
+    assert_eq!(
+        plan.check(&m, floor, -1.5, false),
+        Err(EditError::SelfIntersects),
+        "it would go through the bottom"
+    );
     let most = plan.max_distance(&m, floor, -1.5, false);
     assert!((0.99..=1.0).contains(&most), "at most a millimetre down: {most}");
     assert_eq!(plan.check(&m, floor, -most, false), Ok(()));
     // the outer bottom (it looks down) is pulled outwards (down) by 5 mm
-    let bottom = r.planes.iter().find(|p| p.normal[2] < -0.99 && p.offset.abs() < 1e-3).unwrap();
+    let bottom = r
+        .planes
+        .iter()
+        .find(|p| p.normal[2] < -0.99 && p.offset.abs() < 1e-3)
+        .unwrap();
     let plan = PullPlan::new(&m, bottom);
     assert_eq!(plan.check(&m, bottom, 5.0, false), Ok(()));
 }

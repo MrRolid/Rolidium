@@ -58,11 +58,15 @@ fn a_plate_with_a_hole_becomes_a_valid_solid_of_the_same_volume_that_can_be_pull
         keep: true,
     })
     .unwrap();
-    assert!(d.meshes()[0].visible == false, "the mesh is kept, hidden");
+    assert!(!d.meshes()[0].visible, "the mesh is kept, hidden");
     let bid = d.bodies()[0].id;
     let s = &d.body(bid).unwrap().solid;
     assert!(s.is_valid());
-    assert!((s.volume().unwrap() - v).abs() < v * 1e-3, "{} against {v}", s.volume().unwrap());
+    assert!(
+        (s.volume().unwrap() - v).abs() < v * 1e-3,
+        "{} against {v}",
+        s.volume().unwrap()
+    );
     // the top is one flat face: it can be pulled like a drawn one
     let top = s.faces().find(|f| {
         let i = s.face_info(*f).unwrap();

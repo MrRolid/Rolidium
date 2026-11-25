@@ -161,7 +161,13 @@ impl Solid {
 
     /// A solid made of flat faces: `faces[f]` are the loops of face `f` (the first is its outline, the others its holes) as indices into `points`. The faces are
     /// sewn within `tol` (points are the same points, so this is tiny); every point has the tolerance it needs to lie on its faces; the result is checked like every other (valid, closed, positive volume).
-    pub fn from_polygons(points: &[DVec3], faces: &[Vec<Vec<u32>>], point_tol: &[f64], fallback: &[Vec<[u32; 3]>], tol: f64) -> Result<Solid> {
+    pub fn from_polygons(
+        points: &[DVec3],
+        faces: &[Vec<Vec<u32>>],
+        point_tol: &[f64],
+        fallback: &[Vec<[u32; 3]>],
+        tol: f64,
+    ) -> Result<Solid> {
         let pts: Vec<f64> = points.iter().flat_map(|p| p.to_array()).collect();
         let (mut verts, mut loops, mut face_offsets) = (Vec::new(), vec![0u32], vec![0u32]);
         let mut loop_count = 0u32;
@@ -182,7 +188,16 @@ impl Solid {
             }
             fb_offsets.push((fb_vertices.len() / 3) as u32);
         }
-        let shape = native::solid_from_polygons(&pts, &verts, &loops, &face_offsets, point_tol, &fb_vertices, &fb_offsets, tol)?;
+        let shape = native::solid_from_polygons(
+            &pts,
+            &verts,
+            &loops,
+            &face_offsets,
+            point_tol,
+            &fb_vertices,
+            &fb_offsets,
+            tol,
+        )?;
         Solid::from_shape(shape).validated_body()
     }
 

@@ -196,10 +196,15 @@ impl App {
         }
         let r = self.viewport_rect;
         let ppp = self.probe.as_ref().map_or(1.0, |p| p.ppp);
-        let Some((a, b)) = self.move_bbox() else { return Value::Null };
+        let Some((a, b)) = self.move_bbox() else {
+            return Value::Null;
+        };
         let c = (a + b) * 0.5;
         let len = 120.0 / (r.height() / (2.0 * self.camera.distance * (self.camera.fov_y * 0.5).tan()));
-        let px = |p: glam::Vec3| self.project(p, r).map(|s| json!([(s.x * ppp).round(), (s.y * ppp).round()]));
+        let px = |p: glam::Vec3| {
+            self.project(p, r)
+                .map(|s| json!([(s.x * ppp).round(), (s.y * ppp).round()]))
+        };
         json!({"centre": px(c), "x": px(c + glam::Vec3::X * len), "y": px(c + glam::Vec3::Y * len), "z": px(c + glam::Vec3::Z * len)})
     }
 

@@ -292,7 +292,10 @@ fn import_advice(items: &[ImportItem]) -> (String, bool) {
         return (
             trf(
                 "Advised: a mesh ({} triangles are many: a solid of it would take about {} s and be slow)",
-                &[triangles.to_string(), format!("{:.0}", triangles as f64 / 20_000.0)],
+                &[
+                    triangles.to_string(),
+                    format!("{:.0}", triangles as f64 / 20_000.0),
+                ],
             ),
             false,
         );
@@ -553,7 +556,10 @@ impl App {
             "A solid works with every tool (round, combine, pattern, sizes). It takes longer and is a little off (within the accuracy). Organic and big models are better left as meshes",
         ));
         let r = ui
-            .add_enabled(self.idle() && ok.is_some(), egui::Button::new(tr("Convert to solid")))
+            .add_enabled(
+                self.idle() && ok.is_some(),
+                egui::Button::new(tr("Convert to solid")),
+            )
             .on_hover_text(hint);
         self.probe_widget("mesh_convert", r.rect);
         let clicked = r.clicked();
@@ -566,7 +572,10 @@ impl App {
         let r = ui.checkbox(&mut self.settings.convert_round, tr("Round the sizes"));
         self.probe_widget("mesh_convert_round", r.rect);
         changed |= r.changed();
-        let r = ui.checkbox(&mut self.settings.convert_keep, tr("Keep the original mesh, hidden"));
+        let r = ui.checkbox(
+            &mut self.settings.convert_keep,
+            tr("Keep the original mesh, hidden"),
+        );
         self.probe_widget("mesh_convert_keep", r.rect);
         changed |= r.changed();
         if triangles > 300_000 {
@@ -629,14 +638,22 @@ impl App {
         };
         ui.label(trf(
             "Volume: {} mm³ (the mesh {} mm³, difference {} %)",
-            &[format!("{:.1}", r.volume_solid), format!("{:.1}", r.volume_mesh), format!("{dv:+.3}")],
+            &[
+                format!("{:.1}", r.volume_solid),
+                format!("{:.1}", r.volume_mesh),
+                format!("{dv:+.3}"),
+            ],
         ));
         ui.label(trf(
             "Made in {} s from {} triangles{}",
             &[
                 format!("{:.2}", r.seconds),
                 r.triangles.to_string(),
-                if r.kept { format!(" ({})", tr("the mesh is kept, hidden")) } else { String::new() },
+                if r.kept {
+                    format!(" ({})", tr("the mesh is kept, hidden"))
+                } else {
+                    String::new()
+                },
             ],
         ));
     }
@@ -1205,9 +1222,17 @@ impl App {
                 let n = wall.normal;
                 let dir = [n[0], n[1], n[2]].map(|v| v * distance.signum());
                 let word = if dir[2].abs() >= dir[0].abs().max(dir[1].abs()) {
-                    if dir[2] > 0.0 { "up" } else { "down" }
+                    if dir[2] > 0.0 {
+                        "up"
+                    } else {
+                        "down"
+                    }
                 } else if dir[0].abs() >= dir[1].abs() {
-                    if dir[0] > 0.0 { "towards +X" } else { "towards -X" }
+                    if dir[0] > 0.0 {
+                        "towards +X"
+                    } else {
+                        "towards -X"
+                    }
                 } else if dir[1] > 0.0 {
                     "towards +Y"
                 } else {

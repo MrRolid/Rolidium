@@ -9,8 +9,16 @@ use std::time::Instant;
 
 fn main() {
     let dir = std::env::args().nth(1).expect("the directory");
-    let tol: f64 = std::env::args().nth(2).and_then(|v| v.parse().ok()).unwrap_or(0.02);
-    let mut files: Vec<_> = std::fs::read_dir(&dir).expect("cannot read the directory").flatten().map(|e| e.path()).filter(|p| p.is_file()).collect();
+    let tol: f64 = std::env::args()
+        .nth(2)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.02);
+    let mut files: Vec<_> = std::fs::read_dir(&dir)
+        .expect("cannot read the directory")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .collect();
     files.sort();
     println!("| file | triangles | faces (plane / cylinder / cone / sphere / torus / other) | single triangles | share of the surface | deviation | volume of the mesh | volume of the solid | difference | time |");
     println!("|---|---|---|---|---|---|---|---|---|---|");
