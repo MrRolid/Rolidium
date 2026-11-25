@@ -300,3 +300,52 @@ fn split_outlines(loops: Vec<Vec<u32>>, points: &[V3], normal: V3) -> Vec<Vec<Ve
     }
     faces
 }
+
+/// How well a mesh would make a solid: the share of its surface (0 to 1) that lies in flat groups of at least four triangles, and how many triangles there are.
+pub fn flat_share(m: &TriMesh, tolerance: f64) -> f64 {
+    let n = m.triangles.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let adj = crate::regions::neighbours(m);
+    let na: Vec<(V3, f64)> = (0..n).map(|t| m.normal_area(t)).collect();
+    let total: f64 = na.iter().map(|x| x.1).sum();
+    let cos_t = 2f64.to_radians().cos();
+    let mut seen = vec![false; n];
+    let mut flat = 0.0;
+    let mut order: Vec<usize> = (0..n).filter(|t| na[*t].1 > 0.0).collect();
+    order.sort_by(|a, b| na[*b].1.total_cmp(&na[*a].1));
+    for s in order {
+        if seen[s] {
+            continue;
+        }
+        let (n0, _) = na[s];
+        let off0 = dot(n0, m.corners(s)[0]);
+        seen[s] = true;
+        let mut stack = vec![s as u32];
+        let (mut count, mut area) = (1usize, na[s].1);
+        while let Some(t) = stack.pop() {
+            for &o in &adj[t as usize] {
+                let ou = o as usize;
+                if seen[ou] || na[ou].1 == 0.0 || dot(na[ou].0, n0) < cos_t {
+                    continue;
+                }
+                if m.corners(ou).iter().any(|c| (dot(n0, *c) - off0).abs() > tolerance) {
+                    continue;
+                }
+                seen[ou] = true;
+                count += 1;
+                area += na[ou].1;
+                stack.push(o);
+            }
+        }
+        if count >= 4 {
+            flat += area;
+        }
+    }
+    if total > 0.0 {
+        flat / total
+    } else {
+        0.0
+    }
+}

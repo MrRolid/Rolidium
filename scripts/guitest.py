@@ -337,6 +337,7 @@ def import_dropped(*paths, units=None):
     n0 = len(probe()["meshes"])
     drop_files(*paths)
     wait_for(lambda q: q["stl_dialog"], "the dialog of the import is open", 60)
+    click(*steady("stl_as_mesh"))
     click(*steady("stl_import_ok"))
     return wait_for(lambda q: len(q["meshes"]) >= n0 + len(paths) and q["stl_dialog"] is None, "the meshes were imported", 60)
 

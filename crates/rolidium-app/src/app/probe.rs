@@ -222,6 +222,7 @@ impl App {
             "pull_blocked": self.mesh_ui.blocked.as_ref().map(super::meshtool::short_reason),
             "pull_active": self.pull.is_some(),
             "tilt": self.mesh_ui.tilt,
+            "conversion": self.body_sel.and_then(rolidium_doc::meshes::conversion_report).map(|r| json!({"kinds": r.kinds, "single": r.single, "single_share": round3(r.single_share), "deviation": round3(r.max_deviation), "volume_solid": round3(r.volume_solid), "volume_mesh": round3(r.volume_mesh), "seconds": round3(r.seconds), "kept": r.kept})),
             "move_arrows": self.probe_move_arrows(),
             "mesh_check": self.mesh_ui.report.as_ref().map(|(_, a)| super::meshtool::findings_text(a)),
             "preview_thick": self.preview.as_ref().map(|p| p.thick.len()),
@@ -264,7 +265,7 @@ impl App {
                 json!({"name": i.name, "triangles": i.mesh.triangles.len(), "size": size, "clean": i.analysis.is_clean(), "check": super::meshtool::findings_text(&i.analysis), "note": i.note})
             })
             .collect();
-        json!({"units": format!("{:?}", d.units), "factor": d.factor(), "items": items})
+        json!({"units": format!("{:?}", d.units), "factor": d.factor(), "items": items, "as_solid": d.as_solid, "advice": super::meshtool::import_advice_text(&d.items)})
     }
 
     /// The meshes (STL) of the document: their size, what was found in them, and how they are shown.

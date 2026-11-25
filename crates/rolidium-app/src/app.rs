@@ -917,6 +917,7 @@ impl App {
                     self.derived_ask = Some((cmd, link, link_name, body_name));
                 }
                 Done::Command(Err(msg)) => {
+                    self.mesh_ui.select_new = false;
                     self.mesh_ui.keep_face = None;
                     self.mesh_ui.keep_body = None;
                     self.after_unlink = None;
@@ -998,8 +999,13 @@ impl App {
     }
 
     /// Re-selects the pulled face after a successful face pull so the user can keep pulling it.
-    fn after_commit(&mut self, _touched: Option<BodyId>) {
+    fn after_commit(&mut self, touched: Option<BodyId>) {
         self.clear_selection();
+        if std::mem::take(&mut self.mesh_ui.select_new) {
+            if let Some(b) = touched.filter(|b| self.doc.body(*b).is_some()) {
+                self.body_sel = Some(b);
+            }
+        }
         self.hover_region = None;
         if let Some(b) = self.mesh_ui.keep_body.take() {
             if self.doc.mesh(b).is_some() {
@@ -4946,6 +4952,8 @@ impl eframe::App for App {
                                         std::slice::from_ref(&b.name),
                                     ));
                                     ui.weak(tr("F2 or a double click on the name renames it"));
+                                    let bid = b.id;
+                                    self.conversion_report_ui(ui, bid);
                                 }
                                 if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some()) {
                                     self.mesh_selection_ui(ui, b);

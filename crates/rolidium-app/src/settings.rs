@@ -95,6 +95,10 @@ pub struct Settings {
     pub auto_turn_view: bool,
     /// The three dimensions of the bounding box round a selected body (a click on one changes it).
     pub body_dims: bool,
+    /// The conversion of a mesh to a solid: how far a point may be from its flat face (mm), whether sizes near a round value are rounded, whether the mesh is kept hidden.
+    pub convert_tolerance: f64,
+    pub convert_round: bool,
+    pub convert_keep: bool,
     /// A new empty document starts in a sketch on the XY plane with the Circle tool.
     pub new_doc_sketch: bool,
     /// The guide of the first steps is on, and the milestones it has seen (see `guide.rs`).
@@ -185,6 +189,9 @@ impl Default for Settings {
             donate_index: None,
             auto_turn_view: true,
             body_dims: true,
+            convert_tolerance: 0.02,
+            convert_round: true,
+            convert_keep: false,
             new_doc_sketch: true,
             guide_enabled: true,
             guide_mask: 0,
@@ -252,6 +259,15 @@ impl Settings {
                 "donate_index" => s.donate_index = v.parse().ok(),
                 "auto_turn_view" => s.auto_turn_view = v != "false",
                 "body_dims" => s.body_dims = v != "false",
+                "convert_tolerance" => {
+                    if let Ok(x) = v.parse::<f64>() {
+                        if (1e-4..=5.0).contains(&x) {
+                            s.convert_tolerance = x;
+                        }
+                    }
+                }
+                "convert_round" => s.convert_round = v != "false",
+                "convert_keep" => s.convert_keep = v == "true",
                 "new_doc_sketch" => s.new_doc_sketch = v != "false",
                 "guide_enabled" => s.guide_enabled = v != "false",
                 "guide_mask" => s.guide_mask = v.parse().unwrap_or(0),
@@ -344,8 +360,8 @@ impl Settings {
         );
         let mut text = text;
         text.push_str(&format!(
-            "auto_turn_view={}\nbody_dims={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
-            self.auto_turn_view, self.body_dims, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
+            "auto_turn_view={}\nbody_dims={}\nconvert_tolerance={}\nconvert_round={}\nconvert_keep={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
+            self.auto_turn_view, self.body_dims, self.convert_tolerance, self.convert_round, self.convert_keep, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
         ));
         text.push_str(&format!("fps_cap={}\n", self.fps_cap));
         if let Some([x, y]) = self.diag_pos {
@@ -415,6 +431,9 @@ mod tests {
             donate_index: Some(1),
             auto_turn_view: false,
             body_dims: false,
+            convert_tolerance: 0.05,
+            convert_round: false,
+            convert_keep: true,
             new_doc_sketch: false,
             guide_enabled: false,
             guide_mask: 5,

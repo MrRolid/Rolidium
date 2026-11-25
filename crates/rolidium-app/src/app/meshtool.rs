@@ -63,6 +63,7 @@ pub struct ImportItem {
     pub analysis: check::Analysis,
     /// A 3MF object: its size is in millimetres already (the unit is the one of the file).
     pub fixed_unit: bool,
+    pub flat_share: Option<f64>,
     /// What the last repair did.
     pub note: String,
 }
@@ -73,6 +74,8 @@ pub struct ImportDialog {
     pub items: Vec<ImportItem>,
     pub units: UnitChoice,
     pub custom: String,
+    /// Import as solids (a mesh is made a solid after it is imported).
+    pub as_solid: bool,
     /// The files that could not be read, with the reason.
     pub failed: Vec<String>,
     /// A repair runs on another thread.
@@ -114,6 +117,12 @@ pub struct MeshUi {
     pub keep_face: Option<(BodyId, u32)>,
     /// The mesh to select again after the command that is running (a repair, a scale).
     pub keep_body: Option<BodyId>,
+    /// The accuracy typed for a conversion, and whether the solid made is selected when it is done.
+    pub conv_tol: String,
+    pub select_new: bool,
+    /// Meshes that were there before an import that is to make solids; the new ones are converted one after another.
+    pub convert_after: Option<Vec<BodyId>>,
+    pub convert_queue: Vec<BodyId>,
     /// The plan of the pull of one wall (what it touches), kept while the same wall is pulled or hovered.
     plan: Option<PlanCache>,
     /// Why the pull that is being made cannot be done (the preview then shows a red outline only).
@@ -275,6 +284,44 @@ fn findings_ui(
     clicked
 }
 
+/// The advice of the import dialog on what to import the files as: the text, and whether a solid is advised.
+fn import_advice(items: &[ImportItem]) -> (String, bool) {
+    let triangles: usize = items.iter().map(|i| i.mesh.triangles.len()).sum();
+    let shares: Vec<f64> = items.iter().filter_map(|i| i.flat_share).collect();
+    if triangles > 300_000 || shares.len() < items.len() {
+        return (
+            trf(
+                "Advised: a mesh ({} triangles are many: a solid of it would take about {} s and be slow)",
+                &[triangles.to_string(), format!("{:.0}", triangles as f64 / 20_000.0)],
+            ),
+            false,
+        );
+    }
+    let share = shares.iter().sum::<f64>() / shares.len().max(1) as f64;
+    let secs = triangles as f64 / 20_000.0;
+    if share >= 0.6 {
+        (
+            trf(
+                "Advised: a solid ({} % of the surface is flat pieces; the conversion takes about {} s)",
+                &[format!("{:.0}", share * 100.0), format!("{secs:.1}")],
+            ),
+            true,
+        )
+    } else {
+        (
+            trf(
+                "Advised: a mesh (only {} % of the surface is flat pieces: a solid of it would be made of little triangles)",
+                &[format!("{:.0}", share * 100.0)],
+            ),
+            false,
+        )
+    }
+}
+
+pub fn import_advice_text(items: &[ImportItem]) -> String {
+    import_advice(items).0
+}
+
 fn is_stl(p: &std::path::Path) -> bool {
     p.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("stl") || e.eq_ignore_ascii_case("3mf"))
@@ -390,6 +437,7 @@ impl App {
                 ],
             ));
         }
+        self.mesh_convert_ui(ui, id, mb.mesh.triangles.len());
         // the check: the result stays, the button stays (to check again), and a repair is offered only where it helps
         let report = self
             .mesh_ui
@@ -487,6 +535,112 @@ impl App {
         ));
     }
 
+    /// "Convert to a solid": the button, the accuracy, the rounding, whether the mesh stays; an estimate of the time is in the hint of the button.
+    fn mesh_convert_ui(&mut self, ui: &mut egui::Ui, id: BodyId, triangles: usize) {
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(tr("Convert to a solid")).strong());
+        if self.mesh_ui.conv_tol.is_empty() {
+            self.mesh_ui.conv_tol = fmt_len(self.settings.convert_tolerance);
+        }
+        let ok = parse_num(&self.mesh_ui.conv_tol).filter(|t| (1e-4..=5.0).contains(t));
+        let secs = (triangles as f64 / 20_000.0).max(0.1);
+        let mut hint = trf(
+            "{} triangles: the conversion takes about {} s",
+            &[triangles.to_string(), format!("{secs:.1}")],
+        );
+        hint.push_str(". ");
+        hint.push_str(&tr(
+            "A solid works with every tool (round, combine, pattern, sizes). It takes longer and is a little off (within the accuracy). Organic and big models are better left as meshes",
+        ));
+        let r = ui
+            .add_enabled(self.idle() && ok.is_some(), egui::Button::new(tr("Convert to solid")))
+            .on_hover_text(hint);
+        self.probe_widget("mesh_convert", r.rect);
+        let clicked = r.clicked();
+        ui.horizontal(|ui| {
+            ui.label(tr("Accuracy of the conversion (mm)"));
+            let r = ui.add(egui::TextEdit::singleline(&mut self.mesh_ui.conv_tol).desired_width(40.0));
+            self.probe_widget("mesh_convert_tol", r.rect);
+        });
+        let mut changed = false;
+        let r = ui.checkbox(&mut self.settings.convert_round, tr("Round the sizes"));
+        self.probe_widget("mesh_convert_round", r.rect);
+        changed |= r.changed();
+        let r = ui.checkbox(&mut self.settings.convert_keep, tr("Keep the original mesh, hidden"));
+        self.probe_widget("mesh_convert_keep", r.rect);
+        changed |= r.changed();
+        if triangles > 300_000 {
+            ui.colored_label(
+                Color32::from_rgb(230, 170, 60),
+                tr("A big mesh: it is better left as a mesh (a solid of it is slow)"),
+            );
+        }
+        if ok.is_none() {
+            ui.colored_label(
+                Color32::from_rgb(220, 90, 70),
+                tr("The accuracy must be a number from 0.0001 to 5 mm"),
+            );
+        }
+        if let (true, Some(t)) = (clicked, ok) {
+            self.settings.convert_tolerance = t;
+            changed = true;
+            self.mesh_ui.select_new = true;
+            self.submit(Command::ConvertMesh {
+                body: id,
+                tolerance: t,
+                round: self.settings.convert_round,
+                keep: self.settings.convert_keep,
+            });
+            self.set_status("Converting the mesh to a solid… (Esc stops it)", false);
+        }
+        if changed {
+            self.settings.save();
+        }
+    }
+
+    /// What the conversion that made the selected solid did: faces by kind, what is not recognised, the largest deviation, the volume and the time.
+    pub(super) fn conversion_report_ui(&mut self, ui: &mut egui::Ui, body: BodyId) {
+        let Some(r) = rolidium_doc::meshes::conversion_report(body) else {
+            return;
+        };
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(tr("Made from a mesh")).strong());
+        let names = ["Plane", "Cylinder", "Cone", "Sphere", "Torus", "Other"];
+        let kinds: Vec<String> = r
+            .kinds
+            .iter()
+            .zip(names)
+            .filter(|(n, _)| **n > 0)
+            .map(|(n, k)| format!("{n} × {}", tr(k)))
+            .collect();
+        ui.label(trf("Faces: {}", &[kinds.join(", ")]));
+        ui.label(trf(
+            "Not recognised as a flat piece (single triangles): {} faces, {} % of the surface",
+            &[r.single.to_string(), format!("{:.1}", r.single_share * 100.0)],
+        ));
+        ui.label(trf(
+            "Largest deviation from the mesh: {} mm (accuracy {} mm)",
+            &[format!("{:.4}", r.max_deviation), fmt_len(r.tolerance)],
+        ));
+        let dv = if r.volume_mesh.abs() > 1e-9 {
+            (r.volume_solid - r.volume_mesh) / r.volume_mesh * 100.0
+        } else {
+            0.0
+        };
+        ui.label(trf(
+            "Volume: {} mm³ (the mesh {} mm³, difference {} %)",
+            &[format!("{:.1}", r.volume_solid), format!("{:.1}", r.volume_mesh), format!("{dv:+.3}")],
+        ));
+        ui.label(trf(
+            "Made in {} s from {} triangles{}",
+            &[
+                format!("{:.2}", r.seconds),
+                r.triangles.to_string(),
+                if r.kept { format!(" ({})", tr("the mesh is kept, hidden")) } else { String::new() },
+            ],
+        ));
+    }
+
     /// The check of a mesh, in the background.
     fn start_mesh_check(&mut self, ctx: &egui::Context, mesh: &Arc<TriMesh>) {
         let (tx, rx) = mpsc::channel();
@@ -571,6 +725,7 @@ impl App {
                     mesh: s.mesh,
                     analysis: s.analysis,
                     fixed_unit: s.fixed_unit,
+                    flat_share: s.flat_share,
                     note: String::new(),
                 }),
                 Err(e) => failed.push(e),
@@ -581,10 +736,12 @@ impl App {
             return;
         }
         self.set_status("", false);
+        let as_solid = import_advice(&items).1;
         self.mesh_ui.dialog = Some(ImportDialog {
             items,
             units: UnitChoice::Mm,
             custom: "1".into(),
+            as_solid,
             failed,
             repairing: None,
         });
@@ -608,6 +765,10 @@ impl App {
             .collect();
         let n = meshes.len();
         self.pending = None;
+        if d.as_solid {
+            // they become solids as soon as they are in the document
+            self.mesh_ui.convert_after = Some(self.doc.meshes().iter().map(|m| m.id).collect());
+        }
         self.submit(Command::AddMeshes { meshes });
         self.fitted = false;
         self.set_status(trf("Imported {} mesh(es) from STL", &[n.to_string()]), false);
@@ -699,6 +860,16 @@ impl App {
                         );
                     }
                 }
+                ui.separator();
+                let advice = import_advice(&d.items);
+                ui.label(tr("Import as"));
+                ui.horizontal(|ui| {
+                    let r = ui.radio_value(&mut d.as_solid, false, tr("mesh"));
+                    self.probe_widget("stl_as_mesh", r.rect);
+                    let r = ui.radio_value(&mut d.as_solid, true, tr("solid"));
+                    self.probe_widget("stl_as_solid", r.rect);
+                });
+                ui.weak(advice.0.clone());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     let ok = ui.add_enabled(factor.is_some() && !working, egui::Button::new(tr("Import")));
@@ -785,6 +956,29 @@ impl App {
         if self.idle() && !self.mesh_ui.queued.is_empty() && self.mesh_ui.dialog.is_none() {
             let paths = std::mem::take(&mut self.mesh_ui.queued);
             self.start_stl_read(paths);
+        }
+        if self.idle() {
+            if let Some(before) = self.mesh_ui.convert_after.take() {
+                self.mesh_ui.convert_queue = self
+                    .doc
+                    .meshes()
+                    .iter()
+                    .map(|m| m.id)
+                    .filter(|id| !before.contains(id))
+                    .collect();
+            }
+            if let Some(id) = self.mesh_ui.convert_queue.first().copied() {
+                self.mesh_ui.convert_queue.remove(0);
+                if self.doc.mesh(id).is_some() {
+                    self.submit(Command::ConvertMesh {
+                        body: id,
+                        tolerance: self.settings.convert_tolerance,
+                        round: self.settings.convert_round,
+                        keep: false,
+                    });
+                    self.set_status("Converting the mesh to a solid… (Esc stops it)", false);
+                }
+            }
         }
         if self.mesh_ui.rebuild && self.idle() {
             self.mesh_ui.rebuild = false;

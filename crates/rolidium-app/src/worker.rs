@@ -110,6 +110,8 @@ pub struct StlLoaded {
     pub analysis: rolidium_mesh::check::Analysis,
     /// The unit is the one of the file (3MF): the choice of the unit in the dialog does not apply.
     pub fixed_unit: bool,
+    /// The share (0 to 1) of the surface that is in flat pieces of four triangles or more; `None` for a big mesh (not looked at).
+    pub flat_share: Option<f64>,
 }
 
 /// The solids of a STEP file with their names, and the reasons why some were skipped.
@@ -397,11 +399,14 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                                             } else {
                                                 p.name
                                             };
+                                            let flat_share = (p.mesh.triangles.len() <= 300_000)
+                                                .then(|| rolidium_mesh::convert::flat_share(&p.mesh, 0.02));
                                             Ok(StlLoaded {
                                                 name,
                                                 mesh: p.mesh,
                                                 analysis,
                                                 fixed_unit: true,
+                                                flat_share,
                                             })
                                         })
                                         .collect()
@@ -414,11 +419,14 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                             Err(e) => return vec![Err(format!("{shown}: {e}"))],
                         };
                         let analysis = rolidium_mesh::check::analyse(&mesh);
+                        let flat_share =
+                            (mesh.triangles.len() <= 300_000).then(|| rolidium_mesh::convert::flat_share(&mesh, 0.02));
                         vec![Ok(StlLoaded {
                             name: stem,
                             mesh,
                             analysis,
                             fixed_unit: false,
+                            flat_share,
                         })]
                     })
                 })
