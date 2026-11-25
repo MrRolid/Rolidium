@@ -91,16 +91,9 @@ impl App {
             let (l, h) = if let Some(m) = self.doc.mesh(*b) {
                 m.mesh.bounding_box()?
             } else {
-                let e = self.entry(*b)?;
-                let mut l = [f64::MAX; 3];
-                let mut h = [f64::MIN; 3];
-                for f in e.faces.iter() {
-                    for i in 0..3 {
-                        l[i] = l[i].min(f.bounds.0[i] as f64);
-                        h[i] = h[i].max(f.bounds.1[i] as f64);
-                    }
-                }
-                (l, h)
+                // the exact box of the solid (the display mesh of a round body is a little smaller than the body)
+                let (l, h) = self.doc.body(*b)?.solid.bounding_box().ok()?;
+                ([l.x, l.y, l.z], [h.x, h.y, h.z])
             };
             for i in 0..3 {
                 lo[i] = lo[i].min(l[i]);
@@ -414,6 +407,9 @@ impl App {
             c[i] = if symmetric { (lo[i] + hi[i]) / 2.0 } else { lo[i] };
         }
         self.pending = None;
+        crate::logging::log(&format!(
+            "size of bodies {bodies:?} in direction {a} to {v} mm: scaled by {factors:?} about {c:?} (symmetric {symmetric}, proportional {proportional}), box {lo:?} {hi:?}"
+        ));
         self.submit(Command::ScaleBodies {
             bodies: bodies.to_vec(),
             centre: DVec3::from_array(c),

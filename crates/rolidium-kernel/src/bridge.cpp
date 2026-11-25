@@ -46,6 +46,7 @@
 #include <BRepAlgoAPI_Section.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <gp_GTrsf.hxx>
 #include <gp_Mat.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -545,14 +546,18 @@ OpResult scale_shape(const Shape& sh, std::array<double, 3> centre, std::array<d
             gp_GTrsf gt;
             gt.SetVectorialPart(gp_Mat(f[0], 0, 0, 0, f[1], 0, 0, 0, f[2]));
             gt.SetTranslationPart(gp_XYZ(centre[0] * (1 - f[0]), centre[1] * (1 - f[1]), centre[2] * (1 - f[2])));
-            BRepBuilderAPI_GTransform mk(sh.s, gt, true);
+            // a body that was meshed for the display carries its triangles: they are not scaled with the geometry, so the copy is made without them
+            BRepBuilderAPI_Copy plain(sh.s, true, false);
+            BRepBuilderAPI_GTransform mk(plain.Shape(), gt, true);
             if (!mk.IsDone()) fail("the scaling failed");
             r.shape = wrap(mk.Shape());
             for (int i = 1; i <= sh.faces.Extent(); ++i) {
                 const TopoDS_Shape& fc = sh.faces.FindKey(i);
-                for (const TopoDS_Shape& g : mk.Modified(fc)) {
-                    int idx = r.shape->faces.FindIndex(g);
-                    if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+                for (const TopoDS_Shape& g1 : plain.Modified(fc)) {
+                    for (const TopoDS_Shape& g : mk.Modified(g1)) {
+                        int idx = r.shape->faces.FindIndex(g);
+                        if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+                    }
                 }
             }
         }

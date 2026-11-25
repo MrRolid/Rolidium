@@ -189,11 +189,16 @@ impl App {
         })
     }
 
+    fn dims_bodies_for_probe(&self) -> Vec<u64> {
+        self.move_sel.iter().copied().chain(self.body_sel).collect()
+    }
+
     /// The state of the newer pieces: the sizes of a selected body, the quick sketch, the pull that cannot be made, the check of a mesh.
     fn probe_extra(&self) -> Value {
         json!({
             "body_dims": self.body_dims.shown.map(|s| json!([round3(s[0]), round3(s[1]), round3(s[2])])),
             "body_dims_editing": self.body_dims.editing,
+            "body_dims_bodies": self.dims_bodies_for_probe(),
             "quick_tool": self.quick_tool.map(|t| format!("{t:?}")),
             "plane_pick": self.plane_pick,
             "plane_hover": self.plane_hover.map(|h| json!({"face": h.face, "normal": [round3(h.normal.x), round3(h.normal.y), round3(h.normal.z)], "point": [round3(h.point.x), round3(h.point.y), round3(h.point.z)]})),

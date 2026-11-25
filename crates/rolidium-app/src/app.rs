@@ -765,10 +765,16 @@ impl App {
             }
             _ => None,
         };
+        // a mesh that was repaired or scaled stays selected: its panel (the check, the scale) goes on working
+        self.mesh_ui.keep_body = match &command {
+            Command::MeshRepair { body, .. } | Command::MeshScale { body, .. } => Some(*body),
+            _ => None,
+        };
         let command = match self.mesh_translate(command) {
             Ok(c) => c,
             Err(why) => {
                 self.mesh_ui.keep_face = None;
+                self.mesh_ui.keep_body = None;
                 self.set_status(why, true);
                 self.refused_at = Some(Instant::now());
                 return;
@@ -900,6 +906,7 @@ impl App {
                 }
                 Done::Command(Err(msg)) => {
                     self.mesh_ui.keep_face = None;
+                    self.mesh_ui.keep_body = None;
                     self.after_unlink = None;
                     self.fill_pending = false;
                     self.reselect_blend = None;
@@ -982,6 +989,11 @@ impl App {
     fn after_commit(&mut self, _touched: Option<BodyId>) {
         self.clear_selection();
         self.hover_region = None;
+        if let Some(b) = self.mesh_ui.keep_body.take() {
+            if self.doc.mesh(b).is_some() {
+                self.body_sel = Some(b);
+            }
+        }
         if let Some((b, f)) = self.mesh_ui.keep_face.take() {
             if self.entry(b).is_some_and(|m| (f as usize) < m.faces.len()) {
                 self.selection.push((b, f));

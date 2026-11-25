@@ -112,6 +112,8 @@ pub struct MeshUi {
     checking: Option<(Arc<TriMesh>, mpsc::Receiver<check::Analysis>)>,
     /// The wall or hole of a mesh to select again after the command that is running.
     pub keep_face: Option<(BodyId, u32)>,
+    /// The mesh to select again after the command that is running (a repair, a scale).
+    pub keep_body: Option<BodyId>,
     /// The plan of the pull of one wall (what it touches), kept while the same wall is pulled or hovered.
     plan: Option<PlanCache>,
     /// Why the pull that is being made cannot be done (the preview then shows a red outline only).
