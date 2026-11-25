@@ -210,7 +210,13 @@ impl PickCache {
                 let slot: Arc<OnceLock<Bvh>> = Arc::new(OnceLock::new());
                 let (s2, m2) = (slot.clone(), mesh.clone());
                 let _ = std::thread::Builder::new().name("bvh".into()).spawn(move || {
+                    let t = std::time::Instant::now();
+                    let n = m2.triangle_count();
                     let _ = s2.set(Bvh::build(m2));
+                    crate::logging::log(&format!(
+                        "hierarchy of boxes for {n} triangles made in {:.2} s",
+                        t.elapsed().as_secs_f32()
+                    ));
                 });
                 slot
             })

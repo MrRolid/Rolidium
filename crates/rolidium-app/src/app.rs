@@ -710,7 +710,9 @@ impl App {
         let text = text.into();
         // a command that was refused (a mesh cannot take part in it) has said why: the "Computing…" that the caller sets next must not hide that
         if matches!(text.as_str(), "Computing…" | "Rebuilding…")
-            && self.refused_at.is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(300))
+            && self
+                .refused_at
+                .is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(300))
         {
             return;
         }

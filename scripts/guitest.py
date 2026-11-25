@@ -397,7 +397,7 @@ def big_mesh_perf(stl, label, edit=False, cancel=False):
         # a pull of the top wall by 1 mm, typed
         key("p")
         settle(0.4)
-        x, y = screen(p, "top")
+        x, y = steady("top")
         click(x, y)
         p = settle(0.6)
         type_text("1")
