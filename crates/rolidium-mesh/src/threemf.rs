@@ -263,12 +263,13 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
         if triangles.is_empty() {
             continue;
         }
-        let mut mesh = TriMesh::default();
-        mesh.positions = positions
-            .iter()
-            .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
-            .collect();
-        mesh.triangles = triangles;
+        let mut mesh = TriMesh {
+            positions: positions
+                .iter()
+                .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+                .collect(),
+            triangles,
+        };
         // a unit that turns the part inside out (a mirroring transform) is mended by turning the triangles
         if mesh.signed_volume() < 0.0 {
             for t in &mut mesh.triangles {

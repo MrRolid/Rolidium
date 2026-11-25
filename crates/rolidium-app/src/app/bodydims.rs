@@ -19,10 +19,13 @@ pub struct BodyDimsUi {
     pub symmetric: bool,
     focus: bool,
     /// The box of the bodies for the key it was made for.
-    cache: Option<(Vec<(BodyId, usize)>, [f64; 3], [f64; 3])>,
+    cache: Option<BoxCache>,
     /// The sizes shown, for the scripted tests.
     pub shown: Option<[f64; 3]>,
 }
+
+/// The key of a box that was made (which bodies, which version of each), and the box.
+type BoxCache = (Vec<(BodyId, usize)>, [f64; 3], [f64; 3]);
 
 /// The wall that ends a body in one direction.
 enum EndWall {
@@ -281,9 +284,7 @@ impl App {
         if let Some(a) = self.body_dims.editing {
             if let Some(at) = label_pos[a] {
                 let single = bodies.len() == 1;
-                let wall = single
-                    .then(|| self.dims_end_wall(bodies[0], a, lo, hi, true).is_some())
-                    .unwrap_or(false);
+                let wall = single && self.dims_end_wall(bodies[0], a, lo, hi, true).is_some();
                 let round = self.dims_have_round(&bodies);
                 egui::Area::new(egui::Id::new("body_dim_options"))
                     .fixed_pos(at + Vec2::new(-36.0, 18.0))
