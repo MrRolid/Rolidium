@@ -27,7 +27,12 @@ pub struct BodyDimsUi {
 /// The wall that ends a body in one direction.
 enum EndWall {
     /// A face of a solid or a wall of a mesh (its number in the entry), with the normal pointing out of the body.
-    Face { body: BodyId, face: u32, origin: DVec3, normal: Vec3 },
+    Face {
+        body: BodyId,
+        face: u32,
+        origin: DVec3,
+        normal: Vec3,
+    },
 }
 
 fn fmt_size(v: f64) -> String {
@@ -58,7 +63,9 @@ impl App {
                 v.push(b);
             }
         }
-        v.retain(|b| self.doc.body(*b).is_some_and(|x| x.visible) || self.doc.mesh(*b).is_some_and(|x| x.visible));
+        v.retain(|b| {
+            self.doc.body(*b).is_some_and(|x| x.visible) || self.doc.mesh(*b).is_some_and(|x| x.visible)
+        });
         v
     }
 
@@ -100,7 +107,11 @@ impl App {
                 hi[i] = hi[i].max(h[i]);
             }
         }
-        if lo.iter().chain(hi.iter()).any(|v| !v.is_finite() || v.abs() > 1e12) {
+        if lo
+            .iter()
+            .chain(hi.iter())
+            .any(|v| !v.is_finite() || v.abs() > 1e12)
+        {
             return None;
         }
         self.body_dims.cache = Some((key, lo, hi));
@@ -111,15 +122,25 @@ impl App {
     fn dims_have_round(&self, bodies: &[BodyId]) -> bool {
         bodies.iter().any(|b| {
             self.entry(*b).is_some_and(|e| {
-                e.faces
-                    .iter()
-                    .any(|f| matches!(f.kind, FaceKind::Cylinder | FaceKind::Sphere | FaceKind::Cone | FaceKind::Torus))
+                e.faces.iter().any(|f| {
+                    matches!(
+                        f.kind,
+                        FaceKind::Cylinder | FaceKind::Sphere | FaceKind::Cone | FaceKind::Torus
+                    )
+                })
             })
         })
     }
 
     /// The one flat wall that ends the body at the `plus` or the minus side in direction `a`, if there is exactly one.
-    fn dims_end_wall(&self, body: BodyId, a: usize, lo: [f64; 3], hi: [f64; 3], plus: bool) -> Option<EndWall> {
+    fn dims_end_wall(
+        &self,
+        body: BodyId,
+        a: usize,
+        lo: [f64; 3],
+        hi: [f64; 3],
+        plus: bool,
+    ) -> Option<EndWall> {
         let e = self.entry(body)?;
         let size = (0..3).map(|i| hi[i] - lo[i]).fold(0.0, f64::max);
         let tol = size * 1e-4 + 1e-6;
@@ -188,7 +209,10 @@ impl App {
             ),
         ];
         let painter = ctx
-            .layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("body_dims_lines")))
+            .layer_painter(egui::LayerId::new(
+                egui::Order::Middle,
+                egui::Id::new("body_dims_lines"),
+            ))
             .with_clip_rect(rect);
         let col = crate::theme::rgb(255, 214, 90);
         let mut label_pos: [Option<Pos2>; 3] = [None; 3];
@@ -219,44 +243,46 @@ impl App {
                 .fixed_pos(at - Vec2::new(36.0, 11.0))
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style()).inner_margin(egui::Margin::symmetric(5, 2)).show(ui, |ui| {
-                        if editing {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}:", names[a].to_uppercase()));
-                                let r = ui.add(
-                                    egui::TextEdit::singleline(&mut self.body_dims.text)
-                                        .desired_width(70.0)
-                                        .id(egui::Id::new("body_dim_field")),
-                                );
-                                self.probe_widget("body_dim_field", r.rect);
-                                if self.body_dims.focus {
-                                    r.request_focus();
-                                    self.body_dims.focus = false;
-                                }
-                                ui.label("mm");
-                                if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                                    match parse_num(&self.body_dims.text) {
-                                        Some(v) if v.is_finite() && v > 0.0 => apply = Some((a, v)),
-                                        _ => self.set_status("The size must be a positive number", true),
+                    egui::Frame::popup(ui.style())
+                        .inner_margin(egui::Margin::symmetric(5, 2))
+                        .show(ui, |ui| {
+                            if editing {
+                                ui.horizontal(|ui| {
+                                    ui.label(format!("{}:", names[a].to_uppercase()));
+                                    let r = ui.add(
+                                        egui::TextEdit::singleline(&mut self.body_dims.text)
+                                            .desired_width(70.0)
+                                            .id(egui::Id::new("body_dim_field")),
+                                    );
+                                    self.probe_widget("body_dim_field", r.rect);
+                                    if self.body_dims.focus {
+                                        r.request_focus();
+                                        self.body_dims.focus = false;
                                     }
-                                } else if ui.input(|i| i.key_pressed(Key::Escape)) {
-                                    cancel = true;
+                                    ui.label("mm");
+                                    if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                                        match parse_num(&self.body_dims.text) {
+                                            Some(v) if v.is_finite() && v > 0.0 => apply = Some((a, v)),
+                                            _ => self.set_status("The size must be a positive number", true),
+                                        }
+                                    } else if ui.input(|i| i.key_pressed(Key::Escape)) {
+                                        cancel = true;
+                                    }
+                                });
+                            } else {
+                                let r = ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(format!("{} mm", fmt_size(sizes[a]))).color(col),
+                                    )
+                                    .sense(Sense::click()),
+                                );
+                                self.probe_widget(&format!("body_dim_{}", names[a]), r.rect);
+                                let r = r.on_hover_text(tr("Click to type a new size"));
+                                if r.clicked() {
+                                    start_edit = Some(a);
                                 }
-                            });
-                        } else {
-                            let r = ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!("{} mm", fmt_size(sizes[a]))).color(col),
-                                )
-                                .sense(Sense::click()),
-                            );
-                            self.probe_widget(&format!("body_dim_{}", names[a]), r.rect);
-                            let r = r.on_hover_text(tr("Click to type a new size"));
-                            if r.clicked() {
-                                start_edit = Some(a);
                             }
-                        }
-                    });
+                        });
                 });
         }
         if let Some(a) = self.body_dims.editing {
@@ -336,13 +362,24 @@ impl App {
                         self.dims_end_wall(b, a, lo, hi, false).map(|w| (w, false))
                     }
                 });
-            if let Some((EndWall::Face { body, face, origin, normal }, plus)) = wall {
+            if let Some((
+                EndWall::Face {
+                    body,
+                    face,
+                    origin,
+                    normal,
+                },
+                plus,
+            )) = wall
+            {
                 let mut doable = true;
                 if self.doc.mesh(body).is_some() {
                     // the mesh: only when the pull can be made (neighbours square to the wall, not through the opposite wall)
                     doable = self.mesh_pull_check(body, face, delta).is_none()
-                        && rolidium_doc::display::regions_of(&self.doc.mesh(body).map(|m| m.mesh.clone()).unwrap())
-                            .is_some();
+                        && rolidium_doc::display::regions_of(
+                            &self.doc.mesh(body).map(|m| m.mesh.clone()).unwrap(),
+                        )
+                        .is_some();
                 }
                 if doable {
                     let kind = PullKind::Face { body, face };

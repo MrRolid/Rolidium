@@ -496,7 +496,10 @@ fn a_3mf_file_gives_its_objects_in_millimetres_with_their_transforms() {
     );
     let bytes = zip_of(&[
         ("[Content_Types].xml", "<Types/>"),
-        ("_rels/.rels", r#"<Relationships><Relationship Target="/3D/3dmodel.model" Id="r" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>"#),
+        (
+            "_rels/.rels",
+            r#"<Relationships><Relationship Target="/3D/3dmodel.model" Id="r" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>"#,
+        ),
         ("3D/3dmodel.model", &model),
     ]);
     let parts = threemf::parse(&bytes).unwrap();
@@ -510,6 +513,9 @@ fn a_3mf_file_gives_its_objects_in_millimetres_with_their_transforms() {
     let (lo, hi) = parts[1].mesh.bounding_box().unwrap();
     assert!((hi[1] - lo[1] - 3.0 * 25.4).abs() < 1e-2, "{lo:?} {hi:?}");
     assert!((hi[0] - lo[0] - 25.4).abs() < 1e-2);
-    assert!((lo[1] - 254.0).abs() < 1e-2, "the move of the build is in the unit of the file: {lo:?}");
+    assert!(
+        (lo[1] - 254.0).abs() < 1e-2,
+        "the move of the build is in the unit of the file: {lo:?}"
+    );
     assert!(threemf::parse(b"not a zip").is_err());
 }

@@ -4,8 +4,8 @@
 //! (a flat face of a solid, a flat wall of a mesh or the base plane); the click starts the sketch there and puts the first point of the shape where it
 //! was, so that one click does what three steps did. The view is not turned (V does that).
 
-use super::*;
 use super::planepick::PlaneHover;
+use super::*;
 use crate::sketchmode::SkTool;
 
 impl App {
@@ -25,7 +25,10 @@ impl App {
         self.quick_tool = Some(t);
         self.plane_pick = true;
         self.plane_hover = None;
-        self.set_status("Click on the face to draw on (a flat face, a wall of a mesh or the base plane). Esc cancels", false);
+        self.set_status(
+            "Click on the face to draw on (a flat face, a wall of a mesh or the base plane). Esc cancels",
+            false,
+        );
     }
 
     pub(super) fn cancel_quick_sketch(&mut self) {

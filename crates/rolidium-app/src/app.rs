@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 mod bench;
+mod bodydims;
 mod busy;
 mod combinetool;
 mod curvetools;
@@ -41,8 +42,6 @@ mod jointool;
 mod linktool;
 mod lofttool;
 mod measuretool;
-mod bodydims;
-mod quicksketch;
 mod meshtool;
 mod movetool;
 mod panel;
@@ -53,6 +52,7 @@ mod planemove;
 mod planepick;
 mod probe;
 mod properties;
+mod quicksketch;
 mod remesh;
 mod revolve;
 mod selftest;
@@ -2197,7 +2197,11 @@ impl App {
                 }
                 Key::Escape => {
                     // a sketch started from the 3D view: Esc stops the shape, and when none is being drawn it ends the sketch (an empty one leaves nothing behind)
-                    if self.sk.as_ref().is_some_and(|sm| sm.quick && sm.drawing.is_none() && sm.place.is_none()) {
+                    if self
+                        .sk
+                        .as_ref()
+                        .is_some_and(|sm| sm.quick && sm.drawing.is_none() && sm.place.is_none())
+                    {
                         return self.leave_sketch();
                     }
                     if let Some(sm) = &mut self.sk {

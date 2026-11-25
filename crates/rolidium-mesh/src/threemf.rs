@@ -21,12 +21,17 @@ fn parse_transform(text: Option<&str>) -> Result<Tr, String> {
     let Some(t) = text else { return Ok(IDENTITY) };
     let v: Vec<f64> = t
         .split_whitespace()
-        .map(|x| x.parse::<f64>().map_err(|_| format!("a transform has a bad number: {x}")))
+        .map(|x| {
+            x.parse::<f64>()
+                .map_err(|_| format!("a transform has a bad number: {x}"))
+        })
         .collect::<Result<_, _>>()?;
     if v.len() != 12 || v.iter().any(|x| !x.is_finite()) {
         return Err("a transform of the file does not have 12 numbers".into());
     }
-    Ok([v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11]])
+    Ok([
+        v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11],
+    ])
 }
 
 /// `a` first, then `b` (a point is a row: `p * A + ta`, then `* B + tb`).
@@ -89,7 +94,8 @@ fn attr<'a>(n: &roxmltree::Node<'a, '_>, name: &str) -> Option<&'a str> {
 }
 
 fn read_model(xml: &str) -> Result<Model, String> {
-    let doc = roxmltree::Document::parse(xml).map_err(|e| format!("the model of the file cannot be read ({e})"))?;
+    let doc =
+        roxmltree::Document::parse(xml).map_err(|e| format!("the model of the file cannot be read ({e})"))?;
     let root = doc.root_element();
     if root.tag_name().name() != "model" {
         return Err("the model of the file is not a 3MF model".into());
@@ -121,7 +127,9 @@ fn read_model(xml: &str) -> Result<Model, String> {
                             attr(&t, k)
                                 .and_then(|x| x.parse::<u32>().ok())
                                 .filter(|i| (*i as usize) < positions.len())
-                                .ok_or_else(|| "a triangle of the file points to a vertex that is not there".to_string())
+                                .ok_or_else(|| {
+                                    "a triangle of the file points to a vertex that is not there".to_string()
+                                })
                         };
                         triangles.push([c("v1")?, c("v2")?, c("v3")?]);
                     }
@@ -174,7 +182,8 @@ fn read_part(zip: &mut zip::ZipArchive<std::io::Cursor<&[u8]>>, name: &str) -> R
 
 /// The parts of a 3MF file.
 pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
-    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|_| "The file is not a 3MF file (it is not a zip)".to_string())?;
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes))
+        .map_err(|_| "The file is not a 3MF file (it is not a zip)".to_string())?;
     // the model: named by the relationships of the package, else the usual place
     let mut model_path = "3D/3dmodel.model".to_string();
     if let Ok(rels) = read_part(&mut zip, "_rels/.rels") {
@@ -189,7 +198,8 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
             }
         }
     }
-    let main_xml = read_part(&mut zip, &model_path).map_err(|_| "The file is not a 3MF file (there is no 3D model in it)".to_string())?;
+    let main_xml = read_part(&mut zip, &model_path)
+        .map_err(|_| "The file is not a 3MF file (there is no 3D model in it)".to_string())?;
     let main = read_model(&main_xml)?;
     let mut others: HashMap<String, Model> = HashMap::new();
     let mut parts = Vec::new();
@@ -240,7 +250,12 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
                     for (p, cid, ct) in cs {
                         // the component's own transform first, then the one of what holds it
                         let total = then(ct, &t);
-                        stack.push((if p.is_empty() { path.clone() } else { p.clone() }, cid.clone(), total, depth + 1));
+                        stack.push((
+                            if p.is_empty() { path.clone() } else { p.clone() },
+                            cid.clone(),
+                            total,
+                            depth + 1,
+                        ));
                     }
                 }
             }
@@ -249,7 +264,10 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
             continue;
         }
         let mut mesh = TriMesh::default();
-        mesh.positions = positions.iter().map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]).collect();
+        mesh.positions = positions
+            .iter()
+            .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+            .collect();
         mesh.triangles = triangles;
         // a unit that turns the part inside out (a mirroring transform) is mended by turning the triangles
         if mesh.signed_volume() < 0.0 {
@@ -258,7 +276,11 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Part>, String> {
             }
         }
         parts.push(Part {
-            name: if name.is_empty() { format!("Part {}", n + 1) } else { name },
+            name: if name.is_empty() {
+                format!("Part {}", n + 1)
+            } else {
+                name
+            },
             mesh,
         });
     }

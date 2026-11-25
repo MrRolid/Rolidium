@@ -163,9 +163,15 @@ impl Solid {
     /// ellipses (general surfaces), which later edits may not be able to change.
     pub fn scaled(&self, centre: DVec3, factors: DVec3) -> Result<OpResult> {
         if !centre.is_finite() || !factors.is_finite() || factors.min_element() <= 1e-6 {
-            return Err(KernelError::Invalid("the scale factors must be positive numbers".into()));
+            return Err(KernelError::Invalid(
+                "the scale factors must be positive numbers".into(),
+            ));
         }
-        finish(native::scale_shape(self.raw(), centre.to_array(), factors.to_array())?)
+        finish(native::scale_shape(
+            self.raw(),
+            centre.to_array(),
+            factors.to_array(),
+        )?)
     }
 
     /// The mirror image about the plane through `point` with the normal `normal`. The result is checked like every other result (a valid closed solid

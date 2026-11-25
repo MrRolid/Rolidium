@@ -495,13 +495,23 @@ mod coverage {
         "The rounds next to the face cannot be moved with it: {}",
         "Internal error while computing the operation; the model was not changed ({})",
         // messages of the mesh library (STL) that reach the status line
-        "The wall is not cleanly separated: a neighbouring wall is not square to it, so it cannot be moved without bending the mesh",
+        "A neighbouring wall is not square to this wall (a slope or a bevel), so it cannot be moved without bending the mesh. Tick “Move anyway, the neighbouring walls slant” in the panel to allow it",
+        "The move would make the mesh cut through itself",
         "The move would turn a neighbouring wall inside out (the wall would be pulled through the opposite one)",
         "The mesh is not closed or not consistent: repair it first",
         "The diameter must be a positive number",
         "The hole is not round enough to change its diameter",
         "The file is not an STL file (no triangles were found)",
         "The file contains numbers that are not finite",
+        // texts chosen by an `if` or a `match` inside `tr(...)`
+        "Check the mesh",
+        "STL and 3MF files (*.stl, *.3mf)",
+        "Cylindrical surface",
+        "The neighbouring wall is not square to this one: tick “Move anyway” in the panel",
+        "Too far: the wall would go through the opposite one",
+        "The mesh would cut through itself",
+        "The mesh has holes or turned triangles: check and repair it first",
+        "This wall cannot be pulled",
     ];
 
     fn all_keys() -> Vec<String> {
