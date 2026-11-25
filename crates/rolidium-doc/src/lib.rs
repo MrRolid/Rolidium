@@ -589,6 +589,13 @@ pub enum Command {
     Ungroup {
         group: GroupId,
     },
+    /// Scales bodies and meshes about `centre` by factors in x, y and z (positive numbers). A solid keeps its exact round surfaces only for equal
+    /// factors; with different ones a circle becomes an ellipse.
+    ScaleBodies {
+        bodies: Vec<BodyId>,
+        centre: DVec3,
+        factors: DVec3,
+    },
     /// Mirror bodies in a plane, once (a link that follows the original is `AddLink` with a mirror): with `keep` the originals stay and the images
     /// are new bodies, else the bodies themselves are mirrored; with `merge` every image is fused with its original into one symmetric body.
     Mirror {
@@ -3003,6 +3010,42 @@ impl Job {
                     }
                 }
                 let mut c = self.done(st, if *merge { "Mirror and merge" } else { "Mirror" });
+                c.touched_body = first;
+                Ok(c)
+            }
+            Command::ScaleBodies {
+                bodies,
+                centre,
+                factors,
+            } => {
+                if bodies.is_empty() {
+                    return Err(KernelError::Invalid("no body is selected".into()).into());
+                }
+                if !(factors.is_finite() && factors.min_element() > 1e-6) {
+                    return Err(
+                        KernelError::Invalid("the scale factors must be positive numbers".into()).into(),
+                    );
+                }
+                let mut first = None;
+                for bid in bodies {
+                    first.get_or_insert(*bid);
+                    if let Some(mp) = st.meshes.iter().position(|m| m.id == *bid) {
+                        let mut m = (*st.meshes[mp].mesh).clone();
+                        rolidium_mesh::transform::scale(&mut m, centre.to_array(), factors.to_array());
+                        st.meshes[mp].mesh = Arc::new(m);
+                        continue;
+                    }
+                    let pos = st
+                        .bodies
+                        .iter()
+                        .position(|b| b.id == *bid)
+                        .ok_or(DocError::NoSuchBody)?;
+                    let r = st.bodies[pos].solid.scaled(*centre, *factors)?;
+                    let b = &mut st.bodies[pos];
+                    remap_features(&mut b.features, &r.history);
+                    b.solid = r.solid;
+                }
+                let mut c = self.done(st, "Scale");
                 c.touched_body = first;
                 Ok(c)
             }

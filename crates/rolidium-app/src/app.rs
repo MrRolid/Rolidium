@@ -41,6 +41,7 @@ mod jointool;
 mod linktool;
 mod lofttool;
 mod measuretool;
+mod bodydims;
 mod meshtool;
 mod movetool;
 mod panel;
@@ -313,6 +314,8 @@ pub struct App {
     pick_stats: std::cell::Cell<(f32, bool, u64)>,
     /// Triangle meshes (STL): the import dialog and the search for walls and holes.
     mesh_ui: meshtool::MeshUi,
+    /// The size of the selected body, typed in a click.
+    body_dims: bodydims::BodyDimsUi,
     /// When a command was last refused by `submit` (the reason is on the status line).
     refused_at: Option<Instant>,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
@@ -562,6 +565,7 @@ impl App {
             probe: probe::Probe::from_env(),
             pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
+            body_dims: Default::default(),
             refused_at: None,
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
@@ -4215,6 +4219,15 @@ impl App {
                 }
                 ui.separator();
                 if ui
+                    .checkbox(
+                        &mut self.settings.body_dims,
+                        tr("Show the size of a selected body (click a size to change it)"),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+                if ui
                     .checkbox(&mut self.settings.sound, tr("Sound on error"))
                     .changed()
                 {
@@ -4998,6 +5011,7 @@ impl eframe::App for App {
         prof!("busy_overlay", self.busy_overlay(&ctx, vr));
         self.mesh_overlay(&ctx, vr);
         prof!("measure_panel", self.measure_panel(&ctx, vr));
+        self.body_dims_ui(&ctx, vr);
         prof!("loft_panel", self.loft_panel(&ctx, vr));
         prof!("helix_panel", self.helix_panel(&ctx, vr));
         prof!("sweep_panel", self.sweep_panel(&ctx, vr));

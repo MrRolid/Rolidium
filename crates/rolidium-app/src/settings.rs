@@ -93,6 +93,8 @@ pub struct Settings {
     pub donate_index: Option<usize>,
     /// Turn the view square to the sketch plane when a sketch starts (and back when it ends).
     pub auto_turn_view: bool,
+    /// The three dimensions of the bounding box round a selected body (a click on one changes it).
+    pub body_dims: bool,
     /// A new empty document starts in a sketch on the XY plane with the Circle tool.
     pub new_doc_sketch: bool,
     /// The guide of the first steps is on, and the milestones it has seen (see `guide.rs`).
@@ -182,6 +184,7 @@ impl Default for Settings {
             dialog_h: 0.0,
             donate_index: None,
             auto_turn_view: true,
+            body_dims: true,
             new_doc_sketch: true,
             guide_enabled: true,
             guide_mask: 0,
@@ -248,6 +251,7 @@ impl Settings {
                 "dialog_h" => s.dialog_h = v.parse().unwrap_or(0.0),
                 "donate_index" => s.donate_index = v.parse().ok(),
                 "auto_turn_view" => s.auto_turn_view = v != "false",
+                "body_dims" => s.body_dims = v != "false",
                 "new_doc_sketch" => s.new_doc_sketch = v != "false",
                 "guide_enabled" => s.guide_enabled = v != "false",
                 "guide_mask" => s.guide_mask = v.parse().unwrap_or(0),
@@ -340,8 +344,8 @@ impl Settings {
         );
         let mut text = text;
         text.push_str(&format!(
-            "auto_turn_view={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
-            self.auto_turn_view, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
+            "auto_turn_view={}\nbody_dims={}\nnew_doc_sketch={}\nguide_enabled={}\nguide_mask={}\njoin_gap={}\nreport_skip={}\nbrightness={}\n",
+            self.auto_turn_view, self.body_dims, self.new_doc_sketch, self.guide_enabled, self.guide_mask, self.join_gap, self.report_skip.join(","), self.brightness
         ));
         text.push_str(&format!("fps_cap={}\n", self.fps_cap));
         if let Some([x, y]) = self.diag_pos {
@@ -410,6 +414,7 @@ mod tests {
             dialog_h: 600.0,
             donate_index: Some(1),
             auto_turn_view: false,
+            body_dims: false,
             new_doc_sketch: false,
             guide_enabled: false,
             guide_mask: 5,

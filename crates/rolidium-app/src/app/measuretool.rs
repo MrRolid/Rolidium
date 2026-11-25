@@ -403,7 +403,7 @@ impl App {
         }
     }
 
-    fn arrow(painter: &egui::Painter, from: Pos2, to: Pos2, col: Color32) {
+    pub(super) fn arrow(painter: &egui::Painter, from: Pos2, to: Pos2, col: Color32) {
         painter.line_segment([from, to], Stroke::new(1.8, col));
         let d = (from - to).normalized();
         if d.length() > 0.0 {

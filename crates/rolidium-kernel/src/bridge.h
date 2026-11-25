@@ -41,6 +41,7 @@ std::shared_ptr<Shape> revolve(const Shape& shape, std::array<double, 3> point, 
 OpResult transform_shape(const Shape& shape, std::array<double, 3> pivot, std::array<double, 3> axis, double angle, std::array<double, 3> t);
 std::shared_ptr<Shape> compound_append(const Shape& acc, const Shape& s, bool first);
 OpResult mirror_shape(const Shape& shape, std::array<double, 3> point, std::array<double, 3> normal);
+OpResult scale_shape(const Shape& shape, std::array<double, 3> centre, std::array<double, 3> f);
 uint32_t solid_count(const Shape& shape);
 bool point_in_solid(const Shape& shape, std::array<double, 3> p);
 bool point_outside(const Shape& sh, std::array<double, 3> p);

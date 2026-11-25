@@ -45,6 +45,9 @@
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Section.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_GTransform.hxx>
+#include <gp_GTrsf.hxx>
+#include <gp_Mat.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
@@ -512,6 +515,45 @@ OpResult mirror_shape(const Shape& sh, std::array<double, 3> point, std::array<d
             for (const TopoDS_Shape& g : mk.Modified(f)) {
                 int idx = r.shape->faces.FindIndex(g);
                 if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+            }
+        }
+        return r;
+    });
+}
+
+/// The shape scaled about `centre` by `f` in x, y and z. Equal factors keep the exact surfaces (a cylinder stays a cylinder); different ones turn them into
+/// general surfaces (a circle becomes an ellipse). The faces of the result are tied to the faces of the original through the history, like for a mirror image.
+OpResult scale_shape(const Shape& sh, std::array<double, 3> centre, std::array<double, 3> f) {
+    return guarded("scale", [&] {
+        for (int i = 0; i < 3; ++i) if (!(f[i] > 1e-6)) fail("the scale factors must be positive numbers");
+        OpResult r;
+        const bool same = std::abs(f[0] - f[1]) < 1e-12 && std::abs(f[1] - f[2]) < 1e-12;
+        if (same) {
+            gp_Trsf tr;
+            tr.SetScale(gp_Pnt(centre[0], centre[1], centre[2]), f[0]);
+            BRepBuilderAPI_Transform mk(sh.s, tr, true);
+            if (!mk.IsDone()) fail("the scaling failed");
+            r.shape = wrap(mk.Shape());
+            for (int i = 1; i <= sh.faces.Extent(); ++i) {
+                const TopoDS_Shape& fc = sh.faces.FindKey(i);
+                for (const TopoDS_Shape& g : mk.Modified(fc)) {
+                    int idx = r.shape->faces.FindIndex(g);
+                    if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+                }
+            }
+        } else {
+            gp_GTrsf gt;
+            gt.SetVectorialPart(gp_Mat(f[0], 0, 0, 0, f[1], 0, 0, 0, f[2]));
+            gt.SetTranslationPart(gp_XYZ(centre[0] * (1 - f[0]), centre[1] * (1 - f[1]), centre[2] * (1 - f[2])));
+            BRepBuilderAPI_GTransform mk(sh.s, gt, true);
+            if (!mk.IsDone()) fail("the scaling failed");
+            r.shape = wrap(mk.Shape());
+            for (int i = 1; i <= sh.faces.Extent(); ++i) {
+                const TopoDS_Shape& fc = sh.faces.FindKey(i);
+                for (const TopoDS_Shape& g : mk.Modified(fc)) {
+                    int idx = r.shape->faces.FindIndex(g);
+                    if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+                }
             }
         }
         return r;
