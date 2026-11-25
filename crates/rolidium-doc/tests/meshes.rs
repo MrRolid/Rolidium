@@ -294,3 +294,103 @@ fn the_walls_and_holes_after_a_pull_and_a_hole_edit_need_no_new_search() {
     assert!(d.undo() && d.undo());
     assert!(regions_of(&d.mesh(id).unwrap().mesh).is_some());
 }
+
+#[test]
+fn a_pull_with_slanting_neighbours_is_refused_until_it_is_allowed_and_undo_restores_it() {
+    use rolidium_mesh::{gen, regions};
+    let mut d = Document::new();
+    let m = Arc::new(gen::frustum(40.0, 20.0, 20.0));
+    d.apply(Command::AddMeshes {
+        meshes: vec![NewMesh {
+            name: "frustum".into(),
+            mesh: m.clone(),
+            verified: true,
+        }],
+    })
+    .unwrap();
+    let id = d.meshes()[0].id;
+    let reg = regions::find(&m, 3.0, 2);
+    let top = Arc::new(reg.planes.iter().find(|p| p.normal[2] > 0.99).unwrap().clone());
+    let refused = d.apply(Command::MeshPull {
+        body: id,
+        wall: top.clone(),
+        distance: 5.0,
+        tilt: false,
+    });
+    assert!(refused.unwrap_err().to_string().contains("not square"));
+    d.apply(Command::MeshPull {
+        body: id,
+        wall: top.clone(),
+        distance: 5.0,
+        tilt: true,
+    })
+    .unwrap();
+    let (lo, hi) = d.mesh(id).unwrap().mesh.bounding_box().unwrap();
+    assert!((hi[2] - lo[2] - 25.0).abs() < 1e-4);
+    d.undo();
+    assert!(
+        Arc::ptr_eq(&d.mesh(id).unwrap().mesh, &m),
+        "Undo gives the very mesh back"
+    );
+}
+
+#[test]
+fn the_display_of_an_edited_mesh_is_patched_and_equals_the_one_made_from_nothing() {
+    use rolidium_doc::display::{keep_regions, mesh_body_entry, mesh_inputs, MeshCache};
+    use rolidium_mesh::{gen, regions};
+    let m = Arc::new(gen::plate_with_holes(4, 3, 10.0, 4.0, 3.0, 24));
+    let reg = regions::find(&m, 3.0, 4);
+    let top = reg.planes.iter().find(|p| p.normal[2] > 0.99).unwrap().clone();
+    let hole = reg.cylinders[3].clone();
+    keep_regions(&m, Arc::new(reg));
+    let mut d = Document::new();
+    d.apply(Command::AddMeshes {
+        meshes: vec![NewMesh {
+            name: "plate".into(),
+            mesh: m.clone(),
+            verified: true,
+        }],
+    })
+    .unwrap();
+    let id = d.meshes()[0].id;
+    let mut cache = MeshCache::default();
+    let first = cache.mesh_entries(&mesh_inputs(d.state()));
+    for step in 0..2 {
+        if step == 0 {
+            d.apply(Command::MeshPull {
+                body: id,
+                wall: Arc::new(top.clone()),
+                distance: 2.0,
+                tilt: false,
+            })
+            .unwrap();
+        } else {
+            d.apply(Command::MeshHole {
+                body: id,
+                hole: Arc::new(hole.clone()),
+                diameter: 7.0,
+            })
+            .unwrap();
+        }
+        let inputs = mesh_inputs(d.state());
+        let full = mesh_body_entry(&inputs[0]);
+        let patched = cache.mesh_entries(&inputs);
+        assert_eq!(
+            patched[0].mesh.positions, full.mesh.positions,
+            "step {step}: the moved vertices"
+        );
+        assert_eq!(patched[0].mesh.indices, full.mesh.indices);
+        for (a, b) in patched[0].faces.iter().zip(full.faces.iter()) {
+            assert!(
+                (a.centroid - b.centroid).length() < 1e-3 && (a.origin - b.origin).length() < 1e-6,
+                "step {step}: the facts of a face"
+            );
+            assert!((a.bounds.0 - b.bounds.0).length() < 1e-3 && (a.bounds.1 - b.bounds.1).length() < 1e-3);
+        }
+        assert_ne!(patched[0].stamp, first[0].stamp);
+    }
+    d.undo();
+    d.undo();
+    let back = cache.mesh_entries(&mesh_inputs(d.state()));
+    assert_eq!(back[0].stamp, first[0].stamp, "Undo finds the display it had");
+}

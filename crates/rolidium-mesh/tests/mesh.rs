@@ -519,3 +519,47 @@ fn a_3mf_file_gives_its_objects_in_millimetres_with_their_transforms() {
     );
     assert!(threemf::parse(b"not a zip").is_err());
 }
+
+#[test]
+fn the_analysis_names_what_the_repairs_would_do() {
+    use rolidium_mesh::{check, gen};
+    // a good mesh: nothing to do
+    let a = check::analyse(&gen::box_mesh(10.0, 10.0, 10.0, 2));
+    assert!(a.is_clean() && a.loose_joints == 0 && a.inward == 0);
+    // a vertex that lies beside the others and a triangle turned over
+    let mut m = gen::box_mesh(10.0, 10.0, 10.0, 2);
+    let n = m.positions.len() as u32;
+    let t = m.triangles[5];
+    let mut p = m.positions[t[0] as usize];
+    p[0] += 3e-6;
+    m.positions.push(p);
+    m.triangles[5][0] = n;
+    m.triangles[9].swap(1, 2);
+    let a = check::analyse(&m);
+    assert!(!a.is_clean());
+    assert_eq!(a.loose_joints, 1, "one vertex is a loose joint");
+    assert_eq!(
+        a.inward, 1,
+        "one triangle is turned inwards (after the joint is joined)"
+    );
+    assert!(
+        a.report.open_edges > 0 && a.after_merge.open_edges == 0,
+        "the open edges were the joint"
+    );
+    // two blocks that touch along an edge: edges of four triangles, no repair
+    let mut two = gen::box_mesh(10.0, 10.0, 10.0, 1);
+    let b = gen::box_mesh(10.0, 10.0, 10.0, 1);
+    let base = two.positions.len() as u32;
+    two.positions
+        .extend(b.positions.iter().map(|p| [p[0] + 10.0, p[1] + 10.0, p[2]]));
+    two.triangles.extend(
+        b.triangles
+            .iter()
+            .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+    );
+    check::merge_vertices(&mut two, 1e-4);
+    let a = check::analyse(&two);
+    assert!(a.report.non_manifold_edges > 0 && a.report.is_watertight());
+    assert_eq!((a.loose_joints, a.inward), (0, 0), "nothing a button could mend");
+    assert!(!a.is_clean());
+}
