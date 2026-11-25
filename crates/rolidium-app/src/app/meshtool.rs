@@ -27,6 +27,28 @@ impl RegionJob {
     }
 }
 
+struct PlanCache {
+    body: BodyId,
+    face: u32,
+    mesh: Arc<TriMesh>,
+    regions: Arc<regions::Regions>,
+    plan: rolidium_mesh::edit::PullPlan,
+}
+
+/// What stands at the cursor when a wall of a mesh cannot be pulled.
+pub fn short_reason(e: &rolidium_mesh::edit::EditError) -> String {
+    use rolidium_mesh::edit::EditError as E;
+    tr(match e {
+        E::NeighbourNotSquare => {
+            "The neighbouring wall is not square to this one: tick “Move anyway” in the panel"
+        }
+        E::Collapses => "Too far: the wall would go through the opposite one",
+        E::SelfIntersects => "The mesh would cut through itself",
+        E::NotClean => "The mesh has holes or turned triangles: check and repair it first",
+        _ => "This wall cannot be pulled",
+    })
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum UnitChoice {
     Mm,
@@ -38,12 +60,12 @@ pub enum UnitChoice {
 pub struct ImportItem {
     pub name: String,
     pub mesh: TriMesh,
-    pub report: check::Report,
+    pub analysis: check::Analysis,
     /// What the last repair did.
     pub note: String,
 }
 
-type Repaired = (usize, TriMesh, check::Report, String);
+type Repaired = (usize, TriMesh, check::Analysis, String);
 
 pub struct ImportDialog {
     pub items: Vec<ImportItem>,
@@ -84,30 +106,169 @@ pub struct MeshUi {
     /// "Move it anyway, the neighbouring walls slant": the choice for the pull of a wall of a mesh.
     pub tilt: bool,
     /// The check of a mesh (the mesh it was made for, kept so that the address stays its own) and the check that is running.
-    pub report: Option<(Arc<TriMesh>, check::Report)>,
-    checking: Option<(Arc<TriMesh>, mpsc::Receiver<check::Report>)>,
+    pub report: Option<(Arc<TriMesh>, check::Analysis)>,
+    checking: Option<(Arc<TriMesh>, mpsc::Receiver<check::Analysis>)>,
+    /// The wall or hole of a mesh to select again after the command that is running.
+    pub keep_face: Option<(BodyId, u32)>,
+    /// The plan of the pull of one wall (what it touches), kept while the same wall is pulled or hovered.
+    plan: Option<PlanCache>,
+    /// Why the pull that is being made cannot be done (the preview then shows a red outline only).
+    pub blocked: Option<rolidium_mesh::edit::EditError>,
+    /// The check is made again by itself as soon as the mesh is another one (after a repair).
+    auto_check: bool,
 }
 
-/// What the check of a mesh says in one line.
-pub fn summary_line(r: &check::Report) -> String {
-    if r.is_clean() {
-        tr("closed and consistent")
-    } else {
-        let mut v = Vec::new();
-        if r.open_edges > 0 {
-            v.push(trf("{} open edges", &[r.open_edges.to_string()]));
-        }
-        if r.inconsistent_edges > 0 {
-            v.push(trf("{} flipped edges", &[r.inconsistent_edges.to_string()]));
-        }
-        if r.non_manifold_edges > 0 {
-            v.push(trf("{} non-manifold edges", &[r.non_manifold_edges.to_string()]));
-        }
-        if r.degenerate > 0 {
-            v.push(trf("{} degenerate triangles", &[r.degenerate.to_string()]));
-        }
-        v.join(", ")
+/// A repair the buttons offer.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Fix {
+    Join,
+    Turn,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Level {
+    Good,
+    Warn,
+    Note,
+}
+
+/// One thing the check found, in plain words, and the repair (with the text of its button) that mends it, if there is one.
+pub struct Finding {
+    pub text: String,
+    pub level: Level,
+    pub fix: Option<(Fix, String)>,
+}
+
+/// What the check says, one finding after another. A button is offered only for a problem it mends.
+pub fn findings(a: &check::Analysis) -> Vec<Finding> {
+    if a.is_clean() {
+        return vec![Finding {
+            text: tr("The mesh is fine for printing"),
+            level: Level::Good,
+            fix: None,
+        }];
     }
+    let mut v = Vec::new();
+    if a.loose_joints > 0 {
+        v.push(Finding {
+            text: trf(
+                "The mesh has {} loose joints (points that lie next to each other were not joined)",
+                &[a.loose_joints.to_string()],
+            ),
+            level: Level::Warn,
+            fix: Some((Fix::Join, tr("Join the loose joints"))),
+        });
+    } else if a.inward > 0 {
+        v.push(Finding {
+            text: trf("{} triangles face inwards", &[a.inward.to_string()]),
+            level: Level::Warn,
+            fix: Some((Fix::Turn, tr("Turn them outwards"))),
+        });
+    }
+    // what is left that no button mends (after the joints are joined, when they are to be)
+    let rest = if a.loose_joints > 0 {
+        &a.after_merge
+    } else {
+        &a.report
+    };
+    if rest.open_edges > 0 {
+        v.push(Finding {
+            text: trf(
+                "{} edges have a triangle on one side only: the surface has holes. The buttons do not repair this",
+                &[rest.open_edges.to_string()],
+            ),
+            level: Level::Note,
+            fix: None,
+        });
+    }
+    if rest.non_manifold_edges > 0 {
+        v.push(Finding {
+            text: trf(
+                "{} edges are shared by more than two faces (for example two parts touch along an edge). Slicers usually cope with this. The buttons do not repair it",
+                &[rest.non_manifold_edges.to_string()],
+            ),
+            level: Level::Note,
+            fix: None,
+        });
+    }
+    if rest.degenerate > 0 {
+        v.push(Finding {
+            text: trf(
+                "{} triangles have no area. The buttons do not repair this",
+                &[rest.degenerate.to_string()],
+            ),
+            level: Level::Note,
+            fix: None,
+        });
+    }
+    if v.is_empty() {
+        v.push(Finding {
+            text: tr("The mesh has a flaw that the buttons do not repair"),
+            level: Level::Note,
+            fix: None,
+        });
+    }
+    v
+}
+
+/// The findings as one text (for the scripted tests).
+pub fn findings_text(a: &check::Analysis) -> String {
+    findings(a)
+        .iter()
+        .map(|f| match &f.fix {
+            Some((_, b)) => format!("{} [{b}]", f.text),
+            None => f.text.clone(),
+        })
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
+/// What a repair did, in one sentence.
+pub fn repair_sentence(merged: usize, turned: usize) -> String {
+    match (merged > 0, turned > 0) {
+        (true, true) => trf(
+            "Joined {} loose joints and turned {} triangles outwards",
+            &[merged.to_string(), turned.to_string()],
+        ),
+        (true, false) => trf("Joined {} loose joints", &[merged.to_string()]),
+        (false, true) => trf("Turned {} triangles outwards", &[turned.to_string()]),
+        (false, false) => tr("The repair changed nothing: the mesh did not need it"),
+    }
+}
+
+/// Reads the sentence of the document ("12 vertices merged, 8 triangles turned") back into numbers.
+pub fn parse_repair_notice(n: &str) -> Option<(usize, usize)> {
+    let (a, b) = n.split_once(" vertices merged, ")?;
+    let b = b.strip_suffix(" triangles turned")?;
+    Some((a.parse().ok()?, b.parse().ok()?))
+}
+
+/// Draws the findings; the result is the repair whose button was clicked. `ids` are the names of the buttons for the scripted tests.
+fn findings_ui(
+    app: &App,
+    ui: &mut egui::Ui,
+    a: &check::Analysis,
+    enabled: bool,
+    ids: (&str, &str),
+) -> Option<Fix> {
+    let mut clicked = None;
+    let list = findings(a);
+    for f in &list {
+        let color = match f.level {
+            Level::Good => Color32::from_rgb(90, 180, 110),
+            Level::Warn => Color32::from_rgb(230, 170, 60),
+            Level::Note => Color32::from_rgb(190, 190, 190),
+        };
+        ui.add(egui::Label::new(egui::RichText::new(&f.text).color(color)).wrap());
+        if let Some((fix, label)) = &f.fix {
+            let r = ui.add_enabled(enabled, egui::Button::new(label));
+            app.probe_widget(if *fix == Fix::Join { ids.0 } else { ids.1 }, r.rect);
+            if r.clicked() {
+                clicked = Some(*fix);
+            }
+        }
+    }
+    clicked
 }
 
 fn is_stl(p: &std::path::Path) -> bool {
@@ -224,71 +385,48 @@ impl App {
                 ],
             ));
         }
-        // the check
+        // the check: the result stays, the button stays (to check again), and a repair is offered only where it helps
         let report = self
             .mesh_ui
             .report
             .as_ref()
             .filter(|(m, _)| Arc::ptr_eq(m, &mb.mesh))
             .map(|(_, r)| r.clone());
-        match &report {
-            Some(r) => {
-                let line = summary_line(r);
-                ui.colored_label(
-                    if r.is_clean() {
-                        Color32::from_rgb(90, 180, 110)
-                    } else {
-                        Color32::from_rgb(230, 170, 60)
-                    },
-                    line,
-                );
+        if report.is_none() && self.mesh_ui.auto_check && self.mesh_ui.checking.is_none() {
+            self.mesh_ui.auto_check = false;
+            self.start_mesh_check(ui.ctx(), &mb.mesh);
+        }
+        let busy = self.mesh_ui.checking.is_some();
+        ui.horizontal(|ui| {
+            let r = ui.add_enabled(
+                !busy,
+                egui::Button::new(tr(if report.is_some() {
+                    "Check again"
+                } else {
+                    "Check the mesh"
+                })),
+            );
+            self.probe_widget("mesh_check", r.rect);
+            if r.clicked() {
+                self.start_mesh_check(ui.ctx(), &mb.mesh);
             }
-            None => {
-                let busy = self.mesh_ui.checking.is_some();
-                let r = ui.add_enabled(!busy, egui::Button::new(tr("Check the mesh")));
-                self.probe_widget("mesh_check", r.rect);
-                if r.clicked() {
-                    let (tx, rx) = mpsc::channel();
-                    let m = mb.mesh.clone();
-                    let (m2, ctx) = (mb.mesh.clone(), ui.ctx().clone());
-                    std::thread::spawn(move || {
-                        let _ = tx.send(check::check(&m2));
-                        ctx.request_repaint();
-                    });
-                    self.mesh_ui.checking = Some((m, rx));
-                }
-                if busy {
-                    ui.spinner();
-                }
+            if busy {
+                ui.spinner();
+            }
+        });
+        if let Some(a) = &report {
+            let idle = self.idle();
+            if let Some(fix) = findings_ui(self, ui, a, idle, ("mesh_merge", "mesh_orient")) {
+                self.mesh_ui.auto_check = true;
+                self.submit(Command::MeshRepair {
+                    body: id,
+                    kind: rolidium_doc::RepairKind {
+                        merge: fix == Fix::Join,
+                        orient: fix == Fix::Turn,
+                    },
+                });
             }
         }
-        let clean = report.as_ref().is_some_and(|r| r.is_clean());
-        ui.add_enabled_ui(self.idle() && !clean, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                let r = ui.button(tr("Merge vertices"));
-                self.probe_widget("mesh_merge", r.rect);
-                if r.clicked() {
-                    self.submit(Command::MeshRepair {
-                        body: id,
-                        kind: rolidium_doc::RepairKind {
-                            merge: true,
-                            orient: false,
-                        },
-                    });
-                }
-                let r = ui.button(tr("Turn triangles outwards"));
-                self.probe_widget("mesh_orient", r.rect);
-                if r.clicked() {
-                    self.submit(Command::MeshRepair {
-                        body: id,
-                        kind: rolidium_doc::RepairKind {
-                            merge: false,
-                            orient: true,
-                        },
-                    });
-                }
-            });
-        });
         // the scale
         ui.add_space(4.0);
         ui.label(tr("Scale (factors)"));
@@ -342,6 +480,17 @@ impl App {
         ui.weak(tr(
             "M moves and turns the mesh, B mirrors it, T makes copies of it",
         ));
+    }
+
+    /// The check of a mesh, in the background.
+    fn start_mesh_check(&mut self, ctx: &egui::Context, mesh: &Arc<TriMesh>) {
+        let (tx, rx) = mpsc::channel();
+        let (m2, ctx) = (mesh.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(check::analyse(&m2));
+            ctx.request_repaint();
+        });
+        self.mesh_ui.checking = Some((mesh.clone(), rx));
     }
 
     // ---- reading and the dialog ----
@@ -415,7 +564,7 @@ impl App {
                 Ok(s) => items.push(ImportItem {
                     name: s.name,
                     mesh: s.mesh,
-                    report: s.report,
+                    analysis: s.analysis,
                     note: String::new(),
                 }),
                 Err(e) => failed.push(e),
@@ -446,7 +595,7 @@ impl App {
                 }
                 rolidium_doc::NewMesh {
                     name: i.name,
-                    verified: i.report.is_closed() && i.report.inconsistent_edges == 0,
+                    verified: i.analysis.report.is_watertight(),
                     mesh: Arc::new(i.mesh),
                 }
             })
@@ -466,10 +615,10 @@ impl App {
         // a repair that was running is done
         if let Some(rx) = &d.repairing {
             match rx.try_recv() {
-                Ok((i, mesh, report, note)) => {
+                Ok((i, mesh, analysis, note)) => {
                     if let Some(it) = d.items.get_mut(i) {
                         it.mesh = mesh;
-                        it.report = report;
+                        it.analysis = analysis;
                         it.note = note;
                     }
                     d.repairing = None;
@@ -507,25 +656,9 @@ impl App {
                             &[fmt_len(s[0]), fmt_len(s[1]), fmt_len(s[2])],
                         ));
                     }
-                    let clean = it.report.is_clean();
-                    let line = summary_line(&it.report);
-                    if clean {
-                        ui.colored_label(Color32::from_rgb(90, 180, 110), line);
-                    } else {
-                        ui.colored_label(Color32::from_rgb(230, 170, 60), line);
-                        ui.horizontal(|ui| {
-                            let r = ui.add_enabled(!working, egui::Button::new(tr("Merge vertices")));
-                            self.probe_widget(&format!("stl_merge_{k}"), r.rect);
-                            if r.clicked() {
-                                repair = Some((k, true, false));
-                            }
-                            let r =
-                                ui.add_enabled(!working, egui::Button::new(tr("Turn triangles outwards")));
-                            self.probe_widget(&format!("stl_orient_{k}"), r.rect);
-                            if r.clicked() {
-                                repair = Some((k, false, true));
-                            }
-                        });
+                    let ids = (format!("stl_merge_{k}"), format!("stl_orient_{k}"));
+                    if let Some(fix) = findings_ui(self, ui, &it.analysis, !working, (&ids.0, &ids.1)) {
+                        repair = Some((k, fix == Fix::Join, fix == Fix::Turn));
                     }
                     if !it.note.is_empty() {
                         ui.weak(&it.note);
@@ -587,12 +720,9 @@ impl App {
                 d.repairing = Some(rx);
                 let ctx2 = ctx.clone();
                 std::thread::spawn(move || {
-                    let size = mesh
-                        .bounding_box()
-                        .map(|(lo, hi)| rolidium_mesh::len(rolidium_mesh::sub(hi, lo)))
-                        .unwrap_or(0.0);
                     let merged = if merge {
-                        check::merge_vertices(&mut mesh, (size * 1e-6).max(1e-6))
+                        let tol = check::merge_tolerance(&mesh);
+                        check::merge_vertices(&mut mesh, tol)
                     } else {
                         0
                     };
@@ -601,9 +731,9 @@ impl App {
                     } else {
                         0
                     };
-                    let report = check::check(&mesh);
-                    let note = format!("{merged} vertices merged, {turned} triangles turned");
-                    let _ = tx.send((k, mesh, report, note));
+                    let analysis = check::analyse(&mesh);
+                    let note = repair_sentence(merged, turned);
+                    let _ = tx.send((k, mesh, analysis, note));
                     ctx2.request_repaint();
                 });
             }
@@ -820,11 +950,50 @@ impl App {
         }
     }
 
-    /// True if the round "face" of a mesh is a pin (its wall faces outwards), not a hole.
-    pub(super) fn mesh_hole_is_pin(&self, body: BodyId, face: u32) -> bool {
+    /// Whether a wall of a mesh can be pulled by `distance` (None: it can, or it is no wall of a mesh whose walls are known), and if not, why. The plan of the wall is
+    /// made once and kept while the same wall is asked about.
+    pub(super) fn mesh_pull_check(
+        &mut self,
+        body: BodyId,
+        face: u32,
+        distance: f64,
+    ) -> Option<rolidium_mesh::edit::EditError> {
+        let (mesh, verified) = self.doc.mesh(body).map(|m| (m.mesh.clone(), m.verified))?;
+        let regions = rolidium_doc::display::regions_of(&mesh)?;
+        let f = face as usize;
+        if f < 1 || f > regions.planes.len() {
+            return None;
+        }
+        if !verified {
+            return Some(rolidium_mesh::edit::EditError::NotClean);
+        }
+        let hit = self
+            .mesh_ui
+            .plan
+            .as_ref()
+            .is_some_and(|c| c.body == body && c.face == face && Arc::ptr_eq(&c.mesh, &mesh));
+        if !hit {
+            let plan = rolidium_mesh::edit::PullPlan::new(&mesh, &regions.planes[f - 1]);
+            self.mesh_ui.plan = Some(PlanCache {
+                body,
+                face,
+                mesh: mesh.clone(),
+                regions: regions.clone(),
+                plan,
+            });
+        }
+        let c = self.mesh_ui.plan.as_ref()?;
+        c.plan
+            .check(&c.mesh, &c.regions.planes[f - 1], distance, self.mesh_ui.tilt)
+            .err()
+    }
+
+    /// What a round surface of a mesh is called: a hole, a pin (the whole way round) or a part of a cylinder (a rounded edge).
+    pub(super) fn mesh_round_kind(&self, body: BodyId, face: u32) -> &'static str {
         match self.mesh_region(body, face) {
-            Ok(MeshRegion::Hole(c)) => !c.is_hole,
-            _ => false,
+            Ok(MeshRegion::Hole(c)) if c.arc < std::f64::consts::PI * 4.0 / 3.0 => "Cylindrical surface",
+            Ok(MeshRegion::Hole(c)) if !c.is_hole => "Pin",
+            _ => "Hole",
         }
     }
 

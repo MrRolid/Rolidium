@@ -3124,7 +3124,7 @@ impl Job {
                     .ok_or(DocError::NoSuchBody)?;
                 let (m, what) = meshes::repair(&st.meshes[mp], *kind);
                 let rep = rolidium_mesh::check::check(&m);
-                st.meshes[mp].verified = rep.is_closed() && rep.inconsistent_edges == 0;
+                st.meshes[mp].verified = rep.is_watertight();
                 st.meshes[mp].mesh = Arc::new(m);
                 let mut c = self.done(st, "Repair mesh");
                 c.touched_body = Some(*body);

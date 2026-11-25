@@ -71,12 +71,9 @@ fn invalid(e: rolidium_mesh::edit::EditError) -> crate::DocError {
 pub(crate) fn repair(b: &MeshBody, kind: RepairKind) -> (TriMesh, String) {
     use rolidium_mesh::check;
     let mut m = (*b.mesh).clone();
-    let size = m
-        .bounding_box()
-        .map(|(lo, hi)| rolidium_mesh::len(rolidium_mesh::sub(hi, lo)))
-        .unwrap_or(0.0);
     let merged = if kind.merge {
-        check::merge_vertices(&mut m, (size * 1e-6).max(1e-6))
+        let tol = check::merge_tolerance(&m);
+        check::merge_vertices(&mut m, tol)
     } else {
         0
     };

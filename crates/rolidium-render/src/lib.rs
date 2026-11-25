@@ -22,7 +22,7 @@ pub use gpu::{
     background_color, background_lightness, decode_pick, encode_pick, encode_png, grid_colors,
     set_background, BodyDraw, Frame, GridPlane, PreviewDraw, RenderTarget, Renderer, ID_FACE_BITS, ID_NONE,
 };
-pub use preview::{face_boundary, pull_preview};
+pub use preview::{blocked_preview, face_boundary, pull_preview};
 pub use rolidium_sketch;
 pub use sketch_view::{fill_layer, region_geometry, region_pull_preview, sketch_lines, RegionGeom};
 pub use wgpu;

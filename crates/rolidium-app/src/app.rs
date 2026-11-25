@@ -17,9 +17,9 @@ use rolidium_doc::rolidium_sketch::{DVec2, Entity, EntityId, PlaneDef, Region, S
 use rolidium_doc::{BodyId, Command, Document, ItemId, PullMode, SketchId, SketchTarget};
 use rolidium_kernel::{DVec3, FaceId, FaceKind};
 use rolidium_render::{
-    decode_pick, encode_pick, face_boundary, fill_layer, grid_levels, pull_preview, region_geometry,
-    region_pull_preview, sketch_lines, Camera, Frame, GridPlane, PreviewDraw, RegionGeom, StandardView,
-    ID_NONE,
+    blocked_preview, decode_pick, encode_pick, face_boundary, fill_layer, grid_levels, pull_preview,
+    region_geometry, region_pull_preview, sketch_lines, Camera, Frame, GridPlane, PreviewDraw, RegionGeom,
+    StandardView, ID_NONE,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -747,9 +747,17 @@ impl App {
             self.set_status("Still working on the previous operation", true);
             return;
         }
+        // the hole of a mesh whose diameter is changed stays selected afterwards (its number does not change: the walls and holes are carried over)
+        self.mesh_ui.keep_face = match &command {
+            Command::SetCylinderDiameter { body, face, .. } if self.doc.mesh(*body).is_some() => {
+                Some((*body, face.0))
+            }
+            _ => None,
+        };
         let command = match self.mesh_translate(command) {
             Ok(c) => c,
             Err(why) => {
+                self.mesh_ui.keep_face = None;
                 self.set_status(why, true);
                 self.refused_at = Some(Instant::now());
                 return;
@@ -851,7 +859,13 @@ impl App {
                             self.set_meshes(meshes);
                             self.after_commit(touched);
                             if let Some(n) = notice {
-                                self.set_status(n, true);
+                                // the sentence of a repair says what was done: it is no error (not even when nothing needed doing)
+                                match meshtool::parse_repair_notice(&n) {
+                                    Some((merged, turned)) => {
+                                        self.set_status(meshtool::repair_sentence(merged, turned), false)
+                                    }
+                                    None => self.set_status(n, true),
+                                }
                             }
                         }
                         Err(e) => self.set_status(e.to_string(), true),
@@ -874,6 +888,7 @@ impl App {
                     self.derived_ask = Some((cmd, link, link_name, body_name));
                 }
                 Done::Command(Err(msg)) => {
+                    self.mesh_ui.keep_face = None;
                     self.after_unlink = None;
                     self.fill_pending = false;
                     self.reselect_blend = None;
@@ -956,6 +971,11 @@ impl App {
     fn after_commit(&mut self, _touched: Option<BodyId>) {
         self.clear_selection();
         self.hover_region = None;
+        if let Some((b, f)) = self.mesh_ui.keep_face.take() {
+            if self.entry(b).is_some_and(|m| (f as usize) < m.faces.len()) {
+                self.selection.push((b, f));
+            }
+        }
         if let Some(p) = self.pending.take() {
             let n = p.normal.as_dvec3();
             for m in self.meshes.iter().filter(|m| m.id == p.body) {
@@ -1384,6 +1404,8 @@ impl App {
         self.entity_sel = None;
         self.edge_sel.clear();
         self.layers_changed = true;
+        // a wall of a mesh that cannot be pulled says so at once (red outline, the reason at the cursor)
+        self.update_pull_preview();
         true
     }
 
@@ -1391,10 +1413,23 @@ impl App {
         let Some(p) = &self.pull else { return };
         let t = Instant::now();
         let d = self.effective_distance(p.kind, p.distance());
+        let (kind, normal) = (p.kind, p.normal);
+        // a wall of a mesh: is the pull possible at all, and by this much? A preview must not promise what the pull will refuse
+        self.mesh_ui.blocked = match kind {
+            PullKind::Face { body, face } if self.doc.mesh(body).is_some() => {
+                self.mesh_pull_check(body, face, d as f64)
+            }
+            _ => None,
+        };
+        let Some(p) = &self.pull else { return };
         match (&p.kind, &p.geom) {
             (PullKind::Face { body, face }, _) => {
                 if let Some(m) = self.entry(*body) {
-                    self.preview = Some(pull_preview(&m.mesh, *face, p.normal, d));
+                    self.preview = Some(if self.mesh_ui.blocked.is_some() {
+                        blocked_preview(&m.mesh, *face)
+                    } else {
+                        pull_preview(&m.mesh, *face, normal, d)
+                    });
                     self.preview_changed = true;
                 }
             }
@@ -1426,6 +1461,11 @@ impl App {
     fn commit_pull(&mut self) {
         let Some(p) = self.pull.take() else { return };
         let d = p.distance() as f64;
+        if let (Some(why), PullKind::Face { .. }) = (self.mesh_ui.blocked.take(), p.kind) {
+            self.clear_preview();
+            self.set_status(why.to_string(), true);
+            return;
+        }
         self.clear_preview();
         self.clear_edge_preview();
         if let PullKind::Edges { body } = p.kind {
@@ -3027,6 +3067,15 @@ impl App {
                 egui::FontId::proportional(16.0),
                 crate::theme::rgb(255, 230, 140),
             );
+            if let Some(why) = &self.mesh_ui.blocked {
+                painter.text(
+                    cur + Vec2::new(16.0, 22.0),
+                    egui::Align2::LEFT_TOP,
+                    meshtool::short_reason(why),
+                    egui::FontId::proportional(15.0),
+                    crate::theme::rgb(255, 110, 100),
+                );
+            }
             // What the distance is attached to: a marker at the cursor and, for a vertex, a ring on it.
             if let Some(t) = &p.snap {
                 let green = crate::theme::rgb(120, 255, 160);
@@ -4847,19 +4896,36 @@ impl eframe::App for App {
                                 );
                                     }
                                 }
-                                for (b, f) in &self.selection {
-                                    if let Some(meta) = self.entry(*b).and_then(|m| m.faces.get(*f as usize))
+                                for (b, f) in &self.selection.clone() {
+                                    if let Some(meta) = self.entry(*b).and_then(|m| m.faces.get(*f as usize)).cloned()
                                     {
                                         if self.doc.mesh(*b).is_some() {
                                             // a wall or a hole of a mesh
                                             ui.label(match meta.kind {
                                                 FaceKind::Plane => trf("Wall of the mesh (flat) #{}", &[f.to_string()]),
                                                 FaceKind::Cylinder => trf("{} of the mesh #{}", &[
-                                                    tr(if self.mesh_hole_is_pin(*b, *f) { "Pin" } else { "Hole" }),
+                                                    tr(self.mesh_round_kind(*b, *f)),
                                                     f.to_string(),
                                                 ]),
                                                 _ => tr("A part of the mesh"),
                                             });
+                                            if meta.kind == FaceKind::Cylinder {
+                                                let a = meta.normal;
+                                                ui.label(trf(
+                                                    "Axis: {}, {}, {}",
+                                                    &[format!("{:.3}", a.x), format!("{:.3}", a.y), format!("{:.3}", a.z)],
+                                                ));
+                                            }
+                                            if meta.kind == FaceKind::Plane {
+                                                let r = ui.checkbox(
+                                                    &mut self.mesh_ui.tilt,
+                                                    tr("Move anyway, the neighbouring walls slant"),
+                                                );
+                                                self.probe_widget("mesh_tilt", r.rect);
+                                                r.on_hover_text(tr(
+                                                    "For a wall whose neighbours are not square to it (a slope, a bevel): the triangles next to it are stretched. It is refused if the mesh would cut through itself",
+                                                ));
+                                            }
                                         } else {
                                             ui.label(trf(
                                                 "Face #{}: {}",

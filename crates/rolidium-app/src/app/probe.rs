@@ -219,7 +219,7 @@ impl App {
                     .mesh
                     .bounding_box()
                     .map(|(lo, hi)| (0..3).map(|k| round3((hi[k] - lo[k]) * f)).collect::<Vec<f64>>());
-                json!({"name": i.name, "triangles": i.mesh.triangles.len(), "size": size, "clean": i.report.is_clean(), "check": super::meshtool::summary_line(&i.report), "note": i.note})
+                json!({"name": i.name, "triangles": i.mesh.triangles.len(), "size": size, "clean": i.analysis.is_clean(), "check": super::meshtool::findings_text(&i.analysis), "note": i.note})
             })
             .collect();
         json!({"units": format!("{:?}", d.units), "factor": d.factor(), "items": items})

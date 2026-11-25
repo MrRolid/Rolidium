@@ -30,6 +30,12 @@ impl Report {
         self.open_edges == 0 && self.non_manifold_edges == 0
     }
 
+    /// No holes in the surface and no triangle that disagrees with its neighbours about the outside: the edits of walls and holes may be made (edges shared
+    /// by more than two triangles, where two parts touch, do not matter for them).
+    pub fn is_watertight(&self) -> bool {
+        self.open_edges == 0 && self.inconsistent_edges == 0
+    }
+
     pub fn is_clean(&self) -> bool {
         self.is_closed() && self.inconsistent_edges == 0 && self.degenerate == 0 && self.signed_volume > 0.0
     }

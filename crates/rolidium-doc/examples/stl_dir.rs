@@ -57,7 +57,7 @@ fn main() {
             meshes: vec![NewMesh {
                 name: label.clone(),
                 mesh: Arc::new(mesh.clone()),
-                verified: rep.is_closed() && rep.inconsistent_edges == 0,
+                verified: rep.is_watertight(),
             }],
         })
         .unwrap();

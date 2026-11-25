@@ -9,7 +9,7 @@ use crate::{add, cross, dot, len, mul, sub, TriMesh, V3};
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum EditError {
-    #[error("The wall is not cleanly separated: a neighbouring wall is not square to it, so it cannot be moved without bending the mesh")]
+    #[error("A neighbouring wall is not square to this wall (a slope or a bevel), so it cannot be moved without bending the mesh. Tick “Move anyway, the neighbouring walls slant” in the panel to allow it")]
     NeighbourNotSquare,
     #[error("The move would turn a neighbouring wall inside out (the wall would be pulled through the opposite one)")]
     Collapses,
@@ -69,7 +69,7 @@ fn surroundings(m: &TriMesh, region: &[u32]) -> (Vec<u32>, Vec<u32>) {
 
 fn check_closed(m: &TriMesh) -> Result<(), EditError> {
     let r = crate::check::check(m);
-    if r.is_closed() && r.inconsistent_edges == 0 {
+    if r.is_watertight() {
         Ok(())
     } else {
         Err(EditError::NotClean)

@@ -63,6 +63,16 @@ pub fn pull_preview(mesh: &Mesh, face: u32, normal: Vec3, distance: f32) -> Prev
     }
 }
 
+/// The preview of a pull that cannot be made: only the outline of the face, thick and red, no prism.
+pub fn blocked_preview(mesh: &Mesh, face: u32) -> PreviewDraw {
+    let (segs, _) = face_boundary(mesh, face);
+    PreviewDraw {
+        thick: segs.iter().flat_map(|(a, b)| [*a, *b]).collect(),
+        thick_color: [1.0, 0.25, 0.2, 1.0],
+        ..Default::default()
+    }
+}
+
 /// Boundary segments of one face of a display mesh and its sharp corners.
 pub fn face_boundary(mesh: &Mesh, face: u32) -> (Vec<(Vec3, Vec3)>, Vec<Vec3>) {
     let mut use_count: HashMap<(u32, u32), u32> = HashMap::new();

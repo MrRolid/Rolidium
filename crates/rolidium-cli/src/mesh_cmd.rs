@@ -111,7 +111,7 @@ impl Runner {
                     self.say(format!("{merged} vertices merged"));
                 }
                 let rep = check::check(&self.meshes[i].mesh);
-                self.meshes[i].verified = rep.is_closed() && rep.inconsistent_edges == 0;
+                self.meshes[i].verified = rep.is_watertight();
                 for l in rep.lines() {
                     self.say(format!("  {l}"));
                 }
@@ -122,7 +122,7 @@ impl Runner {
                 let m = &self.meshes[i];
                 let verified = m.verified || {
                     let r = check::check(&m.mesh);
-                    r.is_closed() && r.inconsistent_edges == 0
+                    r.is_watertight()
                 };
                 let c = self
                     .doc

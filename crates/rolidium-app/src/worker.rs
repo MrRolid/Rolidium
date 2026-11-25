@@ -107,7 +107,7 @@ pub struct StlParams {
 pub struct StlLoaded {
     pub name: String,
     pub mesh: rolidium_mesh::TriMesh,
-    pub report: rolidium_mesh::check::Report,
+    pub analysis: rolidium_mesh::check::Analysis,
 }
 
 /// The solids of a STEP file with their names, and the reasons why some were skipped.
@@ -374,11 +374,11 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
                         let bytes = std::fs::read(path)
                             .map_err(|e| format!("{shown}: cannot read the file ({e})"))?;
                         let mesh = rolidium_mesh::stl::parse(&bytes).map_err(|e| format!("{shown}: {e}"))?;
-                        let report = rolidium_mesh::check::check(&mesh);
+                        let analysis = rolidium_mesh::check::analyse(&mesh);
                         let name = path
                             .file_stem()
                             .map_or_else(|| "Mesh".to_string(), |n| n.to_string_lossy().to_string());
-                        Ok(StlLoaded { name, mesh, report })
+                        Ok(StlLoaded { name, mesh, analysis })
                     })
                 })
                 .collect();
