@@ -4,6 +4,7 @@
 """A mesh made a solid: from the panel (the faces are merged, the volume is the mesh's, the report is shown, one Ctrl+Z brings the mesh back) and by the choice in the dialog
 of the import ("Import as: solid", advised for a mesh of flat pieces); the solid is edited like a drawn one (its floor is pulled)."""
 # FIXTURE: box 5 5 5
+# POINTS: floor=120,15,1
 from guitest import *
 
 W = os.environ["ROLIDIUM_WORK"]
@@ -47,8 +48,8 @@ vx, vy, vw, vh = p["viewport"]
 middle_drag(vx + vw / 2, vy + vh * 0.2, vx + vw / 2, vy + vh * 0.95)
 settle(0.8)
 key("s")
-q = settle(0.4)
-fx, fy = vx + vw / 2, vy + vh / 2
+settle(0.4)
+fx, fy = steady("floor")
 move(fx, fy)
 time.sleep(0.5)
 click(fx, fy)
@@ -68,5 +69,5 @@ p = wait_for(lambda q: q["stl_dialog"], "the dialog again", 30)
 check(p["stl_dialog"]["as_solid"], "the advice is a solid")
 click(*steady("stl_import_ok"))
 p = wait_for(lambda q: len(q["bodies"]) == n_bodies + 1 and not q["busy"], "imported and converted at once", 60)
-check(len(p["meshes"]) == 1, f"no new mesh is left: {len(p['meshes'])}")
+check(len(p["meshes"]) == 0, f"no mesh is left, the file became a solid: {len(p['meshes'])}")
 finish()
