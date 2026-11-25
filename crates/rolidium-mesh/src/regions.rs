@@ -574,13 +574,27 @@ fn facet_cylinders(
                 continue;
             }
             cur += 1;
+            // every triangle of a strip is square to the axis (a patch of a ball or of a scan, flat to a few degrees, is not)
+            let aligned = |g: usize| {
+                units
+                    .triangles(g)
+                    .iter()
+                    .all(|t| dot(normals[*t as usize].0, axis).abs() <= 0.02)
+            };
+            if !aligned(s) || !aligned(u as usize) {
+                continue;
+            }
             let mut group = vec![s as u32];
             stamp[s] = cur;
             let mut stack = vec![s];
             while let Some(x) = stack.pop() {
                 for &nb in near(x) {
                     let nb = nb as usize;
-                    if claimed[nb] || stamp[nb] == cur || dot(units.normal[nb], axis).abs() > 0.044 {
+                    if claimed[nb]
+                        || stamp[nb] == cur
+                        || dot(units.normal[nb], axis).abs() > 0.044
+                        || !aligned(nb)
+                    {
                         continue;
                     }
                     stamp[nb] = cur;

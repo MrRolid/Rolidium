@@ -27,6 +27,8 @@ check(m["volume"] < v0 - ring * 0.97 and m["volume"] > v0 - ring * 1.03, f"the v
 check(close(m["holes"][0]["x"], 30.0, 0.01) and close(m["holes"][0]["y"], 20.0, 0.01), f"the hole stayed where it was: {m['holes']}")
 check(len(p["selection"]) == 1, f"the hole stays selected after its diameter was changed: {p['selection']}")
 shot("01-hole-6")
+key("Escape")   # the field of the panel has the cursor again (as for a hole of a solid): Esc leaves it, then Ctrl+Z is the program's
+settle(0.3)
 key("z", ctrl=True)
 p = wait_for(lambda q: q["meshes"][0]["walls"] is not None and q["meshes"][0]["holes"] and close(q["meshes"][0]["holes"][0]["d"], 5.0, 0.05), "Undo: the hole is 5 mm again", 30)
 check(close(p["meshes"][0]["volume"], v0, 0.01), "the volume is the same as before")

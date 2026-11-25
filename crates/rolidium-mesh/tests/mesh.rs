@@ -312,6 +312,11 @@ fn a_finely_divided_ball_has_no_walls_and_a_plate_with_many_holes_has_six_walls_
         0,
         "the flat spots of a smooth surface are no walls"
     );
+    assert_eq!(
+        r.cylinders.len(),
+        0,
+        "a row of patches round a ball is no cylinder"
+    );
     let plate = gen::plate_with_holes(6, 5, 10.0, 4.0, 3.0, 48);
     assert!(
         check::check(&plate).is_clean(),
