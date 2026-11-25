@@ -62,6 +62,7 @@ drop_files(f"{W}/good.stl", f"{W}/bad.stl")
 p = wait_for(lambda q: q["stl_dialog"], "the dialog is open again")
 click(*steady("stl_units_inch"))
 p = settle(0.3)
+click(*steady("stl_as_mesh"))
 click(*steady("stl_import_ok"))
 p = wait_for(lambda q: len(q["meshes"]) == 2, "two meshes were imported")
 m = {x["name"]: x for x in p["meshes"]}

@@ -21,6 +21,7 @@ drop_files(f"{W}/bad.stl")
 wait_for(lambda q: q["stl_dialog"], "the dialog", 60)
 d = probe()["stl_dialog"]["items"][0]
 check("loose joints" in d["check"] and "Join the loose joints" in d["check"], f"the dialog says it in plain words and has the button: {d['check']}")
+click(*steady("stl_as_mesh"))
 click(*steady("stl_import_ok"))
 p = wait_for(lambda q: len(q["meshes"]) == 1, "imported", 60)
 mid = p["meshes"][0]["id"]
