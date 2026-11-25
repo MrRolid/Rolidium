@@ -1143,3 +1143,5 @@ mesh => síť
 solid => těleso
 the accuracy of the conversion must be between 0.0001 and 5 mm => přesnost převodu musí být mezi 0,0001 a 5 mm
 {} triangles: the conversion takes about {} s => {} trojúhelníků: převod trvá asi {} s
+The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first => Síť má díry nebo otočené trojúhelníky, které se samy opravit nedají, takže z ní nejde udělat těleso. Nejdřív síť zkontrolujte a opravte
+The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh => Síť má {} hran, které sdílí víc než dvě plochy (dva díly se dotýkají hranou), takže z ní nejde udělat jedno těleso. Zůstává sítí

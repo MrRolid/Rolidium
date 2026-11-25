@@ -1143,3 +1143,5 @@ mesh => maillage
 solid => solide
 the accuracy of the conversion must be between 0.0001 and 5 mm => la précision de la conversion doit être entre 0,0001 et 5 mm
 {} triangles: the conversion takes about {} s => {} triangles : la conversion prend environ {} s
+The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first => Le maillage a des trous ou des triangles retournés qui ne peuvent pas être réparés automatiquement, il ne peut donc pas devenir un solide. Vérifiez-le et réparez-le d'abord
+The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh => Le maillage a {} arêtes partagées par plus de deux faces (deux pièces se touchent par une arête), il ne peut donc pas devenir un seul solide. Il reste un maillage

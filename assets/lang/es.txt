@@ -1143,3 +1143,5 @@ mesh => malla
 solid => sólido
 the accuracy of the conversion must be between 0.0001 and 5 mm => la precisión de la conversión debe estar entre 0,0001 y 5 mm
 {} triangles: the conversion takes about {} s => {} triángulos: la conversión tarda unos {} s
+The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first => La malla tiene agujeros o triángulos girados que no se pueden reparar solos, así que no se puede hacer un sólido. Compruebe y repare primero la malla
+The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh => La malla tiene {} aristas que comparten más de dos caras (dos piezas se tocan por una arista), así que no se puede hacer un solo sólido. Sigue siendo malla

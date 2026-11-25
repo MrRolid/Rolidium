@@ -1143,3 +1143,5 @@ mesh => メッシュ
 solid => ソリッド
 the accuracy of the conversion must be between 0.0001 and 5 mm => 変換の精度は0.0001〜5 mmでなければなりません
 {} triangles: the conversion takes about {} s => 三角形{}個：変換は約{}秒かかります
+The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first => メッシュには自動では直せない穴や向きの違う三角形があるため、ソリッドにできません。先にメッシュを確認して修復してください
+The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh => {}本の辺が3つ以上の面で共有されている（2つの部品が辺で接している）ため、1つのソリッドにできません。メッシュのままです
