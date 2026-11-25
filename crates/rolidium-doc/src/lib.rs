@@ -3185,7 +3185,9 @@ impl Job {
                 // apart, and at the last every triangle is a face: a triangle is always flat
                 let mut made = None;
                 let mut failure = String::new();
-                for merge_from in [2usize, 4, usize::MAX] {
+                // (a solid of single triangles is only tried for a mesh that is not big: it takes minutes for tens of thousands and is of little use)
+                let attempts: &[usize] = if mesh.triangles.len() <= 20_000 { &[2, 4, usize::MAX] } else { &[2, 4] };
+                for &merge_from in attempts {
                     let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop).ok_or(KernelError::Cancelled)?;
                     let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
                     match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {

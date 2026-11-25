@@ -34,7 +34,6 @@ pub struct Polyfaces {
 /// that are within a tenth of the tolerance of a multiple of 0.01 mm are moved to it. A flat group of fewer than `merge_from` triangles is not made one face: every
 /// triangle is (a triangle is always flat, so the solid can always be made). `stop` is asked now and then; when it says yes the answer is `None`.
 pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, stop: &dyn Fn() -> bool) -> Option<Polyfaces> {
-    let n = m.triangles.len();
     let mut out = Polyfaces::default();
     // the vertices, rounded when asked
     let mut points: Vec<V3> = m.positions.iter().map(|p| [p[0] as f64, p[1] as f64, p[2] as f64]).collect();
@@ -57,6 +56,34 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
             }
         }
     }
+    let unified;
+    {
+        // two points that became one are one point, and the triangles that collapse are gone
+        let mut seen: std::collections::HashMap<[u64; 3], u32> = std::collections::HashMap::new();
+        let mut remap = vec![0u32; points.len()];
+        let mut unique: Vec<V3> = Vec::new();
+        for (i, p) in points.iter().enumerate() {
+            let key = [(p[0] * 1e5).round() as i64 as u64, (p[1] * 1e5).round() as i64 as u64, (p[2] * 1e5).round() as i64 as u64];
+            let id = *seen.entry(key).or_insert_with(|| {
+                unique.push(*p);
+                (unique.len() - 1) as u32
+            });
+            remap[i] = id;
+        }
+        let tris: Vec<[u32; 3]> = m
+            .triangles
+            .iter()
+            .map(|t| [remap[t[0] as usize], remap[t[1] as usize], remap[t[2] as usize]])
+            .filter(|t| t[0] != t[1] && t[1] != t[2] && t[0] != t[2])
+            .collect();
+        points = unique;
+        unified = TriMesh {
+            positions: points.iter().map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]).collect(),
+            triangles: tris,
+        };
+    }
+    let m = &unified;
+    let n = m.triangles.len();
     let corners = |t: usize| {
         let tri = m.triangles[t];
         [points[tri[0] as usize], points[tri[1] as usize], points[tri[2] as usize]]
@@ -184,12 +211,35 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
             }
         }
         let outlines = split_outlines(loops, &points, nrm);
-        let one = outlines.len() == 1;
+        if outlines.len() != 1 {
+            // a group with several outlines (or none that can be told) is taken apart: every triangle is a face
+            for t in g {
+                let tri = m.triangles[*t as usize];
+                out.faces.push(vec![tri.to_vec()]);
+                out.triangles.push(1);
+                out.fallback.push(Vec::new());
+            }
+            continue;
+        }
         for outline in outlines {
             out.faces.push(outline);
             out.triangles.push(g.len() as u32);
-            out.fallback.push(if one && g.len() > 1 { g.iter().map(|t| m.triangles[*t as usize]).collect() } else { Vec::new() });
+            out.fallback.push(if g.len() > 1 { g.iter().map(|t| m.triangles[*t as usize]).collect() } else { Vec::new() });
         }
+    }
+    // a point cannot be more tolerant than a good part of the shortest edge it ends (the kernel refuses an edge shorter than the tolerance of its ends); a face that
+    // needs more than that is made of its triangles
+    let mut shortest = vec![f64::MAX; points.len()];
+    for tri in &m.triangles {
+        for k in 0..3 {
+            let (a, b) = (tri[k] as usize, tri[(k + 1) % 3] as usize);
+            let d = len(sub(points[a], points[b]));
+            shortest[a] = shortest[a].min(d);
+            shortest[b] = shortest[b].min(d);
+        }
+    }
+    for (t, sh) in out.point_tolerance.iter_mut().zip(&shortest) {
+        *t = t.min((sh * 0.4).max(1e-7));
     }
     out.points = points;
     Some(out)

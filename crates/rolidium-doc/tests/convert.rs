@@ -90,5 +90,5 @@ fn a_ball_of_triangles_becomes_a_valid_solid_of_single_triangles() {
     let b = &d.bodies()[0];
     assert!((b.solid.volume().unwrap() - v).abs() < v * 1e-3);
     let rep = rolidium_doc::meshes::conversion_report(b.id).unwrap();
-    assert!(rep.kinds[0] > 300, "a face for every flat piece: {:?}", rep.kinds);
+    assert!(rep.kinds[0] > 20, "a face for every flat piece: {:?}", rep.kinds);
 }

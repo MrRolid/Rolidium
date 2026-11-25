@@ -597,7 +597,10 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
             auto it = edges.find(key);
             if (it == edges.end()) {
                 BRepBuilderAPI_MakeEdge me(vertex(lo), vertex(hi));
-                if (!me.IsDone()) fail("two points of a face are the same point");
+                if (!me.IsDone()) {
+                    const double dx = pts[3 * lo] - pts[3 * hi], dy = pts[3 * lo + 1] - pts[3 * hi + 1], dz = pts[3 * lo + 2] - pts[3 * hi + 2];
+                    fail(std::string("two points of a face are the same point (points ") + std::to_string(lo) + " and " + std::to_string(hi) + ", distance " + std::to_string(std::sqrt(dx * dx + dy * dy + dz * dz)) + ", tolerances " + std::to_string(ptol(lo)) + " " + std::to_string(ptol(hi)) + ")");
+                }
                 TopoDS_Edge e = me.Edge();
                 bb.UpdateEdge(e, std::max(ptol(lo), ptol(hi)));
                 it = edges.emplace(key, e).first;
@@ -610,6 +613,17 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
             if (!mw.IsDone()) fail("a loop of a face is not closed");
             return mw.Wire();
         };
+        // every edge is made before any face: building a face may raise the tolerance of the points, and an edge cannot be made between points that are
+        // closer than their tolerances
+        for (size_t l = 0; l + 1 < loop_offsets.size(); ++l) {
+            const uint32_t b0 = loop_offsets[l], n0 = loop_offsets[l + 1] - b0;
+            for (uint32_t k = 0; k < n0; ++k) edge(loop_vertices[b0 + k], loop_vertices[b0 + (k + 1) % n0]);
+        }
+        for (size_t k = 0; k + 1 < fallback_offsets.size(); ++k) {
+            for (uint32_t t = fallback_offsets[k]; t < fallback_offsets[k + 1]; ++t) {
+                for (int c = 0; c < 3; ++c) edge(fallback_vertices[3 * t + c], fallback_vertices[3 * t + (c + 1) % 3]);
+            }
+        }
         TopoDS_Shell shell;
         bb.MakeShell(shell);
         size_t added = 0;
