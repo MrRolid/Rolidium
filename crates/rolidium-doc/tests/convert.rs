@@ -6,6 +6,9 @@ use rolidium_kernel::FaceKind;
 use rolidium_mesh::gen;
 use std::sync::Arc;
 
+/// The conversions are made one at a time (the kernel keeps some state of its own that two conversions at once would disturb).
+static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn doc_with(mesh: rolidium_mesh::TriMesh) -> (Document, u64) {
     let mut d = Document::new();
     d.apply(Command::AddMeshes {
@@ -22,6 +25,7 @@ fn doc_with(mesh: rolidium_mesh::TriMesh) -> (Document, u64) {
 
 #[test]
 fn a_box_mesh_becomes_a_box_of_six_faces_and_undo_brings_the_mesh_back() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (mut d, id) = doc_with(gen::box_mesh(40.0, 30.0, 20.0, 3));
     d.apply(Command::ConvertMesh {
         body: id,
@@ -43,6 +47,7 @@ fn a_box_mesh_becomes_a_box_of_six_faces_and_undo_brings_the_mesh_back() {
 
 #[test]
 fn a_plate_with_a_hole_becomes_a_valid_solid_of_the_same_volume_that_can_be_pulled() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let m = gen::plate_with_hole(60.0, 40.0, 10.0, 2.5, 32);
     let v = m.signed_volume();
     let (mut d, id) = doc_with(m);
@@ -77,6 +82,7 @@ fn a_plate_with_a_hole_becomes_a_valid_solid_of_the_same_volume_that_can_be_pull
 
 #[test]
 fn a_ball_of_triangles_becomes_a_valid_solid_of_single_triangles() {
+    let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let m = gen::sphere(20.0, 800);
     let v = m.signed_volume();
     let (mut d, id) = doc_with(m);
