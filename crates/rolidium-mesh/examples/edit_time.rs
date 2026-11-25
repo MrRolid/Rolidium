@@ -4,7 +4,10 @@
 use rolidium_mesh::{edit, gen, regions};
 use std::time::Instant;
 fn main() {
-    let seg: usize = std::env::args().nth(1).and_then(|v| v.parse().ok()).unwrap_or(12_000);
+    let seg: usize = std::env::args()
+        .nth(1)
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(12_000);
     let m0 = gen::plate_with_hole(60.0, 40.0, 10.0, 2.5, seg);
     let mut m = m0.clone();
     println!("{} triangles", m.triangles.len());
