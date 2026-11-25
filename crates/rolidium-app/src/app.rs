@@ -313,6 +313,8 @@ pub struct App {
     pick_stats: std::cell::Cell<(f32, bool, u64)>,
     /// Triangle meshes (STL): the import dialog and the search for walls and holes.
     mesh_ui: meshtool::MeshUi,
+    /// When a command was last refused by `submit` (the reason is on the status line).
+    refused_at: Option<Instant>,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
     entity_sel: Option<(SketchId, EntityId)>,
     edge_sel: Vec<(BodyId, u32)>,
@@ -560,6 +562,7 @@ impl App {
             probe: probe::Probe::from_env(),
             pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
+            refused_at: None,
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
             edge_sel: Vec::new(),
@@ -704,7 +707,14 @@ impl App {
     /// Shows a message in the status bar. An error message also plays the soft error tone (not more
     /// often than twice a second, and never during self-tests).
     fn set_status(&mut self, text: impl Into<String>, error: bool) {
-        let text = tr(&text.into());
+        let text = text.into();
+        // a command that was refused (a mesh cannot take part in it) has said why: the "Computing…" that the caller sets next must not hide that
+        if matches!(text.as_str(), "Computing…" | "Rebuilding…")
+            && self.refused_at.is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(300))
+        {
+            return;
+        }
+        let text = tr(&text);
         if error {
             log(&format!("error shown to user: {text}"));
             if self.settings.sound
@@ -739,6 +749,7 @@ impl App {
             Ok(c) => c,
             Err(why) => {
                 self.set_status(why, true);
+                self.refused_at = Some(Instant::now());
                 return;
             }
         };

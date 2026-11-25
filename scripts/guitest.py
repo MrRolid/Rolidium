@@ -339,7 +339,7 @@ def big_mesh_perf(stl, label, edit=False, cancel=False):
     res["triangles"] = p["stl_dialog"]["items"][0]["triangles"]
     res["check"] = p["stl_dialog"]["items"][0]["check"]
     shot("01-dialog")
-    click(*screen(p, "stl_import_ok"))
+    click(*steady("stl_import_ok"))
     t1 = time.time()
     p = wait_for(lambda q: len(q["meshes"]) == 1 and q["meshes"][0]["shown"], "the mesh is shown", 180)
     res["import_to_shown_s"] = round(time.time() - t1, 2)

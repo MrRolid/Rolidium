@@ -1,5 +1,6 @@
 // Copyright (c) 2026 Rolid spol. s r.o.
 // SPDX-License-Identifier: AGPL-3.0-only
+#![recursion_limit = "256"]
 #![deny(unsafe_code)]
 // On Windows the program is a window program (no console box on a double click); the command-line modes attach to the console they were started from.
 #![cfg_attr(windows, windows_subsystem = "windows")]

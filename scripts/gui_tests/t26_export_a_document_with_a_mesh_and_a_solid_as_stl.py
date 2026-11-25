@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """The document with a solid and a mesh: the button Export STL writes both into one file (the triangles of the mesh as they are, the solid divided), the file is read by
 the script and its box and the number of triangles are checked; the button Import STL is there and opens the file dialog."""
-# FIXTURE: box 20 20 20; move 1 80 0 0; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
+# FIXTURE: box 20 20 20; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
 # POINTS: top=10,10,10
 from guitest import *
 import struct

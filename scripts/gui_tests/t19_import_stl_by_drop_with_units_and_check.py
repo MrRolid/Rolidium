@@ -29,16 +29,16 @@ check(byname["good"]["size"] == [1.0, 2.0, 3.0], f"1 x 2 x 3 in millimetres: {by
 check(not byname["bad"]["clean"], f"the bad mesh is not clean: {byname['bad']['check']}")
 shot("01-dialog-mm")
 # inches
-click(*screen(p, "stl_units_inch"))
+click(*steady("stl_units_inch"))
 p = settle(0.3)
 d = p["stl_dialog"]
 good_size = {i["name"]: i for i in d["items"]}["good"]["size"]
 check(good_size == [25.4, 50.8, 76.2], f"in inches: 25.4 x 50.8 x 76.2 mm: {good_size}")
 shot("02-dialog-inch")
 # a scale of one's own: 10 mm per unit
-click(*screen(p, "stl_units_custom"))
+click(*steady("stl_units_custom"))
 p = settle(0.3)
-click(*screen(p, "stl_custom_field"))
+click(*steady("stl_custom_field"))
 key("a", ctrl=True)
 type_text("10")
 p = settle(0.4)
@@ -46,23 +46,23 @@ good_size = {i["name"]: i for i in p["stl_dialog"]["items"]}["good"]["size"]
 check(good_size == [10.0, 20.0, 30.0], f"scale 10: {good_size}")
 shot("03-dialog-custom")
 # the repair of the bad mesh: merge the vertices, then turn the triangles
-click(*screen(p, "stl_merge_1"))
+click(*steady("stl_merge_1"))
 p = wait_for(lambda q: q["stl_dialog"] and "merged" in {i["name"]: i for i in q["stl_dialog"]["items"]}["bad"]["note"], "the vertices are merged")
-click(*screen(p, "stl_orient_1")) if "stl_orient_1" in p["widgets"] else None
+click(*steady("stl_orient_1")) if "stl_orient_1" in p["widgets"] else None
 p = wait_for(lambda q: q["stl_dialog"] and {i["name"]: i for i in q["stl_dialog"]["items"]}["bad"]["clean"], "the bad mesh is clean after the repairs", 20)
 b = {i["name"]: i for i in p["stl_dialog"]["items"]}["bad"]
 check(b["clean"], f"the repairs made the bad mesh closed and consistent: {b['check']}")
 shot("04-dialog-repaired")
 # Cancel imports nothing
-click(*screen(p, "stl_import_cancel"))
+click(*steady("stl_import_cancel"))
 p = settle(0.5)
 check(p["stl_dialog"] is None and len(p["meshes"]) == 0, "Cancel: the dialog is gone and nothing was imported")
 # again, in inches, and Import
 drop_files(f"{W}/good.stl", f"{W}/bad.stl")
 p = wait_for(lambda q: q["stl_dialog"], "the dialog is open again")
-click(*screen(p, "stl_units_inch"))
+click(*steady("stl_units_inch"))
 p = settle(0.3)
-click(*screen(p, "stl_import_ok"))
+click(*steady("stl_import_ok"))
 p = wait_for(lambda q: len(q["meshes"]) == 2, "two meshes were imported")
 m = {x["name"]: x for x in p["meshes"]}
 bb = m["good"]["bbox"]

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """A mesh and a solid in one document, a wall pulled, Ctrl+S: the .rolidium file is smaller than the STL it came from; a second copy of the program opens it: the mesh
 is there with its edit, the walls are found again and a hole can be changed; the file is format 2 (and the solid is still in it)."""
-# FIXTURE: box 20 20 20; move 1 80 0 0; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
+# FIXTURE: box 20 20 20; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
 # POINTS: top=10,10,10
 from guitest import *
 import subprocess, zipfile

@@ -179,7 +179,9 @@ impl App {
                 )
                 .on_hover_text(tr("The subtracted or intersected bodies stay in the document"));
                 ui.horizontal(|ui| {
-                    if ui.button(tr("Apply")).clicked() {
+                    let r = ui.button(tr("Apply"));
+                    self.probe_widget("combine_apply", r.rect);
+                    if r.clicked() {
                         apply = true;
                     }
                     if ui.button(tr("Cancel")).clicked() {

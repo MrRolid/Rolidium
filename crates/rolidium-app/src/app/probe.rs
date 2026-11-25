@@ -178,6 +178,7 @@ impl App {
             "hole_drag": self.hole_drag.is_some(),
             "meshes": self.probe_meshes(),
             "panel": self.panel_fields(),
+            "combine": self.probe_combine(),
             "pick": json!({"ms": round3(self.pick_stats.get().0 as f64), "bvh": self.pick_stats.get().1, "count": self.pick_stats.get().2}),
             "triangles_shown": self.meshes.iter().map(|m| m.mesh.triangle_count()).sum::<usize>(),
             "face": self.probe_face(),
@@ -185,6 +186,11 @@ impl App {
             "stl_dialog": self.probe_dialog(),
             "dropped": self.mesh_ui.dropped,
         })
+    }
+
+    /// The target and the tools of the Combine tool.
+    fn probe_combine(&self) -> Value {
+        json!({"target": self.combine.target, "tools": self.combine.tools})
     }
 
     /// The facts about the one selected face (a wall or a hole of a mesh, a face of a body).
