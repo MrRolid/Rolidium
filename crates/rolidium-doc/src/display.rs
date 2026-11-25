@@ -166,6 +166,11 @@ pub fn region_face(regions: &rolidium_mesh::regions::Regions, of_triangle: u32) 
 /// display mesh), so that a region has an identity on the graphics card and can be lit; a mesh without regions is one face. The normals are zero: the
 /// shader takes the flat normal of the triangle.
 pub fn mesh_body_entry(i: &MeshInput) -> MeshEntry {
+    mesh_body_entry_with(i).0
+}
+
+/// The same, with the vertex each extra display vertex is a copy of.
+fn mesh_body_entry_with(i: &MeshInput) -> (MeshEntry, Vec<u32>) {
     use glam::Vec3;
     let m = &*i.mesh;
     let n_tri = m.triangles.len();
@@ -182,6 +187,7 @@ pub fn mesh_body_entry(i: &MeshInput) -> MeshEntry {
     let mut positions: Vec<Vec3> = m.positions.iter().map(|p| Vec3::new(p[0], p[1], p[2])).collect();
     let mut indices: Vec<u32> = Vec::with_capacity(n_tri * 3);
     let mut tri_face: Vec<u32> = Vec::with_capacity(n_tri);
+    let mut dups: Vec<u32> = Vec::new();
     if nfaces <= 1 {
         for t in &m.triangles {
             indices.extend_from_slice(t);
@@ -204,6 +210,7 @@ pub fn mesh_body_entry(i: &MeshInput) -> MeshEntry {
                     let key = ((v as u64) << 32) | f as u64;
                     let at = *extra.entry(key).or_insert_with(|| {
                         positions.push(positions[v as usize]);
+                        dups.push(v);
                         (positions.len() - 1) as u32
                     });
                     indices.push(at);
@@ -267,14 +274,98 @@ pub fn mesh_body_entry(i: &MeshInput) -> MeshEntry {
         face_deflection: Vec::new(),
         face_asked: Vec::new(),
     };
-    MeshEntry {
-        id: i.id,
-        name: i.name.clone(),
-        mesh: std::sync::Arc::new(mesh),
-        faces: std::sync::Arc::new(faces),
-        color: i.color,
-        stamp: next_stamp(),
+    (
+        MeshEntry {
+            id: i.id,
+            name: i.name.clone(),
+            mesh: std::sync::Arc::new(mesh),
+            faces: std::sync::Arc::new(faces),
+            color: i.color,
+            stamp: next_stamp(),
+        },
+        dups,
+    )
+}
+
+/// The display of a mesh after an edit that moved some vertices (a pull of a wall, the diameter of a hole), from the display before it: only the
+/// moved vertices and the facts of the faces the edit touched are made again. The walls and holes are the same ones, in the same order.
+fn patched_entry(old: &CachedMesh, i: &MeshInput, hint: &EditHint) -> Option<(MeshEntry, Vec<u32>)> {
+    use glam::Vec3;
+    let regions = i.regions.as_ref()?;
+    let n_orig = i.mesh.positions.len();
+    if old.entry.mesh.positions.len() != n_orig + old.dups.len()
+        || old.entry.faces.len() != 1 + regions.planes.len() + regions.cylinders.len()
+    {
+        return None;
     }
+    let mut mesh: Mesh = (*old.entry.mesh).clone();
+    let at = |v: u32| {
+        let p = i.mesh.positions[v as usize];
+        Vec3::new(p[0], p[1], p[2])
+    };
+    let mut moved = vec![false; n_orig];
+    for &v in &hint.moved {
+        moved[v as usize] = true;
+        mesh.positions[v as usize] = at(v);
+    }
+    for (k, &o) in old.dups.iter().enumerate() {
+        if moved[o as usize] {
+            mesh.positions[n_orig + k] = at(o);
+        }
+    }
+    // the facts of the faces that changed: the box and the centre from the triangles of the face, the rest from the regions
+    let mut faces: Vec<FaceMeta> = (*old.entry.faces).clone();
+    let mut want = vec![false; faces.len()];
+    for f in &hint.faces {
+        if let Some(w) = want.get_mut(*f as usize) {
+            *w = true;
+        }
+    }
+    let mut sums = vec![(Vec3::ZERO, 0u32); faces.len()];
+    let mut bounds = vec![(Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)); faces.len()];
+    for (t, tri) in mesh.indices.as_chunks::<3>().0.iter().enumerate() {
+        let f = mesh.tri_face[t] as usize;
+        if !want[f] {
+            continue;
+        }
+        for &v in tri {
+            let p = mesh.positions[v as usize];
+            sums[f].0 += p;
+            sums[f].1 += 1;
+            bounds[f].0 = bounds[f].0.min(p);
+            bounds[f].1 = bounds[f].1.max(p);
+        }
+    }
+    let dv = |v: [f64; 3]| DVec3::new(v[0], v[1], v[2]);
+    for f in 0..faces.len() {
+        if !want[f] {
+            continue;
+        }
+        if sums[f].1 > 0 {
+            faces[f].centroid = sums[f].0 / sums[f].1 as f32;
+            faces[f].bounds = bounds[f];
+        }
+        if f >= 1 && f <= regions.planes.len() {
+            let p = &regions.planes[f - 1];
+            faces[f].origin = dv(p.normal) * p.offset;
+            faces[f].area = p.area;
+        } else if f > regions.planes.len() {
+            let c = &regions.cylinders[f - 1 - regions.planes.len()];
+            faces[f].cyl_diameter = Some(c.radius * 2.0);
+            faces[f].origin = dv(c.point);
+        }
+    }
+    Some((
+        MeshEntry {
+            id: i.id,
+            name: i.name.clone(),
+            mesh: std::sync::Arc::new(mesh),
+            faces: std::sync::Arc::new(faces),
+            color: i.color,
+            stamp: next_stamp(),
+        },
+        (*old.dups).clone(),
+    ))
 }
 
 struct CachedMesh {
@@ -282,13 +373,47 @@ struct CachedMesh {
     mesh: std::sync::Arc<rolidium_mesh::TriMesh>,
     regions: Option<std::sync::Arc<rolidium_mesh::regions::Regions>>,
     entry: MeshEntry,
+    /// The vertex of the mesh that each extra vertex of the display mesh is a copy of (a vertex on the border of two regions is two display vertices).
+    dups: std::sync::Arc<Vec<u32>>,
+}
+
+/// How many versions of the display of one mesh are kept (an Undo and a Redo find theirs again, without making them).
+const MESH_VERSIONS: usize = 3;
+
+/// What an edit of a mesh moved: the display of the mesh before it can be patched instead of made again.
+#[derive(Clone)]
+pub struct EditHint {
+    pub old: std::sync::Arc<rolidium_mesh::TriMesh>,
+    /// The vertices that moved.
+    pub moved: Vec<u32>,
+    /// The faces (walls and holes of the entry) whose facts changed.
+    pub faces: Vec<u32>,
+}
+
+static EDITS: std::sync::Mutex<Vec<(std::sync::Arc<rolidium_mesh::TriMesh>, EditHint)>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Remembers what an edit moved, by the mesh it made.
+pub fn keep_edit(new: &std::sync::Arc<rolidium_mesh::TriMesh>, hint: EditHint) {
+    let mut v = EDITS.lock().unwrap_or_else(|e| e.into_inner());
+    v.push((new.clone(), hint));
+    while v.len() > 4 {
+        v.remove(0);
+    }
+}
+
+fn edit_of(new: &std::sync::Arc<rolidium_mesh::TriMesh>) -> Option<EditHint> {
+    let v = EDITS.lock().unwrap_or_else(|e| e.into_inner());
+    v.iter()
+        .find(|(m, _)| std::sync::Arc::ptr_eq(m, new))
+        .map(|x| x.1.clone())
 }
 
 /// The display entries of the bodies, made again only for the bodies whose solid is not the one they were made for.
 #[derive(Default)]
 pub struct MeshCache {
     map: HashMap<BodyId, Cached>,
-    meshes: HashMap<BodyId, CachedMesh>,
+    meshes: HashMap<BodyId, Vec<CachedMesh>>,
     /// How many entries were made (not taken from the cache) by the last call of `entries`.
     pub last_made: usize,
     /// Several cores for the entries to make (the default); off only to measure the single thread.
@@ -354,26 +479,40 @@ impl MeshCache {
     pub fn mesh_entries(&mut self, inputs: &[MeshInput]) -> Vec<MeshEntry> {
         let mut out = Vec::with_capacity(inputs.len());
         for i in inputs {
-            let same = self.meshes.get(&i.id).is_some_and(|c| {
+            let versions = self.meshes.entry(i.id).or_default();
+            let same = |c: &CachedMesh| {
                 std::sync::Arc::ptr_eq(&c.mesh, &i.mesh)
                     && match (&c.regions, &i.regions) {
                         (None, None) => true,
                         (Some(a), Some(b)) => std::sync::Arc::ptr_eq(a, b),
                         _ => false,
                     }
-            });
-            if !same {
-                let entry = mesh_body_entry(i);
-                self.meshes.insert(
-                    i.id,
-                    CachedMesh {
-                        mesh: i.mesh.clone(),
-                        regions: i.regions.clone(),
-                        entry,
-                    },
-                );
+            };
+            // the display of this very mesh (an Undo or a Redo brought it back) is the one made before
+            if let Some(k) = versions.iter().position(same) {
+                let c = versions.remove(k);
+                versions.push(c);
+            } else {
+                // an edit that moved some vertices of the mesh the last display was made for: patched, not made again
+                let patched = edit_of(&i.mesh).and_then(|h| {
+                    versions
+                        .iter()
+                        .rev()
+                        .find(|c| std::sync::Arc::ptr_eq(&c.mesh, &h.old))
+                        .and_then(|c| patched_entry(c, i, &h))
+                });
+                let (entry, dups) = patched.unwrap_or_else(|| mesh_body_entry_with(i));
+                versions.push(CachedMesh {
+                    mesh: i.mesh.clone(),
+                    regions: i.regions.clone(),
+                    entry,
+                    dups: std::sync::Arc::new(dups),
+                });
+                while versions.len() > MESH_VERSIONS {
+                    versions.remove(0);
+                }
             }
-            let c = self.meshes.get_mut(&i.id).unwrap();
+            let c = versions.last_mut().unwrap();
             c.entry.name.clone_from(&i.name);
             c.entry.color = i.color;
             out.push(c.entry.clone());

@@ -159,6 +159,8 @@ pub struct Frame {
 struct GpuBody {
     id: u64,
     stamp: u64,
+    /// The pick slot the vertices were made for (it is part of their ids).
+    slot: usize,
     color: [f32; 3],
     vbuf: wgpu::Buffer,
     ibuf: wgpu::Buffer,
@@ -226,6 +228,8 @@ pub struct Renderer {
     zaxis_bind: wgpu::BindGroup,
     zaxis_buf: wgpu::Buffer,
     bodies: Vec<GpuBody>,
+    /// The buffers of bodies that were replaced a moment ago: an Undo that brings a body back finds them again, without making and sending them.
+    spare: Vec<GpuBody>,
     preview: Option<GpuPreview>,
     layers: Vec<GpuPreview>,
     target: Option<RenderTarget>,
@@ -574,6 +578,7 @@ impl Renderer {
             zaxis_bind,
             zaxis_buf,
             bodies: Vec::new(),
+            spare: Vec::new(),
             preview: None,
             layers: Vec::new(),
             target: None,
@@ -599,10 +604,16 @@ impl Renderer {
             let slot = self.bodies.len();
             // the same mesh in the same slot (the slot is part of the pick ids in the vertices): the buffers stay
             if b.stamp != 0 {
-                if let Some(o) = old
+                let found = old
                     .get_mut(slot)
                     .and_then(|o| o.take_if(|o| o.stamp == b.stamp && o.id == b.id))
-                {
+                    .or_else(|| {
+                        self.spare
+                            .iter()
+                            .position(|o| o.stamp == b.stamp && o.id == b.id && o.slot == slot)
+                            .map(|k| self.spare.remove(k))
+                    });
+                if let Some(o) = found {
                     let mut o = o;
                     if o.color != b.color {
                         o.bind = uniform_bind(
@@ -654,6 +665,7 @@ impl Renderer {
             self.bodies.push(GpuBody {
                 id: b.id,
                 stamp: b.stamp,
+                slot,
                 color: b.color,
                 vbuf: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("body vertices"),
@@ -680,6 +692,15 @@ impl Renderer {
                 soft_count: if soft_empty { 0 } else { soft.len() as u32 },
                 bind,
             });
+        }
+        // what was replaced is kept for a while (the last two), and what is not worth keeping is let go
+        for o in old.into_iter().flatten() {
+            if o.stamp != 0 && o.index_count > 3 * 100_000 {
+                self.spare.push(o);
+            }
+        }
+        while self.spare.len() > 2 {
+            self.spare.remove(0);
         }
         // Slots refer to the position in `bodies`; keep a dense mapping.
         made

@@ -42,8 +42,7 @@ pub struct RepairKind {
     pub orient: bool,
 }
 
-/// Moves a planar wall of a mesh body by `distance` along its normal; with `tilt` the walls next to it may slant. Gives the mesh and the triangles next to the wall
-/// that were stretched.
+/// Moves a planar wall of a mesh body by `distance` along its normal; with `tilt` the walls next to it may slant. Gives the mesh and the vertices that moved.
 pub(crate) fn pull(
     b: &MeshBody,
     wall: &Plane,
@@ -51,16 +50,20 @@ pub(crate) fn pull(
     tilt: bool,
 ) -> Result<(TriMesh, Vec<u32>), crate::DocError> {
     let mut m = (*b.mesh).clone();
-    let plan = rolidium_mesh::edit::PullPlan::new(&m, wall);
-    rolidium_mesh::edit::pull_plane_opts(&mut m, wall, distance, !b.verified, tilt).map_err(invalid)?;
-    Ok((m, plan.outside))
+    let undo =
+        rolidium_mesh::edit::pull_plane_opts(&mut m, wall, distance, !b.verified, tilt).map_err(invalid)?;
+    Ok((m, undo.moved.iter().map(|x| x.0).collect()))
 }
 
-/// Sets the diameter of a round hole or pin of a mesh body.
-pub(crate) fn hole(b: &MeshBody, cyl: &Cylinder, diameter: f64) -> Result<TriMesh, crate::DocError> {
+/// Sets the diameter of a round hole or pin of a mesh body. Gives the mesh and the vertices that moved.
+pub(crate) fn hole(
+    b: &MeshBody,
+    cyl: &Cylinder,
+    diameter: f64,
+) -> Result<(TriMesh, Vec<u32>), crate::DocError> {
     let mut m = (*b.mesh).clone();
-    rolidium_mesh::edit::set_diameter_with(&mut m, cyl, diameter, !b.verified).map_err(invalid)?;
-    Ok(m)
+    let undo = rolidium_mesh::edit::set_diameter_with(&mut m, cyl, diameter, !b.verified).map_err(invalid)?;
+    Ok((m, undo.moved.iter().map(|x| x.0).collect()))
 }
 
 fn invalid(e: rolidium_mesh::edit::EditError) -> crate::DocError {
@@ -102,78 +105,100 @@ pub fn merged(meshes: &[&TriMesh]) -> TriMesh {
 
 /// After a pull of a wall or a change of a hole the walls and holes are still the same triangles in the same places (the walls next to the pulled one stretch in their own
 /// planes), so the regions of the old mesh are made the regions of the new one, with the offset of the pulled wall, the radius of the hole and the areas made again,
-/// instead of a new search (seconds for a mesh of millions of triangles, in which no edit could be made meanwhile).
-pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Change) {
+/// instead of a new search (seconds for a mesh of millions of triangles, in which no edit could be made meanwhile). `moved` are the vertices that moved.
+/// Gives the faces of the display (walls and holes in their order) whose facts changed; also leaves the note the display needs to patch itself.
+pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Change, moved: Vec<u32>) {
     let Some(old_regions) = crate::display::regions_of(old) else {
         return;
     };
     let mut r: rolidium_mesh::regions::Regions = (*old_regions).clone();
+    let mut changed: Vec<u32> = Vec::new();
     match change {
         Change::Wall {
             first_triangle,
             normal,
             distance,
-            ref touched,
         } => {
-            let Some(p) = r.planes.iter_mut().find(|p| {
+            let Some(i) = r.planes.iter().position(|p| {
                 p.triangles.first() == Some(&first_triangle) && rolidium_mesh::dot(p.normal, normal) > 0.999
             }) else {
                 return;
             };
-            p.offset += distance;
-            // the regions next to the wall stretched: their areas (and the extent of a round surface along the wall's direction) are made again
-            let mut planes: Vec<usize> = Vec::new();
-            let mut cyls: Vec<usize> = Vec::new();
-            for t in touched {
-                match r.of_triangle.get(*t as usize).copied().unwrap_or(0) {
-                    0 => {}
-                    x if x >= crate::meshes::CYL_FLAG => {
-                        cyls.push((x - crate::meshes::CYL_FLAG) as usize - 1)
-                    }
-                    x => planes.push(x as usize - 1),
-                }
-            }
-            planes.sort_unstable();
-            planes.dedup();
-            cyls.sort_unstable();
-            cyls.dedup();
-            for i in planes {
-                r.planes[i].area = r.planes[i]
-                    .triangles
-                    .iter()
-                    .map(|t| new.normal_area(*t as usize).1)
-                    .sum();
-            }
-            for i in cyls {
-                let c = &mut r.cylinders[i];
-                let (mut lo, mut hi) = (f64::MAX, f64::MIN);
-                for t in &c.triangles {
-                    for v in new.corners(*t as usize) {
-                        let z = rolidium_mesh::dot(v, c.axis);
-                        lo = lo.min(z);
-                        hi = hi.max(z);
-                    }
-                }
-                c.z_range = (lo, hi);
-            }
-            crate::display::keep_regions(new, Arc::new(r));
-            return;
+            r.planes[i].offset += distance;
+            changed.push(1 + i as u32);
         }
         Change::Hole {
             first_triangle,
             diameter,
         } => {
-            let Some(c) = r
+            let Some(i) = r
                 .cylinders
-                .iter_mut()
-                .find(|c| c.triangles.first() == Some(&first_triangle))
+                .iter()
+                .position(|c| c.triangles.first() == Some(&first_triangle))
             else {
                 return;
             };
-            c.radius = diameter / 2.0;
+            r.cylinders[i].radius = diameter / 2.0;
+            changed.push(1 + r.planes.len() as u32 + i as u32);
         }
     }
+    // the regions next to what moved: the triangles that touch a moved vertex
+    let mut is_moved = vec![false; new.positions.len()];
+    for v in &moved {
+        is_moved[*v as usize] = true;
+    }
+    let mut planes: Vec<usize> = Vec::new();
+    let mut cyls: Vec<usize> = Vec::new();
+    let mut rest = false;
+    for (t, tri) in new.triangles.iter().enumerate() {
+        if !tri.iter().any(|v| is_moved[*v as usize]) {
+            continue;
+        }
+        match r.of_triangle.get(t).copied().unwrap_or(0) {
+            0 => rest = true,
+            x if x >= CYL_FLAG => cyls.push((x - CYL_FLAG) as usize - 1),
+            x => planes.push(x as usize - 1),
+        }
+    }
+    planes.sort_unstable();
+    planes.dedup();
+    cyls.sort_unstable();
+    cyls.dedup();
+    for i in planes {
+        r.planes[i].area = r.planes[i]
+            .triangles
+            .iter()
+            .map(|t| new.normal_area(*t as usize).1)
+            .sum();
+        changed.push(1 + i as u32);
+    }
+    for i in cyls {
+        let c = &mut r.cylinders[i];
+        let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+        for t in &c.triangles {
+            for v in new.corners(*t as usize) {
+                let z = rolidium_mesh::dot(v, c.axis);
+                lo = lo.min(z);
+                hi = hi.max(z);
+            }
+        }
+        c.z_range = (lo, hi);
+        changed.push(1 + r.planes.len() as u32 + i as u32);
+    }
+    if rest {
+        changed.push(0);
+    }
+    changed.sort_unstable();
+    changed.dedup();
     crate::display::keep_regions(new, Arc::new(r));
+    crate::display::keep_edit(
+        new,
+        crate::display::EditHint {
+            old: old.clone(),
+            moved,
+            faces: changed,
+        },
+    );
 }
 
 /// What an edit changed in the regions.
@@ -183,8 +208,6 @@ pub(crate) enum Change {
         first_triangle: u32,
         normal: [f64; 3],
         distance: f64,
-        /// The triangles next to the wall that were stretched.
-        touched: Vec<u32>,
     },
     Hole {
         first_triangle: u32,

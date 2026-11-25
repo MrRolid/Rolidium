@@ -185,6 +185,28 @@ impl App {
             "mesh_job": self.mesh_ui.job.as_ref().map(|j| round3(j.fraction() as f64)),
             "stl_dialog": self.probe_dialog(),
             "dropped": self.mesh_ui.dropped,
+            "extra": self.probe_extra(),
+        })
+    }
+
+    /// The state of the newer pieces: the sizes of a selected body, the quick sketch, the pull that cannot be made, the check of a mesh.
+    fn probe_extra(&self) -> Value {
+        json!({
+            "body_dims": self.body_dims.shown.map(|s| json!([round3(s[0]), round3(s[1]), round3(s[2])])),
+            "body_dims_editing": self.body_dims.editing,
+            "quick_tool": self.quick_tool.map(|t| format!("{t:?}")),
+            "plane_pick": self.plane_pick,
+            "plane_hover": self.plane_hover.map(|h| json!({"face": h.face, "normal": [round3(h.normal.x), round3(h.normal.y), round3(h.normal.z)], "point": [round3(h.point.x), round3(h.point.y), round3(h.point.z)]})),
+            "sketch_quick": self.sk.as_ref().map(|s| s.quick),
+            "sketch_plane": self.sk.as_ref().map(|s| json!({"origin": [round3(s.plane.origin.x), round3(s.plane.origin.y), round3(s.plane.origin.z)], "normal": [round3(s.plane.normal.x), round3(s.plane.normal.y), round3(s.plane.normal.z)]})),
+            "camera": [round3(self.camera.yaw as f64), round3(self.camera.pitch as f64)],
+            "pull_blocked": self.mesh_ui.blocked.as_ref().map(super::meshtool::short_reason),
+            "pull_active": self.pull.is_some(),
+            "tilt": self.mesh_ui.tilt,
+            "mesh_check": self.mesh_ui.report.as_ref().map(|(_, a)| super::meshtool::findings_text(a)),
+            "preview_thick": self.preview.as_ref().map(|p| p.thick.len()),
+            "preview_triangles": self.preview.as_ref().map(|p| p.triangles.len()),
+            "mesh_cyls": self.doc.meshes().iter().map(|m| rolidium_doc::display::regions_of(&m.mesh).map(|r| r.cylinders.iter().map(|c| json!({"d": round3(c.radius * 2.0), "hole": c.is_hole, "facets": c.facets, "arc": round3(c.arc), "axis": [round3(c.axis[0]), round3(c.axis[1]), round3(c.axis[2])]})).collect::<Vec<_>>())).collect::<Vec<_>>(),
         })
     }
 

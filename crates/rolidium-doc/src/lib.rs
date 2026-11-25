@@ -3095,7 +3095,7 @@ impl Job {
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let (m, touched) = meshes::pull(&st.meshes[mp], wall, *distance, *tilt)?;
+                let (m, moved) = meshes::pull(&st.meshes[mp], wall, *distance, *tilt)?;
                 let m = Arc::new(m);
                 // slanting neighbours are no longer the planes they were: the walls are looked for again
                 if let (Some(first), false) = (wall.triangles.first(), *tilt) {
@@ -3106,8 +3106,8 @@ impl Job {
                             first_triangle: *first,
                             normal: wall.normal,
                             distance: *distance,
-                            touched,
                         },
+                        moved,
                     );
                 }
                 st.meshes[mp].mesh = m;
@@ -3121,7 +3121,8 @@ impl Job {
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let m = Arc::new(meshes::hole(&st.meshes[mp], hole, *diameter)?);
+                let (m, moved) = meshes::hole(&st.meshes[mp], hole, *diameter)?;
+                let m = Arc::new(m);
                 if let Some(first) = hole.triangles.first() {
                     meshes::carry_regions(
                         &st.meshes[mp].mesh,
@@ -3130,6 +3131,7 @@ impl Job {
                             first_triangle: *first,
                             diameter: *diameter,
                         },
+                        moved,
                     );
                 }
                 st.meshes[mp].mesh = m;

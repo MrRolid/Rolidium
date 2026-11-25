@@ -123,6 +123,8 @@ pub struct PullPlan {
     /// The triangles outside the wall that touch it.
     pub outside: Vec<u32>,
     before: Vec<V3>,
+    /// Which vertices of the mesh are those of the wall.
+    flag: Vec<bool>,
 }
 
 impl PullPlan {
@@ -130,10 +132,15 @@ impl PullPlan {
         let (mut verts, outside) = surroundings(m, &wall.triangles);
         verts.sort_unstable();
         let before = outside.iter().map(|t| m.normal_area(*t as usize).0).collect();
+        let mut flag = vec![false; m.positions.len()];
+        for v in &verts {
+            flag[*v as usize] = true;
+        }
         PullPlan {
             verts,
             outside,
             before,
+            flag,
         }
     }
 
@@ -148,7 +155,7 @@ impl PullPlan {
             return Err(EditError::NeighbourNotSquare);
         }
         let d = mul(wall.normal, distance);
-        let moved = |v: u32| self.verts.binary_search(&v).is_ok();
+        let moved = |v: u32| self.flag[v as usize];
         let pos = |v: u32| {
             let p = m.vertex(v);
             if moved(v) {
@@ -181,7 +188,7 @@ impl PullPlan {
         for t in wall.triangles.iter().chain(&self.outside) {
             changed[*t as usize] = true;
         }
-        let moved = |v: u32| self.verts.binary_search(&v).is_ok();
+        let moved = |v: u32| self.flag[v as usize];
         let pos = |v: u32| {
             let p = m.vertex(v);
             if moved(v) {
