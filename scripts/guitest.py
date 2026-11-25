@@ -267,6 +267,40 @@ def write_stl(path, tris, ascii_=False):
             f.write(struct.pack("<12fH", 0, 0, 0, *[c for p in t for c in p], 0))
 
 
+def cylinder_triangles(r, h, n, cx=0.0, cy=0.0, oz=0.0):
+    """A closed cylinder standing on z = oz (its side made of n flat strips, the ends of fans), outward normals."""
+    import math
+    b = [(cx + r * math.cos(2 * math.pi * k / n), cy + r * math.sin(2 * math.pi * k / n), oz) for k in range(n)]
+    t = [(x, y, oz + h) for x, y, _ in b]
+    bc, tc = (cx, cy, oz), (cx, cy, oz + h)
+    out = []
+    for k in range(n):
+        j = (k + 1) % n
+        out += [(b[k], b[j], t[j]), (b[k], t[j], t[k]), (bc, b[j], b[k]), (tc, t[k], t[j])]
+    return out
+
+
+def frustum_triangles(bottom, top, h, ox=0.0, oy=0.0, oz=0.0, n=2):
+    """A block with a square foot of `bottom` and a square top of `top` (its sides slant), from a box whose points are drawn in towards the middle the higher they are."""
+    k = top / bottom
+
+    def mv(p):
+        x, y, z = p
+        f = 1.0 - (1.0 - k) * z / h
+        c = bottom / 2.0
+        return (c + (x - c) * f + ox, c + (y - c) * f + oy, z + oz)
+    return [tuple(mv(p) for p in tri) for tri in box_triangles(bottom, bottom, h, n=n)]
+
+
+def import_dropped(*paths, units=None):
+    """Drops the files into the window, lets the dialog of the import take them as they are and waits for the meshes."""
+    n0 = len(probe()["meshes"])
+    drop_files(*paths)
+    wait_for(lambda q: q["stl_dialog"], "the dialog of the import is open", 60)
+    click(*steady("stl_import_ok"))
+    return wait_for(lambda q: len(q["meshes"]) >= n0 + len(paths) and q["stl_dialog"] is None, "the meshes were imported", 60)
+
+
 def drop_files(*paths):
     """The files are put into the window the way the window system does it (the program reads the names from the file named in ROLIDIUM_DROP; a real
     drag and drop of the window system cannot be made by a script, the program handles both with the same code)."""

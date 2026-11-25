@@ -25,6 +25,7 @@ m = p["meshes"][0]
 ring = (math.pi * 3.0 ** 2 - math.pi * 2.5 ** 2) * 10
 check(m["volume"] < v0 - ring * 0.97 and m["volume"] > v0 - ring * 1.03, f"the volume is smaller by the ring of the hole (about {ring:.0f} mm3): {v0} -> {m['volume']}")
 check(close(m["holes"][0]["x"], 30.0, 0.01) and close(m["holes"][0]["y"], 20.0, 0.01), f"the hole stayed where it was: {m['holes']}")
+check(len(p["selection"]) == 1, f"the hole stays selected after its diameter was changed: {p['selection']}")
 shot("01-hole-6")
 key("z", ctrl=True)
 p = wait_for(lambda q: q["meshes"][0]["walls"] is not None and q["meshes"][0]["holes"] and close(q["meshes"][0]["holes"][0]["d"], 5.0, 0.05), "Undo: the hole is 5 mm again", 30)

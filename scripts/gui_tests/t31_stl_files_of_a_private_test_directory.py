@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Every STL file of the directory ~/rolidium-private/stl-test (or $ROLIDIUM_STL_TEST_DIR) is dropped into the window, imported, its walls and holes are found, the document is
 saved and the size of the .rolidium file is compared with the STL. The files are somebody else's: they are not copied, and the screenshots and the table name them by number only.
-Without the directory the test says so and passes. A file that is not an STL (a 3MF) must be refused with the sentence for it."""
+Without the directory the test says so and passes. A 3MF file is imported the same way (every object a mesh); a file of another kind is refused with a sentence."""
 # FIXTURE: box 20 20 20
 # ENV: ROLIDIUM_DROP_POLL=1
 from guitest import *
@@ -27,6 +27,32 @@ for i, name in enumerate(files, 1):
     path = os.path.join(d, name)
     ext = os.path.splitext(name)[1].lower()
     row = {"n": i, "ext": ext, "file_mb": round(os.path.getsize(path) / 1e6, 2)}
+    if ext == ".3mf":
+        # a 3MF file: every object of it is a mesh (the table says how many and how long it took)
+        t0 = time.time()
+        drop_files(path)
+        p = wait_for(lambda q: q["stl_dialog"], f"the dialog for file {i}", 120)
+        items = p["stl_dialog"]["items"]
+        row["read_s"] = round(time.time() - t0, 2)
+        row["objects"] = len(items)
+        row["triangles"] = sum(it["triangles"] for it in items)
+        row["size_mm"] = [it["size"] for it in items][:3]
+        row["check"] = [it["check"] for it in items][:2]
+        shot(f"file{i:02d}-dialog")
+        n0 = len(p["meshes"])
+        click(*steady("stl_import_ok"))
+        p = wait_for(lambda q: len(q["meshes"]) == n0 + len(items) and all(m["shown"] for m in q["meshes"]), f"file {i} is shown", 120)
+        p = wait_for(lambda q: all(m["walls"] is not None for m in q["meshes"]) and q["mesh_job"] is None, f"the walls of file {i}", 180)
+        row["walls"] = [m["walls"] for m in p["meshes"][n0:]]
+        check(True, f"file {i} (3MF): {len(items)} object(s), {row['triangles']} triangles")
+        shot(f"file{i:02d}-shown")
+        rows.append(row)
+        for m in list(p["meshes"][n0:]):
+            click(*screen(probe(), f"mesh_row_{m['id']}"))
+            settle(0.3)
+            key("Delete")
+            settle(0.4)
+        continue
     if ext != ".stl":
         drop_files(path)
         p = wait_for(lambda q: q["status_error"] and "STL" in q["status"], "a file that is not an STL is refused", 20)

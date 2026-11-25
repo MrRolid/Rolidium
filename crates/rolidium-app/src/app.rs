@@ -1890,6 +1890,11 @@ impl App {
 
     fn view_normal_to_sketch(&mut self) {
         let Some(sm) = &self.sk else { return };
+        // a sketch started from the 3D view did not turn the view: V does, and leaving the sketch turns it back
+        if sm.quick && self.view_before_sketch.is_none() {
+            self.view_before_sketch = Some(self.camera);
+        }
+        let Some(sm) = &self.sk else { return };
         let mut to = viewanim::plane_view(&self.camera, sm.plane.normal.as_vec3());
         to.target = sm.focus;
         self.animate_to(to);
@@ -4650,6 +4655,7 @@ impl eframe::App for App {
                                                             ui.selectable_label(marked.contains(&b.id), t);
                                                         // a body can be dragged onto a group
                                                         let r = r.interact(egui::Sense::click_and_drag());
+                                                        self.probe_widget(&format!("body_row_{}", b.id), r.rect);
                                                         if r.drag_started() {
                                                             r.dnd_set_drag_payload(linktool::Dnd::Body(b.id));
                                                         }

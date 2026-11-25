@@ -198,7 +198,7 @@ impl App {
             "plane_pick": self.plane_pick,
             "plane_hover": self.plane_hover.map(|h| json!({"face": h.face, "normal": [round3(h.normal.x), round3(h.normal.y), round3(h.normal.z)], "point": [round3(h.point.x), round3(h.point.y), round3(h.point.z)]})),
             "sketch_quick": self.sk.as_ref().map(|s| s.quick),
-            "sketch_plane": self.sk.as_ref().map(|s| json!({"origin": [round3(s.plane.origin.x), round3(s.plane.origin.y), round3(s.plane.origin.z)], "normal": [round3(s.plane.normal.x), round3(s.plane.normal.y), round3(s.plane.normal.z)]})),
+            "sketch_plane": self.sk.as_ref().map(|s| json!({"x_dir": [round3(s.plane.x_dir.x), round3(s.plane.x_dir.y), round3(s.plane.x_dir.z)], "y_dir": [round3(s.plane.y_dir().x), round3(s.plane.y_dir().y), round3(s.plane.y_dir().z)], "origin": [round3(s.plane.origin.x), round3(s.plane.origin.y), round3(s.plane.origin.z)], "normal": [round3(s.plane.normal.x), round3(s.plane.normal.y), round3(s.plane.normal.z)]})),
             "camera": [round3(self.camera.yaw as f64), round3(self.camera.pitch as f64)],
             "pull_blocked": self.mesh_ui.blocked.as_ref().map(super::meshtool::short_reason),
             "pull_active": self.pull.is_some(),
@@ -267,6 +267,7 @@ impl App {
                     "walls": r.as_ref().map(|r| r.planes.len()),
                     "holes": r.as_ref().map(|r| r.cylinders.iter().map(|c| json!({"d": round3(c.radius * 2.0), "hole": c.is_hole, "x": round3(c.point[0]), "y": round3(c.point[1]), "z": round3(c.point[2])})).collect::<Vec<_>>()),
                     "shown": self.entry(m.id).map(|e| e.mesh.triangle_count()),
+                    "stamp": self.entry(m.id).map(|e| e.stamp),
                 })
             })
             .collect()

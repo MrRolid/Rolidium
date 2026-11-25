@@ -47,7 +47,7 @@ check(good_size == [10.0, 20.0, 30.0], f"scale 10: {good_size}")
 shot("03-dialog-custom")
 # the repair of the bad mesh: merge the vertices, then turn the triangles
 click(*steady("stl_merge_1"))
-p = wait_for(lambda q: q["stl_dialog"] and "merged" in {i["name"]: i for i in q["stl_dialog"]["items"]}["bad"]["note"], "the vertices are merged")
+p = wait_for(lambda q: q["stl_dialog"] and "Joined" in {i["name"]: i for i in q["stl_dialog"]["items"]}["bad"]["note"], "the vertices are merged")
 click(*steady("stl_orient_1")) if "stl_orient_1" in p["widgets"] else None
 p = wait_for(lambda q: q["stl_dialog"] and {i["name"]: i for i in q["stl_dialog"]["items"]}["bad"]["clean"], "the bad mesh is clean after the repairs", 20)
 b = {i["name"]: i for i in p["stl_dialog"]["items"]}["bad"]
