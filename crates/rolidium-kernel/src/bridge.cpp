@@ -48,6 +48,7 @@
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <ShapeFix_Face.hxx>
+#include <unordered_map>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Shell.hxx>
 #include <TopoDS_Shell.hxx>
@@ -570,52 +571,89 @@ OpResult scale_shape(const Shape& sh, std::array<double, 3> centre, std::array<d
     });
 }
 
-/// A solid from flat faces given as loops of points (the first loop of a face is its outline, the others are holes): every loop is a polygon, the faces are
-/// sewn together within `tol` and the closed shell is made a solid with a positive volume.
+/// A solid from flat faces given as loops of points (the first loop of a face is its outline, the others are holes). The faces are made of shared edges (an edge
+/// between two points is one edge for every face that has it), so they close without sewing; the closed shell is made a solid with a positive volume.
+/// A face whose outline is not flat enough is made of the triangles it had (`fallback_*`).
 std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::Slice<const uint32_t> loop_vertices, rust::Slice<const uint32_t> loop_offsets,
-                                           rust::Slice<const uint32_t> face_offsets, double tol) {
+                                           rust::Slice<const uint32_t> face_offsets, rust::Slice<const double> point_tol,
+                                           rust::Slice<const uint32_t> fallback_vertices, rust::Slice<const uint32_t> fallback_offsets, double tol) {
     return guarded("solid_from_polygons", [&] {
         const size_t np = pts.size() / 3;
         BRep_Builder bb;
         std::vector<TopoDS_Vertex> verts(np);
         std::vector<bool> made(np, false);
+        auto ptol = [&](uint32_t i) { return point_tol.size() > i ? std::max(point_tol[i], tol) : tol; };
         auto vertex = [&](uint32_t i) -> TopoDS_Vertex {
             if (!made[i]) {
-                bb.MakeVertex(verts[i], gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]), tol);
+                bb.MakeVertex(verts[i], gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]), ptol(i));
                 made[i] = true;
             }
             return verts[i];
         };
-        auto wire_of = [&](size_t l) -> TopoDS_Wire {
-            BRepBuilderAPI_MakePolygon mp;
-            for (uint32_t k = loop_offsets[l]; k < loop_offsets[l + 1]; ++k) mp.Add(vertex(loop_vertices[k]));
-            mp.Close();
-            if (!mp.IsDone()) fail("a loop of a face is not a polygon");
-            return mp.Wire();
+        std::unordered_map<uint64_t, TopoDS_Edge> edges;
+        auto edge = [&](uint32_t a, uint32_t b) -> TopoDS_Edge {
+            const uint32_t lo = std::min(a, b), hi = std::max(a, b);
+            const uint64_t key = (uint64_t(lo) << 32) | hi;
+            auto it = edges.find(key);
+            if (it == edges.end()) {
+                BRepBuilderAPI_MakeEdge me(vertex(lo), vertex(hi));
+                if (!me.IsDone()) fail("two points of a face are the same point");
+                TopoDS_Edge e = me.Edge();
+                bb.UpdateEdge(e, std::max(ptol(lo), ptol(hi)));
+                it = edges.emplace(key, e).first;
+            }
+            return a < b ? it->second : TopoDS::Edge(it->second.Reversed());
         };
-        BRepBuilderAPI_Sewing sew(tol);
-        const size_t nf = face_offsets.size() - 1;
+        auto wire_of = [&](const uint32_t* v, size_t n) -> TopoDS_Wire {
+            BRepBuilderAPI_MakeWire mw;
+            for (size_t k = 0; k < n; ++k) mw.Add(edge(v[k], v[(k + 1) % n]));
+            if (!mw.IsDone()) fail("a loop of a face is not closed");
+            return mw.Wire();
+        };
+        TopoDS_Shell shell;
+        bb.MakeShell(shell);
         size_t added = 0;
+        const size_t nf = face_offsets.size() - 1;
         for (size_t f = 0; f < nf; ++f) {
             if (face_offsets[f] == face_offsets[f + 1]) continue;
-            BRepBuilderAPI_MakeFace mf(wire_of(face_offsets[f]), Standard_True);
-            if (!mf.IsDone()) fail("a flat face could not be made (its outline is not flat within the tolerance)");
-            for (uint32_t l = face_offsets[f] + 1; l < face_offsets[f + 1]; ++l) mf.Add(wire_of(l));
-            ShapeFix_Face fix(mf.Face());
-            fix.FixOrientation();
-            fix.Perform();
-            sew.Add(fix.Face());
-            ++added;
+            bool made_face = false;
+            try {
+                const uint32_t l0 = face_offsets[f];
+                BRepBuilderAPI_MakeFace mf(wire_of(&loop_vertices[loop_offsets[l0]], loop_offsets[l0 + 1] - loop_offsets[l0]), Standard_True);
+                if (mf.IsDone()) {
+                    for (uint32_t l = l0 + 1; l < face_offsets[f + 1]; ++l) {
+                        mf.Add(wire_of(&loop_vertices[loop_offsets[l]], loop_offsets[l + 1] - loop_offsets[l]));
+                    }
+                    ShapeFix_Face fix(mf.Face());
+                    fix.FixOrientation();
+                    fix.Perform();
+                    bb.Add(shell, fix.Face());
+                    ++added;
+                    made_face = true;
+                }
+            } catch (...) {
+            }
+            if (!made_face) {
+                if (fallback_offsets[f] == fallback_offsets[f + 1]) fail("a flat face could not be made (its outline is not flat within the tolerance)");
+                for (uint32_t k = fallback_offsets[f]; k < fallback_offsets[f + 1]; ++k) {
+                    uint32_t v[3] = {fallback_vertices[3 * k], fallback_vertices[3 * k + 1], fallback_vertices[3 * k + 2]};
+                    BRepBuilderAPI_MakeFace mt(wire_of(v, 3), Standard_True);
+                    if (!mt.IsDone()) continue;
+                    ShapeFix_Face fix(mt.Face());
+                    fix.FixOrientation();
+                    fix.Perform();
+                    bb.Add(shell, fix.Face());
+                    ++added;
+                }
+            }
         }
         if (added == 0) fail("there are no faces");
-        sew.Perform();
-        TopoDS_Shape sewn = sew.SewedShape();
-        TopoDS_Shell shell;
-        int shells = 0;
-        for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) { shell = TopoDS::Shell(ex.Current()); ++shells; }
-        if (shells != 1) fail("the faces do not close into one shell");
-        ShapeFix_Solid fs;
-        TopoDS_Solid solid = fs.SolidFromShell(shell);
+        ShapeFix_Shell fs(shell);
+        fs.FixFaceOrientation(shell);
+        fs.Perform();
+        TopoDS_Shell fixed = fs.Shell();
+        ShapeFix_Solid fsol;
+        TopoDS_Solid solid = fsol.SolidFromShell(fixed);
         GProp_GProps props;
         BRepGProp::VolumeProperties(solid, props);
         if (props.Mass() < 0) solid.Reverse();

@@ -11,10 +11,15 @@ use crate::{cross, dot, len, mul, sub, unit, TriMesh, V3};
 pub struct Polyfaces {
     pub points: Vec<V3>,
     pub faces: Vec<Vec<Vec<u32>>>,
+    /// For every face: the triangles it is made of (vertex indices), used instead of the face when its outline is not flat enough to make it. Empty when the group made
+    /// more than one face.
+    pub fallback: Vec<Vec<[u32; 3]>>,
     /// The triangles of every face (for the statistics).
     pub triangles: Vec<u32>,
     /// The largest distance of a vertex from the plane of its face (millimetres).
     pub max_deviation: f64,
+    /// For every point: how far it is from the plane of the faces it belongs to (at least 1e-6): the tolerance the point needs to lie on them.
+    pub point_tolerance: Vec<f64>,
     /// How many faces are single triangles (nothing flat was found round them: a round surface, a scan).
     pub single: usize,
     /// How many faces are bigger groups of triangles.
@@ -127,6 +132,7 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
     });
     groups.extend(exploded);
     // triangles of no area are left out (they close nothing)
+    out.point_tolerance = vec![1e-6; points.len()];
     let mut single_area = 0.0;
     for g in &groups {
         if g.len() == 1 {
@@ -166,13 +172,23 @@ pub fn polyfaces(m: &TriMesh, tolerance: f64, round: bool, merge_from: usize, st
                 }
             }
             let mean = mul(mean, 1.0 / vs.len() as f64);
+            let mut face_dev: f64 = 0.0;
             for v in &vs {
-                out.max_deviation = out.max_deviation.max(dot(nrm, sub(points[*v as usize], mean)).abs());
+                face_dev = face_dev.max(dot(nrm, sub(points[*v as usize], mean)).abs());
+            }
+            out.max_deviation = out.max_deviation.max(face_dev);
+            let need = face_dev * 1.5 + 1e-6;
+            for u in &vs {
+                let slot = &mut out.point_tolerance[*u as usize];
+                *slot = slot.max(need);
             }
         }
-        for outline in split_outlines(loops, &points, nrm) {
+        let outlines = split_outlines(loops, &points, nrm);
+        let one = outlines.len() == 1;
+        for outline in outlines {
             out.faces.push(outline);
             out.triangles.push(g.len() as u32);
+            out.fallback.push(if one && g.len() > 1 { g.iter().map(|t| m.triangles[*t as usize]).collect() } else { Vec::new() });
         }
     }
     out.points = points;

@@ -42,7 +42,7 @@ OpResult transform_shape(const Shape& shape, std::array<double, 3> pivot, std::a
 std::shared_ptr<Shape> compound_append(const Shape& acc, const Shape& s, bool first);
 OpResult mirror_shape(const Shape& shape, std::array<double, 3> point, std::array<double, 3> normal);
 OpResult scale_shape(const Shape& shape, std::array<double, 3> centre, std::array<double, 3> f);
-std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::Slice<const uint32_t> loop_vertices, rust::Slice<const uint32_t> loop_offsets, rust::Slice<const uint32_t> face_offsets, double tol);
+std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::Slice<const uint32_t> loop_vertices, rust::Slice<const uint32_t> loop_offsets, rust::Slice<const uint32_t> face_offsets, rust::Slice<const double> point_tol, rust::Slice<const uint32_t> fallback_vertices, rust::Slice<const uint32_t> fallback_offsets, double tol);
 uint32_t solid_count(const Shape& shape);
 bool point_in_solid(const Shape& shape, std::array<double, 3> p);
 bool point_outside(const Shape& sh, std::array<double, 3> p);

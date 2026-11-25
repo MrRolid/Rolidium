@@ -3158,8 +3158,29 @@ impl Job {
                     return Err(KernelError::Invalid("the accuracy of the conversion must be between 0.0001 and 5 mm".into()).into());
                 }
                 let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
-                let mesh = st.meshes[mp].mesh.clone();
+                let mut mesh = st.meshes[mp].mesh.clone();
                 let stop = || rolidium_kernel::cancel_requested();
+                let mut report = rolidium_mesh::check::check(&mesh);
+                if report.open_edges > 0 || report.inconsistent_edges > 0 {
+                    // a mesh with loose joints or turned triangles is mended on a copy (the mesh itself is not changed)
+                    let mut fixed = (*mesh).clone();
+                    let tol = rolidium_mesh::check::merge_tolerance(&fixed);
+                    rolidium_mesh::check::merge_vertices(&mut fixed, tol);
+                    rolidium_mesh::check::orient_normals(&mut fixed);
+                    let r2 = rolidium_mesh::check::check(&fixed);
+                    if r2.open_edges > 0 || r2.inconsistent_edges > 0 {
+                        return Err(KernelError::Invalid("The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first".into()).into());
+                    }
+                    mesh = Arc::new(fixed);
+                    report = r2;
+                }
+                if report.non_manifold_edges > 0 {
+                    return Err(KernelError::Invalid(format!(
+                        "The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh",
+                        report.non_manifold_edges
+                    ))
+                    .into());
+                }
                 // flat groups of any size are faces; when the solid cannot be made so (a group that is not flat enough, a pinched outline) the small groups are taken
                 // apart, and at the last every triangle is a face: a triangle is always flat
                 let mut made = None;
@@ -3167,13 +3188,18 @@ impl Job {
                 for merge_from in [2usize, 4, usize::MAX] {
                     let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop).ok_or(KernelError::Cancelled)?;
                     let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
-                    match Solid::from_polygons(&points, &pf.faces, *tolerance) {
+                    match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {
                         Ok(s) => {
                             made = Some((s, pf));
                             break;
                         }
                         Err(KernelError::Cancelled) => return Err(KernelError::Cancelled.into()),
-                        Err(e) => failure = e.to_string(),
+                        Err(e) => {
+                            if std::env::var_os("ROLIDIUM_DEBUG_CONVERT").is_some() {
+                                eprintln!("convert: merge from {merge_from} failed: {e} ({} faces)", pf.faces.len());
+                            }
+                            failure = e.to_string()
+                        }
                     }
                 }
                 let Some((solid, pf)) = made else {

@@ -108,6 +108,9 @@ pub mod ffi {
             loop_vertices: &[u32],
             loop_offsets: &[u32],
             face_offsets: &[u32],
+            point_tol: &[f64],
+            fallback_vertices: &[u32],
+            fallback_offsets: &[u32],
             tol: f64,
         ) -> Result<SharedPtr<Shape>>;
         fn prism(shape: &Shape, v: [f64; 3]) -> Result<SharedPtr<Shape>>;
