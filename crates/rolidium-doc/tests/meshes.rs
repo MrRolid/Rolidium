@@ -75,6 +75,7 @@ fn pull_a_wall_and_change_a_hole_then_undo_without_copying() {
         body: id,
         wall: Arc::new(top),
         distance: 5.0,
+        tilt: false,
     })
     .unwrap();
     let after = d.mesh(id).unwrap().mesh.clone();
@@ -121,6 +122,7 @@ fn a_refused_edit_leaves_the_mesh_as_it_was() {
         body: id,
         wall: Arc::new(plane),
         distance: 100.0,
+        tilt: false,
     });
     assert!(r.is_err());
     assert!(Arc::ptr_eq(&d.mesh(id).unwrap().mesh, &before));
@@ -249,6 +251,7 @@ fn the_walls_and_holes_after_a_pull_and_a_hole_edit_need_no_new_search() {
         body: id,
         wall: Arc::new(top),
         distance: 5.0,
+        tilt: false,
     })
     .unwrap();
     let m1 = d.mesh(id).unwrap().mesh.clone();

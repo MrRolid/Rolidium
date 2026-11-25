@@ -299,6 +299,61 @@ pub fn orient_normals(m: &mut TriMesh) -> usize {
     turned
 }
 
+/// What the check found and what the two repairs would do about it (found by trying them on a copy), so that a program can offer exactly the repairs
+/// that help and say in plain words what they do.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Analysis {
+    pub report: Report,
+    /// Vertices that lie on each other without being one (loose joints): what "merge" would join.
+    pub loose_joints: usize,
+    /// Triangles that face inwards (after the joints are joined): what "orient" would turn.
+    pub inward: usize,
+    /// The check after the joints are joined (the open edges that are left are real holes).
+    pub after_merge: Report,
+}
+
+impl Analysis {
+    /// Nothing is wrong that a slicer or a printer would mind.
+    pub fn is_clean(&self) -> bool {
+        self.report.is_clean()
+    }
+}
+
+/// The tolerance within which two vertices count as one (the same as the repair uses).
+pub fn merge_tolerance(m: &TriMesh) -> f64 {
+    let size = m
+        .bounding_box()
+        .map(|(lo, hi)| crate::len(crate::sub(hi, lo)))
+        .unwrap_or(0.0);
+    (size * 1e-6).max(1e-6)
+}
+
+/// The check and a trial of the repairs.
+pub fn analyse(m: &TriMesh) -> Analysis {
+    let report = check(m);
+    if report.is_clean() {
+        return Analysis {
+            after_merge: report.clone(),
+            report,
+            ..Default::default()
+        };
+    }
+    let mut c = m.clone();
+    let loose_joints = merge_vertices(&mut c, merge_tolerance(m));
+    let after_merge = if loose_joints > 0 {
+        check(&c)
+    } else {
+        report.clone()
+    };
+    let inward = orient_normals(&mut c);
+    Analysis {
+        report,
+        loose_joints,
+        inward,
+        after_merge,
+    }
+}
+
 /// The centre of the box and its size: a one-line summary for the import dialog.
 pub fn size_text(m: &TriMesh) -> String {
     match m.bounding_box() {

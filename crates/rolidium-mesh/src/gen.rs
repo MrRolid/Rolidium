@@ -165,3 +165,47 @@ pub fn sphere(r: f64, triangles: usize) -> TriMesh {
     }
     m
 }
+
+/// A closed cylinder of radius `r` and height `h` standing on z = 0, its side made of `facets` flat strips (two triangles each) and its ends of fans.
+pub fn cylinder(r: f64, h: f64, facets: usize) -> TriMesh {
+    let mut m = TriMesh::default();
+    for k in 0..facets {
+        let a = TAU * k as f64 / facets as f64;
+        m.positions
+            .push([(r * a.cos()) as f32, (r * a.sin()) as f32, 0.0]);
+        m.positions
+            .push([(r * a.cos()) as f32, (r * a.sin()) as f32, h as f32]);
+    }
+    m.positions.push([0.0, 0.0, 0.0]);
+    m.positions.push([0.0, 0.0, h as f32]);
+    let (bottom, top) = ((2 * facets) as u32, (2 * facets + 1) as u32);
+    for k in 0..facets {
+        let (k2, k3) = (k as u32 * 2, ((k + 1) % facets) as u32 * 2);
+        m.triangles.push([k2, k3, k3 + 1]);
+        m.triangles.push([k2, k3 + 1, k2 + 1]);
+        m.triangles.push([bottom, k3, k2]);
+        m.triangles.push([top, k2 + 1, k3 + 1]);
+    }
+    m
+}
+
+/// A block with a square foot of `bottom` mm and a square top of `top` mm, `h` high, standing on z = 0 with its middle on the z axis: its four sides slant.
+pub fn frustum(bottom: f32, top: f32, h: f32) -> TriMesh {
+    let mut m = box_mesh(bottom, bottom, h, 1);
+    let shift = (bottom - top) / 2.0;
+    for p in &mut m.positions {
+        if p[2] > h / 2.0 {
+            p[0] = if p[0] < bottom / 2.0 {
+                shift
+            } else {
+                bottom - shift
+            };
+            p[1] = if p[1] < bottom / 2.0 {
+                shift
+            } else {
+                bottom - shift
+            };
+        }
+    }
+    m
+}

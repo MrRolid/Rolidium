@@ -428,6 +428,8 @@ pub enum Command {
         body: BodyId,
         wall: Arc<rolidium_mesh::regions::Plane>,
         distance: f64,
+        /// The walls next to it need not be square to it: they slant (the mesh must not cut through itself).
+        tilt: bool,
     },
     /// Sets the diameter of a round hole or pin of a mesh.
     MeshHole {
@@ -3039,14 +3041,21 @@ impl Job {
                 c.touched_body = first;
                 Ok(c)
             }
-            Command::MeshPull { body, wall, distance } => {
+            Command::MeshPull {
+                body,
+                wall,
+                distance,
+                tilt,
+            } => {
                 let mp = st
                     .meshes
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let m = Arc::new(meshes::pull(&st.meshes[mp], wall, *distance)?);
-                if let Some(first) = wall.triangles.first() {
+                let (m, touched) = meshes::pull(&st.meshes[mp], wall, *distance, *tilt)?;
+                let m = Arc::new(m);
+                // slanting neighbours are no longer the planes they were: the walls are looked for again
+                if let (Some(first), false) = (wall.triangles.first(), *tilt) {
                     meshes::carry_regions(
                         &st.meshes[mp].mesh,
                         &m,
@@ -3054,6 +3063,7 @@ impl Job {
                             first_triangle: *first,
                             normal: wall.normal,
                             distance: *distance,
+                            touched,
                         },
                     );
                 }

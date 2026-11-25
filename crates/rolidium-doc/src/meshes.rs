@@ -5,6 +5,7 @@
 //! copies the mesh once (the vertices are moved in the copy) and the snapshot before it stays as it was.
 
 use crate::BodyId;
+pub(crate) use rolidium_mesh::regions::CYL_FLAG;
 use rolidium_mesh::regions::{Cylinder, Plane};
 use rolidium_mesh::TriMesh;
 use std::sync::Arc;
@@ -41,11 +42,18 @@ pub struct RepairKind {
     pub orient: bool,
 }
 
-/// Moves a planar wall of a mesh body by `distance` along its normal.
-pub(crate) fn pull(b: &MeshBody, wall: &Plane, distance: f64) -> Result<TriMesh, crate::DocError> {
+/// Moves a planar wall of a mesh body by `distance` along its normal; with `tilt` the walls next to it may slant. Gives the mesh and the triangles next to the wall
+/// that were stretched.
+pub(crate) fn pull(
+    b: &MeshBody,
+    wall: &Plane,
+    distance: f64,
+    tilt: bool,
+) -> Result<(TriMesh, Vec<u32>), crate::DocError> {
     let mut m = (*b.mesh).clone();
-    rolidium_mesh::edit::pull_plane_with(&mut m, wall, distance, !b.verified).map_err(invalid)?;
-    Ok(m)
+    let plan = rolidium_mesh::edit::PullPlan::new(&m, wall);
+    rolidium_mesh::edit::pull_plane_opts(&mut m, wall, distance, !b.verified, tilt).map_err(invalid)?;
+    Ok((m, plan.outside))
 }
 
 /// Sets the diameter of a round hole or pin of a mesh body.
@@ -108,6 +116,7 @@ pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Chan
             first_triangle,
             normal,
             distance,
+            ref touched,
         } => {
             let Some(p) = r.planes.iter_mut().find(|p| {
                 p.triangles.first() == Some(&first_triangle) && rolidium_mesh::dot(p.normal, normal) > 0.999
@@ -115,6 +124,43 @@ pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Chan
                 return;
             };
             p.offset += distance;
+            // the regions next to the wall stretched: their areas (and the extent of a round surface along the wall's direction) are made again
+            let mut planes: Vec<usize> = Vec::new();
+            let mut cyls: Vec<usize> = Vec::new();
+            for t in touched {
+                match r.of_triangle.get(*t as usize).copied().unwrap_or(0) {
+                    0 => {}
+                    x if x >= crate::meshes::CYL_FLAG => {
+                        cyls.push((x - crate::meshes::CYL_FLAG) as usize - 1)
+                    }
+                    x => planes.push(x as usize - 1),
+                }
+            }
+            planes.sort_unstable();
+            planes.dedup();
+            cyls.sort_unstable();
+            cyls.dedup();
+            for i in planes {
+                r.planes[i].area = r.planes[i]
+                    .triangles
+                    .iter()
+                    .map(|t| new.normal_area(*t as usize).1)
+                    .sum();
+            }
+            for i in cyls {
+                let c = &mut r.cylinders[i];
+                let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+                for t in &c.triangles {
+                    for v in new.corners(*t as usize) {
+                        let z = rolidium_mesh::dot(v, c.axis);
+                        lo = lo.min(z);
+                        hi = hi.max(z);
+                    }
+                }
+                c.z_range = (lo, hi);
+            }
+            crate::display::keep_regions(new, Arc::new(r));
+            return;
         }
         Change::Hole {
             first_triangle,
@@ -130,19 +176,18 @@ pub(crate) fn carry_regions(old: &Arc<TriMesh>, new: &Arc<TriMesh>, change: Chan
             c.radius = diameter / 2.0;
         }
     }
-    for p in &mut r.planes {
-        p.area = p.triangles.iter().map(|t| new.normal_area(*t as usize).1).sum();
-    }
     crate::display::keep_regions(new, Arc::new(r));
 }
 
 /// What an edit changed in the regions.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum Change {
     Wall {
         first_triangle: u32,
         normal: [f64; 3],
         distance: f64,
+        /// The triangles next to the wall that were stretched.
+        touched: Vec<u32>,
     },
     Hole {
         first_triangle: u32,

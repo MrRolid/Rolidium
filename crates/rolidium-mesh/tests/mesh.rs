@@ -344,3 +344,116 @@ fn vertices_that_lie_across_the_border_of_a_cell_are_still_merged() {
         assert!(check::check(&m).is_clean());
     }
 }
+
+#[test]
+fn the_facets_of_a_coarse_cylinder_are_one_round_surface() {
+    use rolidium_mesh::{gen, regions};
+    for facets in [8usize, 10, 16, 24, 48, 90] {
+        let m = gen::cylinder(15.0, 40.0, facets);
+        let r = regions::find(&m, 3.0, 4);
+        assert_eq!(
+            r.cylinders.len(),
+            1,
+            "{facets} facets: one cylinder, planes {}",
+            r.planes.len()
+        );
+        let c = &r.cylinders[0];
+        assert!(!c.is_hole, "{facets}");
+        assert!((c.radius - 15.0).abs() < 0.05, "{facets}: radius {}", c.radius);
+        assert!(c.axis[2].abs() > 0.999, "{facets}: axis {:?}", c.axis);
+        assert!(c.arc > 6.0, "{facets}: goes all the way round");
+        assert_eq!(r.planes.len(), 2, "{facets}: only the two ends are flat walls");
+        assert!(r.planes.iter().all(|p| p.normal[2].abs() > 0.99));
+    }
+}
+
+#[test]
+fn a_coarse_hole_is_a_hole_and_a_box_with_a_chamfer_has_no_cylinder() {
+    use rolidium_mesh::{gen, regions};
+    for seg in [12usize, 16, 24] {
+        let m = gen::plate_with_hole(40.0, 30.0, 6.0, 5.0, seg);
+        let r = regions::find(&m, 3.0, 4);
+        assert_eq!(r.cylinders.len(), 1, "seg {seg}");
+        assert!(r.cylinders[0].is_hole);
+        assert!((r.cylinders[0].radius - 5.0).abs() < 0.05);
+    }
+    let b = gen::box_mesh(40.0, 30.0, 10.0, 1);
+    assert!(regions::find(&b, 3.0, 4).cylinders.is_empty());
+}
+
+#[test]
+fn a_coarse_cylinder_changes_its_diameter_and_its_end_is_pulled_along_the_axis() {
+    use rolidium_mesh::{check, edit, gen, regions};
+    let mut m = gen::cylinder(15.0, 40.0, 16);
+    let r = regions::find(&m, 3.0, 4);
+    let c = &r.cylinders[0];
+    edit::set_diameter(&mut m, c, 40.0).unwrap();
+    let r2 = regions::find(&m, 3.0, 4);
+    assert_eq!(r2.cylinders.len(), 1);
+    assert!((r2.cylinders[0].radius - 20.0).abs() < 0.05);
+    let top = r2.planes.iter().find(|p| p.normal[2] > 0.99).unwrap();
+    edit::pull_plane(&mut m, top, 10.0).unwrap();
+    let r3 = regions::find(&m, 3.0, 4);
+    assert!((r3.cylinders[0].z_range.1 - r3.cylinders[0].z_range.0 - 50.0).abs() < 0.05);
+    assert!(check::check(&m).is_clean());
+}
+
+#[test]
+fn a_wall_with_slanting_neighbours_can_be_pulled_when_the_neighbours_may_tilt() {
+    use rolidium_mesh::edit::{pull_plane_opts, EditError, PullPlan};
+    use rolidium_mesh::{check, gen, regions};
+    let mut m = gen::frustum(40.0, 20.0, 20.0);
+    assert!(check::check(&m).is_clean());
+    let r = regions::find(&m, 3.0, 2);
+    let top = r.planes.iter().find(|p| p.normal[2] > 0.99).unwrap();
+    let plan = PullPlan::new(&m, top);
+    assert!(!plan.neighbours_square(top));
+    assert_eq!(
+        plan.check(&m, top, 10.0, false),
+        Err(EditError::NeighbourNotSquare)
+    );
+    assert_eq!(plan.check(&m, top, 10.0, true), Ok(()));
+    assert_eq!(plan.check(&m, top, -100.0, true), Err(EditError::Collapses));
+    let before = m.clone();
+    assert_eq!(
+        pull_plane_opts(&mut m, top, 10.0, true, false).unwrap_err(),
+        EditError::NeighbourNotSquare
+    );
+    assert_eq!(m, before, "a refused pull changes nothing");
+    let undo = pull_plane_opts(&mut m, top, 10.0, true, true).unwrap();
+    let (lo, hi) = m.bounding_box().unwrap();
+    assert!((hi[2] - lo[2] - 30.0).abs() < 1e-4);
+    assert!(check::check(&m).is_clean());
+    undo.apply(&mut m);
+    assert_eq!(m, before);
+}
+
+#[test]
+fn a_pull_that_would_push_the_mesh_through_another_part_is_refused() {
+    use rolidium_mesh::edit::{EditError, PullPlan};
+    use rolidium_mesh::{gen, regions};
+    let mut m = gen::frustum(40.0, 20.0, 20.0);
+    // a block floating 5 mm above the top, in the same mesh
+    let mut b = gen::box_mesh(10.0, 10.0, 10.0, 1);
+    for p in &mut b.positions {
+        p[0] += 15.0;
+        p[1] += 15.0;
+        p[2] += 25.0;
+    }
+    let base = m.positions.len() as u32;
+    m.positions.extend(b.positions);
+    m.triangles.extend(
+        b.triangles
+            .iter()
+            .map(|t| [t[0] + base, t[1] + base, t[2] + base]),
+    );
+    let r = regions::find(&m, 3.0, 2);
+    let top = r
+        .planes
+        .iter()
+        .find(|p| p.normal[2] > 0.99 && p.offset < 21.0)
+        .unwrap();
+    let plan = PullPlan::new(&m, top);
+    assert_eq!(plan.check(&m, top, 3.0, true), Ok(()));
+    assert_eq!(plan.check(&m, top, 8.0, true), Err(EditError::SelfIntersects));
+}

@@ -81,6 +81,8 @@ pub struct MeshUi {
     /// The scale factors typed for the selected mesh, and whether they are one factor.
     pub scale: [String; 3],
     pub uniform: bool,
+    /// "Move it anyway, the neighbouring walls slant": the choice for the pull of a wall of a mesh.
+    pub tilt: bool,
     /// The check of a mesh (the mesh it was made for, kept so that the address stays its own) and the check that is running.
     pub report: Option<(Arc<TriMesh>, check::Report)>,
     checking: Option<(Arc<TriMesh>, mpsc::Receiver<check::Report>)>,
@@ -771,6 +773,7 @@ impl App {
                         body: *body,
                         wall,
                         distance: mode.apply(*distance),
+                        tilt: self.mesh_ui.tilt,
                     }),
                     MeshRegion::Hole(_) => Err(tr("Only a flat wall of a mesh can be pulled")),
                 }
