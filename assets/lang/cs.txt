@@ -1110,3 +1110,11 @@ A neighbouring wall is not square to this wall (a slope or a bevel), so it canno
 The move would make the mesh cut through itself => Posunem by se síť protnula sama sebou
 Reads one or more STL or 3MF files (triangle meshes, as made for 3D printing) into the document as meshes; every object of a 3MF file is a mesh of its own. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale; a 3MF file brings its own unit) and says in plain words what the check of each mesh found, with a button only for a problem it can repair. You can also drop the files into the window. => Načte jeden nebo více souborů STL či 3MF (trojúhelníkové sítě, jaké se dělají pro 3D tisk) do dokumentu jako sítě; každý objekt souboru 3MF je samostatná síť. Dialog ukáže rozměr, nechá zvolit jednotky (milimetry, palce nebo vlastní měřítko; soubor 3MF si nese vlastní jednotku) a srozumitelně řekne, co kontrola každé sítě našla, a tlačítko nabídne jen u problému, který umí opravit. Soubory můžete také přetáhnout do okna.
 A mesh is not a solid: you can pull its flat walls (also when the neighbouring walls slope, if you allow it), change the diameter of its holes and round surfaces, move, turn, mirror, scale and copy it, and change its size by clicking one of the three sizes shown round it. => Síť není těleso: můžete tahat její rovné stěny (i když jsou sousední stěny šikmé, pokud to dovolíte), měnit průměr děr a válcových ploch, posouvat ji, otáčet, zrcadlit, měnit měřítko a kopírovat, a změnit její rozměr kliknutím na jeden ze tří rozměrů, které se kolem ní zobrazí.
+The wall can be moved {} mm {} at most => Stěnu lze posunout nejvýš o {} mm {}
+The wall cannot be moved in this direction at all => Stěnu v tomto směru nelze posunout vůbec
+up => nahoru
+down => dolů
+towards +X => směrem k +X
+towards -X => směrem k -X
+towards +Y => směrem k +Y
+towards -Y => směrem k -Y

@@ -770,6 +770,18 @@ impl App {
             Command::MeshRepair { body, .. } | Command::MeshScale { body, .. } => Some(*body),
             _ => None,
         };
+        // a wall of a mesh: every way to pull it (the mouse, a number, Up to, the distance to the opposite wall) goes through the same check, with the same reason
+        if let Command::PullFace { body, face, distance, mode } = &command {
+            if self.doc.mesh(*body).is_some() {
+                if let Some(text) = self.mesh_pull_refusal(*body, face.0, mode.apply(*distance)) {
+                    self.mesh_ui.keep_face = None;
+                    self.mesh_ui.keep_body = None;
+                    self.set_status(text, true);
+                    self.refused_at = Some(Instant::now());
+                    return;
+                }
+            }
+        }
         let command = match self.mesh_translate(command) {
             Ok(c) => c,
             Err(why) => {
@@ -1351,17 +1363,19 @@ impl App {
                 (1.0 - (c.y / c.w * 0.5 + 0.5)) * rect.height(),
             ))
         };
-        let len = 10.0;
-        let axis = match (to_px(centre), to_px(centre + normal * len)) {
-            (Some(a), Some(b)) => (b - a) / len,
-            _ => Vec2::ZERO,
-        };
         let fallback = rect.height() / (2.0 * self.camera.distance * (self.camera.fov_y * 0.5).tan());
-        if axis.length() * len > 8.0 {
-            (axis.normalized(), axis.length())
-        } else {
-            (Vec2::new(0.0, -1.0), fallback)
+        // the direction of the axis on the screen: from a short piece of it, and when that is a point (the axis points at the viewer) from a longer one, so
+        // that the pointer never goes the other way than the arrow drawn on the screen
+        for len in [10.0, self.camera.distance * 0.2, self.camera.distance * 0.6] {
+            let axis = match (to_px(centre), to_px(centre + normal * len)) {
+                (Some(a), Some(b)) => (b - a) / len,
+                _ => Vec2::ZERO,
+            };
+            if axis.length() * len > 8.0 {
+                return (axis.normalized(), axis.length());
+            }
         }
+        (Vec2::new(0.0, -1.0), fallback)
     }
 
     fn begin_pull(&mut self, kind: PullKind, pointer: Pos2, rect: Rect) -> bool {
@@ -1484,9 +1498,10 @@ impl App {
     fn commit_pull(&mut self) {
         let Some(p) = self.pull.take() else { return };
         let d = p.distance() as f64;
-        if let (Some(why), PullKind::Face { .. }) = (self.mesh_ui.blocked.take(), p.kind) {
+        if let (Some(why), PullKind::Face { body, face }) = (self.mesh_ui.blocked.take(), p.kind) {
             self.clear_preview();
-            self.set_status(why.to_string(), true);
+            let text = self.mesh_pull_refusal(body, face, self.effective_distance(p.kind, p.distance()) as f64).unwrap_or_else(|| tr(&why.to_string()));
+            self.set_status(text, true);
             return;
         }
         self.clear_preview();
@@ -5010,7 +5025,8 @@ impl eframe::App for App {
                                             ));
                                         }
                                         // a hole, a pin or a round face of a body: the diameter for information (a hole or pin is changed in the panel next to it)
-                                        if let Some(d) = meta.cyl_diameter.or(meta.disc.map(|(_, d)| d)) {
+                                        // (the diameter of a round face itself is among the properties below)
+                                        if let (None, Some((_, d))) = (meta.cyl_diameter, meta.disc) {
                                             ui.label(trf("Diameter: {} mm", &[fmt_num(d)]));
                                         }
                                         if meta.kind == FaceKind::Plane {

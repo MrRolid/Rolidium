@@ -512,6 +512,12 @@ mod coverage {
         "The mesh would cut through itself",
         "The mesh has holes or turned triangles: check and repair it first",
         "This wall cannot be pulled",
+        "up",
+        "down",
+        "towards +X",
+        "towards -X",
+        "towards +Y",
+        "towards -Y",
     ];
 
     fn all_keys() -> Vec<String> {

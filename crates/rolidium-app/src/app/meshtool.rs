@@ -997,6 +997,42 @@ impl App {
             .err()
     }
 
+    /// The sentence that says why a wall of a mesh cannot be moved by `distance`, with how far it can be moved in that direction: the same check for the mouse, a
+    /// typed number, "Up to" and the distance to the opposite wall. `None` when it can be done.
+    pub(super) fn mesh_pull_refusal(&mut self, body: BodyId, face: u32, distance: f64) -> Option<String> {
+        use rolidium_mesh::edit::EditError;
+        let e = self.mesh_pull_check(body, face, distance)?;
+        let mut text = tr(&e.to_string());
+        if matches!(e, EditError::Collapses | EditError::SelfIntersects) {
+            let tilt = self.mesh_ui.tilt;
+            if let Some(c) = self.mesh_ui.plan.as_ref() {
+                let wall = &c.regions.planes[face as usize - 1];
+                let most = c.plan.max_distance(&c.mesh, wall, distance, tilt);
+                let n = wall.normal;
+                let dir = [n[0], n[1], n[2]].map(|v| v * distance.signum());
+                let word = if dir[2].abs() >= dir[0].abs().max(dir[1].abs()) {
+                    if dir[2] > 0.0 { "up" } else { "down" }
+                } else if dir[0].abs() >= dir[1].abs() {
+                    if dir[0] > 0.0 { "towards +X" } else { "towards -X" }
+                } else if dir[1] > 0.0 {
+                    "towards +Y"
+                } else {
+                    "towards -Y"
+                };
+                text.push(' ');
+                if most < 0.01 {
+                    text.push_str(&tr("The wall cannot be moved in this direction at all"));
+                } else {
+                    text.push_str(&trf(
+                        "The wall can be moved {} mm {} at most",
+                        &[fmt_len(most), tr(word)],
+                    ));
+                }
+            }
+        }
+        Some(text)
+    }
+
     /// What a round surface of a mesh is called: a hole, a pin (the whole way round) or a part of a cylinder (a rounded edge).
     pub(super) fn mesh_round_kind(&self, body: BodyId, face: u32) -> &'static str {
         match self.mesh_region(body, face) {

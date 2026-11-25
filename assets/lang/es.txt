@@ -1110,3 +1110,11 @@ A neighbouring wall is not square to this wall (a slope or a bevel), so it canno
 The move would make the mesh cut through itself => Con el movimiento la malla se cortaría a sí misma
 Reads one or more STL or 3MF files (triangle meshes, as made for 3D printing) into the document as meshes; every object of a 3MF file is a mesh of its own. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale; a 3MF file brings its own unit) and says in plain words what the check of each mesh found, with a button only for a problem it can repair. You can also drop the files into the window. => Lee uno o varios archivos STL o 3MF (mallas de triángulos, como las que se hacen para la impresión 3D) en el documento como mallas; cada objeto de un archivo 3MF es una malla propia. Un diálogo muestra el tamaño, permite elegir las unidades (milímetros, pulgadas o una escala propia; un archivo 3MF trae su propia unidad) y dice con palabras claras lo que encontró la comprobación de cada malla, con un botón solo para un problema que se puede reparar. También puede soltar los archivos en la ventana.
 A mesh is not a solid: you can pull its flat walls (also when the neighbouring walls slope, if you allow it), change the diameter of its holes and round surfaces, move, turn, mirror, scale and copy it, and change its size by clicking one of the three sizes shown round it. => Una malla no es un sólido: puede tirar de sus paredes planas (también con paredes vecinas inclinadas, si lo permite), cambiar el diámetro de sus agujeros y superficies redondas, moverla, girarla, reflejarla, escalarla y copiarla, y cambiar su tamaño haciendo clic en una de las tres medidas que se muestran a su alrededor.
+The wall can be moved {} mm {} at most => La pared se puede mover como máximo {} mm {}
+The wall cannot be moved in this direction at all => La pared no se puede mover en esta dirección
+up => hacia arriba
+down => hacia abajo
+towards +X => hacia +X
+towards -X => hacia -X
+towards +Y => hacia +Y
+towards -Y => hacia -Y

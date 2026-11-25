@@ -292,6 +292,46 @@ def frustum_triangles(bottom, top, h, ox=0.0, oy=0.0, oz=0.0, n=2):
     return [tuple(mv(p) for p in tri) for tri in box_triangles(bottom, bottom, h, n=n)]
 
 
+def quad_triangles(p0, p1, p2, p3, outward, n=2):
+    """The quad p0 p1 p2 p3 divided n x n (bilinear), its triangles turned so that they look the way `outward` says."""
+    def at(i, j):
+        u, v = i / n, j / n
+        return tuple((1 - u) * (1 - v) * p0[k] + u * (1 - v) * p1[k] + u * v * p2[k] + (1 - u) * v * p3[k] for k in range(3))
+    out = []
+    for i in range(n):
+        for j in range(n):
+            a, b, c, d = at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1)
+            for t in ((a, b, c), (a, c, d)):
+                u = [t[1][k] - t[0][k] for k in range(3)]
+                w = [t[2][k] - t[0][k] for k in range(3)]
+                nrm = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
+                out.append(t if sum(nrm[k] * outward[k] for k in range(3)) > 0 else (t[0], t[2], t[1]))
+    return out
+
+
+def tray_triangles(ox=0.0, oy=0.0, floor=1.0, w=40.0, d=30.0, h=20.0, wall=5.0):
+    """An open tray (a box with a cavity open at the top), the floor `floor` thick, the walls `wall` thick; closed, every wall divided 2 x 2, normals out of the material."""
+    def P(x, y, z):
+        return (x + ox, y + oy, z)
+    iw, id_ = w - wall, d - wall
+    t = []
+    t += quad_triangles(P(0, 0, 0), P(w, 0, 0), P(w, d, 0), P(0, d, 0), (0, 0, -1))                     # the outer bottom
+    t += quad_triangles(P(0, 0, 0), P(w, 0, 0), P(w, 0, h), P(0, 0, h), (0, -1, 0))                     # outer walls
+    t += quad_triangles(P(0, d, 0), P(w, d, 0), P(w, d, h), P(0, d, h), (0, 1, 0))
+    t += quad_triangles(P(0, 0, 0), P(0, d, 0), P(0, d, h), P(0, 0, h), (-1, 0, 0))
+    t += quad_triangles(P(w, 0, 0), P(w, d, 0), P(w, d, h), P(w, 0, h), (1, 0, 0))
+    t += quad_triangles(P(0, 0, h), P(w, 0, h), P(iw, wall, h), P(wall, wall, h), (0, 0, 1))              # the rim
+    t += quad_triangles(P(w, 0, h), P(w, d, h), P(iw, id_, h), P(iw, wall, h), (0, 0, 1))
+    t += quad_triangles(P(w, d, h), P(0, d, h), P(wall, id_, h), P(iw, id_, h), (0, 0, 1))
+    t += quad_triangles(P(0, d, h), P(0, 0, h), P(wall, wall, h), P(wall, id_, h), (0, 0, 1))
+    t += quad_triangles(P(wall, wall, floor), P(iw, wall, floor), P(iw, id_, floor), P(wall, id_, floor), (0, 0, 1))  # the floor
+    t += quad_triangles(P(wall, wall, floor), P(iw, wall, floor), P(iw, wall, h), P(wall, wall, h), (0, 1, 0))      # the walls of the cavity (they look into it)
+    t += quad_triangles(P(wall, id_, floor), P(iw, id_, floor), P(iw, id_, h), P(wall, id_, h), (0, -1, 0))
+    t += quad_triangles(P(wall, wall, floor), P(wall, id_, floor), P(wall, id_, h), P(wall, wall, h), (1, 0, 0))
+    t += quad_triangles(P(iw, wall, floor), P(iw, id_, floor), P(iw, id_, h), P(iw, wall, h), (-1, 0, 0))
+    return t
+
+
 def import_dropped(*paths, units=None):
     """Drops the files into the window, lets the dialog of the import take them as they are and waits for the meshes."""
     n0 = len(probe()["meshes"])
@@ -356,6 +396,21 @@ def orbit(seconds, x=640, y=400, span=140):
     x11.XFlush(D)
     q = probe()
     return q["frame"] - f0, time.time() - t0
+
+
+def middle_drag(x0, y0, x1, y1, steps=24):
+    """Turns the view: the middle button goes down at (x0, y0), the pointer moves to (x1, y1) and the button is released."""
+    move(x0, y0)
+    time.sleep(0.2)
+    xtst.XTestFakeButtonEvent(D, 2, 1, 0)
+    x11.XFlush(D)
+    for i in range(1, steps + 1):
+        xtst.XTestFakeMotionEvent(D, 0, int(x0 + (x1 - x0) * i / steps), int(y0 + (y1 - y0) * i / steps), 0)
+        x11.XFlush(D)
+        time.sleep(0.02)
+    xtst.XTestFakeButtonEvent(D, 2, 0, 0)
+    x11.XFlush(D)
+    time.sleep(0.4)
 
 
 def big_mesh_perf(stl, label, edit=False, cancel=False):

@@ -259,6 +259,7 @@ fn mesh_body_entry_with(i: &MeshInput) -> (MeshEntry, Vec<u32>) {
                 meta.normal = dv(c.axis);
                 meta.origin = dv(c.point);
                 meta.cyl_diameter = Some(c.radius * 2.0);
+                meta.area = c.triangles.iter().map(|t| m.normal_area(*t as usize).1).sum();
             }
         }
         faces.push(meta);

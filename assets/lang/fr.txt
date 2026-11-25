@@ -1110,3 +1110,11 @@ A neighbouring wall is not square to this wall (a slope or a bevel), so it canno
 The move would make the mesh cut through itself => Le déplacement ferait que le maillage se recoupe lui-même
 Reads one or more STL or 3MF files (triangle meshes, as made for 3D printing) into the document as meshes; every object of a 3MF file is a mesh of its own. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale; a 3MF file brings its own unit) and says in plain words what the check of each mesh found, with a button only for a problem it can repair. You can also drop the files into the window. => Lit un ou plusieurs fichiers STL ou 3MF (maillages de triangles, comme on en fait pour l'impression 3D) dans le document sous forme de maillages ; chaque objet d'un fichier 3MF devient un maillage à part. Une boîte de dialogue montre la taille, permet de choisir les unités (millimètres, pouces ou une échelle personnelle ; un fichier 3MF apporte sa propre unité) et dit en termes clairs ce que la vérification de chaque maillage a trouvé, avec un bouton seulement pour un problème réparable. Vous pouvez aussi déposer les fichiers dans la fenêtre.
 A mesh is not a solid: you can pull its flat walls (also when the neighbouring walls slope, if you allow it), change the diameter of its holes and round surfaces, move, turn, mirror, scale and copy it, and change its size by clicking one of the three sizes shown round it. => Un maillage n'est pas un solide : vous pouvez tirer ses parois planes (même avec des parois voisines inclinées, si vous l'autorisez), changer le diamètre de ses trous et surfaces rondes, le déplacer, le tourner, le refléter, le mettre à l'échelle et le copier, et changer sa taille en cliquant sur l'une des trois tailles affichées autour de lui.
+The wall can be moved {} mm {} at most => La paroi peut être déplacée de {} mm {} au plus
+The wall cannot be moved in this direction at all => La paroi ne peut pas être déplacée dans cette direction
+up => vers le haut
+down => vers le bas
+towards +X => vers +X
+towards -X => vers -X
+towards +Y => vers +Y
+towards -Y => vers -Y

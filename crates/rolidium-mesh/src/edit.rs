@@ -175,10 +175,31 @@ impl PullPlan {
                 return Err(EditError::Collapses);
             }
         }
-        if tilt && self.intersects(m, wall, d) {
+        // whatever the neighbours are, the move must not push the mesh through another part of itself
+        if self.intersects(m, wall, d) {
             return Err(EditError::SelfIntersects);
         }
         Ok(())
+    }
+
+    /// The farthest the wall can be moved in the direction of the sign of `want` (0 when it cannot at all), found by halving; `want` itself is not allowed.
+    pub fn max_distance(&self, m: &TriMesh, wall: &Plane, want: f64, tilt: bool) -> f64 {
+        let (mut ok, mut bad) = (0.0f64, want.abs());
+        let sign = if want < 0.0 { -1.0 } else { 1.0 };
+        for _ in 0..14 {
+            let mid = (ok + bad) / 2.0;
+            if self.check(m, wall, sign * mid, tilt).is_ok() {
+                ok = mid;
+            } else {
+                bad = mid;
+            }
+        }
+        // rounded to a hundredth of a millimetre, and what is said can be done
+        let mut v = (ok * 100.0).round() / 100.0;
+        while v > 0.0 && self.check(m, wall, sign * v, tilt).is_err() {
+            v = ((v - 0.01) * 100.0).round() / 100.0;
+        }
+        v.max(0.0)
     }
 
     /// After the move, does a triangle that moved or stretched cut through one that did not?
@@ -188,111 +209,116 @@ impl PullPlan {
         for t in wall.triangles.iter().chain(&self.outside) {
             changed[*t as usize] = true;
         }
-        let moved = |v: u32| self.flag[v as usize];
         let pos = |v: u32| {
             let p = m.vertex(v);
-            if moved(v) {
+            if self.flag[v as usize] {
                 add(p, d)
             } else {
                 p
             }
         };
-        let after = |t: usize| {
-            let tri = m.triangles[t];
-            [pos(tri[0]), pos(tri[1]), pos(tri[2])]
-        };
-        let boxed = |c: &[V3; 3]| {
-            let mut lo = c[0];
-            let mut hi = c[0];
-            for p in c {
-                for i in 0..3 {
-                    lo[i] = lo[i].min(p[i]);
-                    hi[i] = hi[i].max(p[i]);
-                }
-            }
-            (lo, hi)
-        };
-        // the box the changed triangles occupy, before and after
-        let (mut lo, mut hi) = ([f64::MAX; 3], [f64::MIN; 3]);
-        for t in (0..n).filter(|t| changed[*t]) {
-            let before = m.corners(t);
-            for c in [before, after(t)] {
-                let (l, h) = boxed(&c);
-                for i in 0..3 {
-                    lo[i] = lo[i].min(l[i]);
-                    hi[i] = hi[i].max(h[i]);
-                }
-            }
-        }
-        // the triangles that stay and lie in that box, in a grid
-        let mut still: Vec<u32> = Vec::new();
-        for t in (0..n).filter(|t| !changed[*t]) {
-            let (l, h) = boxed(&m.corners(t));
-            if (0..3).all(|i| h[i] >= lo[i] && l[i] <= hi[i]) {
-                still.push(t as u32);
-            }
-        }
-        if still.is_empty() {
-            return false;
-        }
-        let side = ((still.len() as f64).cbrt().ceil() as usize).clamp(1, 64);
-        let ext = [
-            (hi[0] - lo[0]).max(1e-9),
-            (hi[1] - lo[1]).max(1e-9),
-            (hi[2] - lo[2]).max(1e-9),
-        ];
-        let cell_of = |p: V3| -> [usize; 3] {
-            let mut c = [0usize; 3];
+        overlaps_after(m, &changed, &pos)
+    }
+}
+
+/// After vertices moved (`pos` gives every vertex its new place), does a triangle among the `changed` ones cut through a triangle that stays?
+fn overlaps_after(m: &TriMesh, changed: &[bool], pos: &dyn Fn(u32) -> V3) -> bool {
+    let n = m.triangles.len();
+    let after = |t: usize| {
+        let tri = m.triangles[t];
+        [pos(tri[0]), pos(tri[1]), pos(tri[2])]
+    };
+    let boxed = |c: &[V3; 3]| {
+        let mut lo = c[0];
+        let mut hi = c[0];
+        for p in c {
             for i in 0..3 {
-                c[i] = (((p[i] - lo[i]) / ext[i] * side as f64).floor().max(0.0) as usize).min(side - 1);
+                lo[i] = lo[i].min(p[i]);
+                hi[i] = hi[i].max(p[i]);
             }
-            c
-        };
-        let mut grid: Vec<Vec<u32>> = vec![Vec::new(); side * side * side];
-        for &t in &still {
-            let (l, h) = boxed(&m.corners(t as usize));
-            let (a, b) = (cell_of(l), cell_of(h));
-            for x in a[0]..=b[0] {
-                for y in a[1]..=b[1] {
-                    for z in a[2]..=b[2] {
-                        grid[(x * side + y) * side + z].push(t);
-                    }
+        }
+        (lo, hi)
+    };
+    // the box the changed triangles occupy, before and after
+    let (mut lo, mut hi) = ([f64::MAX; 3], [f64::MIN; 3]);
+    for t in (0..n).filter(|t| changed[*t]) {
+        let before = m.corners(t);
+        for c in [before, after(t)] {
+            let (l, h) = boxed(&c);
+            for i in 0..3 {
+                lo[i] = lo[i].min(l[i]);
+                hi[i] = hi[i].max(h[i]);
+            }
+        }
+    }
+    // the triangles that stay and lie in that box, in a grid
+    let mut still: Vec<u32> = Vec::new();
+    for t in (0..n).filter(|t| !changed[*t]) {
+        let (l, h) = boxed(&m.corners(t));
+        if (0..3).all(|i| h[i] >= lo[i] && l[i] <= hi[i]) {
+            still.push(t as u32);
+        }
+    }
+    if still.is_empty() {
+        return false;
+    }
+    let side = ((still.len() as f64).cbrt().ceil() as usize).clamp(1, 64);
+    let ext = [
+        (hi[0] - lo[0]).max(1e-9),
+        (hi[1] - lo[1]).max(1e-9),
+        (hi[2] - lo[2]).max(1e-9),
+    ];
+    let cell_of = |p: V3| -> [usize; 3] {
+        let mut c = [0usize; 3];
+        for i in 0..3 {
+            c[i] = (((p[i] - lo[i]) / ext[i] * side as f64).floor().max(0.0) as usize).min(side - 1);
+        }
+        c
+    };
+    let mut grid: Vec<Vec<u32>> = vec![Vec::new(); side * side * side];
+    for &t in &still {
+        let (l, h) = boxed(&m.corners(t as usize));
+        let (a, b) = (cell_of(l), cell_of(h));
+        for x in a[0]..=b[0] {
+            for y in a[1]..=b[1] {
+                for z in a[2]..=b[2] {
+                    grid[(x * side + y) * side + z].push(t);
                 }
             }
         }
-        let mut seen = vec![0u32; n];
-        let mut stamp = 0u32;
-        for t in (0..n).filter(|t| changed[*t]) {
-            let c = after(t);
-            let (l, h) = boxed(&c);
-            if (0..3).any(|i| h[i] < lo[i] || l[i] > hi[i]) {
-                continue;
-            }
-            stamp += 1;
-            let (a, b) = (cell_of(l), cell_of(h));
-            let own = m.triangles[t];
-            for x in a[0]..=b[0] {
-                for y in a[1]..=b[1] {
-                    for z in a[2]..=b[2] {
-                        for &o in &grid[(x * side + y) * side + z] {
-                            if seen[o as usize] == stamp {
-                                continue;
-                            }
-                            seen[o as usize] = stamp;
-                            let other = m.triangles[o as usize];
-                            if other.iter().any(|v| own.contains(v)) {
-                                continue;
-                            }
-                            if triangles_cross(&c, &m.corners(o as usize)) {
-                                return true;
-                            }
+    }
+    let mut seen = vec![0u32; n];
+    let mut stamp = 0u32;
+    for t in (0..n).filter(|t| changed[*t]) {
+        let c = after(t);
+        let (l, h) = boxed(&c);
+        if (0..3).any(|i| h[i] < lo[i] || l[i] > hi[i]) {
+            continue;
+        }
+        stamp += 1;
+        let (a, b) = (cell_of(l), cell_of(h));
+        let own = m.triangles[t];
+        for x in a[0]..=b[0] {
+            for y in a[1]..=b[1] {
+                for z in a[2]..=b[2] {
+                    for &o in &grid[(x * side + y) * side + z] {
+                        if seen[o as usize] == stamp {
+                            continue;
+                        }
+                        seen[o as usize] = stamp;
+                        let other = m.triangles[o as usize];
+                        if other.iter().any(|v| own.contains(v)) {
+                            continue;
+                        }
+                        if triangles_cross(&c, &m.corners(o as usize)) {
+                            return true;
                         }
                     }
                 }
             }
         }
-        false
     }
+    false
 }
 
 /// Do two triangles cut through each other (an edge of one goes through the face of the other)?
@@ -364,6 +390,15 @@ pub fn set_diameter_with(
             undo.apply(m);
             return Err(EditError::Collapses);
         }
+    }
+    // the new size must not push the hole wall through another part of the mesh
+    let mut changed = vec![false; m.triangles.len()];
+    for t in cyl.triangles.iter().chain(&outside) {
+        changed[*t as usize] = true;
+    }
+    if overlaps_after(m, &changed, &|v| m.vertex(v)) {
+        undo.apply(m);
+        return Err(EditError::SelfIntersects);
     }
     let _ = cross([0.0; 3], [0.0; 3]);
     Ok(undo)

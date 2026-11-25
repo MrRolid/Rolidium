@@ -184,22 +184,42 @@ pub fn find_with(
                 stack.push(o);
             }
         }
-        let unit = unit_normal.len() as u32;
+        let uid = unit_normal.len() as u32;
         for &t in &region {
-            unit_of[t as usize] = unit;
+            unit_of[t as usize] = uid;
             unit_tris.push(t);
         }
         unit_start.push(unit_tris.len() as u32);
         unit_normal.push(n0);
         if region.len() >= min_triangles {
             let area: f64 = region.iter().map(|t| normals[*t as usize].1).sum();
+            // the outward normal of the wall is the mean of the normals of its triangles (their area is the weight): the way the triangles run says what is outside,
+            // never the sign of a fit
+            let mut sum = [0.0; 3];
+            for t in &region {
+                let (nn, a) = normals[*t as usize];
+                for k in 0..3 {
+                    sum[k] += nn[k] * a;
+                }
+            }
+            let mean = unit(sum);
+            let normal = if len(mean) > 0.5 && dot(mean, n0) > 0.0 { mean } else { n0 };
+            let offset = region
+                .iter()
+                .map(|t| {
+                    let c = m.corners(*t as usize);
+                    let mid = mul([c[0][0] + c[1][0] + c[2][0], c[0][1] + c[1][1] + c[2][1], c[0][2] + c[1][2] + c[2][2]], 1.0 / 3.0);
+                    dot(normal, mid) * normals[*t as usize].1
+                })
+                .sum::<f64>()
+                / area.max(1e-300);
             out.planes.push(Plane {
                 triangles: region,
-                normal: n0,
-                offset: off0,
+                normal,
+                offset,
                 area,
             });
-            plane_unit.push(unit);
+            plane_unit.push(uid);
         }
     }
     let total: f64 = normals.iter().map(|x| x.1).sum();

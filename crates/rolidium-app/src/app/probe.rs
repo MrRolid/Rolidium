@@ -189,6 +189,20 @@ impl App {
         })
     }
 
+    /// Where the arrows of the Move tool are on the screen (physical pixels): the centre and the tip of each axis.
+    fn probe_move_arrows(&self) -> Value {
+        if self.tool != Tool::Move {
+            return Value::Null;
+        }
+        let r = self.viewport_rect;
+        let ppp = self.probe.as_ref().map_or(1.0, |p| p.ppp);
+        let Some((a, b)) = self.move_bbox() else { return Value::Null };
+        let c = (a + b) * 0.5;
+        let len = 120.0 / (r.height() / (2.0 * self.camera.distance * (self.camera.fov_y * 0.5).tan()));
+        let px = |p: glam::Vec3| self.project(p, r).map(|s| json!([(s.x * ppp).round(), (s.y * ppp).round()]));
+        json!({"centre": px(c), "x": px(c + glam::Vec3::X * len), "y": px(c + glam::Vec3::Y * len), "z": px(c + glam::Vec3::Z * len)})
+    }
+
     fn dims_bodies_for_probe(&self) -> Vec<u64> {
         self.move_sel.iter().copied().chain(self.body_sel).collect()
     }
@@ -208,6 +222,7 @@ impl App {
             "pull_blocked": self.mesh_ui.blocked.as_ref().map(super::meshtool::short_reason),
             "pull_active": self.pull.is_some(),
             "tilt": self.mesh_ui.tilt,
+            "move_arrows": self.probe_move_arrows(),
             "mesh_check": self.mesh_ui.report.as_ref().map(|(_, a)| super::meshtool::findings_text(a)),
             "preview_thick": self.preview.as_ref().map(|p| p.thick.len()),
             "preview_triangles": self.preview.as_ref().map(|p| p.triangles.len()),

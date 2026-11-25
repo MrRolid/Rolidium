@@ -1110,3 +1110,11 @@ A neighbouring wall is not square to this wall (a slope or a bevel), so it canno
 The move would make the mesh cut through itself => Durch das Verschieben würde das Netz sich selbst durchschneiden
 Reads one or more STL or 3MF files (triangle meshes, as made for 3D printing) into the document as meshes; every object of a 3MF file is a mesh of its own. A dialog shows the size, lets you choose the units (millimetres, inches or your own scale; a 3MF file brings its own unit) and says in plain words what the check of each mesh found, with a button only for a problem it can repair. You can also drop the files into the window. => Liest eine oder mehrere STL- oder 3MF-Dateien (Dreiecksnetze, wie sie für den 3D-Druck gemacht werden) als Netze in das Dokument; jedes Objekt einer 3MF-Datei wird ein eigenes Netz. Ein Dialog zeigt die Größe, lässt die Einheiten wählen (Millimeter, Zoll oder ein eigener Maßstab; eine 3MF-Datei bringt ihre eigene Einheit mit) und sagt in klaren Worten, was die Prüfung jedes Netzes gefunden hat, mit einer Schaltfläche nur für ein Problem, das sich beheben lässt. Die Dateien können auch ins Fenster gezogen werden.
 A mesh is not a solid: you can pull its flat walls (also when the neighbouring walls slope, if you allow it), change the diameter of its holes and round surfaces, move, turn, mirror, scale and copy it, and change its size by clicking one of the three sizes shown round it. => Ein Netz ist kein Körper: Sie können seine ebenen Wände ziehen (auch bei schrägen Nachbarwänden, wenn Sie es erlauben), den Durchmesser seiner Löcher und runden Flächen ändern, es verschieben, drehen, spiegeln, skalieren und kopieren, und seine Größe durch Klick auf eine der drei ringsum angezeigten Größen ändern.
+The wall can be moved {} mm {} at most => Die Wand lässt sich höchstens {} mm {} verschieben
+The wall cannot be moved in this direction at all => Die Wand lässt sich in dieser Richtung gar nicht verschieben
+up => nach oben
+down => nach unten
+towards +X => in Richtung +X
+towards -X => in Richtung -X
+towards +Y => in Richtung +Y
+towards -Y => in Richtung -Y
