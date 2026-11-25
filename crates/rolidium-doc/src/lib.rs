@@ -437,6 +437,14 @@ pub enum Command {
         hole: Arc<rolidium_mesh::regions::Cylinder>,
         diameter: f64,
     },
+    /// Makes a solid (a B-rep body) of a mesh: flat faces within `tolerance`; with `round` the values near a multiple of 0.01 mm are rounded; with `keep` the mesh stays,
+    /// hidden, else it is replaced by the solid.
+    ConvertMesh {
+        body: BodyId,
+        tolerance: f64,
+        round: bool,
+        keep: bool,
+    },
     /// Scales a mesh about `centre` by different factors in x, y and z.
     MeshScale {
         body: BodyId,
@@ -3137,6 +3145,90 @@ impl Job {
                 st.meshes[mp].mesh = m;
                 let mut c = self.done(st, "Hole diameter");
                 c.touched_body = Some(*body);
+                Ok(c)
+            }
+            Command::ConvertMesh {
+                body,
+                tolerance,
+                round,
+                keep,
+            } => {
+                let started = std::time::Instant::now();
+                if !(tolerance.is_finite() && *tolerance >= 1e-4 && *tolerance <= 5.0) {
+                    return Err(KernelError::Invalid("the accuracy of the conversion must be between 0.0001 and 5 mm".into()).into());
+                }
+                let mp = st.meshes.iter().position(|m| m.id == *body).ok_or(DocError::NoSuchBody)?;
+                let mesh = st.meshes[mp].mesh.clone();
+                let stop = || rolidium_kernel::cancel_requested();
+                // flat groups of any size are faces; when the solid cannot be made so (a group that is not flat enough, a pinched outline) the small groups are taken
+                // apart, and at the last every triangle is a face: a triangle is always flat
+                let mut made = None;
+                let mut failure = String::new();
+                for merge_from in [2usize, 4, usize::MAX] {
+                    let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop).ok_or(KernelError::Cancelled)?;
+                    let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
+                    match Solid::from_polygons(&points, &pf.faces, *tolerance) {
+                        Ok(s) => {
+                            made = Some((s, pf));
+                            break;
+                        }
+                        Err(KernelError::Cancelled) => return Err(KernelError::Cancelled.into()),
+                        Err(e) => failure = e.to_string(),
+                    }
+                }
+                let Some((solid, pf)) = made else {
+                    return Err(KernelError::Invalid(format!(
+                        "The mesh could not be made a solid ({failure}). It stays a mesh; repair it (holes, turned triangles) or try a larger accuracy"
+                    ))
+                    .into());
+                };
+                let mut kinds = [0usize; 6];
+                for f in solid.faces() {
+                    let k = solid.face_info(f).map(|i| i.kind).unwrap_or(rolidium_kernel::FaceKind::Other);
+                    kinds[match k {
+                        rolidium_kernel::FaceKind::Plane => 0,
+                        rolidium_kernel::FaceKind::Cylinder => 1,
+                        rolidium_kernel::FaceKind::Cone => 2,
+                        rolidium_kernel::FaceKind::Sphere => 3,
+                        rolidium_kernel::FaceKind::Torus => 4,
+                        rolidium_kernel::FaceKind::Other => 5,
+                    }] += 1;
+                }
+                let report = meshes::ConvertReport {
+                    kinds,
+                    single: pf.single,
+                    single_share: pf.single_area,
+                    max_deviation: pf.max_deviation,
+                    tolerance: *tolerance,
+                    volume_mesh: mesh.signed_volume(),
+                    volume_solid: solid.volume().unwrap_or(0.0),
+                    seconds: started.elapsed().as_secs_f64(),
+                    triangles: mesh.triangles.len(),
+                    kept: *keep,
+                    rounded_values: pf.rounded,
+                };
+                st.body_counter += 1;
+                let id = self.next_id;
+                let name = st.meshes[mp].name.clone();
+                let color = st.meshes[mp].color;
+                st.bodies.push(Body {
+                    id,
+                    name,
+                    solid,
+                    color,
+                    visible: true,
+                    features: Vec::new(),
+                    material: None,
+                });
+                if *keep {
+                    st.meshes[mp].visible = false;
+                } else {
+                    st.meshes.remove(mp);
+                    links::remove_from_groups(&mut st, *body);
+                }
+                meshes::keep_report(id, report);
+                let mut c = self.done(st, "Convert mesh to solid");
+                c.touched_body = Some(id);
                 Ok(c)
             }
             Command::MeshScale {

@@ -214,3 +214,37 @@ pub(crate) enum Change {
         diameter: f64,
     },
 }
+
+/// What a conversion of a mesh to a solid did (shown in the panel of the solid).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ConvertReport {
+    /// The faces of the solid by kind: planes, cylinders, cones, spheres, tori, others.
+    pub kinds: [usize; 6],
+    /// Faces that are single triangles (nothing flat was found round them), and the share of the surface they cover.
+    pub single: usize,
+    pub single_share: f64,
+    /// The largest distance of a vertex of the mesh from the plane of its face (mm).
+    pub max_deviation: f64,
+    pub tolerance: f64,
+    pub volume_mesh: f64,
+    pub volume_solid: f64,
+    pub seconds: f64,
+    pub triangles: usize,
+    /// The mesh the solid came from is kept (hidden).
+    pub kept: bool,
+    pub rounded_values: usize,
+}
+
+static REPORTS: std::sync::Mutex<Vec<(BodyId, ConvertReport)>> = std::sync::Mutex::new(Vec::new());
+
+pub(crate) fn keep_report(body: BodyId, r: ConvertReport) {
+    let mut v = REPORTS.lock().unwrap_or_else(|e| e.into_inner());
+    v.retain(|(b, _)| *b != body);
+    v.push((body, r));
+}
+
+/// What the conversion that made this body did, if it was made by one in this session.
+pub fn conversion_report(body: BodyId) -> Option<ConvertReport> {
+    let v = REPORTS.lock().unwrap_or_else(|e| e.into_inner());
+    v.iter().find(|(b, _)| *b == body).map(|(_, r)| r.clone())
+}

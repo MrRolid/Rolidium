@@ -49,6 +49,8 @@ def try_axes(label, kind, ident, row):
         after = centre_of(q, kind, ident)
         moved = after[ax] - before[ax]
         check(moved > 0, f"{label} {kind} {name}: dragged outwards along the arrow: moved {moved:+.2f} mm along +{name}")
+        settle(0.8)
+        wait_for(lambda z: not z["busy"] and z["mesh_job"] is None, "the program is idle", 30)
         key("z", ctrl=True)
         wait_for(lambda z: abs(centre_of(z, kind, ident)[ax] - before[ax]) < 1e-3, "Undo", 20)
         key("s")

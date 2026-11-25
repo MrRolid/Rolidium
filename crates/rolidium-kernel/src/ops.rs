@@ -159,6 +159,24 @@ impl Solid {
         )?)
     }
 
+    /// A solid made of flat faces: `faces[f]` are the loops of face `f` (the first is its outline, the others its holes) as indices into `points`. The faces are
+    /// sewn within `tol`; the result is checked like every other (valid, closed, positive volume).
+    pub fn from_polygons(points: &[DVec3], faces: &[Vec<Vec<u32>>], tol: f64) -> Result<Solid> {
+        let pts: Vec<f64> = points.iter().flat_map(|p| p.to_array()).collect();
+        let (mut verts, mut loops, mut face_offsets) = (Vec::new(), vec![0u32], vec![0u32]);
+        let mut loop_count = 0u32;
+        for f in faces {
+            for l in f {
+                verts.extend_from_slice(l);
+                loops.push(verts.len() as u32);
+                loop_count += 1;
+            }
+            face_offsets.push(loop_count);
+        }
+        let shape = native::solid_from_polygons(&pts, &verts, &loops, &face_offsets, tol)?;
+        Solid::from_shape(shape).validated_body()
+    }
+
     /// The solid scaled about `centre` by `factors` (positive numbers). Equal factors keep cylinders and spheres exact; different ones turn them into
     /// ellipses (general surfaces), which later edits may not be able to change.
     pub fn scaled(&self, centre: DVec3, factors: DVec3) -> Result<OpResult> {

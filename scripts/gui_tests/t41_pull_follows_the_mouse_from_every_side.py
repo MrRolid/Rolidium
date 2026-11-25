@@ -54,6 +54,8 @@ def try_walls(label):
         release()
         q = wait_for(lambda z: not z["busy"] and abs(size(z, ax) - s0) > 1e-4, f"{label} {name}: the wall was pulled", 20)
         check(size(q, ax) > s0, f"{label} {name}: dragged outwards on the screen, the block grew along {'xyz'[ax]}: {s0:.2f} -> {size(q, ax):.2f}")
+        settle(0.8)
+        wait_for(lambda z: not z["busy"] and z["mesh_job"] is None, "the program is idle", 30)
         key("z", ctrl=True)
         wait_for(lambda z: abs(size(z, ax) - s0) < 1e-3 and z["meshes"][-1]["walls"] == 6, "Undo", 30)
 

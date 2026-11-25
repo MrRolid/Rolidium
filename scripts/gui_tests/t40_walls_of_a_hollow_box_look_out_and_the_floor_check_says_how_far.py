@@ -18,6 +18,8 @@ vx, vy, vw, vh = p["viewport"]
 v0 = p["meshes"][-1]["volume"]
 bb0 = p["meshes"][-1]["bbox"]
 # the floor of the cavity from above
+middle_drag(vx + vw / 2, vy + vh * 0.2, vx + vw / 2, vy + vh * 0.95)
+settle(0.8)
 click(*steady("floor"))
 p = settle(0.6)
 check(p["face"] and p["face"]["normal"] == [0.0, 0.0, 1.0], f"the floor of the cavity looks up (out of the material): {p['face']}")

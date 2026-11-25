@@ -8,6 +8,7 @@
 //! moved vertices, not by a copy of the mesh. No B-rep is made (see D60 in docs/DECISIONS.md).
 
 pub mod check;
+pub mod convert;
 pub mod edit;
 pub mod gen;
 pub mod regions;
