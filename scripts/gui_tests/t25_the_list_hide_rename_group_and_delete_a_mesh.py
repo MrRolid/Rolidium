@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """A mesh in the list of bodies (marked as a mesh, with its triangles): a click selects it, the eye hides and shows it, F2 renames it, Ctrl+G puts it into a group,
 Delete removes it and Ctrl+Z brings it back; each is one step of Undo."""
-# FIXTURE: box 20 20 20; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
+# FIXTURE: box 20 20 20; move 80 0 0; import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
 # POINTS: top=10,10,10
 from guitest import *
 

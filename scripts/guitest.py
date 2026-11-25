@@ -399,7 +399,7 @@ def big_mesh_perf(stl, label, edit=False, cancel=False):
         settle(0.4)
         x, y = steady("top")
         click(x, y)
-        p = settle(0.6)
+        p = wait_for(lambda q: len(q["selection"]) == 1, "the top wall is selected for the pull", 90)
         type_text("1")
         t4 = time.time()
         key("Return")
