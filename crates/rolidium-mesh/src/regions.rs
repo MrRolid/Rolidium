@@ -45,6 +45,9 @@ pub const CYL_FLAG: u32 = 1 << 30;
 /// Two neighbouring triangles whose normals differ by more than about 6 degrees have a crease between them.
 const CREASE_COS: f64 = 0.9945;
 
+/// The most strips a round surface of flat facets may have (a finer one is a smooth surface, found as such).
+const MAX_FACETS: usize = 400;
+
 /// The smallest wall that is kept when it is not a big one: this part of the surface of the whole mesh.
 const MIN_WALL_AREA: f64 = 1e-4;
 
@@ -508,14 +511,16 @@ fn facet_cylinders(
     let mut found: Vec<Cylinder> = Vec::new();
     let (cos_hi, cos_lo) = (1.5f64.to_radians().cos(), 50f64.to_radians().cos());
     let mut pairs: Vec<(u32, u32)> = Vec::new();
+    // the facet of a coarse cylinder is a strip of at least two triangles: the single triangles of a scanned surface take no part
+    let big = |u: u32| units.start[u as usize + 1] - units.start[u as usize] >= 2;
     for t in 0..adj.len() {
         let ua = units.of[t];
-        if ua == u32::MAX {
+        if ua == u32::MAX || !big(ua) {
             continue;
         }
         for &o in &adj[t] {
             let ub = units.of[o as usize];
-            if (o as usize) < t || ub == u32::MAX || ub == ua {
+            if (o as usize) < t || ub == u32::MAX || ub == ua || !big(ub) {
                 continue;
             }
             let c = dot(units.normal[ua as usize], units.normal[ub as usize]);
@@ -548,11 +553,13 @@ fn facet_cylinders(
     let near = |u: usize| &nbr[deg[u] as usize..deg[u + 1] as usize];
     let mut stamp = vec![0u32; nu];
     let mut cur = 0u32;
+    // the units of a group that was no round surface do not start another search for one
+    let mut tried = vec![false; nu];
     for s in 0..nu {
         if s % 65536 == 0 && !progress(0.7) {
             return None;
         }
-        if claimed[s] || near(s).is_empty() {
+        if claimed[s] || tried[s] || near(s).is_empty() {
             continue;
         }
         let cands: Vec<u32> = near(s)
@@ -580,8 +587,15 @@ fn facet_cylinders(
                     group.push(nb as u32);
                     stack.push(nb);
                 }
+                // a round surface of strips has a few dozen of them; a group that grows beyond that is a stretch of a free-form surface
+                if group.len() > MAX_FACETS {
+                    break;
+                }
             }
-            if group.len() < 3 {
+            if group.len() < 3 || group.len() > MAX_FACETS {
+                for g in &group {
+                    tried[*g as usize] = true;
+                }
                 continue;
             }
             if let Some((cyl, kept)) = fit_facets(m, normals, units, &group, axis, size, total) {
@@ -590,6 +604,9 @@ fn facet_cylinders(
                 }
                 found.push(cyl);
                 break;
+            }
+            for g in &group {
+                tried[*g as usize] = true;
             }
         }
     }
@@ -746,7 +763,9 @@ fn fit_facets(
         .flat_map(|g| units.triangles(*g as usize).iter().copied())
         .collect();
     let area: f64 = triangles.iter().map(|t| normals[*t as usize].1).sum();
-    if area < total * MIN_WALL_AREA {
+    // a hole or a pin goes all the way round; a part of a round surface (a rounded edge) has to be a good part of the surface, else it is a stretch of a free-form one
+    let full = arc > 300f64.to_radians() && kept.len() >= 8;
+    if area < total * if full { MIN_WALL_AREA } else { 0.002 } {
         return None;
     }
     let (zlo, zhi) = all
