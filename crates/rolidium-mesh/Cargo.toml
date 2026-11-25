@@ -10,4 +10,6 @@ description = "Triangle meshes: STL import and export, checking and repair, regi
 
 [dependencies]
 flate2 = "1"
+roxmltree.workspace = true
+zip.workspace = true
 thiserror.workspace = true

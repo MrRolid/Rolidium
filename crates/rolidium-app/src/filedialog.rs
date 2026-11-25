@@ -23,7 +23,7 @@ impl Purpose {
             Purpose::Open => "Open",
             Purpose::SaveAs => "Save As",
             Purpose::ImportStep => "Import STEP",
-            Purpose::ImportStl => "Import STL",
+            Purpose::ImportStl => "Import STL or 3MF",
             Purpose::ExportStep => "Export STEP",
         }
     }
@@ -35,14 +35,14 @@ impl Purpose {
         match self {
             Purpose::Open | Purpose::SaveAs => &["rolidium"],
             Purpose::ImportStep | Purpose::ExportStep => &["step", "stp"],
-            Purpose::ImportStl => &["stl"],
+            Purpose::ImportStl => &["stl", "3mf"],
         }
     }
     pub fn type_label(self) -> &'static str {
         match self {
             Purpose::Open | Purpose::SaveAs => "Rolidium documents (*.rolidium)",
             Purpose::ImportStep | Purpose::ExportStep => "STEP files (*.step, *.stp)",
-            Purpose::ImportStl => "STL files (*.stl)",
+            Purpose::ImportStl => "STL and 3MF files (*.stl, *.3mf)",
         }
     }
     /// Documents are remembered separately from exported and imported exchange files.

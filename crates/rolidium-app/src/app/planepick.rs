@@ -40,6 +40,9 @@ impl App {
     /// While a sketch plane is being chosen: the face under the cursor shows the plane it would give; a click takes it.
     pub(super) fn plane_pick_input(&mut self, resp: &egui::Response, pointer: Option<Pos2>, rect: Rect) {
         self.plane_hover = None;
+        if self.quick_tool.is_some() {
+            return self.quick_pick_input(resp, pointer, rect);
+        }
         let (true, Some(p), Some((b, f))) = (resp.hovered(), pointer, self.hovered_face()) else {
             return;
         };
@@ -133,7 +136,26 @@ impl App {
                     Color32::from_rgba_unmultiplied(110, 170, 255, 40),
                     Stroke::new(1.5, Color32::from_rgba_unmultiplied(110, 170, 255, 190)),
                 ));
-                label_at(&q, tr("Face"));
+                if self.quick_tool.is_some() {
+                    // the grid of the sketch that a click would start, and what to do at the cursor
+                    let grid = Stroke::new(1.0, Color32::from_rgba_unmultiplied(110, 170, 255, 120));
+                    for k in 1..8 {
+                        let t = k as f32 / 8.0;
+                        painter.line_segment([q[0].lerp(q[1], t), q[3].lerp(q[2], t)], grid);
+                        painter.line_segment([q[0].lerp(q[3], t), q[1].lerp(q[2], t)], grid);
+                    }
+                    if let Some(c) = ui.input(|i| i.pointer.latest_pos()) {
+                        painter.text(
+                            c + Vec2::new(16.0, -22.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            tr("Click on the face to draw on"),
+                            egui::FontId::proportional(16.0),
+                            crate::theme::rgb(255, 230, 140),
+                        );
+                    }
+                } else {
+                    label_at(&q, tr("Face"));
+                }
             }
         }
     }

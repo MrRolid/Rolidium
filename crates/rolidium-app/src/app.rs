@@ -42,6 +42,7 @@ mod linktool;
 mod lofttool;
 mod measuretool;
 mod bodydims;
+mod quicksketch;
 mod meshtool;
 mod movetool;
 mod panel;
@@ -316,6 +317,10 @@ pub struct App {
     mesh_ui: meshtool::MeshUi,
     /// The size of the selected body, typed in a click.
     body_dims: bodydims::BodyDimsUi,
+    /// A drawing tool was chosen in the 3D view: the face to draw on is being chosen (the sketch starts at the click).
+    quick_tool: Option<SkTool>,
+    /// The first point of the shape goes where the click was, as soon as the sketch has its snaps.
+    quick_first: bool,
     /// When a command was last refused by `submit` (the reason is on the status line).
     refused_at: Option<Instant>,
     probe_widgets: std::cell::RefCell<Vec<(String, Rect)>>,
@@ -566,6 +571,8 @@ impl App {
             pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
             body_dims: Default::default(),
+            quick_tool: None,
+            quick_first: false,
             refused_at: None,
             probe_widgets: std::cell::RefCell::new(Vec::new()),
             entity_sel: None,
@@ -1848,8 +1855,16 @@ impl App {
             }
         }
         sm.corners = corners;
+        let quick = self.quick_tool.take();
+        if let Some(t) = quick {
+            sm.quick = true;
+            sm.set_tool(t);
+            self.quick_first = true;
+        }
         self.sk = Some(sm);
-        self.turn_to_sketch();
+        if quick.is_none() {
+            self.turn_to_sketch();
+        }
         self.selection.clear();
         self.region_sel = None;
         self.hover_region = None;
@@ -2181,6 +2196,10 @@ impl App {
                     self.leave_sketch();
                 }
                 Key::Escape => {
+                    // a sketch started from the 3D view: Esc stops the shape, and when none is being drawn it ends the sketch (an empty one leaves nothing behind)
+                    if self.sk.as_ref().is_some_and(|sm| sm.quick && sm.drawing.is_none() && sm.place.is_none()) {
+                        return self.leave_sketch();
+                    }
                     if let Some(sm) = &mut self.sk {
                         sm.drawing = None;
                         sm.place = None;
@@ -2269,10 +2288,16 @@ impl App {
             Key::I => self.tool = Tool::Combine,
             Key::T => self.activate_link_tool(linktool::LinkMode::Linear),
             Key::B => self.activate_link_tool(linktool::LinkMode::Mirror),
+            Key::L if modifiers.shift => self.begin_quick_sketch(SkTool::Line),
             Key::L => self.activate_loft(),
             Key::W => self.activate_sweep(),
             Key::H => self.activate_helix(),
             Key::K => self.enter_sketch(),
+            // the drawing tools from the 3D view (L stays the Loft here: the line is Shift+L or its button)
+            Key::R => self.begin_quick_sketch(SkTool::Rect),
+            Key::C => self.begin_quick_sketch(SkTool::Circle),
+            Key::A => self.begin_quick_sketch(SkTool::Arc),
+            Key::X => self.begin_quick_sketch(SkTool::Axis),
             Key::N => self.begin_plane_at(),
             Key::U => self.begin_up_to(),
             Key::E => self.activate_measure(),
@@ -2579,6 +2604,13 @@ impl App {
     #[allow(deprecated)]
     fn plane_window(&mut self, ctx: &egui::Context) {
         if !self.plane_pick {
+            return;
+        }
+        if self.quick_tool.is_some() {
+            // the face is chosen in the view (a hint at the cursor); Esc stops
+            if ctx.input(|i| i.key_pressed(Key::Escape)) {
+                self.cancel_quick_sketch();
+            }
             return;
         }
         let mut choice: Option<PlaneDef> = None;
@@ -3427,6 +3459,16 @@ impl App {
             }
         }
         let _ = pointer;
+        // a sketch started from the 3D view by a click: the first point of the shape is where the click was
+        if std::mem::take(&mut self.quick_first) {
+            if let (Some(s), Some(sm)) = (snap, self.sk.as_mut()) {
+                if sm.tool != SkTool::None && sm.drawing.is_none() {
+                    sm.place = None;
+                    sm.begin(s.pos);
+                    self.layers_changed = true;
+                }
+            }
+        }
         if self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None) {
             self.shape_drag_input(resp, pointer, rect);
         }

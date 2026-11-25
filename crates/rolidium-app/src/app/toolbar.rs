@@ -93,8 +93,9 @@ impl App {
                 label,
                 key,
                 group: 1,
-                selected: tool == Some(t),
-                why: first,
+                selected: tool == Some(t) || self.quick_tool == Some(t),
+                // from the 3D view too: the face to draw on is chosen first
+                why: None,
             });
             if t == SkTool::Line {
                 // the 3D switch of the Line tool: points are not tied to the sketch plane
@@ -182,6 +183,8 @@ impl App {
             Tb::Draw(t) => {
                 if let Some(sm) = &mut self.sk {
                     sm.set_tool(t);
+                } else {
+                    self.begin_quick_sketch(t);
                 }
             }
             Tb::MovePlane => self.begin_plane_move(),
@@ -666,7 +669,7 @@ impl App {
                     ("file_save", "Save", busy, 2),
                     ("file_save_as", "Save As", busy, 3),
                     ("import_step", "Import STEP", busy, 4),
-                    ("import_stl", "Import STL", busy, 7),
+                    ("import_stl", "Import STL or 3MF", busy, 7),
                     ("export_step", "Export STEP", busy.or(nothing), 5),
                     ("export_stl", "Export STL", busy.or(nothing), 6),
                 ];

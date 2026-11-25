@@ -61,6 +61,8 @@ pub struct ImportItem {
     pub name: String,
     pub mesh: TriMesh,
     pub analysis: check::Analysis,
+    /// A 3MF object: its size is in millimetres already (the unit is the one of the file).
+    pub fixed_unit: bool,
     /// What the last repair did.
     pub note: String,
 }
@@ -272,7 +274,8 @@ fn findings_ui(
 }
 
 fn is_stl(p: &std::path::Path) -> bool {
-    p.extension().is_some_and(|e| e.eq_ignore_ascii_case("stl"))
+    p.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("stl") || e.eq_ignore_ascii_case("3mf"))
 }
 
 impl App {
@@ -506,12 +509,12 @@ impl App {
         }
         if !self.idle() {
             self.mesh_ui.queued.extend(paths);
-            self.set_status("The STL files are read when the running operation is done", false);
+            self.set_status("The files are read when the running operation is done", false);
             return;
         }
         if self.worker.send(Work::ReadStl { paths }) {
             self.busy = Busy::File;
-            self.set_status("Reading the STL file…", false);
+            self.set_status("Reading the file…", false);
         }
     }
 
@@ -549,7 +552,7 @@ impl App {
         self.mesh_ui.dropped += paths.len() as u64;
         let (stl, other): (Vec<PathBuf>, Vec<PathBuf>) = paths.into_iter().partition(|p| is_stl(p));
         if !other.is_empty() && stl.is_empty() {
-            self.set_status("Only STL files can be dropped into the window", true);
+            self.set_status("Only STL and 3MF files can be dropped into the window", true);
             return;
         }
         self.start_stl_read(stl);
@@ -565,6 +568,7 @@ impl App {
                     name: s.name,
                     mesh: s.mesh,
                     analysis: s.analysis,
+                    fixed_unit: s.fixed_unit,
                     note: String::new(),
                 }),
                 Err(e) => failed.push(e),
@@ -590,7 +594,7 @@ impl App {
             .items
             .into_iter()
             .map(|mut i| {
-                if (f - 1.0).abs() > 1e-12 {
+                if (f - 1.0).abs() > 1e-12 && !i.fixed_unit {
                     transform::scale(&mut i.mesh, [0.0; 3], [f, f, f]);
                 }
                 rolidium_doc::NewMesh {
@@ -633,7 +637,7 @@ impl App {
         let mut repair: Option<(usize, bool, bool)> = None;
         let factor = d.factor();
         let working = d.repairing.is_some();
-        let win = egui::Window::new(tr("Import STL"))
+        let win = egui::Window::new(tr("Import STL or 3MF"))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -646,7 +650,7 @@ impl App {
                     ui.separator();
                     ui.label(egui::RichText::new(&it.name).strong());
                     let size = it.mesh.bounding_box().map(|(lo, hi)| {
-                        let f = factor.unwrap_or(1.0);
+                        let f = if it.fixed_unit { 1.0 } else { factor.unwrap_or(1.0) };
                         [(hi[0] - lo[0]) * f, (hi[1] - lo[1]) * f, (hi[2] - lo[2]) * f]
                     });
                     ui.label(trf("{} triangles", &[it.mesh.triangles.len().to_string()]));
@@ -666,6 +670,9 @@ impl App {
                 }
                 ui.separator();
                 ui.label(tr("Units of the file"));
+                if d.items.iter().any(|i| i.fixed_unit) {
+                    ui.weak(tr("The objects of a 3MF file keep the unit of their file"));
+                }
                 ui.horizontal(|ui| {
                     for (u, label, id) in [
                         (UnitChoice::Mm, tr("millimetres"), "stl_units_mm"),

@@ -13,6 +13,7 @@ pub mod gen;
 pub mod regions;
 pub mod serial;
 pub mod stl;
+pub mod threemf;
 pub mod transform;
 
 /// An indexed triangle mesh. Vertices shared by triangles are one vertex (the import welds them), so a wall that moves takes its neighbours along.

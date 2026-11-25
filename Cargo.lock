@@ -2529,7 +2529,9 @@ name = "rolidium-mesh"
 version = "0.3.0"
 dependencies = [
  "flate2",
+ "roxmltree",
  "thiserror 2.0.21",
+ "zip",
 ]
 
 [[package]]

@@ -457,3 +457,59 @@ fn a_pull_that_would_push_the_mesh_through_another_part_is_refused() {
     assert_eq!(plan.check(&m, top, 3.0, true), Ok(()));
     assert_eq!(plan.check(&m, top, 8.0, true), Err(EditError::SelfIntersects));
 }
+
+fn zip_of(files: &[(&str, &str)]) -> Vec<u8> {
+    use std::io::Write;
+    let mut buf = std::io::Cursor::new(Vec::new());
+    {
+        let mut z = zip::ZipWriter::new(&mut buf);
+        let o = zip::write::SimpleFileOptions::default();
+        for (n, c) in files {
+            z.start_file(*n, o).unwrap();
+            z.write_all(c.as_bytes()).unwrap();
+        }
+        z.finish().unwrap();
+    }
+    buf.into_inner()
+}
+
+const CUBE: &str = r#"<object id="1" type="model"><mesh><vertices>
+<vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="1" y="1" z="0"/><vertex x="0" y="1" z="0"/>
+<vertex x="0" y="0" z="1"/><vertex x="1" y="0" z="1"/><vertex x="1" y="1" z="1"/><vertex x="0" y="1" z="1"/>
+</vertices><triangles>
+<triangle v1="0" v2="2" v3="1"/><triangle v1="0" v2="3" v3="2"/>
+<triangle v1="4" v2="5" v3="6"/><triangle v1="4" v2="6" v3="7"/>
+<triangle v1="0" v2="1" v3="5"/><triangle v1="0" v2="5" v3="4"/>
+<triangle v1="1" v2="2" v3="6"/><triangle v1="1" v2="6" v3="5"/>
+<triangle v1="2" v2="3" v3="7"/><triangle v1="2" v2="7" v3="6"/>
+<triangle v1="3" v2="0" v3="4"/><triangle v1="3" v2="4" v3="7"/>
+</triangles></mesh></object>"#;
+
+#[test]
+fn a_3mf_file_gives_its_objects_in_millimetres_with_their_transforms() {
+    use rolidium_mesh::{check, threemf};
+    // a cube of 1 inch, an object made of it with a component moved by 2 inches in x, and two items in the build: one at the origin, one turned 90 degrees and moved
+    let model = format!(
+        r#"<?xml version="1.0"?><model unit="inch" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>{CUBE}
+<object id="2" name="Pair"><components><component objectid="1"/><component objectid="1" transform="1 0 0 0 1 0 0 0 1 2 0 0"/></components></object>
+</resources><build><item objectid="1"/><item objectid="2" transform="0 1 0 -1 0 0 0 0 1 0 10 0"/></build></model>"#
+    );
+    let bytes = zip_of(&[
+        ("[Content_Types].xml", "<Types/>"),
+        ("_rels/.rels", r#"<Relationships><Relationship Target="/3D/3dmodel.model" Id="r" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>"#),
+        ("3D/3dmodel.model", &model),
+    ]);
+    let parts = threemf::parse(&bytes).unwrap();
+    assert_eq!(parts.len(), 2);
+    let (lo, hi) = parts[0].mesh.bounding_box().unwrap();
+    assert!((hi[0] - lo[0] - 25.4).abs() < 1e-3, "the inch becomes 25.4 mm");
+    assert!(check::check(&parts[0].mesh).is_clean());
+    assert_eq!(parts[1].name, "Pair");
+    assert_eq!(parts[1].mesh.triangles.len(), 24);
+    // the pair is 3 inches long in x before the turn; turned by 90 degrees (x' = -y, y' = x) it is long in y, and moved by 10 in y
+    let (lo, hi) = parts[1].mesh.bounding_box().unwrap();
+    assert!((hi[1] - lo[1] - 3.0 * 25.4).abs() < 1e-2, "{lo:?} {hi:?}");
+    assert!((hi[0] - lo[0] - 25.4).abs() < 1e-2);
+    assert!((lo[1] - 254.0).abs() < 1e-2, "the move of the build is in the unit of the file: {lo:?}");
+    assert!(threemf::parse(b"not a zip").is_err());
+}

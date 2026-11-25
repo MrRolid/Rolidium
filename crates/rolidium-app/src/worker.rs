@@ -108,6 +108,8 @@ pub struct StlLoaded {
     pub name: String,
     pub mesh: rolidium_mesh::TriMesh,
     pub analysis: rolidium_mesh::check::Analysis,
+    /// The unit is the one of the file (3MF): the choice of the unit in the dialog does not apply.
+    pub fixed_unit: bool,
 }
 
 /// The solids of a STEP file with their names, and the reasons why some were skipped.
@@ -367,25 +369,64 @@ fn handle(work: Work, cache: &mut MeshCache) -> Done {
             let hs: Vec<_> = paths
                 .iter()
                 .map(|path| {
-                    sc.spawn(move || -> Result<StlLoaded, String> {
+                    sc.spawn(move || -> Vec<Result<StlLoaded, String>> {
                         let shown = path
                             .file_name()
                             .map_or_else(String::new, |n| n.to_string_lossy().to_string());
-                        let bytes = std::fs::read(path)
-                            .map_err(|e| format!("{shown}: cannot read the file ({e})"))?;
-                        let mesh = rolidium_mesh::stl::parse(&bytes).map_err(|e| format!("{shown}: {e}"))?;
-                        let analysis = rolidium_mesh::check::analyse(&mesh);
-                        let name = path
+                        let bytes = match std::fs::read(path) {
+                            Ok(b) => b,
+                            Err(e) => return vec![Err(format!("{shown}: cannot read the file ({e})"))],
+                        };
+                        let stem = path
                             .file_stem()
                             .map_or_else(|| "Mesh".to_string(), |n| n.to_string_lossy().to_string());
-                        Ok(StlLoaded { name, mesh, analysis })
+                        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("3mf")) {
+                            // every object of a 3MF file is a mesh of its own; the unit is the one of the file
+                            return match rolidium_mesh::threemf::parse(&bytes) {
+                                Ok(parts) => {
+                                    let many = parts.len() > 1;
+                                    parts
+                                        .into_iter()
+                                        .enumerate()
+                                        .map(|(i, p)| {
+                                            let analysis = rolidium_mesh::check::analyse(&p.mesh);
+                                            let name = if many && p.name.starts_with("Part ") {
+                                                format!("{stem} {}", i + 1)
+                                            } else if p.name.is_empty() || p.name.starts_with("Part ") {
+                                                stem.clone()
+                                            } else {
+                                                p.name
+                                            };
+                                            Ok(StlLoaded {
+                                                name,
+                                                mesh: p.mesh,
+                                                analysis,
+                                                fixed_unit: true,
+                                            })
+                                        })
+                                        .collect()
+                                }
+                                Err(e) => vec![Err(format!("{shown}: {e}"))],
+                            };
+                        }
+                        let mesh = match rolidium_mesh::stl::parse(&bytes) {
+                            Ok(m) => m,
+                            Err(e) => return vec![Err(format!("{shown}: {e}"))],
+                        };
+                        let analysis = rolidium_mesh::check::analyse(&mesh);
+                        vec![Ok(StlLoaded {
+                            name: stem,
+                            mesh,
+                            analysis,
+                            fixed_unit: false,
+                        })]
                     })
                 })
                 .collect();
             hs.into_iter()
-                .map(|h| {
+                .flat_map(|h| {
                     h.join()
-                        .unwrap_or_else(|_| Err("the file could not be read".to_string()))
+                        .unwrap_or_else(|_| vec![Err("the file could not be read".to_string())])
                 })
                 .collect()
         })),

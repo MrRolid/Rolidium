@@ -191,6 +191,8 @@ pub struct SketchMode {
     /// The distances typed over the live ones while a circle is placed, and the live ones at the snapped point.
     pub edge_edit: EdgeEdit,
     pub edge_dims: Option<EdgeDims>,
+    /// The sketch was started from the 3D view by choosing a drawing tool first: the view is not turned, and Esc leaves it.
+    pub quick: bool,
     pub edge_snap: Option<EdgeSnap>,
 }
 
@@ -233,6 +235,7 @@ impl SketchMode {
             edge_edit: EdgeEdit::default(),
             edge_dims: None,
             edge_snap: None,
+            quick: false,
         }
     }
 
