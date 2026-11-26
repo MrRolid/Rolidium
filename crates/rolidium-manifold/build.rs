@@ -17,6 +17,8 @@ fn main() {
         "face_op.cpp",
         "impl.cpp",
         "manifold.cpp",
+        "minkowski.cpp",
+        "sdf.cpp",
         "polygon.cpp",
         "properties.cpp",
         "quickhull.cpp",
