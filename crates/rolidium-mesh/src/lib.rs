@@ -10,6 +10,7 @@
 pub mod check;
 pub mod convert;
 pub mod edit;
+pub mod fit;
 pub mod gen;
 pub mod holefill;
 pub mod planesweep;

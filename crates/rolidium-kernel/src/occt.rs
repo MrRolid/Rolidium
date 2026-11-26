@@ -104,6 +104,22 @@ pub mod ffi {
         fn compound_append(acc: &Shape, s: &Shape, first: bool) -> Result<SharedPtr<Shape>>;
         fn mirror_shape(shape: &Shape, point: [f64; 3], normal: [f64; 3]) -> Result<OpResult>;
         fn scale_shape(shape: &Shape, centre: [f64; 3], f: [f64; 3]) -> Result<OpResult>;
+        fn solid_from_surfaces(
+            pts: &[f64],
+            point_tol: &[f64],
+            surf_kind: &[u32],
+            surf_params: &[f64],
+            edge_kind: &[u32],
+            edge_v: &[u32],
+            edge_params: &[f64],
+            edge_tol: &[f64],
+            loop_edges: &[u32],
+            loop_offsets: &[u32],
+            face_offsets: &[u32],
+            face_surf: &[u32],
+            face_area: &[f64],
+            tol: f64,
+        ) -> Result<SharedPtr<Shape>>;
         fn solid_from_polygons(
             pts: &[f64],
             loop_vertices: &[u32],

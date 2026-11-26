@@ -25,6 +25,7 @@ pub mod file;
 mod generate;
 mod links;
 pub mod meshes;
+pub mod meshsolid;
 mod sketchops;
 pub use links::{
     linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
@@ -3205,43 +3206,7 @@ impl Job {
                     ))
                     .into());
                 }
-                // flat groups of any size are faces; when the solid cannot be made so (a group that is not flat enough, a pinched outline) the small groups are taken
-                // apart, and at the last every triangle is a face: a triangle is always flat
-                let mut made = None;
-                let mut failure = String::new();
-                // (a solid of single triangles is only tried for a mesh that is not big: it takes minutes for tens of thousands and is of little use)
-                let attempts: &[usize] = if mesh.triangles.len() <= 20_000 {
-                    &[2, 4, usize::MAX]
-                } else {
-                    &[2, 4]
-                };
-                for &merge_from in attempts {
-                    let pf = rolidium_mesh::convert::polyfaces(&mesh, *tolerance, *round, merge_from, &stop)
-                        .ok_or(KernelError::Cancelled)?;
-                    let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
-                    match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {
-                        Ok(s) => {
-                            made = Some((s, pf));
-                            break;
-                        }
-                        Err(KernelError::Cancelled) => return Err(KernelError::Cancelled.into()),
-                        Err(e) => {
-                            if std::env::var_os("ROLIDIUM_DEBUG_CONVERT").is_some() {
-                                eprintln!(
-                                    "convert: merge from {merge_from} failed: {e} ({} faces)",
-                                    pf.faces.len()
-                                );
-                            }
-                            failure = e.to_string()
-                        }
-                    }
-                }
-                let Some((solid, pf)) = made else {
-                    return Err(KernelError::Invalid(format!(
-                        "The mesh could not be made a solid ({failure}). It stays a mesh; repair it (holes, turned triangles) or try a larger accuracy"
-                    ))
-                    .into());
-                };
+                let (solid, made) = meshsolid::solid_from_mesh(&mesh, *tolerance, *round, &stop)?;
                 let mut kinds = [0usize; 6];
                 for f in solid.faces() {
                     let k = solid
@@ -3259,16 +3224,18 @@ impl Job {
                 }
                 let report = meshes::ConvertReport {
                     kinds,
-                    single: pf.single,
-                    single_share: pf.single_area,
-                    max_deviation: pf.max_deviation,
+                    single: made.single,
+                    single_share: made.single_area,
+                    round_share: made.stats.round_area,
+                    route: made.route,
+                    max_deviation: made.max_deviation,
                     tolerance: *tolerance,
                     volume_mesh: mesh.signed_volume(),
                     volume_solid: solid.volume().unwrap_or(0.0),
                     seconds: started.elapsed().as_secs_f64(),
                     triangles: mesh.triangles.len(),
                     kept: *keep,
-                    rounded_values: pf.rounded,
+                    rounded_values: made.rounded,
                 };
                 st.body_counter += 1;
                 let id = self.next_id;

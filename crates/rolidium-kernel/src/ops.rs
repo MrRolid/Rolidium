@@ -7,6 +7,35 @@ use crate::{
     OpResult, Result, Solid,
 };
 
+/// What `Solid::from_surfaces` needs: shared points, the analytic surfaces, the edges (lines, circles, ellipses between points) and the faces (a surface and
+/// loops of edges, each `(edge << 1) | reversed`). The parameters are described at `solid_from_surfaces` in `bridge.cpp`.
+#[derive(Debug, Clone, Default)]
+pub struct SurfaceSpec {
+    pub points: Vec<DVec3>,
+    pub point_tol: Vec<f64>,
+    /// (kind: 0 plane, 1 cylinder, 2 cone, 3 sphere, 4 torus; parameters)
+    pub surfaces: Vec<(u32, [f64; 12])>,
+    pub edges: Vec<EdgeSpec>,
+    pub faces: Vec<FaceSpec>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct EdgeSpec {
+    /// 0 line, 1 circle, 2 ellipse.
+    pub kind: u32,
+    pub v: [u32; 2],
+    pub params: [f64; 12],
+    pub tol: f64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FaceSpec {
+    pub surface: u32,
+    pub loops: Vec<Vec<u32>>,
+    /// The area the face should have (the area of its triangles), to tell a face that was made the wrong way round a periodic surface; 0 when not known.
+    pub area: f64,
+}
+
 /// One piece of a 2D profile, in plane coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProfileSegment {
@@ -196,6 +225,49 @@ impl Solid {
             point_tol,
             &fb_vertices,
             &fb_offsets,
+            tol,
+        )?;
+        Solid::from_shape(shape).validated_body()
+    }
+
+    /// A solid made of faces on analytic surfaces (planes, cylinders, cones, spheres, tori) with shared edges that are lines, circles or ellipses: a mesh of a
+    /// technical part, recognised. The result is checked like every other (valid, closed, positive volume).
+    pub fn from_surfaces(spec: &SurfaceSpec, tol: f64) -> Result<Solid> {
+        let pts: Vec<f64> = spec.points.iter().flat_map(|p| p.to_array()).collect();
+        let surf_kind: Vec<u32> = spec.surfaces.iter().map(|s| s.0).collect();
+        let surf_params: Vec<f64> = spec.surfaces.iter().flat_map(|s| s.1).collect();
+        let edge_kind: Vec<u32> = spec.edges.iter().map(|e| e.kind).collect();
+        let edge_v: Vec<u32> = spec.edges.iter().flat_map(|e| e.v).collect();
+        let edge_params: Vec<f64> = spec.edges.iter().flat_map(|e| e.params).collect();
+        let edge_tol: Vec<f64> = spec.edges.iter().map(|e| e.tol).collect();
+        let (mut loop_edges, mut loop_offsets, mut face_offsets) = (Vec::new(), vec![0u32], vec![0u32]);
+        let mut loop_count = 0u32;
+        let mut face_surf = Vec::new();
+        let mut face_area = Vec::new();
+        for f in &spec.faces {
+            for l in &f.loops {
+                loop_edges.extend_from_slice(l);
+                loop_offsets.push(loop_edges.len() as u32);
+                loop_count += 1;
+            }
+            face_offsets.push(loop_count);
+            face_surf.push(f.surface);
+            face_area.push(f.area);
+        }
+        let shape = native::solid_from_surfaces(
+            &pts,
+            &spec.point_tol,
+            &surf_kind,
+            &surf_params,
+            &edge_kind,
+            &edge_v,
+            &edge_params,
+            &edge_tol,
+            &loop_edges,
+            &loop_offsets,
+            &face_offsets,
+            &face_surf,
+            &face_area,
             tol,
         )?;
         Solid::from_shape(shape).validated_body()

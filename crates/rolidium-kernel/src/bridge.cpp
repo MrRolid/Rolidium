@@ -48,6 +48,8 @@
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <ShapeFix_Face.hxx>
+#include <ShapeFix_Edge.hxx>
+#include <Bnd_Box.hxx>
 #include <unordered_map>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Shell.hxx>
@@ -56,6 +58,14 @@
 #include <gp_GTrsf.hxx>
 #include <gp_Mat.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <Geom_Circle.hxx>
+#include <Geom_Ellipse.hxx>
+#include <Geom_Plane.hxx>
+#include <Geom_SphericalSurface.hxx>
+#include <Geom_ToroidalSurface.hxx>
+#include <ElCLib.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Elips.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -671,6 +681,185 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
         GProp_GProps props;
         BRepGProp::VolumeProperties(solid, props);
         if (props.Mass() < 0) solid.Reverse();
+        return wrap(solid);
+    });
+}
+
+
+/// A solid from faces that lie on analytic surfaces (a plane, cylinder, cone, sphere or torus) and are bounded by edges that are lines, circles or ellipses
+/// between shared points: the faces of a mesh that was recognised as technical (a hole is a cylinder, a round is a cylinder or a torus). Every edge is made
+/// once and shared by the two faces that have it, so they close without sewing; the pcurves are computed by the shape healing.
+/// Surface parameters (12 numbers each): plane: origin, normal; cylinder: origin, axis, radius; cone: origin, axis, semi-angle, radius at the origin;
+/// sphere: centre, axis, radius; torus: centre, axis, major radius, minor radius. Edge parameters (12 each): circle: centre, normal, xdir, radius (the arc
+/// runs counter-clockwise about the normal from the first to the second point); ellipse: centre, normal, xdir, major, minor.
+std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::Slice<const double> point_tol, rust::Slice<const uint32_t> surf_kind,
+                                           rust::Slice<const double> surf_params, rust::Slice<const uint32_t> edge_kind, rust::Slice<const uint32_t> edge_v,
+                                           rust::Slice<const double> edge_params, rust::Slice<const double> edge_tol, rust::Slice<const uint32_t> loop_edges,
+                                           rust::Slice<const uint32_t> loop_offsets, rust::Slice<const uint32_t> face_offsets,
+                                           rust::Slice<const uint32_t> face_surf, rust::Slice<const double> face_area, double tol) {
+    return guarded("solid_from_surfaces", [&] {
+        const size_t np = pts.size() / 3;
+        BRep_Builder bb;
+        std::vector<TopoDS_Vertex> verts(np);
+        std::vector<bool> made(np, false);
+        auto ptol = [&](uint32_t i) { return point_tol.size() > i ? std::max(point_tol[i], tol) : tol; };
+        auto pnt = [&](uint32_t i) { return gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]); };
+        auto vertex = [&](uint32_t i) -> TopoDS_Vertex {
+            if (!made[i]) {
+                bb.MakeVertex(verts[i], pnt(i), ptol(i));
+                made[i] = true;
+            }
+            return verts[i];
+        };
+        const size_t ne = edge_kind.size();
+        std::vector<TopoDS_Edge> edges(ne);
+        for (size_t e = 0; e < ne; ++e) {
+            const uint32_t a = edge_v[2 * e], b = edge_v[2 * e + 1];
+            const double* p = &edge_params[12 * e];
+            const double etol = std::max(edge_tol.size() > e ? edge_tol[e] : 0.0, tol);
+            if (edge_kind[e] == 0) {
+                BRepBuilderAPI_MakeEdge me(vertex(a), vertex(b));
+                if (!me.IsDone()) fail("two points of a face are the same point (edge " + std::to_string(e) + ")");
+                edges[e] = me.Edge();
+            } else {
+                Handle(Geom_Curve) curve;
+                double p0 = 0, p1 = 0;
+                const gp_Pnt c(p[0], p[1], p[2]);
+                const gp_Dir n(p[3], p[4], p[5]);
+                const gp_Dir x(p[6], p[7], p[8]);
+                if (edge_kind[e] == 1) {
+                    gp_Circ circ(gp_Ax2(c, n, x), p[9]);
+                    curve = new Geom_Circle(circ);
+                    p0 = ElCLib::Parameter(circ, pnt(a));
+                    p1 = ElCLib::Parameter(circ, pnt(b));
+                } else {
+                    gp_Elips el(gp_Ax2(c, n, x), p[9], p[10]);
+                    curve = new Geom_Ellipse(el);
+                    p0 = ElCLib::Parameter(el, pnt(a));
+                    p1 = ElCLib::Parameter(el, pnt(b));
+                }
+                if (a == b) p1 = p0 + 2.0 * M_PI;
+                else if (p1 <= p0) p1 += 2.0 * M_PI;
+                BRepBuilderAPI_MakeEdge me(curve, vertex(a), vertex(b), p0, p1);
+                if (!me.IsDone()) fail("an arc of a face could not be made (edge " + std::to_string(e) + ")");
+                edges[e] = me.Edge();
+                // the points must lie on the curve within the tolerance of the vertex
+                gp_Pnt qa = curve->Value(p0), qb = curve->Value(p1);
+                bb.UpdateVertex(vertex(a), std::max(ptol(a), qa.Distance(pnt(a)) * 1.01 + 1e-7));
+                bb.UpdateVertex(vertex(b), std::max(ptol(b), qb.Distance(pnt(b)) * 1.01 + 1e-7));
+            }
+            bb.UpdateEdge(edges[e], etol);
+            bb.UpdateVertex(vertex(a), etol);
+            bb.UpdateVertex(vertex(b), etol);
+        }
+        const size_t ns = surf_kind.size();
+        std::vector<Handle(Geom_Surface)> surfs(ns);
+        for (size_t s = 0; s < ns; ++s) {
+            const double* p = &surf_params[12 * s];
+            const gp_Pnt o(p[0], p[1], p[2]);
+            const gp_Dir ax(p[3], p[4], p[5]);
+            switch (surf_kind[s]) {
+                case 0: surfs[s] = new Geom_Plane(gp_Pln(o, ax)); break;
+                case 1: surfs[s] = new Geom_CylindricalSurface(gp_Ax3(o, ax), p[6]); break;
+                case 2: surfs[s] = new Geom_ConicalSurface(gp_Ax3(o, ax), p[6], p[7]); break;
+                case 3: surfs[s] = new Geom_SphericalSurface(gp_Ax3(o, ax), p[6]); break;
+                case 4: surfs[s] = new Geom_ToroidalSurface(gp_Ax3(o, ax), p[6], p[7]); break;
+                default: fail("unknown surface kind");
+            }
+        }
+        auto wire_of = [&](size_t l) -> TopoDS_Wire {
+            BRepBuilderAPI_MakeWire mw;
+            for (uint32_t k = loop_offsets[l]; k < loop_offsets[l + 1]; ++k) {
+                const uint32_t code = loop_edges[k];
+                TopoDS_Edge e = edges[code >> 1];
+                if (code & 1) e.Reverse();
+                mw.Add(e);
+            }
+            if (!mw.IsDone()) fail("a loop of a face is not closed");
+            return mw.Wire();
+        };
+        BRepBuilderAPI_Sewing sew(std::max(tol, 1e-6));
+        sew.SetNonManifoldMode(Standard_False);
+        size_t added = 0;
+        const size_t nf = face_offsets.size() - 1;
+        for (size_t f = 0; f < nf; ++f) {
+            if (face_offsets[f] == face_offsets[f + 1]) continue;
+            const uint32_t l0 = face_offsets[f], l1 = face_offsets[f + 1];
+            // the face is made with the loops in the given order and, when it has several, reversed: on a periodic surface the shape healing may put the
+            // second loop a period away, and the face that comes out then has the wrong area (the mesh says what it should be)
+            TopoDS_Face best;
+            double best_err = 1e300;
+            for (int attempt = 0; attempt < (l1 - l0 > 1 ? 2 : 1); ++attempt) {
+                TopoDS_Face face;
+                try {
+                    auto loop_at = [&](uint32_t k) { return attempt == 0 ? l0 + k : l1 - 1 - k; };
+                    if (surf_kind[face_surf[f]] == 0) {
+                        BRepBuilderAPI_MakeFace mf(Handle(Geom_Plane)::DownCast(surfs[face_surf[f]])->Pln(), wire_of(loop_at(0)), Standard_True);
+                        if (!mf.IsDone()) fail("a flat face could not be made (face " + std::to_string(f) + ")");
+                        for (uint32_t k = 1; k < l1 - l0; ++k) mf.Add(wire_of(loop_at(k)));
+                        face = mf.Face();
+                    } else {
+                        bb.MakeFace(face, surfs[face_surf[f]], TopLoc_Location(), tol);
+                        ShapeFix_Edge sfe;
+                        for (uint32_t k = 0; k < l1 - l0; ++k) {
+                            TopoDS_Wire w = wire_of(loop_at(k));
+                            for (TopExp_Explorer ex(w, TopAbs_EDGE); ex.More(); ex.Next()) sfe.FixAddPCurve(TopoDS::Edge(ex.Current()), face, Standard_False, tol);
+                            bb.Add(face, w);
+                        }
+                    }
+                    ShapeFix_Face fix(face);
+                    fix.FixOrientation();
+                    fix.Perform();
+                    face = fix.Face();
+                } catch (...) {
+                    if (attempt == 0 && l1 - l0 == 1) throw;
+                    continue;
+                }
+                GProp_GProps fp;
+                BRepGProp::SurfaceProperties(face, fp);
+                const double want = face_area.size() > f ? face_area[f] : 0.0;
+                const double err = want > 0 ? std::abs(fp.Mass() - want) / want : 0.0;
+                if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "face %zu surf %u attempt %d area %g want %g\n", f, face_surf[f], attempt, fp.Mass(), want);
+                if (err < best_err) {
+                    best_err = err;
+                    best = face;
+                }
+                if (err < 0.25) break;
+            }
+            if (best.IsNull()) fail("a face could not be made (face " + std::to_string(f) + ")");
+            sew.Add(best);
+            ++added;
+        }
+        if (added == 0) fail("there are no faces");
+        sew.Perform();
+        TopoDS_Shape sewn = sew.SewedShape();
+        TopoDS_Shell shell;
+        for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) { shell = TopoDS::Shell(ex.Current()); break; }
+        if (shell.IsNull()) fail("the faces could not be sewn into a shell");
+        ShapeFix_Shell fs(shell);
+        fs.FixFaceOrientation(shell);
+        fs.Perform();
+        TopoDS_Shell fixed = fs.Shell();
+        ShapeFix_Solid fsol;
+        TopoDS_Solid solid = fsol.SolidFromShell(fixed);
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(solid, props);
+        if (props.Mass() < 0) solid.Reverse();
+        if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) {
+            BRepCheck_Analyzer an(solid);
+            std::fprintf(stderr, "shell closed %d solid valid %d volume %g\n", (int)BRep_Tool::IsClosed(fixed), (int)an.IsValid(), props.Mass());
+            for (TopExp_Explorer ex(solid, TopAbs_FACE); ex.More(); ex.Next()) {
+                BRepCheck_Analyzer fa(ex.Current());
+                std::fprintf(stderr, " face valid %d\n", (int)fa.IsValid());
+            }
+            TopTools_IndexedDataMapOfShapeListOfShape em;
+            TopExp::MapShapesAndAncestors(fixed, TopAbs_EDGE, TopAbs_FACE, em);
+            for (int i = 1; i <= em.Extent(); ++i) {
+                const TopoDS_Edge& e = TopoDS::Edge(em.FindKey(i));
+                BRepAdaptor_Curve ca(e);
+                std::fprintf(stderr, " edge %d faces %d type %d degen %d first %g last %g tol %g\n", i, em.FindFromIndex(i).Extent(), (int)ca.GetType(), (int)BRep_Tool::Degenerated(e), ca.FirstParameter(), ca.LastParameter(), BRep_Tool::Tolerance(e));
+            }
+        }
         return wrap(solid);
     });
 }

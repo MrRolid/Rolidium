@@ -57,7 +57,8 @@ pub use looptool::{LoopEdge, LoopError, PlanarLoop};
 pub use measure::{measure, Angle, Elem, Measurement};
 pub use mesh::{EdgePolyline, Mesh};
 pub use ops::{
-    BlendCombo, BlendGroup, BlendInput, ConeInfo, CylinderInfo, LoftInput, Profile, ProfileSegment,
+    BlendCombo, BlendGroup, BlendInput, ConeInfo, CylinderInfo, EdgeSpec, FaceSpec, LoftInput, Profile,
+    ProfileSegment, SurfaceSpec,
     SectionCurve,
 };
 pub use sweep::{

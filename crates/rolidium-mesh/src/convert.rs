@@ -463,3 +463,13 @@ pub fn flat_share(m: &TriMesh, tolerance: f64) -> f64 {
         0.0
     }
 }
+
+/// `loops_of` for the other modules of the crate.
+pub(crate) fn loops_of_pub(m: &TriMesh, group: &[u32], points: &[V3], normal: V3) -> Option<Vec<Vec<u32>>> {
+    loops_of(m, group, points, normal)
+}
+
+/// `split_outlines` for the other modules of the crate.
+pub(crate) fn split_outlines_pub(loops: Vec<Vec<u32>>, points: &[V3], normal: V3) -> Vec<Vec<Vec<u32>>> {
+    split_outlines(loops, points, normal)
+}

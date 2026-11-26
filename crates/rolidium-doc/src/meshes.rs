@@ -223,6 +223,10 @@ pub struct ConvertReport {
     /// Faces that are single triangles (nothing flat was found round them), and the share of the surface they cover.
     pub single: usize,
     pub single_share: f64,
+    /// The share of the surface (0 to 1) that is in round faces (cylinders, cones, spheres, tori).
+    pub round_share: f64,
+    /// How the solid was made: 0 with round surfaces, 1 with cylinders only, 2 with flat faces only.
+    pub route: u8,
     /// The largest distance of a vertex of the mesh from the plane of its face (mm).
     pub max_deviation: f64,
     pub tolerance: f64,
