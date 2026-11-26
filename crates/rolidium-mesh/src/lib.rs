@@ -11,6 +11,7 @@ pub mod check;
 pub mod convert;
 pub mod edit;
 pub mod gen;
+pub mod holefill;
 pub mod regions;
 pub mod serial;
 pub mod stl;
