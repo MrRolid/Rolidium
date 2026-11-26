@@ -6,7 +6,9 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [0.3.0] - Unreleased
+## [0.3.0] - 2026-11-26
+
+The release contains everything planned for 0.2.2 (0.2.2 was not published). Release notes for users: `dist/release-notes-0.3.0.md`.
 
 ### Added
 - Holes and pins are things to repeat: click the round face of a hole (a counterbore, a countersink or a chamfer round the same axis belong to it) or of a pin with the Pattern (`T`) or Mirror (`B`) tool, and a row, a circle of copies or a mirror image is cut out of (or fused into) the same body; a hidden tool body is made from the round faces, the result is one link and one step of Undo. Also in `rolidium cli` and MCP: `repeat-feature`.
@@ -39,6 +41,7 @@ features is visible. 0.2.0 is the first public release.
 
 ### Fixed
 - `rolidium cli render` no longer draws hidden bodies (the tools of holes that a pattern repeats).
+- A click that was lost or landed on another body (the picking of the graphics card answered late), a slow click in a sketch, a pull of a wall of a mesh through the opposite part of the mesh (triangles that cross), the normal of a wall of a mesh from one triangle, the direction of a move along an axis that points at the viewer, the diameter shown twice for a round surface of a mesh.
 
 ### Not yet
 - A pull of a side parallel to the face the corners follow (a change of the thickness of the plate) is refused as a hand edit of a derived body: the tools of the holes would no longer reach through. A circle of a sketch cannot be copied into the corners of a rectangle of a sketch (the shapes of a sketch have no history; use the pattern of the sketch). The distances of a circle in a sketch are measured to straight edges and lines only.
