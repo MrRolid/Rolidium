@@ -946,6 +946,16 @@ impl App {
 
     /// Once a frame: collects the result of the search for walls and holes, and starts one for a mesh that has none.
     pub(super) fn mesh_tick(&mut self, ctx: &egui::Context) {
+        // a preview belongs to the body that is selected
+        if let Some(p) = &self.preview_mesh {
+            let stale = match p.hides {
+                Some(h) => self.body_sel != Some(h),
+                None => !self.simplify_result_for(self.body_sel),
+            };
+            if stale {
+                self.drop_mesh_previews();
+            }
+        }
         if let Some(job) = &self.mesh_ui.job {
             match job.rx.try_recv() {
                 Ok(Some(r)) => {
@@ -1272,7 +1282,7 @@ pub enum MeshRegion {
     Hole(Arc<regions::Cylinder>),
 }
 
-fn fmt_len(v: f64) -> String {
+pub(super) fn fmt_len(v: f64) -> String {
     let s = format!("{v:.2}");
     s.trim_end_matches('0').trim_end_matches('.').to_string()
 }

@@ -3335,12 +3335,15 @@ impl Job {
                 let o = rolidium_mesh::simplify::Options {
                     target: match target {
                         meshes::SimplifyTarget::Percent(p) => rolidium_mesh::simplify::Target::Percent(*p),
-                        meshes::SimplifyTarget::Triangles(n) => rolidium_mesh::simplify::Target::Triangles(*n),
+                        meshes::SimplifyTarget::Triangles(n) => {
+                            rolidium_mesh::simplify::Target::Triangles(*n)
+                        }
                     },
                     keep_features: *keep_features,
                     ..Default::default()
                 };
-                let r = rolidium_mesh::simplify::simplify(&st.meshes[mp].mesh, &o, &stop).ok_or(KernelError::Cancelled)?;
+                let r = rolidium_mesh::simplify::simplify(&st.meshes[mp].mesh, &o, &stop)
+                    .ok_or(KernelError::Cancelled)?;
                 if r.triangles_after >= r.triangles_before {
                     return Err(KernelError::Invalid(if r.reason.is_empty() {
                         "The mesh cannot be simplified any further".to_string()
@@ -3362,8 +3365,16 @@ impl Job {
                 normal,
                 distance,
             } => {
-                if !(point.is_finite() && normal.is_finite() && normal.length() > 1e-9 && distance.is_finite()) || distance.abs() < 1e-6 {
-                    return Err(KernelError::Invalid("the plane and the distance must be numbers, the distance not zero".into()).into());
+                if !(point.is_finite()
+                    && normal.is_finite()
+                    && normal.length() > 1e-9
+                    && distance.is_finite())
+                    || distance.abs() < 1e-6
+                {
+                    return Err(KernelError::Invalid(
+                        "the plane and the distance must be numbers, the distance not zero".into(),
+                    )
+                    .into());
                 }
                 if let Some(mp) = st.meshes.iter().position(|m| m.id == *body) {
                     let r = rolidium_mesh::planesweep::sweep_in_plane(

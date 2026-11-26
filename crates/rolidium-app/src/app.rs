@@ -42,6 +42,7 @@ mod jointool;
 mod linktool;
 mod lofttool;
 mod measuretool;
+mod meshops;
 mod meshtool;
 mod movetool;
 mod multicircle;
@@ -320,6 +321,10 @@ pub struct App {
     pick_stats: std::cell::Cell<(f32, bool, u64)>,
     /// Triangle meshes (STL): the import dialog and the search for walls and holes.
     mesh_ui: meshtool::MeshUi,
+    /// A mesh that is shown and is not a body (the result of a simplification, the stretched mesh).
+    preview_mesh: Option<meshops::PreviewMesh>,
+    simplify: meshops::SimplifyUi,
+    stretch: meshops::StretchUi,
     /// The size of the selected body, typed in a click.
     body_dims: bodydims::BodyDimsUi,
     /// A drawing tool was chosen in the 3D view: the face to draw on is being chosen (the sketch starts at the click).
@@ -577,6 +582,9 @@ impl App {
             probe: probe::Probe::from_env(),
             pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
+            preview_mesh: None,
+            simplify: meshops::SimplifyUi::default(),
+            stretch: meshops::StretchUi::default(),
             body_dims: Default::default(),
             quick_tool: None,
             quick_first: false,
@@ -822,7 +830,7 @@ impl App {
             .filter(|b| b.visible)
             .map(|b| (b.id, b.name.clone(), b.solid.clone(), b.color))
             .collect();
-        let meshes = rolidium_doc::display::mesh_inputs(self.doc.state());
+        let meshes = self.display_meshes();
         if self.worker.send(Work::Meshes { bodies, meshes }) {
             self.busy = Busy::Meshes;
         }
@@ -1298,6 +1306,7 @@ impl App {
             }
         }
         layers.extend(self.combine_layers());
+        layers.extend(self.stretch_layers());
         layers.extend(self.link_layers());
         layers.extend(self.hole_drag_layers());
         layers.extend(self.shape_drag_layers());
@@ -3350,6 +3359,9 @@ impl App {
             self.revolve_input(resp, pointer, rect);
             return;
         }
+        if self.stretch_pick_click(resp) {
+            return;
+        }
         if self.up_to.is_some() {
             if resp.clicked_by(PointerButton::Primary) {
                 if let Some(p) = pointer {
@@ -5052,6 +5064,9 @@ impl eframe::App for App {
                                 }
                                 if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some()) {
                                     self.mesh_selection_ui(ui, b);
+                                }
+                                if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some() || self.doc.body(*b).is_some()) {
+                                    self.mesh_ops_ui(ui, b);
                                 }
                                 if let Some(b) = self.body_sel {
                                     self.link_sources_ui(ui, b, None);

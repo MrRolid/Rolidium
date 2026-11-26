@@ -701,6 +701,18 @@ fn fit_torus(p: &Patch, vnormals: &[V3], tol: f64) -> Option<Surf> {
     if !(small > 1e-6 && big > small * 0.05 && big.is_finite() && small.is_finite()) {
         return None;
     }
+    // a torus of a radius that is many times the size of the patch is a cone or a cylinder seen through the tolerance
+    let (mut lo, mut hi) = ([f64::MAX; 3], [f64::MIN; 3]);
+    for q in &p.pts {
+        for k in 0..3 {
+            lo[k] = lo[k].min(q[k]);
+            hi[k] = hi[k].max(q[k]);
+        }
+    }
+    let extent = len(sub(hi, lo));
+    if small > 3.0 * extent || big > 5.0 * extent {
+        return None;
+    }
     let s = Surf::Torus {
         c: [q[0], q[1], q[2]],
         a: ax,
@@ -941,7 +953,13 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
             let mut best: Option<(Vec<u32>, Surf)> = None;
             for s in hyp {
                 let grown = grow_groups(&s, seed, &ctx, tol_s, |g| g_region[g] == NONE);
-                if best.as_ref().is_none_or(|b| grown.len() > b.0.len()) {
+                // a torus has to explain clearly more than a simpler surface does (a cone is a torus of a huge radius)
+                let need = match (&best, s) {
+                    (Some(b), Surf::Torus { .. }) => b.0.len() + b.0.len() / 10 + 2,
+                    (Some(b), _) => b.0.len() + 1,
+                    (None, _) => 0,
+                };
+                if grown.len() >= need.max(1) {
                     best = Some((grown, s));
                 }
             }

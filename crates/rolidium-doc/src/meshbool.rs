@@ -270,6 +270,9 @@ impl Job {
                     continue; // only touches: nothing removed
                 }
             } else {
+                if (after - before).abs() < 1e-9 * before.abs().max(1.0) {
+                    continue; // the new volume lies inside: nothing is added
+                }
                 // joined only when they share volume or a face: a union that is as big as the two together and falls into two pieces touched nothing
                 let sum = before + tm.signed_volume();
                 if (after - sum).abs() < 1e-9 * sum.abs().max(1.0) && check::check(&r).components > 1 {

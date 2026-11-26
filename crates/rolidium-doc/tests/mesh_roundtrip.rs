@@ -234,22 +234,177 @@ pub fn print(row: &Row) {
     );
 }
 
-#[test]
-fn the_models_make_the_trip_there_and_back() {
-    let models: Vec<(&str, Solid)> = vec![
-        ("rounded box", rounded_box()),
-        ("plate with holes", plate_with_holes()),
-        ("boss with a cone", boss_with_cone()),
-        ("bin", bin()),
-    ];
-    for (name, s) in &models {
-        let (row, _d, _id) = roundtrip(name, s, 0.01, 0.2);
-        print(&row);
+/// The comparison: the faces by kind are the same, the radii agree, the volume and the deviation are small.
+fn compare(row: &Row, radii_tol: f64) {
+    print(row);
+    assert_eq!(row.before, row.after, "{}: the faces by kind", row.name);
+    assert_eq!(row.radii_before.len(), row.radii_after.len(), "{}", row.name);
+    for (a, b) in row.radii_before.iter().zip(&row.radii_after) {
+        assert!(
+            (a - b).abs() <= radii_tol,
+            "{}: radius {a} came back as {b}",
+            row.name
+        );
     }
+    assert!(
+        (row.volume_after - row.volume_before).abs() <= 1e-3 * row.volume_before,
+        "{}: volume {} -> {}",
+        row.name,
+        row.volume_before,
+        row.volume_after
+    );
+    assert!(row.deviation < 0.02, "{}: deviation {}", row.name, row.deviation);
+    assert_eq!(row.route, 0, "{}: made with round surfaces", row.name);
 }
 
-#[allow(dead_code)]
-fn _unused(_: FaceId) {}
+#[test]
+fn a_box_with_rounded_edges_comes_back_as_six_planes_twelve_cylinders_and_eight_spheres() {
+    let (row, _d, _id) = roundtrip("rounded box", &rounded_box(), 0.01, 0.2);
+    compare(&row, 0.02);
+}
+
+#[test]
+fn a_plate_with_holes_a_counterbore_and_a_countersink_comes_back_the_same() {
+    let (row, _d, _id) = roundtrip("plate with holes", &plate_with_holes(), 0.01, 0.2);
+    compare(&row, 0.01);
+}
+
+#[test]
+fn a_boss_with_a_cone_and_a_round_at_its_foot_comes_back_with_a_torus() {
+    let (row, _d, _id) = roundtrip("boss with a cone", &boss_with_cone(), 0.01, 0.2);
+    compare(&row, 0.01);
+    assert_eq!(row.after[4], 1);
+}
+
+#[test]
+fn a_container_in_the_style_of_gridfinity_with_magnet_holes_comes_back_the_same() {
+    let (row, _d, _id) = roundtrip("bin", &bin(), 0.01, 0.2);
+    compare(&row, 0.02);
+}
+
+#[test]
+fn the_same_container_with_a_round_at_the_bottom_of_its_pocket_is_a_solid_even_when_its_tori_are_not_found() {
+    // the rounds of the corners of the pocket are tori with a small major radius; where they are not found they stay flat strips (see MESH.md)
+    let z = v(0.0, 0.0, 1.0);
+    let mut s = Solid::cuboid(v(0.0, 0.0, 0.0), v(42.0, 42.0, 25.0)).unwrap();
+    let vertical = edges_where(&s, |a, b| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6);
+    s = s.fillet(&vertical, 4.0).unwrap().solid;
+    let mut pocket = Solid::cuboid(v(1.2, 1.2, 5.0), v(40.8, 40.8, 30.0)).unwrap();
+    let pv = edges_where(&pocket, |a, b| {
+        (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6
+    });
+    pocket = pocket.fillet(&pv, 2.8).unwrap().solid;
+    let pb = edges_where(&pocket, |a, b| a.z < 5.1 && b.z < 5.1);
+    pocket = pocket.fillet(&pb, 1.0).unwrap().solid;
+    s = s.boolean(&pocket, rolidium_kernel::BooleanOp::Cut).unwrap().solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(3.25, 2.4, v(8.0, 8.0, -0.1), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
+    let (row, _d, _id) = roundtrip("bin with round bottom", &s, 0.01, 0.2);
+    print(&row);
+    assert!(
+        (row.volume_after - row.volume_before).abs() <= 3e-3 * row.volume_before,
+        "{} {}",
+        row.volume_before,
+        row.volume_after
+    );
+}
+
+/// The converted solid is edited like a drawn one: the diameter of a hole, the radius of a round and the pull of a wall that has rounds next to it.
+#[test]
+fn on_the_converted_solids_a_hole_and_a_round_change_size_and_a_wall_with_rounds_is_pulled() {
+    use rolidium_doc::PullMode;
+    // a hole
+    let (_row, mut d, bid) = roundtrip("plate", &plate_with_holes(), 0.01, 0.2);
+    let hole = {
+        let s = &d.body(bid).unwrap().solid;
+        s.faces()
+            .find(|f| {
+                s.cylinder_info(*f)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|c| c.is_hole && (c.radius - 3.0).abs() < 0.01 && c.height > 9.0)
+            })
+            .expect("a through hole")
+    };
+    let before = d.body(bid).unwrap().solid.volume().unwrap();
+    d.apply(Command::SetCylinderDiameter {
+        body: bid,
+        face: hole,
+        diameter: 8.0,
+    })
+    .unwrap();
+    let after = d.body(bid).unwrap().solid.volume().unwrap();
+    let expect = std::f64::consts::PI * (16.0 - 9.0) * 8.5; // the hole goes through the chamfered part: only roughly
+    assert!(
+        before - after > 0.7 * expect && before - after < 1.3 * expect,
+        "{} {}",
+        before - after,
+        expect
+    );
+    // a round
+    let (_row, mut d, bid) = roundtrip("rounded box", &rounded_box(), 0.01, 0.2);
+    let (round, _) = {
+        let s = &d.body(bid).unwrap().solid;
+        let f = s
+            .faces()
+            .find(|f| s.face_info(*f).unwrap().kind == FaceKind::Cylinder)
+            .expect("a round");
+        (f, ())
+    };
+    let before = d.body(bid).unwrap().solid.volume().unwrap();
+    d.apply(Command::EditBlend {
+        body: bid,
+        face: round,
+        size: 1.5,
+        chain: true,
+    })
+    .unwrap();
+    let after = d.body(bid).unwrap().solid.volume().unwrap();
+    assert!(
+        after > before + 1.0,
+        "a smaller radius leaves more material: {before} -> {after}"
+    );
+    let (_k, radii) = kinds_of(&d.body(bid).unwrap().solid);
+    assert!(radii.iter().any(|r| (r - 1.5).abs() < 0.01), "{radii:?}");
+    // the wall with rounds next to it
+    let (_row, mut d, bid) = roundtrip("rounded box", &rounded_box(), 0.01, 0.2);
+    let wall = {
+        let s = &d.body(bid).unwrap().solid;
+        s.faces()
+            .find(|f| {
+                let i = s.face_info(*f).unwrap();
+                i.kind == FaceKind::Plane && i.normal.x > 0.99
+            })
+            .unwrap()
+    };
+    let before = d.body(bid).unwrap().solid.volume().unwrap();
+    let area = {
+        let s = &d.body(bid).unwrap().solid;
+        s.face_info(wall).unwrap().area
+    };
+    d.apply(Command::PullFace {
+        body: bid,
+        face: wall,
+        distance: 5.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    let after = d.body(bid).unwrap().solid.volume().unwrap();
+    // the pull takes the rounds along: the section of the box (30 x 20 with four rounds of 3 mm) is added five times
+    let section = 600.0 - (4.0 - std::f64::consts::PI) * 9.0;
+    let _ = area;
+    assert!(
+        (after - before - section * 5.0).abs() < 0.01 * section * 5.0,
+        "{before} -> {after}, section {section}"
+    );
+    let (k, _) = kinds_of(&d.body(bid).unwrap().solid);
+    assert_eq!(k[1], 12, "the rounds stay: {k:?}");
+}
 
 #[test]
 #[ignore]
