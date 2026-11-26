@@ -24,6 +24,7 @@ pub mod display;
 pub mod file;
 mod generate;
 mod links;
+pub mod meshbool;
 pub mod meshes;
 pub mod meshsolid;
 mod sketchops;
@@ -1473,6 +1474,11 @@ impl Job {
                                 first_id.get_or_insert(b.id);
                             }
                         }
+                        if let Some((mid, n)) = self.pull_on_meshes(&mut st, &tool, true, None)? {
+                            first_id.get_or_insert(mid);
+                            cut_any = true;
+                            notice = meshbool::filled_text(n);
+                        }
                         let Some(first) = first_id.filter(|_| cut_any) else {
                             return Err(KernelError::Invalid(
                                 "There is nothing to remove here: the shape does not overlap any body".into(),
@@ -1531,6 +1537,13 @@ impl Job {
                                 st.bodies.remove(i);
                             }
                             c = (bid, if joined.len() == 1 { first_history } else { None });
+                        } else if let Some((mid, n)) = if touching.is_empty() {
+                            self.pull_on_meshes(&mut st, &tool, false, None)?
+                        } else {
+                            None
+                        } {
+                            notice = meshbool::filled_text(n);
+                            c = (mid, None);
                         } else {
                             if !touching.is_empty() {
                                 notice = Some(
@@ -1549,6 +1562,38 @@ impl Job {
                                 material: None,
                             });
                             c = (id, None);
+                        }
+                    }
+                    Some(bid) if st.meshes.iter().any(|m| m.id == bid) => {
+                        // a sketch drawn on a wall of a mesh: cut out of the mesh or join to it
+                        let cut = !(*distance > 0.0 || fill);
+                        match self.pull_on_meshes(&mut st, &tool, cut, Some(bid))? {
+                            Some((mid, n)) => {
+                                notice = meshbool::filled_text(n);
+                                c = (mid, None);
+                            }
+                            None if cut => {
+                                return Err(KernelError::Invalid(
+                                    "There is nothing to remove here: the region does not overlap the mesh"
+                                        .into(),
+                                )
+                                .into())
+                            }
+                            None => {
+                                // a volume that only touches the mesh is a body of its own
+                                let id = self.next_id;
+                                st.body_counter += 1;
+                                st.bodies.push(Body {
+                                    id,
+                                    name: format!("Body {}", st.body_counter),
+                                    solid: tool,
+                                    color: [0.72, 0.76, 0.82],
+                                    visible: true,
+                                    features: Vec::new(),
+                                    material: None,
+                                });
+                                c = (id, None);
+                            }
                         }
                     }
                     Some(bid) => {
@@ -1806,6 +1851,9 @@ impl Job {
                 op,
                 keep_tools,
             } => {
+                if st.meshes.iter().any(|m| m.id == *target || tools.contains(&m.id)) {
+                    return self.combine_with_meshes(st, *target, tools, *op, *keep_tools);
+                }
                 let tpos = st
                     .bodies
                     .iter()
@@ -3186,18 +3234,15 @@ impl Job {
                 let mut mesh = st.meshes[mp].mesh.clone();
                 let stop = || rolidium_kernel::cancel_requested();
                 let mut report = rolidium_mesh::check::check(&mesh);
+                let mut filled_holes = 0;
                 if report.open_edges > 0 || report.inconsistent_edges > 0 {
-                    // a mesh with loose joints or turned triangles is mended on a copy (the mesh itself is not changed)
-                    let mut fixed = (*mesh).clone();
-                    let tol = rolidium_mesh::check::merge_tolerance(&fixed);
-                    rolidium_mesh::check::merge_vertices(&mut fixed, tol);
-                    rolidium_mesh::check::orient_normals(&mut fixed);
-                    let r2 = rolidium_mesh::check::check(&fixed);
-                    if r2.open_edges > 0 || r2.inconsistent_edges > 0 {
-                        return Err(KernelError::Invalid("The mesh has holes or turned triangles that cannot be mended by itself, so it cannot be made a solid. Check the mesh and repair it first".into()).into());
-                    }
+                    // loose joints and turned triangles are mended on a copy (the mesh itself is not changed), small flat holes are patched; a hole that is big or
+                    // curved stops the conversion with the reason
+                    let name = st.meshes[mp].name.clone();
+                    let (fixed, n) = meshbool::prepare(&mesh, &name)?;
+                    filled_holes = n;
                     mesh = Arc::new(fixed);
-                    report = r2;
+                    report = rolidium_mesh::check::check(&mesh);
                 }
                 if report.non_manifold_edges > 0 {
                     return Err(KernelError::Invalid(format!(
@@ -3259,6 +3304,7 @@ impl Job {
                 meshes::keep_report(id, report);
                 let mut c = self.done(st, "Convert mesh to solid");
                 c.touched_body = Some(id);
+                c.notice = meshbool::filled_text(filled_holes);
                 Ok(c)
             }
             Command::MeshScale {

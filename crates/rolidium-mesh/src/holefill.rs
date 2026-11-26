@@ -184,7 +184,8 @@ fn reason_to_leave(r: &Rim, o: &FillOptions) -> Option<String> {
         );
     }
     let curved = i.planarity > o.max_planarity.max(o.max_planarity_ratio * i.diameter);
-    let wide = i.diameter > o.max_diameter;
+    // a rim that lies in one plane (within 0.01 mm) is patched flat whatever its size: nothing is invented; a bigger rim that is only nearly flat is not
+    let wide = i.diameter > o.max_diameter && i.planarity > 0.01;
     if curved {
         let mut s = format!("its rim is curved ({:.2} mm off a plane)", i.planarity);
         if wide {
@@ -920,10 +921,23 @@ mod tests {
     }
 
     #[test]
-    fn a_big_flat_hole_is_left_for_its_width() {
+    fn a_big_flat_hole_is_patched_and_a_big_nearly_flat_one_is_left_for_its_width() {
+        // a rim in one plane is patched flat whatever its size: nothing is invented
         let mut m = box_mesh(40.0, 40.0, 40.0, 1);
         let top = face_triangles(&m, 2, true, 40.0);
         remove(&mut m, &top);
+        let rep = fill_holes(&mut m, &opts());
+        assert_eq!((rep.filled, rep.added_triangles), (1, 2));
+        assert!(check(&m).is_clean());
+        // the same with a corner lifted by 0.2 mm: wide and only nearly flat
+        let mut m = box_mesh(40.0, 40.0, 40.0, 1);
+        let top = face_triangles(&m, 2, true, 40.0);
+        remove(&mut m, &top);
+        for p in &mut m.positions {
+            if p[2] > 39.0 && p[0] > 30.0 && p[1] > 30.0 {
+                p[2] += 0.2;
+            }
+        }
         let rep = fill_holes(&mut m, &opts());
         assert_eq!(rep.filled, 0);
         assert!(rep.left[0].1.contains("wide"), "{}", rep.left[0].1);
@@ -1067,6 +1081,12 @@ mod tests {
         let bottom = face_triangles(&m, 2, false, 0.0);
         assert_eq!(bottom.len(), 72);
         remove(&mut m, &bottom);
+        // the bottom's corners lifted a little: wide and only nearly flat
+        for p in &mut m.positions {
+            if p[2] < 1.0 && p[0] > 20.0 && p[1] > 20.0 {
+                p[2] += 0.2;
+            }
+        }
         let rep = fill_holes(&mut m, &opts());
         assert_eq!(rep.filled, 1);
         assert_eq!(rep.added_triangles, 2);
@@ -1080,7 +1100,7 @@ mod tests {
         let rep = fill_all(&mut m);
         assert_eq!(rep.filled, 1);
         assert!(check(&m).is_clean());
-        assert!((m.signed_volume() - vol).abs() < 1e-3);
+        assert!((m.signed_volume() - vol).abs() < 30.0 * 30.0 * 0.2);
     }
 
     #[test]

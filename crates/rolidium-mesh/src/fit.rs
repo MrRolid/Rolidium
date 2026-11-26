@@ -190,7 +190,11 @@ fn solve(n: usize, a: &[f64], b: &[f64]) -> Option<Vec<f64>> {
 
 /// Two unit vectors square to `a` and to each other.
 fn basis(a: V3) -> (V3, V3) {
-    let h = if a[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let h = if a[0].abs() < 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
     let u = unit(cross(a, h));
     (u, cross(a, u))
 }
@@ -200,12 +204,32 @@ fn basis(a: V3) -> (V3, V3) {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Surf {
-    Plane { n: V3, off: f64 },
-    Cyl { o: V3, a: V3, r: f64 },
+    Plane {
+        n: V3,
+        off: f64,
+    },
+    Cyl {
+        o: V3,
+        a: V3,
+        r: f64,
+    },
     /// A point `o` of the axis where the radius is `r0`; the radius grows by `k` for a unit along the axis.
-    Cone { o: V3, a: V3, k: f64, r0: f64 },
-    Sphere { c: V3, r: f64 },
-    Torus { c: V3, a: V3, big: f64, small: f64 },
+    Cone {
+        o: V3,
+        a: V3,
+        k: f64,
+        r0: f64,
+    },
+    Sphere {
+        c: V3,
+        r: f64,
+    },
+    Torus {
+        c: V3,
+        a: V3,
+        big: f64,
+        small: f64,
+    },
 }
 
 impl Surf {
@@ -644,7 +668,10 @@ fn fit_torus(p: &Patch, vnormals: &[V3], tol: f64) -> Option<Surf> {
     if vals[1] < 1e-3 * vals[5].max(1e-12) {
         return None;
     }
-    let (d, mo) = ([vecs[0][0], vecs[0][1], vecs[0][2]], [vecs[0][3], vecs[0][4], vecs[0][5]]);
+    let (d, mo) = (
+        [vecs[0][0], vecs[0][1], vecs[0][2]],
+        [vecs[0][3], vecs[0][4], vecs[0][5]],
+    );
     let dl = len(d);
     if dl < 1e-6 {
         return None;
@@ -702,7 +729,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
     let tolerance = o.tolerance;
     let mut stats = FitStats::default();
     // the vertices, rounded when asked; points that became one are one point
-    let mut points: Vec<V3> = m.positions.iter().map(|p| [p[0] as f64, p[1] as f64, p[2] as f64]).collect();
+    let mut points: Vec<V3> = m
+        .positions
+        .iter()
+        .map(|p| [p[0] as f64, p[1] as f64, p[2] as f64])
+        .collect();
     if o.round {
         for p in &mut points {
             for c in p.iter_mut() {
@@ -721,7 +752,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
         let mut remap = vec![0u32; points.len()];
         let mut unique: Vec<V3> = Vec::new();
         for (i, p) in points.iter().enumerate() {
-            let key = [(p[0] * 1e5).round() as i64, (p[1] * 1e5).round() as i64, (p[2] * 1e5).round() as i64];
+            let key = [
+                (p[0] * 1e5).round() as i64,
+                (p[1] * 1e5).round() as i64,
+                (p[2] * 1e5).round() as i64,
+            ];
             remap[i] = *seen.entry(key).or_insert_with(|| {
                 unique.push(*p);
                 (unique.len() - 1) as u32
@@ -736,7 +771,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
         (unique, t)
     };
     let um = TriMesh {
-        positions: points.iter().map(|p| [p[0] as f32, p[1] as f32, p[2] as f32]).collect(),
+        positions: points
+            .iter()
+            .map(|p| [p[0] as f32, p[1] as f32, p[2] as f32])
+            .collect(),
         triangles: tris,
     };
     let n = um.triangles.len();
@@ -746,7 +784,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
     let adj = neighbours(&um);
     let corners = |t: usize| {
         let tri = um.triangles[t];
-        [points[tri[0] as usize], points[tri[1] as usize], points[tri[2] as usize]]
+        [
+            points[tri[0] as usize],
+            points[tri[1] as usize],
+            points[tri[2] as usize],
+        ]
     };
     let normals: Vec<(V3, f64)> = (0..n)
         .map(|t| {
@@ -825,7 +867,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 }
             }
         }
-        let g_area: Vec<f64> = groups.iter().map(|g| g.iter().map(|t| normals[*t as usize].1).sum()).collect();
+        let g_area: Vec<f64> = groups
+            .iter()
+            .map(|g| g.iter().map(|t| normals[*t as usize].1).sum())
+            .collect();
         let g_normal: Vec<V3> = groups
             .iter()
             .map(|g| {
@@ -882,7 +927,16 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
             }
             let mut hyp = hypotheses(seed, &ctx, &o.allow, |g| g_region[g] == NONE);
             if o.allow.tori {
-                hyp.extend(torus_hypothesis(seed, &ctx, &vn, &v_tris, &group_of, &um, tol_s, |g| g_region[g] == NONE));
+                hyp.extend(torus_hypothesis(
+                    seed,
+                    &ctx,
+                    &vn,
+                    &v_tris,
+                    &group_of,
+                    &um,
+                    tol_s,
+                    |g| g_region[g] == NONE,
+                ));
             }
             let mut best: Option<(Vec<u32>, Surf)> = None;
             for s in hyp {
@@ -892,13 +946,22 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 }
             }
             if let Some((gs, surf)) = best {
-                let tris_of: Vec<u32> = gs.iter().flat_map(|g| groups[*g as usize].iter().copied()).collect();
-                if gs.len() >= 3 && tris_of.len() >= 6 && !is_flat(&tris_of, &um, &points, &normals, 2.0 * tol_s) {
+                let tris_of: Vec<u32> = gs
+                    .iter()
+                    .flat_map(|g| groups[*g as usize].iter().copied())
+                    .collect();
+                if gs.len() >= 3
+                    && tris_of.len() >= 6
+                    && !is_flat(&tris_of, &um, &points, &normals, 2.0 * tol_s)
+                {
                     // the surface is fitted again to all the points of the patch (this also asks that the normals turn enough), and the patch grown again
                     if let Some(s2) = refit(&surf, &tris_of, &um, &points, &normals, &vn, tol_s) {
                         let g2 = grow_groups(&s2, seed, &ctx, tol_s, |g| g_region[g] == NONE);
                         let (gs, surf) = if g2.len() >= gs.len() { (g2, s2) } else { (gs, s2) };
-                        let tris_of: Vec<u32> = gs.iter().flat_map(|g| groups[*g as usize].iter().copied()).collect();
+                        let tris_of: Vec<u32> = gs
+                            .iter()
+                            .flat_map(|g| groups[*g as usize].iter().copied())
+                            .collect();
                         if is_flat(&tris_of, &um, &points, &normals, 2.0 * tol_s) {
                             tried[seed] = true;
                             continue;
@@ -910,7 +973,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                         for &t in &tris_of {
                             region_of[t as usize] = id;
                         }
-                        regions.push(Region { tris: tris_of, surf, round: true });
+                        regions.push(Region {
+                            tris: tris_of,
+                            surf,
+                            round: true,
+                        });
                         continue;
                     }
                 }
@@ -942,7 +1009,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                         }
                     }
                 }
-                let tris_of: Vec<u32> = blob.iter().flat_map(|g| groups[*g as usize].iter().copied()).collect();
+                let tris_of: Vec<u32> = blob
+                    .iter()
+                    .flat_map(|g| groups[*g as usize].iter().copied())
+                    .collect();
                 if blob.len() < 6 || tris_of.len() > 40000 {
                     continue;
                 }
@@ -952,7 +1022,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 let patch = make_patch(&tris_of, &um, &points, &normals);
                 let mut fits: Vec<Surf> = Vec::new();
                 if o.allow.tori {
-                    let vns: Vec<V3> = patch_vertices(&tris_of, &um).iter().map(|v| vn[*v as usize]).collect();
+                    let vns: Vec<V3> = patch_vertices(&tris_of, &um)
+                        .iter()
+                        .map(|v| vn[*v as usize])
+                        .collect();
                     fits.extend(fit_torus(&patch, &vns, tol_s));
                 }
                 if o.allow.cylinders {
@@ -974,7 +1047,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                         for &t in &tris_of {
                             region_of[t as usize] = id;
                         }
-                        regions.push(Region { tris: tris_of, surf, round: true });
+                        regions.push(Region {
+                            tris: tris_of,
+                            surf,
+                            round: true,
+                        });
                     }
                 }
             }
@@ -1037,7 +1114,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                     let mut partly: std::collections::HashSet<u32> = std::collections::HashSet::new();
                     for g in 0..ng {
                         let r = g_region[g];
-                        if r != NONE && !inside.contains(&(g as u32)) && comp.iter().any(|c| g_region[*c as usize] == r) {
+                        if r != NONE
+                            && !inside.contains(&(g as u32))
+                            && comp.iter().any(|c| g_region[*c as usize] == r)
+                        {
                             partly.insert(r);
                         }
                     }
@@ -1046,9 +1126,16 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                         continue;
                     }
                 }
-                let tris_of: Vec<u32> = comp.iter().flat_map(|g| groups[*g as usize].iter().copied()).collect();
+                let tris_of: Vec<u32> = comp
+                    .iter()
+                    .flat_map(|g| groups[*g as usize].iter().copied())
+                    .collect();
                 // the old fragments are gone (the part of a fragment outside the piece is a piece of the same surface)
-                let old: std::collections::HashSet<u32> = comp.iter().map(|g| g_region[*g as usize]).filter(|r| *r != NONE).collect();
+                let old: std::collections::HashSet<u32> = comp
+                    .iter()
+                    .map(|g| g_region[*g as usize])
+                    .filter(|r| *r != NONE)
+                    .collect();
                 for r in old {
                     for &t in &regions[r as usize].tris {
                         region_of[t as usize] = NONE;
@@ -1068,7 +1155,11 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 for &t in &tris_of {
                     region_of[t as usize] = id;
                 }
-                regions.push(Region { tris: tris_of, surf, round: true });
+                regions.push(Region {
+                    tris: tris_of,
+                    surf,
+                    round: true,
+                });
             }
         }
         // two patches of the same surface that touch are one
@@ -1086,13 +1177,21 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
     // ---- flat regions: the groups that are not facets of a round patch
     {
         for g in 0..ng {
-            let tris: Vec<u32> = groups[g].iter().copied().filter(|t| region_of[*t as usize] == NONE).collect();
+            let tris: Vec<u32> = groups[g]
+                .iter()
+                .copied()
+                .filter(|t| region_of[*t as usize] == NONE)
+                .collect();
             if tris.is_empty() {
                 continue;
             }
             // a group that a round patch took a part of (after the merge of patches) is taken apart into single triangles
             let whole = tris.len() == groups[g].len();
-            let parts: Vec<Vec<u32>> = if whole { vec![tris] } else { tris.into_iter().map(|t| vec![t]).collect() };
+            let parts: Vec<Vec<u32>> = if whole {
+                vec![tris]
+            } else {
+                tris.into_iter().map(|t| vec![t]).collect()
+            };
             for tris in parts {
                 let nrm = {
                     let mut s = [0.0; 3];
@@ -1116,7 +1215,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 }
                 regions.push(Region {
                     tris,
-                    surf: Surf::Plane { n: nrm, off: sum / cnt },
+                    surf: Surf::Plane {
+                        n: nrm,
+                        off: sum / cnt,
+                    },
                     round: false,
                 });
             }
@@ -1134,7 +1236,17 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                     }
                 }
             }
-            eprintln!("region {} tris {} box {:.1?} {:.1?}", r.tris.len(), if r.round { format!("{:?}", r.surf) } else { "plane".into() }, lo, hi);
+            eprintln!(
+                "region {} tris {} box {:.1?} {:.1?}",
+                r.tris.len(),
+                if r.round {
+                    format!("{:?}", r.surf)
+                } else {
+                    "plane".into()
+                },
+                lo,
+                hi
+            );
         }
     }
     // the region ids are renumbered after the removals
@@ -1173,14 +1285,22 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
         let ok = crate::convert::loops_of_pub(&um, &r.tris, &points, nrm);
         let Some(l) = ok else {
             loops.push(Vec::new());
-            exploded.push(Region { tris: r.tris.clone(), surf: r.surf, round: r.round });
+            exploded.push(Region {
+                tris: r.tris.clone(),
+                surf: r.surf,
+                round: r.round,
+            });
             continue;
         };
         if !r.round {
             let outlines = crate::convert::split_outlines_pub(l, &points, nrm);
             if outlines.len() != 1 {
                 loops.push(Vec::new());
-                exploded.push(Region { tris: r.tris.clone(), surf: r.surf, round: false });
+                exploded.push(Region {
+                    tris: r.tris.clone(),
+                    surf: r.surf,
+                    round: false,
+                });
                 continue;
             }
             loops.push(outlines.into_iter().next().unwrap_or_default());
@@ -1205,7 +1325,10 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
             let nn = unit(cross(sub(c[1], c[0]), sub(c[2], c[0])));
             final_regions.push(Region {
                 tris: vec![t],
-                surf: Surf::Plane { n: nn, off: dot(nn, c[0]) },
+                surf: Surf::Plane {
+                    n: nn,
+                    off: dot(nn, c[0]),
+                },
                 round: false,
             });
             final_loops.push(vec![tri.to_vec()]);
@@ -1221,12 +1344,23 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
             region_of[t as usize] = i as u32;
         }
     }
-    build(&um, points, &regions, &loops, &region_of, &normals, total_area, o, stats, stop)
+    build(
+        &um, points, &regions, &loops, &region_of, &normals, total_area, o, stats, stop,
+    )
 }
 
 /// A torus from the neighbourhood of a seed group (up to 40 groups reached through small turns): its inner vertices are the points, their normals give the axis.
 #[allow(clippy::too_many_arguments)]
-fn torus_hypothesis(seed: usize, c: &GCtx, vn: &[V3], v_tris: &[Vec<u32>], group_of: &[u32], m: &TriMesh, tol: f64, ok: impl Fn(usize) -> bool) -> Option<Surf> {
+fn torus_hypothesis(
+    seed: usize,
+    c: &GCtx,
+    vn: &[V3],
+    v_tris: &[Vec<u32>],
+    group_of: &[u32],
+    m: &TriMesh,
+    tol: f64,
+    ok: impl Fn(usize) -> bool,
+) -> Option<Surf> {
     let _ = m;
     let mut set: std::collections::HashSet<u32> = std::collections::HashSet::new();
     let mut order = vec![seed as u32];
@@ -1251,14 +1385,25 @@ fn torus_hypothesis(seed: usize, c: &GCtx, vn: &[V3], v_tris: &[Vec<u32>], group
 }
 
 /// A torus through the inner points of some groups (the points whose triangles all belong to the groups: only there is the vertex normal right).
-fn torus_of_groups(order: &[u32], c: &GCtx, vn: &[V3], v_tris: &[Vec<u32>], group_of: &[u32], tol: f64) -> Option<Surf> {
+fn torus_of_groups(
+    order: &[u32],
+    c: &GCtx,
+    vn: &[V3],
+    v_tris: &[Vec<u32>],
+    group_of: &[u32],
+    tol: f64,
+) -> Option<Surf> {
     let set: std::collections::HashSet<u32> = order.iter().copied().collect();
     let mut pts = Vec::new();
     let mut vns = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for &g in order {
         for &v in &c.g_verts[g as usize] {
-            if seen.insert(v) && v_tris[v as usize].iter().all(|t| set.contains(&group_of[*t as usize])) {
+            if seen.insert(v)
+                && v_tris[v as usize]
+                    .iter()
+                    .all(|t| set.contains(&group_of[*t as usize]))
+            {
                 pts.push(c.points[v as usize]);
                 vns.push(vn[v as usize]);
             }
@@ -1291,7 +1436,10 @@ impl GCtx<'_> {
 
     /// Every point of the group lies on the surface within `tol` and its normal agrees with the surface (within the angle of a facet).
     fn fits(&self, s: &Surf, g: usize, tol: f64) -> bool {
-        self.g_verts[g].iter().all(|v| s.dist(self.points[*v as usize]).abs() <= tol) && self.agrees(s, g)
+        self.g_verts[g]
+            .iter()
+            .all(|v| s.dist(self.points[*v as usize]).abs() <= tol)
+            && self.agrees(s, g)
     }
 
     fn agrees(&self, s: &Surf, g: usize) -> bool {
@@ -1309,7 +1457,8 @@ fn is_flat(tris: &[u32], m: &TriMesh, points: &[V3], normals: &[(V3, f64)], tol:
     let n = unit(s);
     let vs = patch_vertices(tris, m);
     let mean = vs.iter().fold(0.0, |a, v| a + dot(n, points[*v as usize])) / vs.len().max(1) as f64;
-    vs.iter().all(|v| (dot(n, points[*v as usize]) - mean).abs() <= tol)
+    vs.iter()
+        .all(|v| (dot(n, points[*v as usize]) - mean).abs() <= tol)
 }
 
 /// The groups that can be reached from `seed` through groups that lie on the surface.
@@ -1357,8 +1506,17 @@ fn hypotheses(seed: usize, c: &GCtx, allow: &Allow, ok: impl Fn(usize) -> bool) 
     if c.g_verts[seed].len() > 200 {
         return out;
     }
-    let other = |g: usize, n: V3| ok(g) && c.g_verts[g].len() <= 200 && len(cross(n, c.g_normal[g])) > 0.04 && dot(n, c.g_normal[g]) >= STEP_COS;
-    let others: Vec<usize> = c.g_adj[seed].iter().map(|g| *g as usize).filter(|g| other(*g, n0)).collect();
+    let other = |g: usize, n: V3| {
+        ok(g)
+            && c.g_verts[g].len() <= 200
+            && len(cross(n, c.g_normal[g])) > 0.04
+            && dot(n, c.g_normal[g]) >= STEP_COS
+    };
+    let others: Vec<usize> = c.g_adj[seed]
+        .iter()
+        .map(|g| *g as usize)
+        .filter(|g| other(*g, n0))
+        .collect();
     let pts_of = |gs: &[usize]| -> Vec<V3> {
         let mut vs: Vec<u32> = gs.iter().flat_map(|g| c.g_verts[*g].iter().copied()).collect();
         vs.sort_unstable();
@@ -1374,7 +1532,10 @@ fn hypotheses(seed: usize, c: &GCtx, allow: &Allow, ok: impl Fn(usize) -> bool) 
             let mut flat: Vec<(f64, f64)> = Vec::new();
             for p in &pts {
                 let q = (dot(*p, u), dot(*p, v));
-                if !flat.iter().any(|f| (f.0 - q.0).abs() < 1e-7 && (f.1 - q.1).abs() < 1e-7) {
+                if !flat
+                    .iter()
+                    .any(|f| (f.0 - q.0).abs() < 1e-7 && (f.1 - q.1).abs() < 1e-7)
+                {
                     flat.push(q);
                 }
             }
@@ -1382,7 +1543,11 @@ fn hypotheses(seed: usize, c: &GCtx, allow: &Allow, ok: impl Fn(usize) -> bool) 
                 if let Some(((cx, cy), r)) = fit_circle_2d(&flat) {
                     if r > 1e-6 && r < 1e5 {
                         let zs = pts.iter().map(|q| dot(*q, a)).sum::<f64>() / pts.len() as f64;
-                        out.push(Surf::Cyl { o: add(add(mul(u, cx), mul(v, cy)), mul(a, zs)), a, r });
+                        out.push(Surf::Cyl {
+                            o: add(add(mul(u, cx), mul(v, cy)), mul(a, zs)),
+                            a,
+                            r,
+                        });
                     }
                 }
             }
@@ -1394,7 +1559,12 @@ fn hypotheses(seed: usize, c: &GCtx, allow: &Allow, ok: impl Fn(usize) -> bool) 
         let mut third: Vec<usize> = Vec::new();
         for &q in c.g_adj[o].iter().chain(c.g_adj[seed].iter()) {
             let q = q as usize;
-            if q != seed && q != o && other(q, n0) && len(cross(n1, c.g_normal[q])) > 0.04 && !third.contains(&q) {
+            if q != seed
+                && q != o
+                && other(q, n0)
+                && len(cross(n1, c.g_normal[q])) > 0.04
+                && !third.contains(&q)
+            {
                 third.push(q);
             }
         }
@@ -1408,7 +1578,10 @@ fn hypotheses(seed: usize, c: &GCtx, allow: &Allow, ok: impl Fn(usize) -> bool) 
                 }
             }
             if allow.spheres {
-                let patch = Patch { pts: pts.clone(), normals: vec![] };
+                let patch = Patch {
+                    pts: pts.clone(),
+                    normals: vec![],
+                };
                 out.extend(fit_sphere(&patch, 1e9));
             }
         }
@@ -1425,13 +1598,24 @@ fn patch_vertices(tris: &[u32], m: &TriMesh) -> Vec<u32> {
 
 fn make_patch(tris: &[u32], m: &TriMesh, points: &[V3], normals: &[(V3, f64)]) -> Patch {
     Patch {
-        pts: patch_vertices(tris, m).iter().map(|v| points[*v as usize]).collect(),
+        pts: patch_vertices(tris, m)
+            .iter()
+            .map(|v| points[*v as usize])
+            .collect(),
         normals: tris.iter().map(|t| normals[*t as usize]).collect(),
     }
 }
 
 /// The same kind of surface fitted again to all the triangles of a patch.
-fn refit(s: &Surf, tris: &[u32], m: &TriMesh, points: &[V3], normals: &[(V3, f64)], vn: &[V3], tol: f64) -> Option<Surf> {
+fn refit(
+    s: &Surf,
+    tris: &[u32],
+    m: &TriMesh,
+    points: &[V3],
+    normals: &[(V3, f64)],
+    vn: &[V3],
+    tol: f64,
+) -> Option<Surf> {
     let patch = make_patch(tris, m, points, normals);
     let better = |new: Option<Surf>| new.filter(|n| max_dist(n, &patch.pts) <= tol);
     match s {
@@ -1455,8 +1639,23 @@ fn same_surface(a: &Surf, b: &Surf, tol: f64) -> bool {
                 len(sub(d, mul(*a1, dot(d, *a1)))) <= tol * 2.0
             }
         }
-        (Surf::Sphere { c: c1, r: r1 }, Surf::Sphere { c: c2, r: r2 }) => len(sub(*c1, *c2)) <= tol * 2.0 && (r1 - r2).abs() <= tol * 2.0,
-        (Surf::Cone { o: o1, a: a1, k: k1, r0: r1 }, Surf::Cone { o: o2, a: a2, k: k2, r0: r2 }) => {
+        (Surf::Sphere { c: c1, r: r1 }, Surf::Sphere { c: c2, r: r2 }) => {
+            len(sub(*c1, *c2)) <= tol * 2.0 && (r1 - r2).abs() <= tol * 2.0
+        }
+        (
+            Surf::Cone {
+                o: o1,
+                a: a1,
+                k: k1,
+                r0: r1,
+            },
+            Surf::Cone {
+                o: o2,
+                a: a2,
+                k: k2,
+                r0: r2,
+            },
+        ) => {
             // the same cone: the same radius at the same height along the same axis
             dot(*a1, *a2) > 0.99995 && (k1 - k2).abs() < 0.01 && {
                 let d = sub(*o2, *o1);
@@ -1464,8 +1663,24 @@ fn same_surface(a: &Surf, b: &Surf, tol: f64) -> bool {
                 len(sub(d, mul(*a1, z))) <= tol * 2.0 && (r1 + k1 * z - r2).abs() <= tol * 2.0
             }
         }
-        (Surf::Torus { c: c1, a: a1, big: b1, small: s1 }, Surf::Torus { c: c2, a: a2, big: b2, small: s2 }) => {
-            par(*a1, *a2) && len(sub(*c1, *c2)) <= tol * 2.0 && (b1 - b2).abs() <= tol * 2.0 && (s1 - s2).abs() <= tol * 2.0
+        (
+            Surf::Torus {
+                c: c1,
+                a: a1,
+                big: b1,
+                small: s1,
+            },
+            Surf::Torus {
+                c: c2,
+                a: a2,
+                big: b2,
+                small: s2,
+            },
+        ) => {
+            par(*a1, *a2)
+                && len(sub(*c1, *c2)) <= tol * 2.0
+                && (b1 - b2).abs() <= tol * 2.0
+                && (s1 - s2).abs() <= tol * 2.0
         }
         _ => false,
     }
@@ -1575,7 +1790,9 @@ fn build(
                 continue;
             }
             // the region across the edge from lp[i] to lp[i+1]
-            let q: Vec<u32> = (0..nl).map(|i| across.get(&(lp[(i + 1) % nl], lp[i])).copied().unwrap_or(NONE)).collect();
+            let q: Vec<u32> = (0..nl)
+                .map(|i| across.get(&(lp[(i + 1) % nl], lp[i])).copied().unwrap_or(NONE))
+                .collect();
             // breaks: where the region across changes, or where three or more regions meet
             let is_break: Vec<bool> = (0..nl)
                 .map(|i| {
@@ -1644,7 +1861,16 @@ fn build(
         let curved = |r: u32| r != NONE && regions[r as usize].round;
         let allow_arcs = curved(ch.regions.0) || curved(ch.regions.1);
         let pts: Vec<V3> = ch.vs.iter().map(|v| points[*v as usize]).collect();
-        let list = fit_chain(&pts, ch.closed, allow_arcs, o.allow.ellipses, tol, &ch.vs, ch.regions, regions);
+        let list = fit_chain(
+            &pts,
+            ch.closed,
+            allow_arcs,
+            o.allow.ellipses,
+            tol,
+            &ch.vs,
+            ch.regions,
+            regions,
+        );
         for e in list {
             // the vertices get the tolerance of the edge
             for v in e.v {
@@ -1723,7 +1949,11 @@ fn build(
         if r.round {
             round_area += area;
         }
-        let mut f = FFace { surface: sid, area, loops: Vec::new() };
+        let mut f = FFace {
+            surface: sid,
+            area,
+            loops: Vec::new(),
+        };
         for seq in &loop_chains[ri] {
             let mut l = Vec::new();
             for &(c, rev) in seq {
@@ -1756,8 +1986,16 @@ fn build(
         *t = t.min((sh * 0.4).max(1e-7));
     }
     stats.max_deviation = max_dev;
-    stats.single_area = if total_area > 0.0 { single_area / total_area } else { 0.0 };
-    stats.round_area = if total_area > 0.0 { round_area / total_area } else { 0.0 };
+    stats.single_area = if total_area > 0.0 {
+        single_area / total_area
+    } else {
+        0.0
+    };
+    stats.round_area = if total_area > 0.0 {
+        round_area / total_area
+    } else {
+        0.0
+    };
     Some(Fitted {
         points,
         point_tol: vtol,
@@ -1815,7 +2053,12 @@ fn line_dist(p: V3, a: V3, b: V3) -> f64 {
 }
 
 fn line_edge(a: u32, b: u32, tol: f64) -> FEdge {
-    FEdge { kind: 0, v: [a, b], params: [0.0; 12], tol }
+    FEdge {
+        kind: 0,
+        v: [a, b],
+        params: [0.0; 12],
+        tol,
+    }
 }
 
 /// Edges for the chain with the vertices `vs` (points `pts`): one curve when a line, a circle or an ellipse fits all of it, else split at the point that
@@ -1904,17 +2147,27 @@ fn fit_arc(pts: &[V3], closed: bool, tol: f64, allow_ellipse: bool, va: u32, vb:
     let (vals, vecs) = sym_eigen(3, &cov);
     let nrm = unit([vecs[0][0], vecs[0][1], vecs[0][2]]);
     // flat within the tolerance
-    let flat_dev = pts.iter().map(|p| dot(nrm, sub(*p, mean)).abs()).fold(0.0, f64::max);
+    let flat_dev = pts
+        .iter()
+        .map(|p| dot(nrm, sub(*p, mean)).abs())
+        .fold(0.0, f64::max);
     if flat_dev > tol * 0.5 || vals[1] < 1e-12 {
         return None;
     }
     let (u, v) = basis(nrm);
-    let flat: Vec<(f64, f64)> = pts.iter().map(|p| (dot(sub(*p, mean), u), dot(sub(*p, mean), v))).collect();
+    let flat: Vec<(f64, f64)> = pts
+        .iter()
+        .map(|p| (dot(sub(*p, mean), u), dot(sub(*p, mean), v)))
+        .collect();
     let fit = fit_circle_2d(&flat);
     let circle_ok = fit.filter(|((cx, cy), r)| {
         *r > 1e-6
             && *r < 1e6
-            && flat.iter().map(|q| (((q.0 - cx).powi(2) + (q.1 - cy).powi(2)).sqrt() - r).abs()).fold(0.0, f64::max) <= tol * 0.5
+            && flat
+                .iter()
+                .map(|q| (((q.0 - cx).powi(2) + (q.1 - cy).powi(2)).sqrt() - r).abs())
+                .fold(0.0, f64::max)
+                <= tol * 0.5
     });
     if let Some(((cx, cy), r)) = circle_ok {
         // the direction of the walk about the normal; the normal is turned so that the walk is counter-clockwise
@@ -1963,8 +2216,17 @@ fn fit_arc(pts: &[V3], closed: bool, tol: f64, allow_ellipse: bool, va: u32, vb:
         p[3..6].copy_from_slice(&normal);
         p[6..9].copy_from_slice(&xdir);
         p[9] = r;
-        let dev = flat.iter().map(|q| (((q.0 - cx).powi(2) + (q.1 - cy).powi(2)).sqrt() - r).abs()).fold(0.0, f64::max).max(flat_dev);
-        return Some(FEdge { kind: 1, v: [va, vb], params: p, tol: dev * 1.2 + 1e-6 });
+        let dev = flat
+            .iter()
+            .map(|q| (((q.0 - cx).powi(2) + (q.1 - cy).powi(2)).sqrt() - r).abs())
+            .fold(0.0, f64::max)
+            .max(flat_dev);
+        return Some(FEdge {
+            kind: 1,
+            v: [va, vb],
+            params: p,
+            tol: dev * 1.2 + 1e-6,
+        });
     }
     if !allow_ellipse {
         return None;
@@ -1974,7 +2236,17 @@ fn fit_arc(pts: &[V3], closed: bool, tol: f64, allow_ellipse: bool, va: u32, vb:
 
 /// An ellipse through points of a plane (a conic fit); only closed chains and arcs that do not turn back.
 #[allow(clippy::too_many_arguments)]
-fn fit_ellipse(flat: &[(f64, f64)], mean: V3, u: V3, v: V3, nrm: V3, closed: bool, tol: f64, va: u32, vb: u32) -> Option<FEdge> {
+fn fit_ellipse(
+    flat: &[(f64, f64)],
+    mean: V3,
+    u: V3,
+    v: V3,
+    nrm: V3,
+    closed: bool,
+    tol: f64,
+    va: u32,
+    vb: u32,
+) -> Option<FEdge> {
     let n = flat.len();
     if n < 8 {
         return None;
@@ -2018,7 +2290,11 @@ fn fit_ellipse(flat: &[(f64, f64)], mean: V3, u: V3, v: V3, nrm: V3, closed: boo
     let mdir = (theta.cos(), theta.sin());
     // choose the one that belongs to the smaller eigenvalue
     let q = |x: f64, y: f64| a * x * x + b * x * y + c * y * y;
-    let (mx, my) = if q(mdir.0, mdir.1) <= q(-mdir.1, mdir.0) { mdir } else { (-mdir.1, mdir.0) };
+    let (mx, my) = if q(mdir.0, mdir.1) <= q(-mdir.1, mdir.0) {
+        mdir
+    } else {
+        (-mdir.1, mdir.0)
+    };
     if !(major.is_finite() && minor.is_finite()) || minor < 1e-6 || major > 1e6 {
         return None;
     }
@@ -2079,7 +2355,12 @@ fn fit_ellipse(flat: &[(f64, f64)], mean: V3, u: V3, v: V3, nrm: V3, closed: boo
     p[6..9].copy_from_slice(&xdir);
     p[9] = major;
     p[10] = minor;
-    Some(FEdge { kind: 2, v: [va, vb], params: p, tol: dev * 1.2 + 1e-6 })
+    Some(FEdge {
+        kind: 2,
+        v: [va, vb],
+        params: p,
+        tol: dev * 1.2 + 1e-6,
+    })
 }
 
 #[cfg(test)]

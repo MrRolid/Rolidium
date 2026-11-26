@@ -58,8 +58,7 @@ pub use measure::{measure, Angle, Elem, Measurement};
 pub use mesh::{EdgePolyline, Mesh};
 pub use ops::{
     BlendCombo, BlendGroup, BlendInput, ConeInfo, CylinderInfo, EdgeSpec, FaceSpec, LoftInput, Profile,
-    ProfileSegment, SurfaceSpec,
-    SectionCurve,
+    ProfileSegment, SectionCurve, SurfaceSpec,
 };
 pub use sweep::{
     estimated_sweep_seconds, polyline_segments, HelixDef, Path, PathSeg, PathSource, SweepOptions,

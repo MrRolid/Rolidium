@@ -12,6 +12,7 @@ description = "Document model: bodies, commands, undo/redo"
 rolidium-kernel = { path = "../rolidium-kernel" }
 rolidium-sketch = { path = "../rolidium-sketch" }
 rolidium-mesh = { path = "../rolidium-mesh" }
+rolidium-manifold = { path = "../rolidium-manifold" }
 thiserror.workspace = true
 serde_json.workspace = true
 zip.workspace = true

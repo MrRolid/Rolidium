@@ -742,7 +742,7 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 if (a == b) p1 = p0 + 2.0 * M_PI;
                 else if (p1 <= p0) p1 += 2.0 * M_PI;
                 BRepBuilderAPI_MakeEdge me(curve, vertex(a), vertex(b), p0, p1);
-                if (!me.IsDone()) fail("an arc of a face could not be made (edge " + std::to_string(e) + ")");
+                if (!me.IsDone()) fail("an arc of a face could not be made (edge " + std::to_string(e) + ", kind " + std::to_string(edge_kind[e]) + ", error " + std::to_string((int)me.Error()) + ", parameters " + std::to_string(p0) + " " + std::to_string(p1) + ", radius " + std::to_string(p[9]) + ")");
                 edges[e] = me.Edge();
                 // the points must lie on the curve within the tolerance of the vertex
                 gp_Pnt qa = curve->Value(p0), qb = curve->Value(p1);

@@ -2504,6 +2504,7 @@ version = "0.3.2"
 dependencies = [
  "glam",
  "rolidium-kernel",
+ "rolidium-manifold",
  "rolidium-mesh",
  "rolidium-sketch",
  "serde_json",
@@ -2522,6 +2523,13 @@ dependencies = [
  "sha2",
  "tar",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "rolidium-manifold"
+version = "0.3.2"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

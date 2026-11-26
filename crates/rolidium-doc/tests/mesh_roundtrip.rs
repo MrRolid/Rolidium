@@ -39,13 +39,43 @@ pub fn plate_with_holes() -> Solid {
     s = s.chamfer(&top, 1.5).unwrap().solid;
     let z = v(0.0, 0.0, 1.0);
     // through hole
-    s = s.boolean(&Solid::cylinder(3.0, 12.0, v(12.0, 20.0, -1.0), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(3.0, 12.0, v(12.0, 20.0, -1.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
     // counterbore: a hole of 3 and a pocket of 6, 4 deep
-    s = s.boolean(&Solid::cylinder(3.0, 12.0, v(30.0, 20.0, -1.0), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
-    s = s.boolean(&Solid::cylinder(6.0, 4.0, v(30.0, 20.0, 6.0), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(3.0, 12.0, v(30.0, 20.0, -1.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(6.0, 4.0, v(30.0, 20.0, 6.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
     // countersink: a cone from 8 at the top to 3 at 5 below
-    s = s.boolean(&Solid::cylinder(3.0, 12.0, v(48.0, 20.0, -1.0), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
-    s = s.boolean(&Solid::from_cone(3.0, 8.0, 5.0, v(48.0, 20.0, 5.0), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(3.0, 12.0, v(48.0, 20.0, -1.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
+    s = s
+        .boolean(
+            &Solid::from_cone(3.0, 8.0, 5.0, v(48.0, 20.0, 5.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Cut,
+        )
+        .unwrap()
+        .solid;
     s
 }
 
@@ -53,10 +83,24 @@ pub fn plate_with_holes() -> Solid {
 pub fn boss_with_cone() -> Solid {
     let z = v(0.0, 0.0, 1.0);
     let mut s = Solid::cuboid(v(0.0, 0.0, 0.0), v(50.0, 50.0, 5.0)).unwrap();
-    s = s.boolean(&Solid::cylinder(10.0, 15.0, v(25.0, 25.0, 5.0), z).unwrap(), rolidium_kernel::BooleanOp::Fuse).unwrap().solid;
-    s = s.boolean(&Solid::from_cone(10.0, 4.0, 8.0, v(25.0, 25.0, 20.0), z).unwrap(), rolidium_kernel::BooleanOp::Fuse).unwrap().solid;
+    s = s
+        .boolean(
+            &Solid::cylinder(10.0, 15.0, v(25.0, 25.0, 5.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Fuse,
+        )
+        .unwrap()
+        .solid;
+    s = s
+        .boolean(
+            &Solid::from_cone(10.0, 4.0, 8.0, v(25.0, 25.0, 20.0), z).unwrap(),
+            rolidium_kernel::BooleanOp::Fuse,
+        )
+        .unwrap()
+        .solid;
     // the foot: the circle where the boss meets the plate
-    let foot = edges_where(&s, |a, b| (a.z - 5.0).abs() < 1e-6 && (b.z - 5.0).abs() < 1e-6 && (a.x - 25.0).hypot(a.y - 25.0) < 10.5);
+    let foot = edges_where(&s, |a, b| {
+        (a.z - 5.0).abs() < 1e-6 && (b.z - 5.0).abs() < 1e-6 && (a.x - 25.0).hypot(a.y - 25.0) < 10.5
+    });
     s.fillet(&foot, 2.0).unwrap().solid
 }
 
@@ -67,11 +111,19 @@ pub fn bin() -> Solid {
     let vertical = edges_where(&s, |a, b| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6);
     s = s.fillet(&vertical, 4.0).unwrap().solid;
     let mut pocket = Solid::cuboid(v(1.2, 1.2, 5.0), v(40.8, 40.8, 30.0)).unwrap();
-    let pv = edges_where(&pocket, |a, b| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6);
+    let pv = edges_where(&pocket, |a, b| {
+        (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6
+    });
     pocket = pocket.fillet(&pv, 2.8).unwrap().solid;
     s = s.boolean(&pocket, rolidium_kernel::BooleanOp::Cut).unwrap().solid;
     for (x, y) in [(8.0, 8.0), (34.0, 8.0), (8.0, 34.0), (34.0, 34.0)] {
-        s = s.boolean(&Solid::cylinder(3.25, 2.4, v(x, y, -0.1), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
+        s = s
+            .boolean(
+                &Solid::cylinder(3.25, 2.4, v(x, y, -0.1), z).unwrap(),
+                rolidium_kernel::BooleanOp::Cut,
+            )
+            .unwrap()
+            .solid;
     }
     s
 }
@@ -130,7 +182,10 @@ pub fn roundtrip(name: &str, original: &Solid, linear: f64, angular: f64) -> (Ro
     let _one = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let m = mesh_of(original, linear, angular);
     let rep = rolidium_mesh::check::check(&m);
-    assert!(rep.is_watertight(), "{name}: the test mesh is not closed: {rep:?}");
+    assert!(
+        rep.is_watertight(),
+        "{name}: the test mesh is not closed: {rep:?}"
+    );
     let mut d = Document::new();
     d.apply(Command::AddMeshes {
         meshes: vec![NewMesh {
@@ -214,15 +269,28 @@ fn debug_one() {
 #[test]
 #[ignore]
 fn private_files() {
-    let dir = std::path::PathBuf::from(std::env::var("STL_DIR").unwrap_or_else(|_| format!("{}/rolidium-private/stl-test", std::env::var("HOME").unwrap())));
+    let dir = std::path::PathBuf::from(
+        std::env::var("STL_DIR")
+            .unwrap_or_else(|_| format!("{}/rolidium-private/stl-test", std::env::var("HOME").unwrap())),
+    );
     let Ok(rd) = std::fs::read_dir(&dir) else {
         eprintln!("no {dir:?}");
         return;
     };
-    let mut names: Vec<_> = rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "stl")).collect();
+    let mut names: Vec<_> = rd
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "stl"))
+        .collect();
     names.sort();
-    let max_tri: usize = std::env::var("MAX_TRI").ok().and_then(|s| s.parse().ok()).unwrap_or(150_000);
-    eprintln!("{:<16} {:>8} {:>5} {:>28} {:>9} {:>8} {:>8} {:>9}", "file", "triangles", "route", "planes/cyl/cone/sph/torus", "unrecog%", "dev mm", "vol %", "seconds");
+    let max_tri: usize = std::env::var("MAX_TRI")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(150_000);
+    eprintln!(
+        "{:<16} {:>8} {:>5} {:>28} {:>9} {:>8} {:>8} {:>9}",
+        "file", "triangles", "route", "planes/cyl/cone/sph/torus", "unrecog%", "dev mm", "vol %", "seconds"
+    );
     for p in names {
         let bytes = std::fs::read(&p).unwrap();
         let mut m = rolidium_mesh::stl::parse(&bytes).unwrap();
@@ -234,7 +302,11 @@ fn private_files() {
             let t = std::time::Instant::now();
             let f = rolidium_mesh::fit::fit(
                 &m,
-                &rolidium_mesh::fit::FitOptions { tolerance: 0.02, round: false, allow: rolidium_mesh::fit::Allow::ALL },
+                &rolidium_mesh::fit::FitOptions {
+                    tolerance: 0.02,
+                    round: false,
+                    allow: rolidium_mesh::fit::Allow::ALL,
+                },
                 &|| false,
             )
             .unwrap();
@@ -244,7 +316,10 @@ fn private_files() {
                 name,
                 m.triangles.len(),
                 "-",
-                format!("{}/{}/{}/{}/{}", s.planes, s.cylinders, s.cones, s.spheres, s.tori),
+                format!(
+                    "{}/{}/{}/{}/{}",
+                    s.planes, s.cylinders, s.cones, s.spheres, s.tori
+                ),
                 s.single_area * 100.0,
                 s.max_deviation,
                 "-",
@@ -253,10 +328,22 @@ fn private_files() {
             continue;
         }
         let mut d = Document::new();
-        d.apply(Command::AddMeshes { meshes: vec![NewMesh { name: name.clone(), mesh: Arc::new(m.clone()), verified: true }] }).unwrap();
+        d.apply(Command::AddMeshes {
+            meshes: vec![NewMesh {
+                name: name.clone(),
+                mesh: Arc::new(m.clone()),
+                verified: true,
+            }],
+        })
+        .unwrap();
         let id = d.meshes()[0].id;
         let t = std::time::Instant::now();
-        let r = d.apply(Command::ConvertMesh { body: id, tolerance: 0.02, round: false, keep: false });
+        let r = d.apply(Command::ConvertMesh {
+            body: id,
+            tolerance: 0.02,
+            round: false,
+            keep: false,
+        });
         let secs = t.elapsed().as_secs_f64();
         match r {
             Ok(_) => {
@@ -267,14 +354,21 @@ fn private_files() {
                     name,
                     m.triangles.len(),
                     rep.route,
-                    format!("{}/{}/{}/{}/{}", rep.kinds[0], rep.kinds[1], rep.kinds[2], rep.kinds[3], rep.kinds[4]),
+                    format!(
+                        "{}/{}/{}/{}/{}",
+                        rep.kinds[0], rep.kinds[1], rep.kinds[2], rep.kinds[3], rep.kinds[4]
+                    ),
                     rep.single_share * 100.0,
                     rep.max_deviation,
                     (rep.volume_solid - rep.volume_mesh) / rep.volume_mesh * 100.0,
                     secs
                 );
             }
-            Err(e) => eprintln!("{:<16} {:>8}  refused: {e}  ({secs:.1}s)", name, m.triangles.len()),
+            Err(e) => eprintln!(
+                "{:<16} {:>8}  refused: {e}  ({secs:.1}s)",
+                name,
+                m.triangles.len()
+            ),
         }
     }
 }

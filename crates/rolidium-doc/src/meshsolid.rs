@@ -99,7 +99,9 @@ pub fn solid_from_mesh(
                         },
                     ));
                 }
-                notes.push(format!("route {route}: the volume {v:.3} is not that of the mesh {volume:.3}"));
+                notes.push(format!(
+                    "route {route}: the volume {v:.3} is not that of the mesh {volume:.3}"
+                ));
             }
             Err(KernelError::Cancelled) => return Err(KernelError::Cancelled),
             Err(e) => notes.push(format!("route {route}: {e}")),
@@ -111,9 +113,14 @@ pub fn solid_from_mesh(
     // flat faces only: groups of any size are faces; when the solid cannot be made so (a group that is not flat enough, a pinched outline) the small groups
     // are taken apart, and at the last every triangle is a face: a triangle is always flat
     let mut failure = String::new();
-    let attempts: &[usize] = if mesh.triangles.len() <= 20_000 { &[2, 4, usize::MAX] } else { &[2, 4] };
+    let attempts: &[usize] = if mesh.triangles.len() <= 20_000 {
+        &[2, 4, usize::MAX]
+    } else {
+        &[2, 4]
+    };
     for &merge_from in attempts {
-        let pf = rolidium_mesh::convert::polyfaces(mesh, tolerance, round, merge_from, stop).ok_or(KernelError::Cancelled)?;
+        let pf = rolidium_mesh::convert::polyfaces(mesh, tolerance, round, merge_from, stop)
+            .ok_or(KernelError::Cancelled)?;
         let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
         match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {
             Ok(s) => {
@@ -141,7 +148,10 @@ pub fn solid_from_mesh(
             Err(KernelError::Cancelled) => return Err(KernelError::Cancelled),
             Err(e) => {
                 if debug {
-                    eprintln!("convert: merge from {merge_from} failed: {e} ({} faces)", pf.faces.len());
+                    eprintln!(
+                        "convert: merge from {merge_from} failed: {e} ({} faces)",
+                        pf.faces.len()
+                    );
                 }
                 failure = e.to_string()
             }
