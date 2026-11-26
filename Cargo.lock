@@ -2456,7 +2456,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -2478,7 +2478,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-cam"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "rolidium-kernel",
  "rolidium-path2d",
@@ -2486,7 +2486,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "glam",
  "png 0.18.1",
@@ -2500,7 +2500,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-doc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "glam",
  "rolidium-kernel",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-kernel"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "cxx",
  "cxx-build",
@@ -2526,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-mesh"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "flate2",
  "roxmltree",
@@ -2536,7 +2536,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-net"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "rolidium-net",
  "serde_json",
@@ -2545,14 +2545,14 @@ dependencies = [
 
 [[package]]
 name = "rolidium-path2d"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "glam",
 ]
 
 [[package]]
 name = "rolidium-render"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2566,7 +2566,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-sketch"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "earcutr",
  "glam",
@@ -2576,7 +2576,7 @@ dependencies = [
 
 [[package]]
 name = "rolidium-svg2png"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "resvg",
 ]

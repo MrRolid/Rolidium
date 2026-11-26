@@ -6,14 +6,17 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
-## [0.3.1] - Unreleased
+## [0.3.1] - 2026-11-26
 
 ### Changed
 - **Pattern (`T`) and Mirror (`B`) by two clicks.** The tabs and the Pick buttons are gone. First the object (marked before and then the key, or the key and then a click; Ctrl+click adds bodies; a body, a group, a hole or a pin, a mesh), then one click that decides the kind: a circle, an arc, a round edge or a round or conical face means **round its centre** (6 pieces over 360 degrees), a straight line, edge or auxiliary axis means **a row along it** (3 pieces), a flat face means the **corners** (a hole or a pin) or a **grid** (anything else). For the Mirror tool a flat face, a straight edge, an axis or a line is the plane. The preview and the numbers start with the second click; **Enter** or a click on nothing applies, **Esc** cancels. The text at the cursor says what to click and what a click would do. A kind switch is in the panel; X, Y, Z (YZ, XZ, XY) start a pattern or a mirror when there is nothing to click; the direction as numbers and *Second piece here* are under *More*.
 
 ### Added
 - **The right button multiplies a circle while it is drawn**, inside a closed shape (a face of a body, a rectangle or a polygon of the sketch) when the distances to the walls are shown: the diameter box says *Right button: more pieces*. Inside a rectangle or polygon a right click shows the same circle in all the corners with the same distances from the two nearest walls; inside a circle every right click adds a piece (2 to 10, evenly round the centre), Shift + right click takes one away. The left click draws them all as one step of Ctrl+Z, Esc draws nothing. Outside a closed shape the right button stops the drawing as before. Also in the quick sketch on a wall. (`AddEntities`; D64.)
-- Window tests t43 to t46 (pattern round a pin in both orders, a row along a line, a grid, the right button, mirror by two clicks).
+- Window tests t43 to t47 (pattern round a pin in both orders, a row along a line, a grid, the right button inside a rectangle, a circle and in a quick sketch, mirror by two clicks).
+
+### Fixed
+- A right click while a shape is drawn in a sketch no longer opens the menu of the body under the pointer, which swallowed the next click.
 
 ## [0.3.0] - 2026-11-26
 
