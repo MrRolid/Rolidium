@@ -560,7 +560,7 @@ fn fit_cone_axis(pts: &[V3], a: V3, tol: f64) -> Option<Surf> {
     }
     let o = add(add(mul(u, qx), mul(v, qy)), mul(a, zmean));
     let c = Surf::Cone { o, a, k, r0 };
-    (max_dist(&c, &pts) <= tol).then_some(c)
+    (max_dist(&c, pts) <= tol).then_some(c)
 }
 
 /// The distance of the points from a torus given as `[cx, cy, cz, ax, ay, az, big, small]` (the axis need not be a unit vector).
@@ -2238,7 +2238,7 @@ fn fit_arc(pts: &[V3], closed: bool, tol: f64, allow_ellipse: bool, va: u32, vb:
             return None;
         }
         let normal = mul(nrm, sign);
-        let xdir = if sign > 0.0 { u } else { u };
+        let xdir = u;
         let centre = add(add(mean, mul(u, cx)), mul(v, cy));
         let mut p = [0.0; 12];
         p[0..3].copy_from_slice(&centre);

@@ -34,7 +34,7 @@ pub fn solid_to_mesh(s: &Solid) -> Result<TriMesh, KernelError> {
     let m = s.mesh(linear, 0.15)?;
     let mut t = TriMesh {
         positions: m.positions.iter().map(|p| [p.x, p.y, p.z]).collect(),
-        triangles: m.indices.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect(),
+        triangles: m.indices.as_chunks::<3>().0.to_vec(),
     };
     let tol = check::merge_tolerance(&t);
     check::merge_vertices(&mut t, tol);
@@ -184,8 +184,13 @@ impl Job {
             if op == CombineOp::Merge {
                 // joined only when they share volume or a face: a union as big as the two together that falls into pieces touched nothing
                 let sum = cur.signed_volume() + tm.signed_volume();
-                if (r.signed_volume() - sum).abs() < 1e-9 * sum.abs().max(1.0) && check::check(&r).components > 1 {
-                    return Err(KernelError::Invalid("There is nothing to merge: the bodies do not touch or overlap".into()).into());
+                if (r.signed_volume() - sum).abs() < 1e-9 * sum.abs().max(1.0)
+                    && check::check(&r).components > 1
+                {
+                    return Err(KernelError::Invalid(
+                        "There is nothing to merge: the bodies do not touch or overlap".into(),
+                    )
+                    .into());
                 }
             }
             cur = r;

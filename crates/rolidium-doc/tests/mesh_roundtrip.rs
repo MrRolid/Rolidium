@@ -3,7 +3,7 @@
 //! There and back: a solid made of our own models (CC0) is meshed like an STL file, the mesh is converted to a solid with round surfaces, and the faces by kind, the radii, the
 //! volume and the deviation are compared. Then the converted solid is edited like a drawn one (a hole diameter, a radius of a round, a pulled wall).
 use rolidium_doc::{Command, Document, NewMesh};
-use rolidium_kernel::{DVec3, EdgeId, FaceId, FaceKind, Solid};
+use rolidium_kernel::{DVec3, EdgeId, FaceKind, Solid};
 use rolidium_mesh::TriMesh;
 use std::sync::Arc;
 
@@ -133,7 +133,7 @@ pub fn mesh_of(s: &Solid, linear: f64, angular: f64) -> TriMesh {
     let m = s.mesh(linear, angular).unwrap();
     let mut t = TriMesh {
         positions: m.positions.iter().map(|p| [p.x, p.y, p.z]).collect(),
-        triangles: m.indices.chunks(3).map(|c| [c[0], c[1], c[2]]).collect(),
+        triangles: m.indices.as_chunks::<3>().0.to_vec(),
     };
     let tol = rolidium_mesh::check::merge_tolerance(&t);
     rolidium_mesh::check::merge_vertices(&mut t, tol);

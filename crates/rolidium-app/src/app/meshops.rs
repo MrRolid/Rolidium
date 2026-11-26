@@ -298,7 +298,7 @@ impl App {
             if !s.reached {
                 ui.colored_label(
                     Color32::from_rgb(230, 170, 60),
-                    trf("The target was not reached: {}", &[s.reason.clone()]),
+                    trf("The target was not reached: {}", std::slice::from_ref(&s.reason)),
                 );
             }
             ui.horizontal(|ui| {

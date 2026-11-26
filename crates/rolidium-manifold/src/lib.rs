@@ -110,10 +110,12 @@ pub fn boolean(a: &Mesh, b: &Mesh, op: Op) -> Result<Mesh, String> {
         let tri = std::slice::from_raw_parts(out_tri, 3 * nt);
         let r = Mesh {
             positions: pos
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|c| [c[0] as f32, c[1] as f32, c[2] as f32])
                 .collect(),
-            triangles: tri.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect(),
+            triangles: tri.as_chunks::<3>().0.to_vec(),
         };
         rm_free(out_pos.cast());
         rm_free(out_tri.cast());

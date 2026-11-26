@@ -100,11 +100,7 @@ fn a_plate_with_a_round_hole_from_surfaces() {
     let v = s.volume().unwrap();
     let expect = 40.0 * 30.0 * 10.0 - std::f64::consts::PI * 25.0 * 10.0;
     assert!((v - expect).abs() < 1e-6 * expect, "{v} {expect}");
-    let kinds: Vec<FaceKind> = s
-        .faces()
-        .into_iter()
-        .map(|f| s.face_info(f).unwrap().kind)
-        .collect();
+    let kinds: Vec<FaceKind> = s.faces().map(|f| s.face_info(f).unwrap().kind).collect();
     assert_eq!(
         kinds.iter().filter(|k| **k == FaceKind::Cylinder).count(),
         1,
@@ -112,7 +108,6 @@ fn a_plate_with_a_round_hole_from_surfaces() {
     );
     let cyl = s
         .faces()
-        .into_iter()
         .find(|f| s.face_info(*f).unwrap().kind == FaceKind::Cylinder)
         .unwrap();
     let info = s.cylinder_info(cyl).unwrap().expect("a complete hole");
