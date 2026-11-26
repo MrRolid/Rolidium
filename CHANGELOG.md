@@ -6,6 +6,8 @@ version numbers follow [Semantic Versioning](https://semver.org/) (before 1.0, a
 Versions 0.0.0 to 0.1.13 were internal development versions and were not published; they are summarised so that the history of the
 features is visible. 0.2.0 is the first public release.
 
+## [Unreleased] - 0.3.2
+
 ## [0.3.1] - 2026-11-26
 
 ### Changed
@@ -18,9 +20,9 @@ features is visible. 0.2.0 is the first public release.
 ### Fixed
 - A right click while a shape is drawn in a sketch no longer opens the menu of the body under the pointer, which swallowed the next click.
 
-## [0.3.0] - 2026-11-26
+## [0.3.0] - 2026-11-26 (not published; its content came out in 0.3.1)
 
-The release contains everything planned for 0.2.2 (0.2.2 was not published). Release notes for users: `dist/release-notes-0.3.0.md`.
+The release contains everything planned for 0.2.2 (0.2.2 was not published). 0.3.0 itself was not published either: everything below was released in 0.3.1. Release notes for users (since 0.2.1): `dist/release-notes-0.3.1.md`.
 
 ### Added
 - Holes and pins are things to repeat: click the round face of a hole (a counterbore, a countersink or a chamfer round the same axis belong to it) or of a pin with the Pattern (`T`) or Mirror (`B`) tool, and a row, a circle of copies or a mirror image is cut out of (or fused into) the same body; a hidden tool body is made from the round faces, the result is one link and one step of Undo. Also in `rolidium cli` and MCP: `repeat-feature`.
