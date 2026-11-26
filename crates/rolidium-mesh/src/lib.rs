@@ -12,6 +12,7 @@ pub mod convert;
 pub mod edit;
 pub mod gen;
 pub mod holefill;
+pub mod planesweep;
 pub mod regions;
 pub mod serial;
 pub mod stl;
