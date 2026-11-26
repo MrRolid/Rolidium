@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Rolid spol. s r.o.
 # SPDX-License-Identifier: AGPL-3.0-only
-"""A wall of a mesh is selected and K starts a sketch on it (the plane of the wall); a circle is drawn; Pull makes a new solid of it that stands on the wall of the mesh
-(the mesh itself is not changed: a mesh is not a solid and cannot be joined with one yet, which the status line says when it is tried)."""
+"""A wall of a mesh is selected and K starts a sketch on it (the plane of the wall); a circle is drawn; Pull (mode Auto) joins the new volume to the mesh: the mesh grows a boss that
+stands on the wall (since 0.3.2 a mesh can be joined and cut; Ctrl+Z takes the boss away)."""
 # FIXTURE: import-stl examples/stl/plate-with-hole.stl; mesh-to-doc
 # POINTS: top=10,10,10;c=15,10,10;r=20,10,10
 from guitest import *
@@ -35,9 +35,10 @@ click(*steady("c"))
 p = settle(0.8)
 type_text("3")
 key("Return")
-p = wait_for(lambda q: len(q["bodies"]) == 1, "a solid was made", 20)
-b = p["bodies"][0]
-check(close(b["bbox"][2], 10.0, 0.01) and close(b["bbox"][5], 13.0, 0.01), f"the new solid stands on the wall, z 10 to 13: {b['bbox']}")
-check(close(p["meshes"][0]["bbox"][5], 10.0, 0.001), "the mesh was not changed")
+p = wait_for(lambda q: q["meshes"] and close(q["meshes"][0]["bbox"][5], 13.0, 0.01) and not q["busy"], "the boss is joined to the mesh", 60)
+check(len(p["bodies"]) == 0, f"no solid of its own: {len(p['bodies'])} bodies")
+check(close(p["meshes"][0]["bbox"][2], 0.0, 0.01), f"the mesh keeps its floor: {p['meshes'][0]['bbox']}")
 shot("02-pulled")
+key("z", ctrl=True)
+wait_for(lambda q: q["meshes"] and close(q["meshes"][0]["bbox"][5], 10.0, 0.001), "one step of Undo takes the boss away", 30)
 finish()

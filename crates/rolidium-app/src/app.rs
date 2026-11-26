@@ -1928,7 +1928,7 @@ impl App {
         self.layers_changed = true;
         self.set_status(
             if on_mesh {
-                tr("Sketch on the wall of the mesh: what you pull from it is a new solid")
+                tr("Sketch on the wall of the mesh: what you pull from it is joined to the mesh (Cut takes it out of the mesh)")
             } else if body.is_some() {
                 tr("Sketch on the selected face")
             } else {
