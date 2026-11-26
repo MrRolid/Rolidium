@@ -16,6 +16,7 @@ pub mod holefill;
 pub mod planesweep;
 pub mod regions;
 pub mod serial;
+pub mod simplify;
 pub mod stl;
 pub mod threemf;
 pub mod transform;
