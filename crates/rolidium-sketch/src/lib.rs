@@ -10,6 +10,7 @@
 
 pub mod edgedims;
 pub mod join;
+pub mod multi;
 mod plane;
 mod regions;
 

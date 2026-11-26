@@ -341,6 +341,11 @@ pub enum Command {
         target: SketchTarget,
         entity: Entity,
     },
+    /// Several shapes drawn at once (the copies of a circle made by the right button): one step of Undo.
+    AddEntities {
+        target: SketchTarget,
+        entities: Vec<Entity>,
+    },
     /// Pull a closed region of a sketch. `region` is the index in `Sketch::regions()`.
     PullRegion {
         sketch: SketchId,
@@ -1326,8 +1331,18 @@ impl Job {
                 st.curves.retain(|c| !removed.contains(&c.id));
                 Ok(self.done(st, "Join ends"))
             }
-            Command::AddEntity { target, entity } => {
-                entity.validate()?;
+            Command::AddEntity { .. } | Command::AddEntities { .. } => {
+                let (target, list): (&SketchTarget, Vec<Entity>) = match &self.command {
+                    Command::AddEntity { target, entity } => (target, vec![*entity]),
+                    Command::AddEntities { target, entities } => (target, entities.clone()),
+                    _ => unreachable!(),
+                };
+                if list.is_empty() {
+                    return Err(KernelError::Invalid("Nothing to draw".into()).into());
+                }
+                for e in &list {
+                    e.validate()?;
+                }
                 let mut created = None;
                 let id = match target {
                     SketchTarget::Existing(id) => *id,
@@ -1382,7 +1397,9 @@ impl Job {
                     .iter_mut()
                     .find(|s| s.id == id)
                     .ok_or(DocError::NoSuchSketch)?;
-                sk.sketch.add(*entity)?;
+                for e in list {
+                    sk.sketch.add(e)?;
+                }
                 let mut c = self.done(st, "Draw");
                 c.created_sketch = created;
                 Ok(c)
@@ -3820,6 +3837,53 @@ mod sketch_tests {
             })
             .unwrap();
         c.created_sketch.unwrap()
+    }
+
+    #[test]
+    fn several_shapes_are_one_step_of_undo() {
+        let (mut d, id) = doc_box();
+        let target = SketchTarget::New {
+            plane: top_plane(),
+            body: Some(id),
+        };
+        let circles: Vec<Entity> = [(10.0, 10.0), (30.0, 10.0), (10.0, 20.0), (30.0, 20.0)]
+            .iter()
+            .map(|(x, y)| Entity::Circle {
+                center: DVec2::new(*x, *y),
+                radius: 3.0,
+            })
+            .collect();
+        let c = d
+            .apply(Command::AddEntities {
+                target,
+                entities: circles.clone(),
+            })
+            .unwrap();
+        let sk = c.created_sketch.unwrap();
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 4);
+        // more into the sketch that exists
+        d.apply(Command::AddEntities {
+            target: SketchTarget::Existing(sk),
+            entities: vec![Entity::Circle {
+                center: DVec2::new(20.0, 5.0),
+                radius: 2.0,
+            }],
+        })
+        .unwrap();
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 5);
+        assert!(d.undo());
+        assert_eq!(d.sketch(sk).unwrap().sketch.entities().len(), 4);
+        assert!(d.undo());
+        assert!(
+            d.sketch(sk).is_none(),
+            "one Undo takes all four shapes and the sketch back"
+        );
+        assert!(d
+            .apply(Command::AddEntities {
+                target: SketchTarget::Existing(sk),
+                entities: vec![]
+            })
+            .is_err());
     }
 
     #[test]

@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+# Copyright (c) 2026 Rolid spol. s r.o.
+# SPDX-License-Identifier: AGPL-3.0-only
+"""Mirror by two clicks: (1) B, click the plate, click its flat top face: the mirror plane is that face (the text at the cursor says "mirror across it"), a preview, Enter:
+the image stands on top. (2) B, click the hole, click a straight edge: the plane through the middle of the edge, square to it; a click on nothing applies; the hole is
+mirrored. Esc cancels."""
+# FIXTURE: box 100 60 10; sketch xy -1; circle 12 30 8; pull-region 0 12 cut
+# POINTS: top=50,30,10;w0=16.00,30.00,8.5;w1=15.46,32.00,8.5;w2=14.00,33.46,8.5;w3=12.00,34.00,8.5;w4=10.00,33.46,8.5;w5=8.54,32.00,8.5;w6=8.00,30.00,8.5;w7=8.54,28.00,8.5;w8=10.00,26.54,8.5;w9=12.00,26.00,8.5;w10=14.00,26.54,8.5;w11=15.46,28.00,8.5;edge=50,60,10;void=-60,-50,0
+from guitest import *
+
+time.sleep(1.0)
+focus_app_window()
+p = settle()
+check(has_hole_at(p, 12, 30), f"a hole at (12, 30): {holes_of(p)}")
+key("b")
+p = settle(0.5)
+check(p["tool"] == "Mirror", "the Mirror tool is on")
+click(*screen(p, "top"))
+p = settle(0.4)
+check(p["link_sources"] == 1 and not p["link_armed"], "the plate is the source")
+move(*screen(p, "top"))
+time.sleep(0.5)
+p = probe()
+check(p["link_cursor_hint"] == "mirror across it", f"over a flat face: {p['link_cursor_hint']}")
+click(*screen(p, "top"))
+p = settle()
+pl = p["link_plane"]
+check(p["link_armed"] and p["link_mode"] == "Mirror" and close(pl[2], 10, 0.01) and close(abs(pl[5]), 1.0, 0.01), f"the plane is the top face (z = 10): {pl}")
+shot("01-preview")
+key("Return")
+p = wait_for(lambda q: len([b for b in q["bodies"] if b["visible"]]) == 2, "the mirror image is made")
+p = settle(1.0)
+vis = [b for b in p["bodies"] if b["visible"]]
+check(len(vis) == 2, f"the plate and its image: {len(vis)}")
+zs = sorted((round(b["bbox"][2], 1), round(b["bbox"][5], 1)) for b in vis)
+check(zs == [(0.0, 10.0), (10.0, 20.0)], f"the image stands on top: {zs}")
+shot("02-mirrored")
+key("z", ctrl=True)
+p = wait_for(lambda q: len([b for b in q["bodies"] if b["visible"]]) == 1, "Undo", 20)
+key("b")
+p = settle(0.5)
+hx, hy = hover_cylinder(p, [f"w{i}" for i in range(12)])
+click(hx, hy)
+p = settle()
+check(p["link_feature"] and not p["link_armed"], "the hole is the source")
+ex, ey = screen(p, "edge")
+move(ex, ey)
+time.sleep(0.5)
+p = probe()
+check(p["link_cursor_hint"] == "mirror across it", f"over a straight edge: {p['link_cursor_hint']} ({p['hover_obj']})")
+click(ex, ey)
+p = settle()
+pl = p["link_plane"]
+check(p["link_armed"] and close(pl[0], 50, 0.01) and close(abs(pl[3]), 1.0, 0.01), f"the plane is square to the edge through its middle (x = 50): {pl}")
+click(*empty_point(p))
+p = wait_for(lambda q: len(q["links"]) == 1, "the link is made (a click on nothing applies)")
+p = settle(1.0)
+b = first_by(p, lambda b: b["visible"])
+i = p["bodies"].index(b)
+check(has_hole_at(p, 12, 30, i) and has_hole_at(p, 88, 30, i), f"the hole and its image: {holes_of(p, i)}")
+shot("03-hole-mirrored")
+key("z", ctrl=True)
+p = wait_for(lambda q: len(q["links"]) == 0, "Undo", 20)
+key("b")
+p = settle(0.5)
+click(*screen(p, "top"))
+p = settle(0.4)
+key("Escape")
+p = settle(0.5)
+check(p["tool"] == "Select", "Esc cancels")
+finish()

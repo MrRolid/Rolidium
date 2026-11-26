@@ -194,6 +194,19 @@ pub struct SketchMode {
     /// The sketch was started from the 3D view by choosing a drawing tool first: the view is not turned, and Esc leaves it.
     pub quick: bool,
     pub edge_snap: Option<EdgeSnap>,
+    /// What the circle that is being drawn is inside (a closed shape of straight walls, or a circle), found once for its centre: the centre it was found
+    /// for and the answer.
+    pub container: Option<(DVec2, Option<rolidium_doc::rolidium_sketch::multi::Container>)>,
+    /// The right button made copies: the container and the number of pieces (round a circle; for a closed shape the copies are in its corners).
+    pub multi: Option<Multi>,
+}
+
+/// The copies of the circle that is being drawn.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Multi {
+    pub container: rolidium_doc::rolidium_sketch::multi::Container,
+    /// The number of pieces round a circle (2 to 10); not used for the corners of a shape.
+    pub n: usize,
 }
 
 fn closest_on_segment(a: DVec2, b: DVec2, p: DVec2) -> DVec2 {
@@ -236,6 +249,8 @@ impl SketchMode {
             edge_dims: None,
             edge_snap: None,
             quick: false,
+            container: None,
+            multi: None,
         }
     }
 
@@ -252,6 +267,7 @@ impl SketchMode {
     pub fn set_tool(&mut self, t: SkTool) {
         self.tool = t;
         self.drawing = None;
+        self.multi = None;
         self.edge_edit.clear();
     }
 
@@ -262,6 +278,8 @@ impl SketchMode {
 
     pub fn begin(&mut self, start: DVec2) {
         self.edge_edit.clear();
+        self.multi = None;
+        self.container = None;
         let labels: &[&'static str] = match self.tool {
             SkTool::Line | SkTool::Axis => &["Length", "Angle"],
             SkTool::Rect => &["Width", "Height"],

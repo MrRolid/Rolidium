@@ -44,6 +44,7 @@ mod lofttool;
 mod measuretool;
 mod meshtool;
 mod movetool;
+mod multicircle;
 mod panel;
 mod pick;
 mod pickcache;
@@ -309,6 +310,10 @@ pub struct App {
     reselect: Option<edgeedit::HoleTarget>,
     /// Where the button went down in the sketch mode, and whether that placed the first point of a shape.
     sk_press: Option<(Pos2, bool)>,
+    /// Where the right button went down in the sketch (a click is a release within 4 physical pixels).
+    sk_press_right: Option<Pos2>,
+    /// The right button was used while a shape was drawn (to multiply a circle or to stop): no context menu for it.
+    no_ctx_menu: bool,
     /// The probe for the scripted window tests (`ROLIDIUM_PROBE`).
     probe: Option<probe::Probe>,
     /// The last pick under the pointer made on the processor: how long it took (ms), whether the hierarchy of boxes was used, and how many were made.
@@ -567,6 +572,8 @@ impl App {
             shape_drag: None,
             reselect: None,
             sk_press: None,
+            sk_press_right: None,
+            no_ctx_menu: false,
             probe: probe::Probe::from_env(),
             pick_stats: std::cell::Cell::new((0.0, false, 0)),
             mesh_ui: meshtool::MeshUi::default(),
@@ -1942,6 +1949,11 @@ impl App {
     }
 
     fn add_entity(&mut self, e: Entity) -> bool {
+        self.add_entities(vec![e])
+    }
+
+    /// Draws one or several shapes as one step of Undo.
+    fn add_entities(&mut self, es: Vec<Entity>) -> bool {
         let Some(sm) = &self.sk else { return false };
         let target = match sm.sketch {
             Some(id) if self.doc.sketch(id).is_some() => SketchTarget::Existing(id),
@@ -1955,7 +1967,12 @@ impl App {
                 },
             },
         };
-        match self.doc.apply(Command::AddEntity { target, entity: e }) {
+        let cmd = if let [entity] = es[..] {
+            Command::AddEntity { target, entity }
+        } else {
+            Command::AddEntities { target, entities: es }
+        };
+        match self.doc.apply(cmd) {
             Ok(c) => {
                 if let (Some(id), Some(sm)) = (c.created_sketch, self.sk.as_mut()) {
                     sm.sketch = Some(id);
@@ -1976,7 +1993,9 @@ impl App {
         let Some(mouse) = sm.snap.map(|s| s.pos) else {
             return;
         };
-        let Some(e) = sm.effective(mouse) else { return };
+        let Some(e) = sm.effective(mouse) else {
+            return;
+        };
         let tool = sm.tool;
         if tool == SkTool::Arc && sm.arc_end.is_none() {
             // the end point of the arc is placed; the next click gives the point on the arc
@@ -1990,9 +2009,15 @@ impl App {
             }
             return;
         }
-        if self.add_entity(e) {
+        // the copies that the right button made are drawn with the circle, as one step
+        let mut all = vec![e];
+        if tool == SkTool::Circle {
+            all.extend(self.multi_copies(e));
+        }
+        if self.add_entities(all) {
             if let Some(sm) = &mut self.sk {
                 sm.drawing = None;
+                sm.multi = None;
                 if let (SkTool::Line, Entity::Line { b, .. }) = (tool, e) {
                     sm.begin(b); // chain: the next line starts where this one ended
                 }
@@ -2306,6 +2331,8 @@ impl App {
                 } else if self.pull.is_some() || self.up_to.is_some() {
                     self.cancel_pull();
                 } else if self.measure_escape() || self.join_cancel() {
+                } else if matches!(self.tool, Tool::Pattern | Tool::Mirror) {
+                    self.close_link_tool();
                 } else {
                     self.clear_selection();
                 }
@@ -2317,6 +2344,11 @@ impl App {
                     self.apply_loft();
                 } else if self.tool == Tool::Combine && self.combine.target.is_some() {
                     self.apply_combine();
+                } else if matches!(self.tool, Tool::Pattern | Tool::Mirror)
+                    && (self.link_ui.armed || self.link_ui.editing.is_some())
+                    && self.link_ui.pick.is_none()
+                {
+                    self.apply_link();
                 } else if self.move_ui.drag.is_some() {
                     self.commit_move();
                 } else if self.pull.is_some() {
@@ -2998,11 +3030,14 @@ impl App {
             self.layers_changed = true;
         }
         // A short right click (no drag) opens the context menu; dragging with it still orbits.
-        if resp.secondary_clicked() {
+        let no_menu = std::mem::take(&mut self.no_ctx_menu);
+        if resp.secondary_clicked() && !no_menu {
             let raw_face = if resp.hovered() { self.hovered_face() } else { None };
             self.ctx_target = self.context_target(raw_face);
         }
-        resp.context_menu(|ui| self.context_menu_ui(ui));
+        if !no_menu {
+            resp.context_menu(|ui| self.context_menu_ui(ui));
+        }
 
         self.handle_keys(&ctx, rect);
         // Whatever a click, a release or a key did shows in the next frame too (the status line and the panels are drawn before the model area): a
@@ -3208,6 +3243,9 @@ impl App {
         self.hole_drag_paint(ui, rect);
         self.shape_drag_paint(ui, rect);
         self.second_paint(ui, rect);
+        if matches!(self.tool, Tool::Pattern | Tool::Mirror) {
+            self.link_cursor_paint(ui, rect);
+        }
         self.empty_hint_paint(ui, rect);
         self.plane_move_paint(ui, rect);
         self.plane_at_paint(ui, rect);
@@ -3542,9 +3580,31 @@ impl App {
             }
         }
         self.sketch_press_release(resp, snap);
-        if resp.clicked_by(PointerButton::Secondary) {
-            if let Some(sm) = &mut self.sk {
-                sm.drawing = None;
+        // the right button: from the raw presses (a click of the window library is lost when two come quickly one after the other)
+        let (rp, rr, latest, shift) = resp.ctx.input(|i| {
+            (
+                i.pointer.button_pressed(PointerButton::Secondary),
+                i.pointer.button_released(PointerButton::Secondary),
+                i.pointer.latest_pos(),
+                i.modifiers.shift,
+            )
+        });
+        if rp && resp.hovered() {
+            self.sk_press_right = latest;
+        }
+        if rr {
+            if let Some(pos) = self.sk_press_right.take() {
+                let ppp = resp.ctx.pixels_per_point();
+                if latest.is_some_and(|l| (l - pos).length() * ppp < SKETCH_CLICK_PX) {
+                    // a right click while a shape is drawn is for the drawing: no menu of the body under the pointer
+                    self.no_ctx_menu = self.sk.as_ref().is_some_and(|m| m.drawing.is_some());
+                    // inside a closed shape the right button multiplies the circle; elsewhere it stops the drawing
+                    if !self.multi_right_click(shift) {
+                        if let Some(sm) = &mut self.sk {
+                            sm.drawing = None;
+                        }
+                    }
+                }
             }
         }
     }
@@ -3631,6 +3691,7 @@ impl App {
         };
         let mut segs = sm.straight.clone();
         segs.extend(self.sketch_segments(&plane, sm.body));
+        self.update_container();
         let dims = rolidium_doc::rolidium_sketch::edgedims::nearest_edges(at, &segs);
         let mut out = snap;
         let mut edge_snap = None;
@@ -3697,6 +3758,21 @@ impl App {
         }
         // rubber band
         if let Some(e) = sm.effective(snap.pos) {
+            // the copies that the right button made: the same circle in the other places
+            for copy in self.multi_copies(e) {
+                for pl in copy.polylines() {
+                    let pts: Vec<Pos2> = pl
+                        .iter()
+                        .filter_map(|p| self.project(plane.to_3d(*p).as_vec3(), rect))
+                        .collect();
+                    if pts.len() > 1 {
+                        painter.add(egui::Shape::line(
+                            pts,
+                            Stroke::new(2.0, crate::theme::rgb(120, 200, 255)),
+                        ));
+                    }
+                }
+            }
             for pl in e.polylines() {
                 let pts: Vec<Pos2> = pl
                     .iter()
@@ -3912,6 +3988,17 @@ impl App {
                     );
                 }
             }
+        }
+        // the right button multiplies a circle inside a closed shape: said under the diameter box
+        if let Some(h) = self.multi_hint() {
+            let n = sm.field_texts(snap.pos).len() as f32;
+            painter.text(
+                c + Vec2::new(14.0, -58.0 + 21.0 * n + 2.0),
+                egui::Align2::LEFT_TOP,
+                h,
+                font.clone(),
+                crate::theme::rgb(120, 200, 255),
+            );
         }
         // dimension fields
         let fields = sm.field_texts(snap.pos);

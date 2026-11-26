@@ -45,6 +45,44 @@ def click(x=None, y=None):
     time.sleep(0.25)
 
 
+def right_click(x=None, y=None, shift=False):
+    """A click of the right button (with Shift held when asked)."""
+    if x is not None:
+        move(x, y)
+        time.sleep(0.25)
+    sh = keycode("Shift_L")
+    if shift:
+        xtst.XTestFakeKeyEvent(D, sh, 1, 0)
+        sync(0.1)
+    button(3, True)
+    button(3, False)
+    if shift:
+        xtst.XTestFakeKeyEvent(D, sh, 0, 0)
+    sync(0.1)
+    time.sleep(0.25)
+
+
+def empty_point(p):
+    """A place in the model area where there is nothing (near its top left corner)."""
+    v = p["viewport"]
+    return v[0] + 70, v[1] + 70
+
+
+def ctrl_click(x=None, y=None):
+    """A click with Ctrl held."""
+    if x is not None:
+        move(x, y)
+        time.sleep(0.25)
+    c = keycode("Control_L")
+    xtst.XTestFakeKeyEvent(D, c, 1, 0)
+    sync(0.1)
+    button(1, True)
+    button(1, False)
+    xtst.XTestFakeKeyEvent(D, c, 0, 0)
+    sync(0.1)
+    time.sleep(0.25)
+
+
 _presses = 0
 _waits = []
 _presses_base = None

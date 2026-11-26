@@ -1,6 +1,14 @@
 # Patterns, mirror and holes: a short guide
 
-The order is always the same: first click **what is repeated**, then click **where or by what**. The status line says in one sentence what to click next.
+Two clicks. **First the object** (mark it before and press `T` or `B`, or press the key and click it): a body (Ctrl+click adds more; a group is marked by a click on it in the list), a hole or a pin (its round face), a mesh. **Then one click on what decides the kind**; the preview is there at once, and the panel has the numbers. **Enter** or a click on nothing applies, **Esc** cancels. The text at the cursor says what to click ("Click an object", "Click a curve, an axis or a face") and, over a thing, what a click would do ("around the centre", "along a line", "into the corners", "into a grid", "mirror across it").
+
+| second click on | Pattern (`T`) | Mirror (`B`) |
+|---|---|---|
+| a circle, an arc, a round edge, a cylindrical or conical face | **round its centre** (the axis of the circle or the face), 6 pieces over 360 degrees | |
+| a straight line: a straight edge, a line or an auxiliary axis of a sketch | **a row along it**, 3 pieces | the plane through it, square to the sketch (an edge: the plane through its middle, square to it) |
+| a flat face | a hole or a pin: **into the corners** of it; any other object: a **grid** 3 x 3 on it | the plane of the face |
+
+There are no tabs and no Pick buttons. When there is nothing to click, the panel offers X, Y, Z (a row) or YZ, XZ, XY (a mirror). The kind can be changed in the panel (**Along a line, Round a centre, A grid / Into the corners or a grid**) and a click on another curve or face changes it too. The direction as numbers (dx, dy, dz) and **Second piece here** are under **More**.
 
 ## What can be repeated
 
@@ -12,13 +20,13 @@ If the round face is not a whole hole or pin, the status line says so and you ca
 
 ## A row (Pattern, "Along a line")
 
-* **Direction:** the buttons X, Y, Z, or **Pick** and click a straight edge or a face (its normal), or type **dx dy dz** (any direction), ⇄ reverses it.
+* **Direction:** the line or edge you clicked, or the buttons X, Y, Z, or **dx dy dz** (any direction, under *More*), ⇄ reverses it.
 * **Second piece here:** click a point on a face where the second piece should be; the direction and the spacing are read from the distance of the original.
-* **Number and spacing**, or the number and the whole length. "A second direction" makes a grid.
+* **Number and spacing**, or the number and the whole length. The kind "A grid" adds a second direction.
 
 ## Round an axis ("Round an axis")
 
-* **Axis:** X, Y, Z (through the origin), or **Pick** and click a round edge (its centre and normal), a cylindrical or conical face (its axis), a straight edge or a face.
+* **Axis:** the round edge (its centre and normal), the cylindrical or conical face (its axis), the circle or arc of a sketch you clicked.
 * The radius and the first angle come from where the object lies; it can be anywhere.
 * **Number** includes the original (n pieces make n-1 copies); the whole circle or an angle between the pieces. **Keep the orientation of the copies** carries the copies round the axis without turning them.
 
@@ -30,9 +38,9 @@ The tool `X` draws a dash-dotted line in a sketch that makes no region and is no
 
 The plane is a base plane (XY, XZ, YZ with an offset), a flat face, a straight edge (the plane through its middle, square to it), an auxiliary axis or a line of a sketch, or the plane of a sketch. The original can stay, the body can be mirrored in place, merged with the image, or the mirror can be live. For a hole or a pin the image is made in the same body.
 
-## Into the corners of a face ("Into a face", after clicking a hole)
+## Into the corners of a face (a hole or a pin, then a flat face)
 
-The tab is always there; it needs a hole or a pin (click its round face first). Click the flat rectangular face (**Pick the face**) or a **rectangle of a sketch**. **The four corners** put a copy in each corner with the distances from the two nearest edges that the hole has (the hole does not have to be in a corner). **A grid** makes columns x rows pieces from the hole to the margin from the far edges. The link **follows the rectangle**: pull a side of the plate (also the side the hole is near) or change the rectangle of the sketch and the pieces are made again with the same distances, the link stays. The distances and the corners or the grid can be changed in the panel of the link. A change of the thickness (a pull of the face the holes open in) is a hand edit of a derived body and asks whether to remove the link.
+It needs a hole or a pin (click its round face first). Click the flat rectangular face, or a **rectangle of a sketch**. **The four corners** put a copy in each corner with the distances from the two nearest edges that the hole has (the hole does not have to be in a corner). **A grid** makes columns x rows pieces from the hole to the margin from the far edges. The link **follows the rectangle**: pull a side of the plate (also the side the hole is near) or change the rectangle of the sketch and the pieces are made again with the same distances, the link stays. The distances and the corners or the grid can be changed in the panel of the link. A change of the thickness (a pull of the face the holes open in) is a hand edit of a derived body and asks whether to remove the link.
 
 ## Live distances to the edges
 
@@ -45,3 +53,7 @@ When a circle is placed in a sketch (tool `C`), when a hole or a pin is **dragge
 ## Not done yet
 
 A circle of a sketch cannot be copied into the corners of a rectangle of a sketch as a link (a sketch has no history; use the pattern of the sketch). The distances are measured to straight edges and lines only.
+
+## The right button while a circle is drawn
+
+When a circle is drawn inside a closed shape of straight walls (a face of a body, a rectangle or a closed polygon of the sketch) the diameter box says **Right button: more pieces**. A right click shows the same circle in **all the corners** with the same distances from the two nearest walls (a second right click takes them away). Inside a **circle** every right click adds a piece, 2 to 10 evenly round its centre; **Shift + right click** takes one away. The left click draws all of them as **one step of Ctrl+Z**, Esc draws nothing. Outside a closed shape the right button stops the drawing as before. It works in the quick sketch on a wall too.
