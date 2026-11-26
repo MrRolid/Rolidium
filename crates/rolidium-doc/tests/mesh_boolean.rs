@@ -192,3 +192,30 @@ fn a_cylinder_through_the_cat_in_under_two_seconds() {
         d.undo();
     }
 }
+
+/// Where the time of the cut through the cat goes: the preparation of the mesh, the meshing of the tool and the library itself.
+#[test]
+#[ignore]
+fn where_the_time_of_the_cat_goes() {
+    use rolidium_doc::meshbool;
+    let path = format!("{}/rolidium-private/stl-test/cat4.stl", std::env::var("HOME").unwrap());
+    let Ok(bytes) = std::fs::read(&path) else { return };
+    let mut m = rolidium_mesh::stl::parse(&bytes).unwrap();
+    let tol = rolidium_mesh::check::merge_tolerance(&m);
+    rolidium_mesh::check::merge_vertices(&mut m, tol);
+    let (lo, hi) = m.bounding_box().unwrap();
+    let c = DVec3::new((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, lo[2] - 5.0);
+    let tool = Solid::cylinder(((hi[0] - lo[0]) / 8.0).max(1.0), hi[2] - lo[2] + 10.0, c, DVec3::Z).unwrap();
+    let t = std::time::Instant::now();
+    let (prepared, _) = meshbool::prepare(&m, "cat").unwrap();
+    eprintln!("prepare: {:.2} s", t.elapsed().as_secs_f64());
+    let t = std::time::Instant::now();
+    let tm = meshbool::solid_to_mesh(&tool).unwrap();
+    eprintln!("tool mesh: {:.2} s ({} triangles)", t.elapsed().as_secs_f64(), tm.triangles.len());
+    let t = std::time::Instant::now();
+    let r = meshbool::combine_meshes(&prepared, &tm, rolidium_manifold::Op::Difference, &|| false).unwrap();
+    eprintln!("the library (difference): {:.2} s ({} triangles)", t.elapsed().as_secs_f64(), r.triangles.len());
+    let t = std::time::Instant::now();
+    let _ = r.signed_volume();
+    eprintln!("volume: {:.3} s", t.elapsed().as_secs_f64());
+}
