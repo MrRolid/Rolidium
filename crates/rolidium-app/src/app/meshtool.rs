@@ -440,6 +440,7 @@ impl App {
                 ],
             ));
         }
+        self.mesh_ops_ui(ui, id);
         self.mesh_convert_ui(ui, id, mb.mesh.triangles.len());
         // the check: the result stays, the button stays (to check again), and a repair is offered only where it helps
         let report = self
@@ -1160,9 +1161,6 @@ impl App {
                 if is_mesh(body) =>
             {
                 Err(tr("A mesh cannot be rounded or changed like a solid yet. What works on a mesh: pull a flat wall, the diameter of a hole, move, turn, mirror, scale and copies"))
-            }
-            Command::Combine { target, tools, .. } if is_mesh(target) || tools.iter().any(is_mesh) => {
-                Err(tr("A mesh cannot be joined with a solid or cut by one yet (a mesh is not a solid)"))
             }
             Command::AddLink { sources, kind, .. }
                 if sources.iter().any(is_mesh)

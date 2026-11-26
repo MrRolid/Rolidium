@@ -1007,7 +1007,6 @@ The shape stays where it is => La forme reste où elle est
 1 unit of the file is => 1 unité du fichier vaut
 A mesh (STL): a skin of triangles, not a solid => Un maillage (STL) : une peau de triangles, pas un solide
 A mesh and a solid cannot be patterned together; select only meshes or only solids => Un maillage et un solide ne peuvent pas être répétés ensemble ; sélectionne uniquement des maillages ou uniquement des solides
-A mesh cannot be joined with a solid or cut by one yet (a mesh is not a solid) => Un maillage ne peut pas encore être fusionné avec un solide ni coupé par un solide (un maillage n'est pas un solide)
 A mesh cannot be merged with its mirror image (a mesh is not a solid); mirror it without merging => Un maillage ne peut pas être fusionné avec son image miroir (un maillage n'est pas un solide) ; fais le miroir sans fusion
 A mesh cannot be rounded or changed like a solid yet. What works on a mesh: pull a flat wall, the diameter of a hole, move, turn, mirror, scale and copies => Un maillage ne peut pas encore être arrondi ni modifié comme un solide. Sur un maillage fonctionnent : tirer une paroi plane, le diamètre d'un trou, déplacer, tourner, miroir, échelle et copies
 Check the mesh => Vérifier le maillage

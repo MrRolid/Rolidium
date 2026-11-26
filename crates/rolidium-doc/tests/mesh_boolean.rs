@@ -142,3 +142,35 @@ fn a_small_flat_hole_is_patched_and_said_and_a_big_one_is_refused_with_the_reaso
     let msg = e.to_string();
     assert!(msg.contains("hole") && msg.contains("curved"), "{msg}");
 }
+
+/// A cylinder through the cat of the private test directory (493 772 triangles): the time of the cut and of the union, with the preparation (check, mending) included.
+#[test]
+#[ignore]
+fn a_cylinder_through_the_cat_in_under_two_seconds() {
+    let path = format!("{}/rolidium-private/stl-test/cat4.stl", std::env::var("HOME").unwrap());
+    let Ok(bytes) = std::fs::read(&path) else {
+        eprintln!("no {path}");
+        return;
+    };
+    let mut m = rolidium_mesh::stl::parse(&bytes).unwrap();
+    let tol = rolidium_mesh::check::merge_tolerance(&m);
+    rolidium_mesh::check::merge_vertices(&mut m, tol);
+    let rep = rolidium_mesh::check::check(&m);
+    eprintln!("the cat: {} triangles, open {} non-manifold {} inconsistent {} pieces {}", rep.triangles, rep.open_edges, rep.non_manifold_edges, rep.inconsistent_edges, rep.components);
+    let (lo, hi) = m.bounding_box().unwrap();
+    let c = DVec3::new((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, lo[2] - 5.0);
+    let r = ((hi[0] - lo[0]).min(hi[1] - lo[1]) / 8.0).max(1.0);
+    let (mut d, mesh) = mesh_doc(m);
+    let cyl = add_solid(&mut d, Solid::cylinder(r, hi[2] - lo[2] + 10.0, c, DVec3::Z).unwrap());
+    let v0 = volume(&d, mesh);
+    for (op, name) in [(CombineOp::Cut, "cut"), (CombineOp::Merge, "union")] {
+        let t = std::time::Instant::now();
+        let res = d.apply(Command::Combine { target: mesh, tools: vec![cyl], op, keep_tools: true });
+        let secs = t.elapsed().as_secs_f64();
+        match res {
+            Ok(c) => eprintln!("{name}: {secs:.2} s, volume {v0:.1} -> {:.1} {}", volume(&d, mesh), c.notice.unwrap_or_default()),
+            Err(e) => eprintln!("{name}: refused after {secs:.2} s: {e}"),
+        }
+        d.undo();
+    }
+}

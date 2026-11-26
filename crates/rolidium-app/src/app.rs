@@ -5065,7 +5065,7 @@ impl eframe::App for App {
                                 if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some()) {
                                     self.mesh_selection_ui(ui, b);
                                 }
-                                if let Some(b) = self.body_sel.filter(|b| self.doc.mesh(*b).is_some() || self.doc.body(*b).is_some()) {
+                                if let Some(b) = self.body_sel.filter(|b| self.doc.body(*b).is_some()) {
                                     self.mesh_ops_ui(ui, b);
                                 }
                                 if let Some(b) = self.body_sel {

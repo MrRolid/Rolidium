@@ -1007,7 +1007,6 @@ The shape stays where it is => La forma se queda donde está
 1 unit of the file is => 1 unidad del archivo es
 A mesh (STL): a skin of triangles, not a solid => Una malla (STL): una piel de triángulos, no un sólido
 A mesh and a solid cannot be patterned together; select only meshes or only solids => Una malla y un sólido no se pueden repetir juntos; selecciona solo mallas o solo sólidos
-A mesh cannot be joined with a solid or cut by one yet (a mesh is not a solid) => Una malla todavía no se puede unir a un sólido ni cortar con uno (una malla no es un sólido)
 A mesh cannot be merged with its mirror image (a mesh is not a solid); mirror it without merging => Una malla no se puede fusionar con su imagen simétrica (una malla no es un sólido); simetrízala sin fusionar
 A mesh cannot be rounded or changed like a solid yet. What works on a mesh: pull a flat wall, the diameter of a hole, move, turn, mirror, scale and copies => Una malla todavía no se puede redondear ni modificar como un sólido. En una malla funcionan: tirar de una pared plana, el diámetro de un agujero, mover, girar, simetría, escala y copias
 Check the mesh => Comprobar la malla

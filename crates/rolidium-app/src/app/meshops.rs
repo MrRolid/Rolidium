@@ -102,6 +102,13 @@ impl App {
         v
     }
 
+    pub(super) fn simplify_probe(&self) -> serde_json::Value {
+        serde_json::json!({
+            "running": self.simplify.job.is_some(),
+            "result": self.simplify.result.as_ref().map(|(b, _, s)| serde_json::json!({"body": b, "before": s.before, "after": s.after, "max_dev": s.max_dev, "reached": s.reached})),
+        })
+    }
+
     pub(super) fn simplify_result_for(&self, body: Option<BodyId>) -> bool {
         self.simplify
             .result
@@ -113,6 +120,17 @@ impl App {
     fn set_preview(&mut self, p: Option<PreviewMesh>) {
         self.preview_mesh = p;
         self.request_meshes();
+        self.layers_changed = true;
+    }
+
+    /// Forgets the previews without drawing again (a command follows, and the display is made again when it is done).
+    fn forget_previews(&mut self) {
+        if let Some(j) = self.simplify.job.take() {
+            j.stop.store(true, Ordering::Relaxed);
+        }
+        self.simplify.result = None;
+        self.stretch.shown = None;
+        self.preview_mesh = None;
         self.layers_changed = true;
     }
 
@@ -196,7 +214,14 @@ impl App {
             }
         }
         ui.add_space(6.0);
-        ui.label(egui::RichText::new(tr("Simplify the mesh")).strong());
+        let h = egui::CollapsingHeader::new(egui::RichText::new(tr("Simplify the mesh")).strong())
+            .id_salt("simplify_header")
+            .default_open(false)
+            .show(ui, |ui| self.simplify_body(ui, id, &mb));
+        self.probe_widget("simplify_header", h.header_response.rect);
+    }
+
+    fn simplify_body(&mut self, ui: &mut egui::Ui, id: BodyId, mb: &rolidium_doc::meshes::MeshBody) {
         let n = mb.mesh.triangles.len();
         ui.horizontal(|ui| {
             ui.radio_value(
@@ -284,7 +309,7 @@ impl App {
                 self.probe_widget("simplify_apply", r.rect);
                 if r.clicked() {
                     if let Some(t) = target {
-                        self.drop_mesh_previews();
+                        self.forget_previews();
                         self.mesh_ui.keep_body = Some(id);
                         self.submit(Command::MeshSimplify {
                             body: id,
@@ -377,7 +402,14 @@ impl App {
         let is_mesh = self.doc.mesh(id).is_some();
         let Some((lo, hi)) = self.body_box(id) else { return };
         ui.add_space(6.0);
-        ui.label(egui::RichText::new(tr("Stretch across a plane")).strong());
+        let h = egui::CollapsingHeader::new(egui::RichText::new(tr("Stretch across a plane")).strong())
+            .id_salt("stretch_header")
+            .default_open(false)
+            .show(ui, |ui| self.stretch_body(ui, id, is_mesh, lo, hi));
+        self.probe_widget("stretch_header", h.header_response.rect);
+    }
+
+    fn stretch_body(&mut self, ui: &mut egui::Ui, id: BodyId, is_mesh: bool, lo: DVec3, hi: DVec3) {
         ui.weak(tr(
             "The part beyond the plane moves and the gap is filled with the cross-section: walls grow, rounds, holes and pockets keep their size",
         ));
@@ -442,7 +474,7 @@ impl App {
             self.probe_widget("stretch_apply", r.rect);
             if r.clicked() {
                 if let Some((point, normal, distance)) = inputs {
-                    self.drop_mesh_previews();
+                    self.forget_previews();
                     self.mesh_ui.keep_body = Some(id);
                     self.submit(Command::StretchInPlane {
                         body: id,

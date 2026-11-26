@@ -65,6 +65,14 @@ impl App {
         }
     }
 
+    /// The name of a solid or a mesh.
+    fn body_or_mesh_name(&self, id: BodyId) -> Option<String> {
+        self.doc
+            .body(id)
+            .map(|b| b.name.clone())
+            .or_else(|| self.doc.mesh(id).map(|m| m.name.clone()))
+    }
+
     pub(super) fn apply_combine(&mut self) {
         let (Some(target), false) = (self.combine.target, self.combine.tools.is_empty()) else {
             self.set_status("Click the target body, then the bodies to combine with it", true);
@@ -142,8 +150,8 @@ impl App {
             &tr("Combine"),
             false,
             |ui| {
-                let t = match self.combine.target.and_then(|b| self.doc.body(b)) {
-                    Some(b) => b.name.clone(),
+                let t = match self.combine.target.and_then(|b| self.body_or_mesh_name(b)) {
+                    Some(n) => n,
                     None => tr("click the target body"),
                 };
                 ui.horizontal(|ui| {
@@ -154,7 +162,7 @@ impl App {
                     .combine
                     .tools
                     .iter()
-                    .filter_map(|b| self.doc.body(*b).map(|b| b.name.clone()))
+                    .filter_map(|b| self.body_or_mesh_name(*b))
                     .collect();
                 ui.horizontal_wrapped(|ui| {
                     ui.colored_label(crate::theme::rgb(242, 89, 242), tr("Tools"));
@@ -170,7 +178,8 @@ impl App {
                         (CombineOp::Cut, "Cut"),
                         (CombineOp::Intersect, "Intersect"),
                     ] {
-                        ui.selectable_value(&mut self.combine.op, o, tr(n));
+                        let r = ui.selectable_value(&mut self.combine.op, o, tr(n));
+                        self.probe_widget(&format!("combine_op_{}", n.to_lowercase()), r.rect);
                     }
                 });
                 ui.add_enabled(

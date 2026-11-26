@@ -181,6 +181,13 @@ impl Job {
                 })
                 .into());
             }
+            if op == CombineOp::Merge {
+                // joined only when they share volume or a face: a union as big as the two together that falls into pieces touched nothing
+                let sum = cur.signed_volume() + tm.signed_volume();
+                if (r.signed_volume() - sum).abs() < 1e-9 * sum.abs().max(1.0) && check::check(&r).components > 1 {
+                    return Err(KernelError::Invalid("There is nothing to merge: the bodies do not touch or overlap".into()).into());
+                }
+            }
             cur = r;
         }
         if op == CombineOp::Cut && (cur.signed_volume() - before).abs() < 1e-9 * before.abs().max(1.0) {

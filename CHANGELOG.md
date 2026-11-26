@@ -8,6 +8,17 @@ features is visible. 0.2.0 is the first public release.
 
 ## [Unreleased] - 0.3.2
 
+### Added
+- **A mesh becomes a solid with round surfaces.** The conversion recognises cylinders, cones, spheres and tori as well as planes; boundaries between faces are real lines, circles and ellipses. A hole's diameter and a round's radius can be changed on the converted solid and a wall with rounds next to it can be pulled. Tested there and back on a box with rounded edges, a plate with holes, a counterbore, a countersink and a chamfer, a boss with a cone and a round, and a container with magnet holes (faces by kind, radii, volume and deviation compared); 0.04 to 0.3 s where the flat conversion took 2 to 10 s. If the kernel refuses the result, fewer kinds of surfaces are tried, and at the last the flat conversion. D65, `docs/MESH.md`.
+- **Cutting and joining meshes** (Manifold, vendored and linked statically; D66): Combine for meshes and solids in any combination, a sketch pulled in Cut mode cuts through a mesh, Add and Auto join. In the background, Esc stops it, one step of Undo.
+- **Small flat holes of a mesh are patched** before a cut, a join and a conversion, and the status line says how many; a hole with a curved rim is left and the operation is refused with the reason.
+- **Simplify the mesh**: a share or a number of triangles, sharp edges and the rims of holes kept, the result shown next to the original with the same view, the deviation, one step of Undo (D67).
+- **Stretch across a plane** for meshes and solids: the part beyond the plane moves and the gap is filled with the cross-section; rounds, holes and pockets keep their size; a preview for meshes; one step of Undo (D68).
+- Window tests t48 (a round mesh becomes a cylinder), t49 (simplify with a preview), t50 (stretch a mesh and a solid), and the tests of the library crates.
+
+### Changed
+- The version of `main` is 0.3.2; the notes of the unpublished 0.3.0 are in 0.3.1.
+
 ## [0.3.1] - 2026-11-26
 
 ### Changed

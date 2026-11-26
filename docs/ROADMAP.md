@@ -38,8 +38,17 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
    * **A section of an STL mesh or of a scan on a plane as a sketch**: the cut of the mesh by a plane becomes lines in a sketch that can be pulled or measured.
 7. **A check of the STL scale.** STL has no units and is always taken as millimetres; an automatic test exports a cube of 20 mm and checks that it is 20 mm.
 
+8. **Mesh tools for 3D printing** (0.3.2 and following):
+   * **Simplify a mesh.** *(Done in the 0.3.2 development: target as a share or a number of triangles, sharp edges and the rims of holes kept, a preview next to the original, the deviation; see `docs/MESH.md`.)*
+   * **Stretch across a plane**, for meshes and solids. *(Done in the 0.3.2 development; see `docs/MESH.md`.)*
+   * **Shell and thickening of walls, with a temporary removal of small features** (text, holes, pockets, rounds) and their return after the shell is made, and a **check of thin walls**.
+     Test for the specification: a box with a text sunk into it whose letters have a stem of 1 mm, and a shell of 2 mm, must go through (the text is taken off, the shell is made, the text is put back).
+   * **Text and a logo on a body.** Letters engraved into or embossed on a flat face, also a logo from an SVG file (moved here from *Then*; the shell above needs it).
+   * **A simplified conversion of organic meshes into patches** (a coarse set of flat or smooth faces) as a choice at the import.
+
 ## Then
 
+* **Sculpting brushes for meshes**: push out, push in, smooth, flatten, drag, groove, and symmetric about an axis. Removing a region and filling holes by hand, and a local refinement of the mesh under the brush.
 * **Exact helix geometry and a Thread tool.** Bodies swept along a helix (springs, threads) are built today by a general sweep, and
   combining them with a cylinder can be refused by the volume check in some cases (typically when a spring sticks out through the end
   faces of the cylinder, see D30). The plan is to build springs and threads from exact surfaces so that they combine reliably and the
@@ -49,7 +58,6 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
 * **Permanent dimensions.** Today measurements are temporary (the Measure tool). Permanent dimensions are built from the same elements
   (`MElem` in `app/measuretool.rs`), stored in the document and shown in the 3D view. See the design notes below.
 * **Units, inches included.** Lengths shown and typed in the chosen unit; the file stays in millimetres.
-* **Text and a logo on a body.** Letters engraved into or embossed on a flat face, also a logo from an SVG file.
 * **Sketch: corner fillet and trim.** Round the corner between two sketch lines with an arc of a given radius, and trim a line at another
   line or shape. General sketch tools, not only for sweep paths.
 * **Pulling cylindrical and conical faces, a draft of a face by an angle, and removing a face with healing.** Pull works on flat faces today; on a curved face it says
@@ -68,6 +76,7 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
 
 ## Later
 
+* **Free shapes as smooth surfaces**: remesh a mesh into quadrilaterals and convert it to B-spline surfaces.
 * **A paid part for custom printing**: a price from the print time and the filament, an offer as a PDF, a record of the filament.
 * **Assemblies with joints**, a check of collisions and the range of movement.
 * **Digitising a physical part with a touch probe on the CNC machine** (with the CAM): the points the probe touches are read from the machine and turned into a sketch (or a point cloud) in the model.
@@ -75,6 +84,13 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.
 * **CAM for CNC machines**: 2.5D toolpaths first, then 3D (see the CAM plan below). The program has no CAM today.
+
+## Not finished from 0.3.1
+
+* **Extended snapping** in a sketch: fractions of a curve, angles on a circle, quadrants and intersections.
+* **The key `L` for a line everywhere** (today `L` is Loft in the 3D view; a line there is `Shift+L`).
+* **A quick sketch on the base plane turned to the view.**
+* **A round wall of a mesh as the centre of a circular pattern** (a flat wall works; a round one is not found as an axis).
 
 ## Smaller improvements
 

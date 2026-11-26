@@ -928,14 +928,22 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
         let mut order_g: Vec<usize> = (0..ng).collect();
         order_g.sort_by(|a, b| g_area[*a].total_cmp(&g_area[*b]));
         let mut failures = 0usize;
-        let budget = 3000usize.max(ng / 4);
+        let budget = 2000usize + ng / 50;
+        // the search of round surfaces gets a time of its own that grows with the size of the mesh (an organic model has nothing to find and would take minutes)
+        let started = std::time::Instant::now();
+        let max_secs = 4.0 + n as f64 / 15000.0;
         let mut tried = vec![false; ng];
         for (cursor, &seed) in order_g.iter().enumerate() {
             if g_region[seed] != NONE || tried[seed] {
                 continue;
             }
-            if cursor % 1024 == 0 && stop() {
-                return None;
+            if cursor % 256 == 0 {
+                if stop() {
+                    return None;
+                }
+                if started.elapsed().as_secs_f64() > max_secs {
+                    break;
+                }
             }
             let mut hyp = hypotheses(seed, &ctx, &o.allow, |g| g_region[g] == NONE);
             if o.allow.tori {
@@ -1090,6 +1098,9 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
             for st in 0..ng {
                 if tried_f[st] || !is_frag(st, &regions, &g_region) {
                     continue;
+                }
+                if st % 64 == 0 && started.elapsed().as_secs_f64() > 2.0 * max_secs {
+                    break;
                 }
                 tried_f[st] = true;
                 // the neighbourhood of the fragment through fragments, up to 40 and then 90 groups

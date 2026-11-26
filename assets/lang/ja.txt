@@ -1007,7 +1007,6 @@ The shape stays where it is => 形状はそのままです
 1 unit of the file is => ファイルの1単位は
 A mesh (STL): a skin of triangles, not a solid => メッシュ（STL）：三角形の殻であり、ソリッドではありません
 A mesh and a solid cannot be patterned together; select only meshes or only solids => メッシュとソリッドを一緒にパターン化することはできません。メッシュのみ、またはソリッドのみを選択してください
-A mesh cannot be joined with a solid or cut by one yet (a mesh is not a solid) => メッシュはまだソリッドと結合したり、ソリッドで切り取ったりできません（メッシュはソリッドではありません）
 A mesh cannot be merged with its mirror image (a mesh is not a solid); mirror it without merging => メッシュはその鏡像と結合できません（メッシュはソリッドではありません）。結合せずに鏡像を作成してください
 A mesh cannot be rounded or changed like a solid yet. What works on a mesh: pull a flat wall, the diameter of a hole, move, turn, mirror, scale and copies => メッシュはまだソリッドのように丸めたり変更したりできません。メッシュでは、平らな壁の引き出し、穴の直径、移動、回転、鏡像、拡大縮小、コピーが使えます
 Check the mesh => メッシュをチェック

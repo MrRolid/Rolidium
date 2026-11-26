@@ -46,14 +46,35 @@ cat assets/legal/LICENSE_LGPL_21.txt
 cat <<'EOF'
 
 
-PART 2. FONTS
+PART 2. MANIFOLD (boolean operations on triangle meshes)
+--------------------------------------------------------
+
+The program contains Manifold, a library for boolean operations on triangle meshes, compiled into it (static linking).
+
+  Version:   3.5.5 (git commit 32271a1a999ce721ffaf5ab10e9746ceeb696547)
+  Licence:   Apache License, version 2.0
+  Copyright: The Manifold Authors
+  Website:   https://github.com/elalish/manifold
+  Source:    a copy of the release is in third_party/manifold of the Rolidium source code (without the cross-section part
+             and without the optional parallel back end); it is built by the crate rolidium-manifold.
+
+Authors of Manifold:
+
+EOF
+cat third_party/manifold/AUTHORS
+printf '\n\n----- Apache License 2.0 (Manifold) -----\n\n'
+cat third_party/manifold/LICENSE
+cat <<'EOF'
+
+
+PART 3. FONTS
 -------------
 
 Noto Sans JP (used for Japanese texts), under the SIL Open Font License 1.1 whose text follows.
 
 EOF
 cat assets/fonts/NotoSansJP-OFL.txt
-printf '\n\n(The fonts bundled in the egui libraries are listed in part 3.)\n\n\nPART 3. RUST LIBRARIES\n----------------------\n\n'
+printf '\n\n(The fonts bundled in the egui libraries are listed in part 3.)\n\n\nPART 4. RUST LIBRARIES\n----------------------\n\n'
 sed -n '/^\* /,$p' "$tmp"
 } > "$out"
 rm -f "$tmp"
