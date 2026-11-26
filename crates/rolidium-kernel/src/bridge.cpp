@@ -49,6 +49,7 @@
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_Edge.hxx>
+#include <ShapeAnalysis_Surface.hxx>
 #include <Bnd_Box.hxx>
 #include <unordered_map>
 #include <ShapeFix_Solid.hxx>
@@ -778,7 +779,11 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
             if (!mw.IsDone()) fail("a loop of a face is not closed");
             return mw.Wire();
         };
-        BRepBuilderAPI_Sewing sew(std::max(tol, 1e-6));
+        double sew_tol = std::max(tol, 1e-6);
+        for (double t : edge_tol) sew_tol = std::max(sew_tol, 2.0 * t);
+        for (double t : point_tol) sew_tol = std::max(sew_tol, 1.5 * t);
+        sew_tol = std::min(sew_tol, 0.05);
+        BRepBuilderAPI_Sewing sew(sew_tol);
         sew.SetNonManifoldMode(Standard_False);
         size_t added = 0;
         const size_t nf = face_offsets.size() - 1;
@@ -793,7 +798,37 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 TopoDS_Face face;
                 try {
                     auto loop_at = [&](uint32_t k) { return attempt == 0 ? l0 + k : l1 - 1 - k; };
-                    if (surf_kind[face_surf[f]] == 0) {
+                    if (surf_kind[face_surf[f]] == 4 && l1 - l0 == 2) {
+                        // a ring of a torus (a round along a circular edge): the shape healing cannot tell on which side of the tube the second circle is, so the
+                        // face is made between the two circles, on the side that has the area of the mesh, and sewn to its neighbours
+                        Handle(Geom_Surface) sf = surfs[face_surf[f]];
+                        ShapeAnalysis_Surface sas(sf);
+                        double vs[2];
+                        for (int k = 0; k < 2; ++k) {
+                            const uint32_t code = loop_edges[loop_offsets[l0 + k]];
+                            const uint32_t e = code >> 1;
+                            gp_Pnt2d uv = sas.ValueOfUV(pnt(edge_v[2 * e]), 1e-3);
+                            vs[k] = uv.Y();
+                        }
+                        const double want = face_area.size() > f ? face_area[f] : 0.0;
+                        double lo = std::min(vs[0], vs[1]), hi = std::max(vs[0], vs[1]);
+                        TopoDS_Face pick;
+                        double pick_err = 1e300;
+                        for (int side = 0; side < 2; ++side) {
+                            const double a = side == 0 ? lo : hi, b = side == 0 ? hi : lo + 2.0 * M_PI;
+                            BRepBuilderAPI_MakeFace mf(sf, 0.0, 2.0 * M_PI, a, b, tol);
+                            if (!mf.IsDone()) continue;
+                            GProp_GProps fp;
+                            BRepGProp::SurfaceProperties(mf.Face(), fp);
+                            const double err = want > 0 ? std::abs(fp.Mass() - want) / want : (side == 0 ? 0.0 : 1.0);
+                            if (err < pick_err) {
+                                pick_err = err;
+                                pick = mf.Face();
+                            }
+                        }
+                        if (pick.IsNull()) fail("the ring of a torus could not be made");
+                        face = pick;
+                    } else if (surf_kind[face_surf[f]] == 0) {
                         BRepBuilderAPI_MakeFace mf(Handle(Geom_Plane)::DownCast(surfs[face_surf[f]])->Pln(), wire_of(loop_at(0)), Standard_True);
                         if (!mf.IsDone()) fail("a flat face could not be made (face " + std::to_string(f) + ")");
                         for (uint32_t k = 1; k < l1 - l0; ++k) mf.Add(wire_of(loop_at(k)));
@@ -807,10 +842,12 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                             bb.Add(face, w);
                         }
                     }
-                    ShapeFix_Face fix(face);
-                    fix.FixOrientation();
-                    fix.Perform();
-                    face = fix.Face();
+                    if (!(surf_kind[face_surf[f]] == 4 && l1 - l0 == 2)) {
+                        ShapeFix_Face fix(face);
+                        fix.FixOrientation();
+                        fix.Perform();
+                        face = fix.Face();
+                    }
                 } catch (...) {
                     if (attempt == 0 && l1 - l0 == 1) throw;
                     continue;
@@ -818,8 +855,8 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 GProp_GProps fp;
                 BRepGProp::SurfaceProperties(face, fp);
                 const double want = face_area.size() > f ? face_area[f] : 0.0;
-                const double err = want > 0 ? std::abs(fp.Mass() - want) / want : 0.0;
-                if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "face %zu surf %u attempt %d area %g want %g\n", f, face_surf[f], attempt, fp.Mass(), want);
+                const double err = want > 0 ? std::abs(std::abs(fp.Mass()) - want) / want : 0.0;
+                if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "face %zu kind %u r %g loops %u attempt %d area %g want %g%s\n", f, surf_kind[face_surf[f]], surf_params[12 * face_surf[f] + 6], l1 - l0, attempt, fp.Mass(), want, want > 0 && std::abs(std::abs(fp.Mass()) - want) / want > 0.1 ? " BAD" : "");
                 if (err < best_err) {
                     best_err = err;
                     best = face;
@@ -832,6 +869,7 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
         }
         if (added == 0) fail("there are no faces");
         sew.Perform();
+        if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "sewing: free %d multiple %d degenerated %d\n", sew.NbFreeEdges(), sew.NbMultipleEdges(), sew.NbDegeneratedShapes());
         TopoDS_Shape sewn = sew.SewedShape();
         TopoDS_Shell shell;
         for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) { shell = TopoDS::Shell(ex.Current()); break; }

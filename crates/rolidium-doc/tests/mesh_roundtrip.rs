@@ -66,11 +66,9 @@ pub fn bin() -> Solid {
     let mut s = Solid::cuboid(v(0.0, 0.0, 0.0), v(42.0, 42.0, 25.0)).unwrap();
     let vertical = edges_where(&s, |a, b| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6);
     s = s.fillet(&vertical, 4.0).unwrap().solid;
-    let mut pocket = Solid::cuboid(v(3.0, 3.0, 5.0), v(39.0, 39.0, 30.0)).unwrap();
+    let mut pocket = Solid::cuboid(v(1.2, 1.2, 5.0), v(40.8, 40.8, 30.0)).unwrap();
     let pv = edges_where(&pocket, |a, b| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6);
-    pocket = pocket.fillet(&pv, 2.0).unwrap().solid;
-    let pb = edges_where(&pocket, |a, b| a.z < 5.1 && b.z < 5.1);
-    pocket = pocket.fillet(&pb, 1.5).unwrap().solid;
+    pocket = pocket.fillet(&pv, 2.8).unwrap().solid;
     s = s.boolean(&pocket, rolidium_kernel::BooleanOp::Cut).unwrap().solid;
     for (x, y) in [(8.0, 8.0), (34.0, 8.0), (8.0, 34.0), (34.0, 34.0)] {
         s = s.boolean(&Solid::cylinder(3.25, 2.4, v(x, y, -0.1), z).unwrap(), rolidium_kernel::BooleanOp::Cut).unwrap().solid;
@@ -210,4 +208,73 @@ fn debug_one() {
     };
     let (row, _d, _id) = roundtrip(&which, &s, 0.01, 0.2);
     print(&row);
+}
+
+/// The files of a private test directory (not in the repository): the kinds of faces found, the share that was not recognised, the deviation and the time.
+#[test]
+#[ignore]
+fn private_files() {
+    let dir = std::path::PathBuf::from(std::env::var("STL_DIR").unwrap_or_else(|_| format!("{}/rolidium-private/stl-test", std::env::var("HOME").unwrap())));
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        eprintln!("no {dir:?}");
+        return;
+    };
+    let mut names: Vec<_> = rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "stl")).collect();
+    names.sort();
+    let max_tri: usize = std::env::var("MAX_TRI").ok().and_then(|s| s.parse().ok()).unwrap_or(150_000);
+    eprintln!("{:<16} {:>8} {:>5} {:>28} {:>9} {:>8} {:>8} {:>9}", "file", "triangles", "route", "planes/cyl/cone/sph/torus", "unrecog%", "dev mm", "vol %", "seconds");
+    for p in names {
+        let bytes = std::fs::read(&p).unwrap();
+        let mut m = rolidium_mesh::stl::parse(&bytes).unwrap();
+        let tol = rolidium_mesh::check::merge_tolerance(&m);
+        rolidium_mesh::check::merge_vertices(&mut m, tol);
+        let name = p.file_name().unwrap().to_string_lossy().to_string();
+        if m.triangles.len() > max_tri {
+            // too big to convert in a test: only the recognition
+            let t = std::time::Instant::now();
+            let f = rolidium_mesh::fit::fit(
+                &m,
+                &rolidium_mesh::fit::FitOptions { tolerance: 0.02, round: false, allow: rolidium_mesh::fit::Allow::ALL },
+                &|| false,
+            )
+            .unwrap();
+            let s = &f.stats;
+            eprintln!(
+                "{:<16} {:>8} {:>5} {:>28} {:>9.2} {:>8.4} {:>8} {:>9.2}   (recognition only)",
+                name,
+                m.triangles.len(),
+                "-",
+                format!("{}/{}/{}/{}/{}", s.planes, s.cylinders, s.cones, s.spheres, s.tori),
+                s.single_area * 100.0,
+                s.max_deviation,
+                "-",
+                t.elapsed().as_secs_f64()
+            );
+            continue;
+        }
+        let mut d = Document::new();
+        d.apply(Command::AddMeshes { meshes: vec![NewMesh { name: name.clone(), mesh: Arc::new(m.clone()), verified: true }] }).unwrap();
+        let id = d.meshes()[0].id;
+        let t = std::time::Instant::now();
+        let r = d.apply(Command::ConvertMesh { body: id, tolerance: 0.02, round: false, keep: false });
+        let secs = t.elapsed().as_secs_f64();
+        match r {
+            Ok(_) => {
+                let b = &d.bodies()[0];
+                let rep = rolidium_doc::meshes::conversion_report(b.id).unwrap();
+                eprintln!(
+                    "{:<16} {:>8} {:>5} {:>28} {:>9.2} {:>8.4} {:>8.3} {:>9.2}",
+                    name,
+                    m.triangles.len(),
+                    rep.route,
+                    format!("{}/{}/{}/{}/{}", rep.kinds[0], rep.kinds[1], rep.kinds[2], rep.kinds[3], rep.kinds[4]),
+                    rep.single_share * 100.0,
+                    rep.max_deviation,
+                    (rep.volume_solid - rep.volume_mesh) / rep.volume_mesh * 100.0,
+                    secs
+                );
+            }
+            Err(e) => eprintln!("{:<16} {:>8}  refused: {e}  ({secs:.1}s)", name, m.triangles.len()),
+        }
+    }
 }

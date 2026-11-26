@@ -663,15 +663,15 @@ fn fit_torus(p: &Patch, vnormals: &[V3], tol: f64) -> Option<Surf> {
         })
         .collect();
     let ((cr, cz), small) = fit_circle_2d(&prof)?;
-    if !(small > 1e-6 && cr > small * 1.0001) {
-        // a centre on the axis is a sphere, a centre outside the tube radius a spindle torus: neither is made here
+    if !(small > 1e-6 && cr > small * 0.05) {
+        // a centre (almost) on the axis is a sphere
         return None;
     }
     let c0 = add(base, mul(a, cz));
     let q = refine_torus([c0[0], c0[1], c0[2], a[0], a[1], a[2], cr, small], &p.pts);
     let ax = unit([q[3], q[4], q[5]]);
     let (big, small) = (q[6], q[7]);
-    if !(small > 1e-6 && big > small * 1.0001 && big.is_finite() && small.is_finite()) {
+    if !(small > 1e-6 && big > small * 0.05 && big.is_finite() && small.is_finite()) {
         return None;
     }
     let s = Surf::Torus {
@@ -857,6 +857,7 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                 }
             }
         }
+        let g_normal_ref = &g_normal;
         let ctx = GCtx {
             g_adj: &g_adj,
             g_normal: &g_normal,
@@ -976,6 +977,98 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
                         regions.push(Region { tris: tris_of, surf, round: true });
                     }
                 }
+            }
+        }
+        // the fragments that a round surface which is not a cylinder, a cone or a sphere leaves (narrow bands that pass for one within the tolerance), and the
+        // facets between them, are tried together as a torus (or any surface) when they form a piece of more than a few facets
+        if o.allow.tori {
+            let is_frag = |g: usize, regions: &[Region], g_region: &[u32]| -> bool {
+                match g_region[g] {
+                    NONE => groups[g].len() <= 4,
+                    r => {
+                        let r = &regions[r as usize];
+                        r.round && r.tris.len() < 100 && !matches!(r.surf, Surf::Torus { .. })
+                    }
+                }
+            };
+            let mut tried_f = vec![false; ng];
+            for st in 0..ng {
+                if tried_f[st] || !is_frag(st, &regions, &g_region) {
+                    continue;
+                }
+                tried_f[st] = true;
+                // the neighbourhood of the fragment through fragments, up to 40 and then 90 groups
+                let mut found: Option<(Vec<u32>, Surf)> = None;
+                for &limit in &[40usize, 90] {
+                    let mut set: std::collections::HashSet<u32> = std::collections::HashSet::new();
+                    let mut order = vec![st as u32];
+                    set.insert(st as u32);
+                    let mut head = 0;
+                    while head < order.len() && order.len() < limit {
+                        let g = order[head] as usize;
+                        head += 1;
+                        for &q in &g_adj[g] {
+                            if order.len() < limit
+                                && is_frag(q as usize, &regions, &g_region)
+                                && dot(g_normal_ref[g], g_normal_ref[q as usize]) >= STEP_COS
+                                && set.insert(q)
+                            {
+                                order.push(q);
+                            }
+                        }
+                    }
+                    if order.len() < 8 {
+                        break;
+                    }
+                    if let Some(surf) = torus_of_groups(&order, &ctx, &vn, &v_tris, &group_of, tol_s) {
+                        let grown = grow_groups(&surf, st, &ctx, tol_s, |g| is_frag(g, &regions, &g_region));
+                        if grown.len() >= 10 {
+                            found = Some((grown, surf));
+                            break;
+                        }
+                    }
+                }
+                let Some((mut comp, surf)) = found else {
+                    continue;
+                };
+                // a fragment that the piece only partly covers stays as it is
+                {
+                    let inside: std::collections::HashSet<u32> = comp.iter().copied().collect();
+                    let mut partly: std::collections::HashSet<u32> = std::collections::HashSet::new();
+                    for g in 0..ng {
+                        let r = g_region[g];
+                        if r != NONE && !inside.contains(&(g as u32)) && comp.iter().any(|c| g_region[*c as usize] == r) {
+                            partly.insert(r);
+                        }
+                    }
+                    comp.retain(|g| !partly.contains(&g_region[*g as usize]));
+                    if comp.len() < 10 {
+                        continue;
+                    }
+                }
+                let tris_of: Vec<u32> = comp.iter().flat_map(|g| groups[*g as usize].iter().copied()).collect();
+                // the old fragments are gone (the part of a fragment outside the piece is a piece of the same surface)
+                let old: std::collections::HashSet<u32> = comp.iter().map(|g| g_region[*g as usize]).filter(|r| *r != NONE).collect();
+                for r in old {
+                    for &t in &regions[r as usize].tris {
+                        region_of[t as usize] = NONE;
+                    }
+                    for g in 0..ng {
+                        if g_region[g] == r {
+                            g_region[g] = NONE;
+                        }
+                    }
+                    regions[r as usize].tris.clear();
+                }
+                let id = regions.len() as u32;
+                for &g in &comp {
+                    g_region[g as usize] = id;
+                    tried_f[g as usize] = true;
+                }
+                for &t in &tris_of {
+                    region_of[t as usize] = id;
+                }
+                regions.push(Region { tris: tris_of, surf, round: true });
             }
         }
         // two patches of the same surface that touch are one
@@ -1154,10 +1247,16 @@ fn torus_hypothesis(seed: usize, c: &GCtx, vn: &[V3], v_tris: &[Vec<u32>], group
     if order.len() < 8 {
         return None;
     }
+    torus_of_groups(&order, c, vn, v_tris, group_of, tol)
+}
+
+/// A torus through the inner points of some groups (the points whose triangles all belong to the groups: only there is the vertex normal right).
+fn torus_of_groups(order: &[u32], c: &GCtx, vn: &[V3], v_tris: &[Vec<u32>], group_of: &[u32], tol: f64) -> Option<Surf> {
+    let set: std::collections::HashSet<u32> = order.iter().copied().collect();
     let mut pts = Vec::new();
     let mut vns = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for &g in &order {
+    for &g in order {
         for &v in &c.g_verts[g as usize] {
             if seen.insert(v) && v_tris[v as usize].iter().all(|t| set.contains(&group_of[*t as usize])) {
                 pts.push(c.points[v as usize]);
