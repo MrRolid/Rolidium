@@ -14,9 +14,16 @@ features is visible. 0.2.0 is the first public release.
 - **Small flat holes of a mesh are patched** before a cut, a join and a conversion, and the status line says how many; a hole with a curved rim is left and the operation is refused with the reason.
 - **Simplify the mesh**: a share or a number of triangles, sharp edges and the rims of holes kept, the result shown next to the original with the same view, the deviation, one step of Undo (D67).
 - **Stretch across a plane** for meshes and solids: the part beyond the plane moves and the gap is filled with the cross-section; rounds, holes and pockets keep their size; a preview for meshes; one step of Undo (D68).
-- Window tests t48 (a round mesh becomes a cylinder), t49 (simplify with a preview), t50 (stretch a mesh and a solid), and the tests of the library crates.
+- Window tests t48 (a round mesh becomes a cylinder), t49 (simplify with a preview), t50 (stretch a mesh and a solid), t51 (cut and join a mesh with a solid), and the tests of the library crates; `mesh_roundtrip` there and back, `mesh_boolean`, `mesh_simplify_stretch`, `stretch` and `from_surfaces` of the kernel.
+
+### Known issues
+- Tori with a small major radius (the round at the bottom of a pocket whose corner radius is about the round's radius) stay flat strips after a conversion; the rest of the part is real faces.
+- A cut through a mesh of 500 000 triangles takes about 3 s on a busy machine (the library runs on one core); the recognition of surfaces on an organic mesh of that size takes about 90 s and finds almost nothing (such a mesh is better left a mesh).
+- A stretch of a solid has no preview (the plane and the arrow are drawn); a stretch by a negative distance needs the cross-section to be the same along the removed layer.
 
 ### Changed
+- A sketch drawn on a wall of a mesh and pulled in mode Auto or Add is **joined to the mesh** (before it made a solid of its own); in mode Cut it is cut out of the mesh. Combine of a mesh with a solid no longer refuses; a merge of bodies that touch nothing says so.
+- The Combine panel shows the names of meshes; the Selection panel of a mesh has the two new panels (Simplify the mesh, Stretch across a plane) above *Convert to a solid*.
 - The version of `main` is 0.3.2; the notes of the unpublished 0.3.0 are in 0.3.1.
 
 ## [0.3.1] - 2026-11-26
