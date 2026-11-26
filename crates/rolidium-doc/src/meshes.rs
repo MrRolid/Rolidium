@@ -252,3 +252,27 @@ pub fn conversion_report(body: BodyId) -> Option<ConvertReport> {
     let v = REPORTS.lock().unwrap_or_else(|e| e.into_inner());
     v.iter().find(|(b, _)| *b == body).map(|(_, r)| r.clone())
 }
+
+/// How much a mesh is simplified to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SimplifyTarget {
+    /// This share (percent) of the triangles stays.
+    Percent(f64),
+    /// This many triangles stay.
+    Triangles(usize),
+}
+
+/// What a simplification did, in a sentence for the status line.
+pub fn simplify_text(r: &rolidium_mesh::simplify::Simplified) -> String {
+    let mut s = format!(
+        "{} triangles instead of {} ({:.1} %), the largest deviation from the original {:.4} mm",
+        r.triangles_after,
+        r.triangles_before,
+        100.0 * r.triangles_after as f64 / r.triangles_before.max(1) as f64,
+        r.max_deviation
+    );
+    if !r.reached && !r.reason.is_empty() {
+        s += &format!(". The target was not reached: {}", r.reason);
+    }
+    s
+}

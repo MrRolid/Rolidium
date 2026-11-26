@@ -928,6 +928,60 @@ impl Solid {
         }))
     }
 
+    /// Stretches the solid across a plane: the part on the side the normal points to moves by `distance` along the normal and the gap is filled with the
+    /// cross-section, swept the same way. A box grows through its straight walls, and the holes, rounds and pockets on each side keep their size.
+    /// A negative distance takes out a layer of the solid (the cross-section must be the same along it).
+    pub fn stretched(&self, point: DVec3, normal: DVec3, distance: f64) -> Result<Solid> {
+        if !(point.is_finite() && normal.is_finite() && normal.length() > 1e-9 && distance.is_finite()) || distance.abs() < 1e-6 {
+            return Err(KernelError::Invalid("the plane and the distance must be finite numbers, the distance not zero".into()));
+        }
+        let n = normal.normalize();
+        let (lo, hi) = self.bounding_box()?;
+        let size = ((hi - lo).length() * 3.0).max(1.0) + distance.abs();
+        let x = if n.cross(DVec3::Z).length() > 1e-6 { n.cross(DVec3::Z).normalize() } else { DVec3::X };
+        let q = size;
+        let c = [[-q, -q], [q, -q], [q, q], [-q, q]];
+        let half = Profile {
+            loops: vec![(0..4).map(|i| ProfileSegment::Line { a: c[i], b: c[(i + 1) % 4] }).collect()],
+        };
+        let upper = Solid::extrude_profile(&half, point, n, x, size)?;
+        let dbg = std::env::var_os("ROLIDIUM_DEBUG_STRETCH").is_some();
+        let lower = self.boolean(&upper, BooleanOp::Cut).map_err(|e| { if dbg { eprintln!("stretch: lower {e}"); } e })?.solid;
+        let part = self.boolean(&upper, BooleanOp::Common).map_err(|e| { if dbg { eprintln!("stretch: upper {e}"); } e })?.solid;
+        // the face of the lower part that lies in the plane is pulled by the distance
+        let mut cur = lower;
+        let offset = point.dot(n);
+        loop {
+            let found = cur.faces().find(|f| {
+                cur.face_info(*f)
+                    .map(|i| {
+                        i.kind == FaceKind::Plane && i.normal.dot(n) > 0.9999 && (i.origin.dot(n) - offset).abs() < 1e-6 * (1.0 + offset.abs())
+                    })
+                    .unwrap_or(false)
+            });
+            let Some(f) = found else { break };
+            cur = cur.pull_face_plain(f, distance).map_err(|e| { if dbg { eprintln!("stretch: pull {e}"); } e })?.solid;
+            // a pulled face is now at the new place; the next plane face found is another piece of the cross-section
+            let moved = offset + distance;
+            if !cur.faces().any(|g| {
+                cur.face_info(g)
+                    .map(|i| i.kind == FaceKind::Plane && i.normal.dot(n) > 0.9999 && (i.origin.dot(n) - offset).abs() < 1e-6 * (1.0 + offset.abs()))
+                    .unwrap_or(false)
+            }) {
+                let _ = moved;
+                break;
+            }
+        }
+        let shifted = part.moved(n * distance, DVec3::ZERO, DVec3::Z, 0.0).map_err(|e| { if dbg { eprintln!("stretch: move {e}"); } e })?.solid;
+        let joined = cur.boolean(&shifted, BooleanOp::Fuse).map_err(|e| { if dbg { eprintln!("stretch: fuse {e}"); } e })?;
+        let r = joined.solid.unify()?.solid;
+        let before = self.volume()?;
+        let after = r.volume()?;
+        let (lo_v, hi_v) = (before.min(after), before.max(after));
+        let _ = (lo_v, hi_v);
+        Ok(r)
+    }
+
     /// Merges neighbouring faces that lie on the same surface.
     pub fn unify(&self) -> Result<OpResult> {
         finish(native::unify_same_domain(self.raw())?)

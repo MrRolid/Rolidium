@@ -453,6 +453,20 @@ pub enum Command {
         keep: bool,
     },
     /// Scales a mesh about `centre` by different factors in x, y and z.
+    /// Fewer triangles for a mesh (one step of Undo): the target is a share of the triangles or their number; with `keep_features` the sharp edges and the rims of
+    /// holes stay where they are.
+    MeshSimplify {
+        body: BodyId,
+        target: meshes::SimplifyTarget,
+        keep_features: bool,
+    },
+    /// Stretch a mesh or a solid across a plane: the part on the side of the normal moves by `distance` along it and the gap is filled with the cross-section.
+    StretchInPlane {
+        body: BodyId,
+        point: DVec3,
+        normal: DVec3,
+        distance: f64,
+    },
     MeshScale {
         body: BodyId,
         centre: DVec3,
@@ -3305,6 +3319,75 @@ impl Job {
                 let mut c = self.done(st, "Convert mesh to solid");
                 c.touched_body = Some(id);
                 c.notice = meshbool::filled_text(filled_holes);
+                Ok(c)
+            }
+            Command::MeshSimplify {
+                body,
+                target,
+                keep_features,
+            } => {
+                let mp = st
+                    .meshes
+                    .iter()
+                    .position(|m| m.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
+                let stop = || rolidium_kernel::cancel_requested();
+                let o = rolidium_mesh::simplify::Options {
+                    target: match target {
+                        meshes::SimplifyTarget::Percent(p) => rolidium_mesh::simplify::Target::Percent(*p),
+                        meshes::SimplifyTarget::Triangles(n) => rolidium_mesh::simplify::Target::Triangles(*n),
+                    },
+                    keep_features: *keep_features,
+                    ..Default::default()
+                };
+                let r = rolidium_mesh::simplify::simplify(&st.meshes[mp].mesh, &o, &stop).ok_or(KernelError::Cancelled)?;
+                if r.triangles_after >= r.triangles_before {
+                    return Err(KernelError::Invalid(if r.reason.is_empty() {
+                        "The mesh cannot be simplified any further".to_string()
+                    } else {
+                        r.reason.clone()
+                    })
+                    .into());
+                }
+                let text = meshes::simplify_text(&r);
+                st.meshes[mp].mesh = Arc::new(r.mesh);
+                let mut c = self.done(st, "Simplify mesh");
+                c.touched_body = Some(*body);
+                c.notice = Some(text);
+                Ok(c)
+            }
+            Command::StretchInPlane {
+                body,
+                point,
+                normal,
+                distance,
+            } => {
+                if !(point.is_finite() && normal.is_finite() && normal.length() > 1e-9 && distance.is_finite()) || distance.abs() < 1e-6 {
+                    return Err(KernelError::Invalid("the plane and the distance must be numbers, the distance not zero".into()).into());
+                }
+                if let Some(mp) = st.meshes.iter().position(|m| m.id == *body) {
+                    let r = rolidium_mesh::planesweep::sweep_in_plane(
+                        &st.meshes[mp].mesh,
+                        point.to_array(),
+                        normal.to_array(),
+                        *distance,
+                    )
+                    .map_err(KernelError::Invalid)?;
+                    st.meshes[mp].mesh = Arc::new(r.mesh);
+                    let mut c = self.done(st, "Stretch");
+                    c.touched_body = Some(*body);
+                    return Ok(c);
+                }
+                let bp = st
+                    .bodies
+                    .iter()
+                    .position(|b| b.id == *body)
+                    .ok_or(DocError::NoSuchBody)?;
+                let solid = st.bodies[bp].solid.stretched(*point, *normal, *distance)?;
+                st.bodies[bp].solid = solid;
+                st.bodies[bp].features.clear();
+                let mut c = self.done(st, "Stretch");
+                c.touched_body = Some(*body);
                 Ok(c)
             }
             Command::MeshScale {
