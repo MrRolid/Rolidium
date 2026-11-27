@@ -1221,3 +1221,5 @@ Stretched: this is how the body will look => Étiré : voici l'aspect du corps
 The body has too many faces for a preview; the stretch itself is made at Stretch => Le corps a trop de faces pour un aperçu ; l'étirement lui-même se fait avec Étirer
 {} bodies selected => {} corps sélectionnés
 {} shapes selected => {} formes sélectionnées
+quadrant => quadrant
+on curve => sur la courbe

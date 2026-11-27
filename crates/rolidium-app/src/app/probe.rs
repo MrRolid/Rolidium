@@ -256,6 +256,7 @@ impl App {
             "entities_selected": self.entity_multi.len().max(usize::from(self.entity_sel.is_some())),
             "pieces": self.sk.as_ref().map(|s| json!({"available": s.pieces_available(), "editing": s.pieces_edit, "text": s.pieces_text, "n": s.pieces()})),
             "box_sel": self.box_sel.map(|b| json!({"window": b.window()})),
+            "snap": self.sk.as_ref().and_then(|s| s.snap).map(|s| json!({"label": s.label.text(), "x": round3(s.pos.x), "y": round3(s.pos.y)})),
             "tilt": self.mesh_ui.tilt,
             "conversion": self.body_sel.and_then(rolidium_doc::meshes::conversion_report).map(|r| json!({"kinds": r.kinds, "single": r.single, "single_share": round3(r.single_share), "deviation": round3(r.max_deviation), "volume_solid": round3(r.volume_solid), "volume_mesh": round3(r.volume_mesh), "seconds": round3(r.seconds), "kept": r.kept})),
             "move_arrows": self.probe_move_arrows(),

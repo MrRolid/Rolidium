@@ -115,6 +115,9 @@ pub enum SnapLabel {
     Tangent,
     EqualDistance,
     EdgeMiddle,
+    Quadrant,
+    /// The nearest point of a curve of the sketch.
+    OnCurve,
 }
 
 impl SnapLabel {
@@ -140,6 +143,8 @@ impl SnapLabel {
             SnapLabel::Tangent => "tangent",
             SnapLabel::EqualDistance => "equal distance",
             SnapLabel::EdgeMiddle => "edge middle",
+            SnapLabel::Quadrant => "quadrant",
+            SnapLabel::OnCurve => "on curve",
         }
     }
 }
@@ -210,6 +215,55 @@ pub struct Multi {
     pub container: rolidium_doc::rolidium_sketch::multi::Container,
     /// The number of pieces round a circle (2 to 10); not used for the corners of a shape.
     pub n: usize,
+}
+
+/// The snap of a point that is dragged (a handle of a shape): the end points, middles, centres and quadrants, then the crossing of two curves, then the nearest point of a
+/// curve, the same order as for drawing. `None` when nothing is within 12 pixels (`mm_per_px` converts).
+pub fn curve_snap(
+    raw: DVec2,
+    mm_per_px: f64,
+    points: &[(DVec2, SnapKind)],
+    curves: &[crate::snapcurves::Curve],
+) -> Option<(DVec2, SnapLabel)> {
+    let r_pt = 12.0 * mm_per_px;
+    let mut best: Option<(f64, DVec2, SnapLabel)> = None;
+    fn consider(best: &mut Option<(f64, DVec2, SnapLabel)>, r: f64, raw: DVec2, p: DVec2, l: SnapLabel) {
+        let d = p.distance(raw);
+        if d <= r && best.is_none_or(|(bd, _, _)| d < bd) {
+            *best = Some((d, p, l));
+        }
+    }
+    for (p, k) in points {
+        let l = match k {
+            SnapKind::Endpoint => SnapLabel::Endpoint,
+            SnapKind::Midpoint => SnapLabel::Midpoint,
+            SnapKind::Center => SnapLabel::Center,
+        };
+        consider(&mut best, r_pt, raw, *p, l);
+    }
+    let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
+    for c in &near {
+        for q in c.quadrants() {
+            consider(&mut best, r_pt, raw, q, SnapLabel::Quadrant);
+        }
+    }
+    if let Some((_, p, l)) = best {
+        return Some((p, l));
+    }
+    for (i, a) in near.iter().enumerate() {
+        for b in near.iter().skip(i + 1) {
+            for p in crate::snapcurves::intersections(a, b) {
+                consider(&mut best, r_pt, raw, p, SnapLabel::Intersection);
+            }
+        }
+    }
+    if let Some((_, p, l)) = best {
+        return Some((p, l));
+    }
+    for c in &near {
+        consider(&mut best, r_pt, raw, c.nearest(raw), SnapLabel::OnCurve);
+    }
+    best.map(|(_, p, l)| (p, l))
 }
 
 fn closest_on_segment(a: DVec2, b: DVec2, p: DVec2) -> DVec2 {
@@ -311,7 +365,31 @@ impl SketchMode {
     }
 
     /// Snapping of a raw plane position. `mm_per_px` converts the pixel radii; `grid` is the minor grid step.
+    #[cfg(test)]
     pub fn compute_snap(&self, raw: DVec2, mm_per_px: f64, grid: f64, points: &[(DVec2, SnapKind)]) -> Snap {
+        self.compute_snap_ex(raw, mm_per_px, grid, points, &[], false)
+    }
+
+    /// The snap of `raw`. The order of what wins: the end points, the middles, the centres and the quadrants (the nearest of them), then the crossing of two curves, then
+    /// the foot of the perpendicular and the point of tangency seen from the last point, then the nearest point of a curve (and of the edges of the face), then the
+    /// guides and the grid. `curves` are the lines, arcs and circles of the sketch; `off` (the Shift key) turns all of it off.
+    pub fn compute_snap_ex(
+        &self,
+        raw: DVec2,
+        mm_per_px: f64,
+        grid: f64,
+        points: &[(DVec2, SnapKind)],
+        curves: &[crate::snapcurves::Curve],
+        off: bool,
+    ) -> Snap {
+        if off {
+            return Snap {
+                pos: raw,
+                label: SnapLabel::Free,
+                horizontal: false,
+                vertical: false,
+            };
+        }
         let r_pt = 12.0 * mm_per_px;
         let mut best: Option<(f64, DVec2, SnapLabel)> = None;
         let mut consider = |d: f64, p: DVec2, l: SnapLabel| {
@@ -330,6 +408,13 @@ impl SketchMode {
         for c in &self.corners {
             consider(c.distance(raw), *c, SnapLabel::FaceVertex);
         }
+        // the curves that pass near the pointer: only they can give a quadrant, a crossing or a nearest point there
+        let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
+        for c in &near {
+            for q in c.quadrants() {
+                consider(q.distance(raw), q, SnapLabel::Quadrant);
+            }
+        }
         if let Some((_, p, l)) = best {
             return Snap {
                 pos: p,
@@ -338,7 +423,61 @@ impl SketchMode {
                 vertical: false,
             };
         }
+        // the crossing of two curves
+        let mut cross: Option<(f64, DVec2)> = None;
+        for (i, a) in near.iter().enumerate() {
+            for b in near.iter().skip(i + 1) {
+                for p in crate::snapcurves::intersections(a, b) {
+                    let d = p.distance(raw);
+                    if d <= r_pt && cross.is_none_or(|(bd, _)| d < bd) {
+                        cross = Some((d, p));
+                    }
+                }
+            }
+        }
+        if let Some((_, p)) = cross {
+            return Snap {
+                pos: p,
+                label: SnapLabel::Intersection,
+                horizontal: false,
+                vertical: false,
+            };
+        }
+        // from the last point: the foot of the perpendicular and the point of tangency
+        if let Some(d) = &self.drawing {
+            let mut from_last: Option<(f64, DVec2, SnapLabel)> = None;
+            for c in &near {
+                for (p, l) in c
+                    .feet_from(d.start)
+                    .into_iter()
+                    .map(|p| (p, SnapLabel::Perpendicular))
+                    .chain(c.tangent_points_from(d.start).into_iter().map(|p| (p, SnapLabel::Tangent)))
+                {
+                    let dist = p.distance(raw);
+                    if dist <= r_pt && p.distance(d.start) > 1e-9 && from_last.is_none_or(|(bd, _, _)| dist < bd) {
+                        from_last = Some((dist, p, l));
+                    }
+                }
+            }
+            if let Some((_, p, l)) = from_last {
+                return Snap {
+                    pos: p,
+                    label: l,
+                    horizontal: false,
+                    vertical: false,
+                };
+            }
+        }
         let mut edge: Option<(f64, DVec2)> = None;
+        // a point of a curve of the sketch (after the edges of the face below: whichever is nearer)
+        let mut on_curve: Option<(f64, DVec2)> = None;
+        for c in &near {
+            let q = c.nearest(raw);
+            let d = q.distance(raw);
+            if d <= r_pt && on_curve.is_none_or(|(bd, _)| d < bd) {
+                on_curve = Some((d, q));
+            }
+        }
         for (a, b) in &self.outline {
             let q = closest_on_segment(*a, *b, raw);
             let d = q.distance(raw);
@@ -346,13 +485,33 @@ impl SketchMode {
                 edge = Some((d, q));
             }
         }
-        if let Some((_, p)) = edge {
-            return Snap {
-                pos: p,
-                label: SnapLabel::FaceEdge,
-                horizontal: false,
-                vertical: false,
-            };
+        match (edge, on_curve) {
+            (Some((de, p)), Some((dc, q))) => {
+                let (pos, label) = if dc < de { (q, SnapLabel::OnCurve) } else { (p, SnapLabel::FaceEdge) };
+                return Snap {
+                    pos,
+                    label,
+                    horizontal: false,
+                    vertical: false,
+                };
+            }
+            (Some((_, p)), None) => {
+                return Snap {
+                    pos: p,
+                    label: SnapLabel::FaceEdge,
+                    horizontal: false,
+                    vertical: false,
+                };
+            }
+            (None, Some((_, q))) => {
+                return Snap {
+                    pos: q,
+                    label: SnapLabel::OnCurve,
+                    horizontal: false,
+                    vertical: false,
+                };
+            }
+            (None, None) => {}
         }
         let mut pos = raw;
         let (mut h, mut v) = (false, false);
@@ -612,6 +771,47 @@ mod tests {
         m.set_tool(tool);
         m.begin(DVec2::new(10.0, 10.0));
         m
+    }
+
+    #[test]
+    fn curves_give_crossings_quadrants_nearest_points_and_perpendiculars_in_this_order() {
+        use crate::snapcurves::Curve;
+        let m = mode(SkTool::Line);
+        let l1 = Curve::Seg(DVec2::new(0.0, 0.0), DVec2::new(100.0, 100.0));
+        let l2 = Curve::Seg(DVec2::new(0.0, 100.0), DVec2::new(100.0, 0.0));
+        let circ = Curve::Arc { c: DVec2::new(50.0, 50.0), r: 20.0, start: 0.0, sweep: std::f64::consts::TAU };
+        // near the crossing of the two lines
+        let s = m.compute_snap_ex(DVec2::new(50.3, 50.2), 0.1, 1.0, &[], &[l1, l2], false);
+        assert_eq!(s.label, SnapLabel::Intersection);
+        assert!(s.pos.distance(DVec2::new(50.0, 50.0)) < 1e-9);
+        // a quadrant of the circle wins over the crossing of the circle with a line that is not nearer
+        let s = m.compute_snap_ex(DVec2::new(70.2, 50.1), 0.1, 1.0, &[], &[l1, circ], false);
+        assert_eq!(s.label, SnapLabel::Quadrant);
+        // on a line, away from everything: the nearest point of the curve
+        let s = m.compute_snap_ex(DVec2::new(20.0, 20.5), 0.1, 1.0, &[], &[l1], false);
+        assert_eq!(s.label, SnapLabel::OnCurve);
+        assert!((s.pos.x - s.pos.y).abs() < 1e-9);
+        // an end point wins over a crossing at the same place
+        let s = m.compute_snap_ex(DVec2::new(0.2, 0.1), 0.1, 1.0, &[(DVec2::ZERO, SnapKind::Endpoint)], &[l1, l2], false);
+        assert_eq!(s.label, SnapLabel::Endpoint);
+        // Shift: nothing
+        let s = m.compute_snap_ex(DVec2::new(50.3, 50.2), 0.1, 1.0, &[], &[l1, l2], true);
+        assert_eq!(s.label, SnapLabel::Free);
+        assert_eq!(s.pos, DVec2::new(50.3, 50.2));
+    }
+
+    #[test]
+    fn from_the_last_point_the_foot_of_the_perpendicular_and_the_tangent_are_offered() {
+        use crate::snapcurves::Curve;
+        let m = mode(SkTool::Line); // the line is started at (10, 10)
+        let wall = Curve::Seg(DVec2::new(-50.0, 40.0), DVec2::new(100.0, 40.0));
+        let s = m.compute_snap_ex(DVec2::new(10.3, 40.0), 0.1, 1.0, &[], &[wall], false);
+        assert_eq!(s.label, SnapLabel::Perpendicular);
+        assert!(s.pos.distance(DVec2::new(10.0, 40.0)) < 1e-9);
+        let circ = Curve::Arc { c: DVec2::new(60.0, 10.0), r: 10.0, start: 0.0, sweep: std::f64::consts::TAU };
+        let t = circ.tangent_points_from(DVec2::new(10.0, 10.0));
+        let s = m.compute_snap_ex(t[0] + DVec2::new(0.1, 0.0), 0.1, 1.0, &[], &[circ], false);
+        assert_eq!(s.label, SnapLabel::Tangent);
     }
 
     #[test]

@@ -2273,13 +2273,66 @@ impl App {
         }
     }
 
+    /// The curves the sketch snaps to: the lines, arcs and circles of the sketches on this plane, and the edges of the face that is drawn on.
+    fn snap_curves(&self) -> Vec<crate::snapcurves::Curve> {
+        self.snap_curves_except(None)
+    }
+
+    fn snap_curves_except(&self, skip: Option<(SketchId, EntityId)>) -> Vec<crate::snapcurves::Curve> {
+        let Some(sm) = &self.sk else { return Vec::new() };
+        let mut v = Vec::new();
+        let seg = |a: DVec2, b: DVec2, v: &mut Vec<crate::snapcurves::Curve>| v.push(crate::snapcurves::Curve::Seg(a, b));
+        for s in self.doc.sketches() {
+            if !(s.plane.same_plane(&sm.plane) && s.target == sm.body) {
+                continue;
+            }
+            for (id, e) in s.sketch.entities() {
+                if skip == Some((s.id, *id)) {
+                    continue;
+                }
+                match *e {
+                    Entity::Line { a, b } | Entity::Axis { a, b } => seg(a, b, &mut v),
+                    Entity::Rect { a, b } => {
+                        let (p, q) = (DVec2::new(a.x.min(b.x), a.y.min(b.y)), DVec2::new(a.x.max(b.x), a.y.max(b.y)));
+                        seg(p, DVec2::new(q.x, p.y), &mut v);
+                        seg(DVec2::new(q.x, p.y), q, &mut v);
+                        seg(q, DVec2::new(p.x, q.y), &mut v);
+                        seg(DVec2::new(p.x, q.y), p, &mut v);
+                    }
+                    Entity::Circle { center, radius } => v.push(crate::snapcurves::Curve::Arc {
+                        c: center,
+                        r: radius,
+                        start: 0.0,
+                        sweep: std::f64::consts::TAU,
+                    }),
+                    Entity::Arc { center, radius, start, sweep } => v.push(crate::snapcurves::Curve::Arc {
+                        c: center,
+                        r: radius,
+                        start,
+                        sweep,
+                    }),
+                }
+            }
+        }
+        for (a, b) in &sm.outline {
+            seg(*a, *b, &mut v);
+        }
+        v
+    }
+
     fn snap_points(&self) -> Vec<(DVec2, SnapKind)> {
+        self.snap_points_except(None)
+    }
+
+    fn snap_points_except(&self, skip: Option<(SketchId, EntityId)>) -> Vec<(DVec2, SnapKind)> {
         let Some(sm) = &self.sk else { return Vec::new() };
         let mut v = Vec::new();
         for s in self.doc.sketches() {
             if s.plane.same_plane(&sm.plane) && s.target == sm.body {
-                for (_, e) in s.sketch.entities() {
-                    v.extend(e.snap_points());
+                for (id, e) in s.sketch.entities() {
+                    if skip != Some((s.id, *id)) {
+                        v.extend(e.snap_points());
+                    }
                 }
             }
         }
@@ -2402,7 +2455,7 @@ impl App {
                 Key::Backspace => {
                     if let Some(h) = &mut self.shape_drag {
                         h.edit.backspace();
-                        h.update(h.raw, 0.0);
+                        h.update(h.raw, 0.0, true);
                     }
                     self.layers_changed = true;
                 }
@@ -3013,7 +3066,7 @@ impl App {
         }
         if let Some(h) = &mut self.shape_drag {
             h.edit.type_char(ch);
-            h.update(h.raw, 0.0);
+            h.update(h.raw, 0.0, true);
             self.layers_changed = true;
             return;
         }
@@ -3776,10 +3829,22 @@ impl App {
                 0.0
             };
             let points = self.snap_points();
-            let base = self.sk.as_ref().unwrap().compute_snap(raw, mpp, g, &points);
-            self.apply_aids(base, raw, mpp, pointer, rect, &points)
+            let curves = self.snap_curves();
+            // the Shift key turns the snapping off for the moment
+            let off = resp.ctx.input(|i| i.modifiers.shift);
+            let base = self.sk.as_ref().unwrap().compute_snap_ex(raw, mpp, g, &points, &curves, off);
+            if off {
+                base
+            } else {
+                self.apply_aids(base, raw, mpp, pointer, rect, &points)
+            }
         });
-        let snap = self.edge_dims_snap(snap, hit.map(|h| h.0), rect);
+        // (the Shift key turns every snap off, the distances to the edges included)
+        let snap = if resp.ctx.input(|i| i.modifiers.shift) {
+            snap
+        } else {
+            self.edge_dims_snap(snap, hit.map(|h| h.0), rect)
+        };
         if let Some(sm) = &mut self.sk {
             sm.snap = snap;
             if snap.is_none() {
@@ -4137,7 +4202,11 @@ impl App {
                 painter.line_segment([c + Vec2::new(0.0, -5.0), c + Vec2::new(0.0, 5.0)], stroke);
             }
             SnapLabel::Free => drop(painter.circle_filled(c, 2.5, col)),
-            SnapLabel::Vertex3D | SnapLabel::Intersection => drop(painter.rect_stroke(
+            SnapLabel::Intersection => {
+                painter.line_segment([c + Vec2::new(-6.0, -6.0), c + Vec2::new(6.0, 6.0)], stroke);
+                painter.line_segment([c + Vec2::new(-6.0, 6.0), c + Vec2::new(6.0, -6.0)], stroke);
+            }
+            SnapLabel::Vertex3D => drop(painter.rect_stroke(
                 Rect::from_center_size(c, Vec2::splat(11.0)),
                 0.0,
                 stroke,
@@ -4152,6 +4221,34 @@ impl App {
                 stroke,
             ))),
             SnapLabel::Center3D | SnapLabel::Symmetric => drop(painter.circle_stroke(c, 6.0, stroke)),
+            // the crossing of two curves: a cross
+            // (Intersection above shares the square of the 3D vertex; the cross is drawn on top of it)
+            SnapLabel::Quadrant => {
+                painter.add(egui::Shape::closed_line(
+                    vec![
+                        c + Vec2::new(0.0, -7.0),
+                        c + Vec2::new(7.0, 0.0),
+                        c + Vec2::new(0.0, 7.0),
+                        c + Vec2::new(-7.0, 0.0),
+                    ],
+                    stroke,
+                ));
+                painter.circle_filled(c, 2.0, col);
+            }
+            SnapLabel::OnCurve => {
+                painter.circle_stroke(c, 4.5, stroke);
+                painter.line_segment([c + Vec2::new(-7.0, 0.0), c + Vec2::new(7.0, 0.0)], Stroke::new(1.0, col));
+            }
+            SnapLabel::Perpendicular => {
+                painter.line_segment([c + Vec2::new(-7.0, 6.0), c + Vec2::new(7.0, 6.0)], stroke);
+                painter.line_segment([c + Vec2::new(0.0, 6.0), c + Vec2::new(0.0, -6.0)], stroke);
+                painter.line_segment([c + Vec2::new(0.0, -1.0), c + Vec2::new(5.0, -1.0)], Stroke::new(1.5, col));
+                painter.line_segment([c + Vec2::new(5.0, -1.0), c + Vec2::new(5.0, 6.0)], Stroke::new(1.5, col));
+            }
+            SnapLabel::Tangent => {
+                painter.circle_stroke(c + Vec2::new(0.0, -3.0), 5.0, stroke);
+                painter.line_segment([c + Vec2::new(-8.0, 2.0), c + Vec2::new(8.0, 2.0)], stroke);
+            }
             _ => drop(painter.add(egui::Shape::closed_line(
                 vec![
                     c + Vec2::new(0.0, -7.0),

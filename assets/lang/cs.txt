@@ -1221,3 +1221,5 @@ Stretched: this is how the body will look => Protaženo: takhle bude těleso vyp
 The body has too many faces for a preview; the stretch itself is made at Stretch => Těleso má na náhled příliš mnoho ploch; samotné protažení se provede tlačítkem Protáhnout
 {} bodies selected => Vybráno těles: {}
 {} shapes selected => Vybráno tvarů: {}
+quadrant => kvadrant
+on curve => na křivce

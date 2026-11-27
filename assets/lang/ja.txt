@@ -1221,3 +1221,5 @@ Stretched: this is how the body will look => 引き伸ばし：本体はこの�
 The body has too many faces for a preview; the stretch itself is made at Stretch => 本体の面が多すぎてプレビューできません。引き伸ばし自体は「引き伸ばす」で実行されます
 {} bodies selected => {} 個の本体を選択しました
 {} shapes selected => {} 個の図形を選択しました
+quadrant => 象限点
+on curve => 曲線上

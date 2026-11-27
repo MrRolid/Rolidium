@@ -441,7 +441,15 @@ impl App {
         let mut real3d = None;
         let keep = matches!(
             base.label,
-            SnapLabel::Endpoint | SnapLabel::Midpoint | SnapLabel::Center | SnapLabel::FaceVertex
+            SnapLabel::Endpoint
+                | SnapLabel::Midpoint
+                | SnapLabel::Center
+                | SnapLabel::FaceVertex
+                | SnapLabel::Quadrant
+                | SnapLabel::Intersection
+                | SnapLabel::Perpendicular
+                | SnapLabel::Tangent
+                | SnapLabel::OnCurve
         );
         if let Some(g) = guided_snap(&GuideInput {
             raw,

@@ -1221,3 +1221,5 @@ Stretched: this is how the body will look => Gestreckt: so wird der Körper auss
 The body has too many faces for a preview; the stretch itself is made at Stretch => Der Körper hat zu viele Flächen für eine Vorschau; das Strecken selbst erfolgt mit Strecken
 {} bodies selected => {} Körper ausgewählt
 {} shapes selected => {} Formen ausgewählt
+quadrant => Quadrant
+on curve => auf Kurve

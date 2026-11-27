@@ -47,6 +47,11 @@ pub struct ShapeDrag {
     pub edit: EdgeEdit,
     /// The grid step (0: none).
     pub grid: f64,
+    /// The curves and the points of the other shapes: the handle snaps to their crossings, quadrants, centres, end points and nearest points (Shift turns it off).
+    pub curves: Vec<crate::snapcurves::Curve>,
+    pub points: Vec<(DVec2, rolidium_doc::rolidium_sketch::SnapKind)>,
+    /// What the handle is snapped to (a label at the cursor).
+    pub label: Option<crate::sketchmode::SnapLabel>,
 }
 
 impl ShapeHandle {
@@ -173,10 +178,19 @@ impl ShapeDrag {
     }
 
     /// Takes the place under the pointer: the grid, the snaps (equal distance, middle of an edge) and the typed numbers give the place of the handle.
-    pub fn update(&mut self, raw: DVec2, tol: f64) {
+    pub fn update(&mut self, raw: DVec2, tol: f64, off: bool) {
         self.raw = raw;
         let mut pos = self.point0 + (raw - self.grab);
-        if self.grid > 0.0 {
+        self.label = None;
+        if self.handle.moves_a_point() && !off {
+            if let Some((p, l)) = crate::sketchmode::curve_snap(pos, tol / 8.0, &self.points, &self.curves) {
+                pos = p;
+                self.label = Some(l);
+            }
+        }
+        if self.label.is_some() {
+            // snapped to a point of the other shapes: the grid does not move it away
+        } else if self.grid > 0.0 {
             pos = DVec2::new(
                 (pos.x / self.grid).round() * self.grid,
                 (pos.y / self.grid).round() * self.grid,
@@ -348,6 +362,8 @@ impl App {
                 return;
             };
             let edges = self.edges_except(&plane, target, s, e);
+            let curves = self.snap_curves_except(Some((s, e)));
+            let points = self.snap_points_except(Some((s, e)));
             self.clear_selection();
             self.entity_sel = Some((s, e));
             resp.ctx.memory_mut(|m| {
@@ -376,6 +392,9 @@ impl App {
                 new: old,
                 edit: EdgeEdit::default(),
                 grid,
+                curves,
+                points,
+                label: None,
             });
             self.set_status(
                 "Drag the shape, or type a number (Tab switches, Enter confirms, Esc cancels)",
@@ -397,10 +416,11 @@ impl App {
                         self.shape_drag.as_ref().map_or(DVec2::ZERO, |h| h.point0),
                         rect,
                     );
+                    let off = resp.ctx.input(|i| i.modifiers.shift);
                     if let (Some(h), Some((hit, _))) =
                         (&mut self.shape_drag, pl.ray_hit(o.as_dvec3(), d.as_dvec3()))
                     {
-                        h.update(hit, 8.0 * mpp);
+                        h.update(hit, 8.0 * mpp, off);
                     }
                 }
             }
@@ -464,6 +484,14 @@ impl App {
 
     pub(super) fn shape_drag_paint(&self, ui: &egui::Ui, rect: Rect) {
         let Some(h) = &self.shape_drag else { return };
+        if let Some(l) = h.label {
+            if let Some(p) = self.project(h.plane.to_3d(h.at).as_vec3(), rect) {
+                let painter = ui.painter().with_clip_rect(rect);
+                let col = crate::theme::rgb(120, 255, 160);
+                painter.circle_stroke(p, 7.0, Stroke::new(2.0, col));
+                painter.text(p + Vec2::new(14.0, 10.0), egui::Align2::LEFT_TOP, tr(l.text()), egui::FontId::proportional(13.0), col);
+            }
+        }
         if let Some(d) = &h.dims {
             self.paint_edge_dims(ui, rect, &h.plane, h.at, d, &h.edit, h.snap);
         } else if h.handle == ShapeHandle::Rim {

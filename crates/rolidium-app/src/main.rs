@@ -23,6 +23,7 @@ mod memwatch;
 mod session;
 mod settings;
 mod sketchguides;
+mod snapcurves;
 mod sketchmode;
 mod sound;
 mod startup;
