@@ -464,7 +464,8 @@ pub struct App {
     /// The bodies of many faces whose slow answers were worked out in the background (by the identity of the shape).
     warmed: std::collections::HashSet<usize>,
     /// The boxes of the edges of every mesh on the screen for the view they were made for.
-    edge_screen: std::cell::RefCell<std::collections::HashMap<u64, ((Camera, u32, u32), Arc<Vec<Option<[f32; 4]>>>)>>,
+    edge_screen:
+        std::cell::RefCell<std::collections::HashMap<u64, ((Camera, u32, u32), Arc<Vec<Option<[f32; 4]>>>)>>,
     probe_bodies: std::cell::RefCell<Option<(u64, Vec<serde_json::Value>)>>,
     chain_pending: std::cell::RefCell<std::collections::HashSet<(u64, BodyId, Vec<u32>, bool)>>,
     chain_inbox: Arc<std::sync::Mutex<Vec<((u64, BodyId, Vec<u32>, bool), Vec<u32>)>>>,

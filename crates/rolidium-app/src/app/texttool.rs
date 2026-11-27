@@ -243,7 +243,10 @@ impl App {
             let a = k as f64 * std::f64::consts::FRAC_PI_2;
             let x = (base * a.cos() + n.cross(base) * a.sin()).normalize_or_zero();
             let y = n.cross(x);
-            let (Some(px), Some(py)) = (self.project((at + x * 10.0).as_vec3(), rect), self.project((at + y * 10.0).as_vec3(), rect)) else {
+            let (Some(px), Some(py)) = (
+                self.project((at + x * 10.0).as_vec3(), rect),
+                self.project((at + y * 10.0).as_vec3(), rect),
+            ) else {
                 continue;
             };
             // to the right on the screen, and up (the y of the screen grows downwards)

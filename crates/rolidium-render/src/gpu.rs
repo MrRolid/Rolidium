@@ -987,7 +987,11 @@ impl Renderer {
                 multiview_mask: None,
             });
             pass.set_bind_group(0, &self.globals_bind, &[]);
-            pass.set_pipeline(if frame.xray { &self.mesh_xray_pipe } else { &self.mesh_pipe });
+            pass.set_pipeline(if frame.xray {
+                &self.mesh_xray_pipe
+            } else {
+                &self.mesh_pipe
+            });
             for b in &self.bodies {
                 pass.set_bind_group(1, &b.bind, &[]);
                 pass.set_vertex_buffer(0, b.vbuf.slice(..));

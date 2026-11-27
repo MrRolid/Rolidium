@@ -664,7 +664,11 @@ impl App {
         // the size of a round or a chamfer can be set before an edge is clicked (the panel next to the edge starts with it and can change it)
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
-            ui.label(if self.edge_chamfer { tr("Chamfer") } else { tr("Round") });
+            ui.label(if self.edge_chamfer {
+                tr("Chamfer")
+            } else {
+                tr("Round")
+            });
             let r = ui.add(egui::TextEdit::singleline(&mut self.edge_size_text).desired_width(40.0));
             self.probe_widget("round_size", r.rect);
             ui.label("mm");
@@ -687,11 +691,31 @@ impl App {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 3.0;
             icons::stateful();
-            if icons::icon_button_why(ui, &self.help, "xray", &format!("{} (Q)", tr("X-ray")), self.xray, None, 34.0, "Q").clicked() {
+            if icons::icon_button_why(
+                ui,
+                &self.help,
+                "xray",
+                &format!("{} (Q)", tr("X-ray")),
+                self.xray,
+                None,
+                34.0,
+                "Q",
+            )
+            .clicked()
+            {
                 self.toggle_xray();
             }
             icons::stateful();
-            let r = icons::icon_button_why(ui, &self.help, "section", &format!("{} (Y)", tr("Section")), self.section.on, None, 34.0, "Y");
+            let r = icons::icon_button_why(
+                ui,
+                &self.help,
+                "section",
+                &format!("{} (Y)", tr("Section")),
+                self.section.on,
+                None,
+                34.0,
+                "Y",
+            );
             self.probe_widget("section_button", r.rect);
             if r.clicked() {
                 self.toggle_section();

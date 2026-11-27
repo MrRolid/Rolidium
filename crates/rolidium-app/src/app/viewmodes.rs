@@ -5,7 +5,7 @@
 //! and are used by the Shell tool to show the thickness of a wall.
 
 use super::*;
-use crate::i18n::{tr, trf};
+use crate::i18n::tr;
 
 /// The section: a plane across the model.
 #[derive(Clone, Debug)]
@@ -55,7 +55,12 @@ impl SectionUi {
     pub fn plane(&self) -> [f32; 4] {
         let n = self.axis_normal();
         let s = if self.flip { -1.0 } else { 1.0 };
-        [(n.x * s) as f32, (n.y * s) as f32, (n.z * s) as f32, (-self.pos * s) as f32]
+        [
+            (n.x * s) as f32,
+            (n.y * s) as f32,
+            (n.z * s) as f32,
+            (-self.pos * s) as f32,
+        ]
     }
 }
 
@@ -93,7 +98,14 @@ impl App {
     pub(super) fn toggle_xray(&mut self) {
         self.xray = !self.xray;
         self.layers_changed = true;
-        self.set_status(if self.xray { "X-ray view: every body is half transparent (Q turns it off)" } else { "Solid view" }, false);
+        self.set_status(
+            if self.xray {
+                "X-ray view: every body is half transparent (Q turns it off)"
+            } else {
+                "Solid view"
+            },
+            false,
+        );
     }
 
     pub(super) fn toggle_section(&mut self) {
@@ -101,10 +113,16 @@ impl App {
         self.section.by_tool = false;
         if self.section.on {
             self.section_range();
-            if self.section.pos < self.section.lo || self.section.pos > self.section.hi || self.section.pos == 0.0 {
+            if self.section.pos < self.section.lo
+                || self.section.pos > self.section.hi
+                || self.section.pos == 0.0
+            {
                 self.section.pos = (self.section.lo + self.section.hi) / 2.0;
             }
-            self.set_status("Section: choose the plane in the panel (X, Y, Z or a click on a flat face); Y turns it off", false);
+            self.set_status(
+                "Section: choose the plane in the panel (X, Y, Z or a click on a flat face); Y turns it off",
+                false,
+            );
         } else {
             self.section.pick = false;
         }
@@ -145,7 +163,11 @@ impl App {
     }
 
     /// A click on a flat face while the section waits for a face: its plane is the section.
-    pub(super) fn section_pick_click(&mut self, resp: &egui::Response, hovered_face: Option<(BodyId, u32)>) -> bool {
+    pub(super) fn section_pick_click(
+        &mut self,
+        resp: &egui::Response,
+        hovered_face: Option<(BodyId, u32)>,
+    ) -> bool {
         if !(self.section.on && self.section.pick) || !resp.clicked_by(PointerButton::Primary) {
             return false;
         }
@@ -154,7 +176,10 @@ impl App {
             return true;
         };
         if meta.kind != FaceKind::Plane {
-            self.set_status("The section takes the plane of a flat face; this face is curved", true);
+            self.set_status(
+                "The section takes the plane of a flat face; this face is curved",
+                true,
+            );
             return true;
         }
         let n = meta.normal.normalize_or_zero();
@@ -179,40 +204,51 @@ impl App {
         let mut s = self.section.clone();
         let mut close = false;
         let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
-        docks.panel(ctx, "section", Pos2::new(rect.min.x + 12.0, rect.max.y - 190.0), None, 260.0, &tr("Section"), false, |ui| {
-            ui.horizontal(|ui| {
-                for (i, n) in ["X", "Y", "Z"].into_iter().enumerate() {
-                    let r = ui.selectable_label(s.axis == i, n);
-                    probe_w.borrow_mut().push((["section_x", "section_y", "section_z"][i], r.rect));
-                    if r.clicked() {
-                        s.axis = i;
+        docks.panel(
+            ctx,
+            "section",
+            Pos2::new(rect.min.x + 12.0, rect.max.y - 190.0),
+            None,
+            260.0,
+            &tr("Section"),
+            false,
+            |ui| {
+                ui.horizontal(|ui| {
+                    for (i, n) in ["X", "Y", "Z"].into_iter().enumerate() {
+                        let r = ui.selectable_label(s.axis == i, n);
+                        probe_w
+                            .borrow_mut()
+                            .push((["section_x", "section_y", "section_z"][i], r.rect));
+                        if r.clicked() {
+                            s.axis = i;
+                        }
                     }
+                    let r = ui.selectable_label(s.axis == 3 || s.pick, tr("A face"));
+                    probe_w.borrow_mut().push(("section_face", r.rect));
+                    if r.clicked() {
+                        s.pick = !s.pick;
+                    }
+                });
+                if s.pick {
+                    ui.colored_label(crate::theme::rgb(255, 200, 100), tr("Click a flat face"));
                 }
-                let r = ui.selectable_label(s.axis == 3 || s.pick, tr("A face"));
-                probe_w.borrow_mut().push(("section_face", r.rect));
-                if r.clicked() {
-                    s.pick = !s.pick;
-                }
-            });
-            if s.pick {
-                ui.colored_label(crate::theme::rgb(255, 200, 100), tr("Click a flat face"));
-            }
-            ui.horizontal(|ui| {
-                ui.label(tr("Position"));
-                let r = ui.add(egui::DragValue::new(&mut s.pos).speed(0.5).suffix(" mm"));
-                probe_w.borrow_mut().push(("section_pos", r.rect));
-            });
-            let (lo, hi) = (s.lo, s.hi.max(s.lo + 1e-6));
-            ui.add(egui::Slider::new(&mut s.pos, lo..=hi).show_value(false));
-            ui.horizontal(|ui| {
-                let r = ui.checkbox(&mut s.flip, tr("The other side"));
-                probe_w.borrow_mut().push(("section_flip", r.rect));
-                if ui.button(tr("Turn off")).clicked() {
-                    close = true;
-                }
-            });
-            ui.weak(tr("Only the picture is cut; the model is not changed"));
-        });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Position"));
+                    let r = ui.add(egui::DragValue::new(&mut s.pos).speed(0.5).suffix(" mm"));
+                    probe_w.borrow_mut().push(("section_pos", r.rect));
+                });
+                let (lo, hi) = (s.lo, s.hi.max(s.lo + 1e-6));
+                ui.add(egui::Slider::new(&mut s.pos, lo..=hi).show_value(false));
+                ui.horizontal(|ui| {
+                    let r = ui.checkbox(&mut s.flip, tr("The other side"));
+                    probe_w.borrow_mut().push(("section_flip", r.rect));
+                    if ui.button(tr("Turn off")).clicked() {
+                        close = true;
+                    }
+                });
+                ui.weak(tr("Only the picture is cut; the model is not changed"));
+            },
+        );
         self.docks = docks;
         for (n, r) in probe_w.into_inner() {
             self.probe_widget(n, r);
@@ -236,11 +272,5 @@ impl App {
             self.pick_dirty = true;
             self.layers_changed = true;
         }
-    }
-
-    /// The text of the status line for the section: where the plane is.
-    #[allow(dead_code)]
-    pub(super) fn section_text(&self) -> String {
-        trf("Section at {} mm", &[fmt_num(self.section.pos)])
     }
 }

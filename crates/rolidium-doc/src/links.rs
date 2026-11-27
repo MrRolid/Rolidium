@@ -314,7 +314,11 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         (n, step)
     };
     // without a piece at the ends of an open curve the first place is one step in
-    let skip = if !p.closed && !p.ends && p.pitch <= 1e-9 { 1.0 } else { 0.0 };
+    let skip = if !p.closed && !p.ends && p.pitch <= 1e-9 {
+        1.0
+    } else {
+        0.0
+    };
     if n > MAX_PIECES {
         return Err(bad(format!("A pattern can have at most {MAX_PIECES} pieces")));
     }

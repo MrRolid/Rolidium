@@ -353,7 +353,11 @@ impl LinkParams {
                     orient: self.orient,
                     source: self.path_source.clone(),
                     ends: self.path_ends,
-                    anchor: if self.path_on_curve { self.path_anchor } else { None },
+                    anchor: if self.path_on_curve {
+                        self.path_anchor
+                    } else {
+                        None
+                    },
                 },
                 mode,
             ),
@@ -869,7 +873,11 @@ impl App {
         if mirror {
             self.link_ui.p.mode = LinkMode::Mirror;
         }
-        let span = if h == Hovered::Round { self.hover_arc_span() } else { None };
+        let span = if h == Hovered::Round {
+            self.hover_arc_span()
+        } else {
+            None
+        };
         let p = &mut self.link_ui.p;
         if p.mode != before || !self.link_ui.armed {
             // the usual number of pieces of each kind: 3 in a row, 6 round an axis
@@ -916,7 +924,10 @@ impl App {
                 sketch: s,
                 entities: vec![e],
             },
-            Obj::Edge(b, e) => SweepPath::Edges { body: b, edges: vec![e] },
+            Obj::Edge(b, e) => SweepPath::Edges {
+                body: b,
+                edges: vec![e],
+            },
             Obj::Curve(_) => return None,
         };
         let (pts, closed) = self.doc.path_polyline(&path).ok()?;
@@ -3229,12 +3240,23 @@ impl App {
                                 l
                             })
                             .unwrap_or(0.0);
-                        ui.weak(trf("Length of the curve: {} mm", &[fmt_num((len * 100.0).round() / 100.0)]));
+                        ui.weak(trf(
+                            "Length of the curve: {} mm",
+                            &[fmt_num((len * 100.0).round() / 100.0)],
+                        ));
                         ui.horizontal(|ui| {
                             ui.label(tr("Pieces"));
-                            ui.add_enabled(u.sk_pitch <= 0.0, egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2));
+                            ui.add_enabled(
+                                u.sk_pitch <= 0.0,
+                                egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2),
+                            );
                             ui.label(tr("or the distance between pieces"));
-                            ui.add(egui::DragValue::new(&mut u.sk_pitch).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                            ui.add(
+                                egui::DragValue::new(&mut u.sk_pitch)
+                                    .range(0.0..=100000.0)
+                                    .speed(0.5)
+                                    .suffix(" mm"),
+                            );
                         });
                         if u.sk_pitch <= 0.0 {
                             ui.weak(tr("The pieces are spread evenly over the whole length"));
@@ -3242,21 +3264,44 @@ impl App {
                         if !closed {
                             ui.horizontal(|ui| {
                                 ui.label(tr("Free at the start"));
-                                ui.add(egui::DragValue::new(&mut u.sk_free_start).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                                ui.add(
+                                    egui::DragValue::new(&mut u.sk_free_start)
+                                        .range(0.0..=100000.0)
+                                        .speed(0.5)
+                                        .suffix(" mm"),
+                                );
                                 ui.label(tr("at the end"));
-                                ui.add(egui::DragValue::new(&mut u.sk_free_end).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                                ui.add(
+                                    egui::DragValue::new(&mut u.sk_free_end)
+                                        .range(0.0..=100000.0)
+                                        .speed(0.5)
+                                        .suffix(" mm"),
+                                );
                             });
                             if u.sk_pitch <= 0.0 {
                                 ui.checkbox(&mut u.sk_ends, tr("A piece at the start and at the end"));
                             }
                         }
                         ui.checkbox(&mut u.sk_orient, tr("The pieces turn with the curve"));
-                        ui.checkbox(&mut u.sk_on_curve, tr("The pieces stand on the curve (the shapes stay where they are)"));
+                        ui.checkbox(
+                            &mut u.sk_on_curve,
+                            tr("The pieces stand on the curve (the shapes stay where they are)"),
+                        );
                         if u.sk_path_full.is_some() {
                             let mut whole = u.sk_path_whole;
-                            if ui.checkbox(&mut whole, tr("The whole chain of shapes (not only the one clicked)")).changed() {
+                            if ui
+                                .checkbox(
+                                    &mut whole,
+                                    tr("The whole chain of shapes (not only the one clicked)"),
+                                )
+                                .changed()
+                            {
                                 u.sk_path_whole = whole;
-                                u.sk_path = if whole { u.sk_path_full.clone() } else { u.sk_path_alt.clone() };
+                                u.sk_path = if whole {
+                                    u.sk_path_full.clone()
+                                } else {
+                                    u.sk_path_alt.clone()
+                                };
                             }
                         }
                     }
@@ -3284,7 +3329,10 @@ impl App {
                         });
                         if let Some(sp) = u.sk_span {
                             if ui
-                                .checkbox(&mut u.sk_fit, trf("Spread the pieces over the arc ({}°)", &[fmt_num(sp)]))
+                                .checkbox(
+                                    &mut u.sk_fit,
+                                    trf("Spread the pieces over the arc ({}°)", &[fmt_num(sp)]),
+                                )
                                 .changed()
                                 && u.sk_fit
                             {
@@ -3476,46 +3524,71 @@ impl App {
             let to2 = |pts: Vec<DVec3>, closed: bool| -> (Vec<glam::DVec2>, bool) {
                 (pts.iter().map(|q| plane.to_2d(*q)).collect(), closed)
             };
-            let (whole, single, what): (Option<(Vec<DVec3>, bool)>, Option<(Vec<DVec3>, bool)>, String) = match hover {
-                Some(Obj::Entity(s, id)) if s == sk => {
-                    let chain = self
-                        .doc
-                        .sketch(s)
-                        .map(|d| rolidium_doc::sketch_chain(&d.sketch, id))
-                        .unwrap_or_default();
-                    let w = self
-                        .doc
-                        .path_polyline(&SweepPath::Sketch { sketch: s, entities: chain.clone() })
-                        .ok();
-                    let one = if chain.len() > 1 {
-                        self.doc
-                            .path_polyline(&SweepPath::Sketch { sketch: s, entities: vec![id] })
-                            .ok()
-                    } else {
-                        None
-                    };
-                    (w, one, tr("a curve of the sketch"))
-                }
-                Some(Obj::Edge(b, e)) => {
-                    let chain: Vec<u32> = self
-                        .doc
-                        .body(b)
-                        .map(|x| x.solid.smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0).iter().map(|k| k.0).collect())
-                        .unwrap_or_else(|| vec![e]);
-                    let w = self
-                        .doc
-                        .path_polyline(&SweepPath::Edges { body: b, edges: chain.clone() })
-                        .ok();
-                    let one = if chain.len() > 1 {
-                        self.doc.path_polyline(&SweepPath::Edges { body: b, edges: vec![e] }).ok()
-                    } else {
-                        None
-                    };
-                    (w, one, tr("an edge of a body"))
-                }
-                Some(Obj::Curve(c)) => (self.doc.path_polyline(&SweepPath::Curve(c)).ok(), None, tr("a curve")),
-                _ => (None, None, String::new()),
-            };
+            let (whole, single, what): (Option<(Vec<DVec3>, bool)>, Option<(Vec<DVec3>, bool)>, String) =
+                match hover {
+                    Some(Obj::Entity(s, id)) if s == sk => {
+                        let chain = self
+                            .doc
+                            .sketch(s)
+                            .map(|d| rolidium_doc::sketch_chain(&d.sketch, id))
+                            .unwrap_or_default();
+                        let w = self
+                            .doc
+                            .path_polyline(&SweepPath::Sketch {
+                                sketch: s,
+                                entities: chain.clone(),
+                            })
+                            .ok();
+                        let one = if chain.len() > 1 {
+                            self.doc
+                                .path_polyline(&SweepPath::Sketch {
+                                    sketch: s,
+                                    entities: vec![id],
+                                })
+                                .ok()
+                        } else {
+                            None
+                        };
+                        (w, one, tr("a curve of the sketch"))
+                    }
+                    Some(Obj::Edge(b, e)) => {
+                        let chain: Vec<u32> = self
+                            .doc
+                            .body(b)
+                            .map(|x| {
+                                x.solid
+                                    .smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0)
+                                    .iter()
+                                    .map(|k| k.0)
+                                    .collect()
+                            })
+                            .unwrap_or_else(|| vec![e]);
+                        let w = self
+                            .doc
+                            .path_polyline(&SweepPath::Edges {
+                                body: b,
+                                edges: chain.clone(),
+                            })
+                            .ok();
+                        let one = if chain.len() > 1 {
+                            self.doc
+                                .path_polyline(&SweepPath::Edges {
+                                    body: b,
+                                    edges: vec![e],
+                                })
+                                .ok()
+                        } else {
+                            None
+                        };
+                        (w, one, tr("an edge of a body"))
+                    }
+                    Some(Obj::Curve(c)) => (
+                        self.doc.path_polyline(&SweepPath::Curve(c)).ok(),
+                        None,
+                        tr("a curve"),
+                    ),
+                    _ => (None, None, String::new()),
+                };
             if let Some((pts, closed)) = whole {
                 let full = to2(pts, closed);
                 let alt = single.map(|(p, c)| to2(p, c));
@@ -3668,7 +3741,6 @@ impl App {
     }
 }
 
-
 /// The angle in degrees that a polyline along a circle goes round its centre; `None` when it is a whole circle or has no centre.
 pub(super) fn arc_span_of(pts: &[DVec3]) -> Option<f64> {
     let n = pts.len();
@@ -3696,7 +3768,6 @@ pub(super) fn arc_span_of(pts: &[DVec3]) -> Option<f64> {
     let d = total.to_degrees().abs();
     (d > 0.5 && d < 359.0).then_some(d)
 }
-
 
 /// The pattern along a curve of a sketch from the numbers of the panel.
 fn sketch_path_pattern(u: &LinkUi) -> rolidium_doc::SketchPattern {

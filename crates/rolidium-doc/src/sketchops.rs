@@ -289,7 +289,11 @@ pub(crate) fn pattern(sk: &mut SketchDoc, ids: &[EntityId], p: &SketchPattern) -
                 if d.length() < 1e-9 && angle.abs() < 1e-9 {
                     continue;
                 }
-                maps.push(Map2::TurnMove { center: origin, angle, d });
+                maps.push(Map2::TurnMove {
+                    center: origin,
+                    angle,
+                    d,
+                });
             }
         }
     }

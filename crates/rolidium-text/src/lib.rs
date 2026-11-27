@@ -178,37 +178,38 @@ pub fn merge_runs(segs: &[Seg]) -> Vec<Run> {
     let mut start = DVec2::ZERO;
     let mut joints: Vec<DVec2> = Vec::new();
     let mut end = DVec2::ZERO;
-    let flush = |out: &mut Vec<Run>, cs: &mut Vec<DVec2>, start: DVec2, joints: &mut Vec<DVec2>, end: DVec2| {
-        if cs.is_empty() {
-            return;
-        }
-        if cs.len() == 1 {
-            out.push(Run::Quad(start, cs[0], end));
-        } else {
-            // the knots from the position of the joints on the segments between the off-curve points
-            let n = cs.len();
-            let mut deltas = vec![1.0f64];
-            for i in 0..n - 1 {
-                let lam = (joints[i] - cs[i]).length() / (cs[i + 1] - cs[i]).length();
-                let prev = deltas[i];
-                deltas.push(prev * (1.0 - lam) / lam);
+    let flush =
+        |out: &mut Vec<Run>, cs: &mut Vec<DVec2>, start: DVec2, joints: &mut Vec<DVec2>, end: DVec2| {
+            if cs.is_empty() {
+                return;
             }
-            let mut knots = vec![0.0];
-            for d in &deltas {
-                knots.push(knots.last().copied().unwrap_or(0.0) + d);
+            if cs.len() == 1 {
+                out.push(Run::Quad(start, cs[0], end));
+            } else {
+                // the knots from the position of the joints on the segments between the off-curve points
+                let n = cs.len();
+                let mut deltas = vec![1.0f64];
+                for i in 0..n - 1 {
+                    let lam = (joints[i] - cs[i]).length() / (cs[i + 1] - cs[i]).length();
+                    let prev = deltas[i];
+                    deltas.push(prev * (1.0 - lam) / lam);
+                }
+                let mut knots = vec![0.0];
+                for d in &deltas {
+                    knots.push(knots.last().copied().unwrap_or(0.0) + d);
+                }
+                let total = *knots.last().unwrap_or(&1.0);
+                for k in knots.iter_mut() {
+                    *k /= total;
+                }
+                let mut poles = vec![start];
+                poles.extend(cs.iter().copied());
+                poles.push(end);
+                out.push(Run::Spline2(poles, knots));
             }
-            let total = *knots.last().unwrap_or(&1.0);
-            for k in knots.iter_mut() {
-                *k /= total;
-            }
-            let mut poles = vec![start];
-            poles.extend(cs.iter().copied());
-            poles.push(end);
-            out.push(Run::Spline2(poles, knots));
-        }
-        cs.clear();
-        joints.clear();
-    };
+            cs.clear();
+            joints.clear();
+        };
     for g in segs {
         match *g {
             Seg::Line(a, b) => {
@@ -230,7 +231,11 @@ pub fn merge_runs(segs: &[Seg]) -> Vec<Run> {
                 let last = *cs.last().unwrap_or(&c);
                 let (u, v) = (a - last, c - a);
                 let (lu, lv) = (u.length(), v.length());
-                let smooth = lu > 1e-9 && lv > 1e-9 && (u.perp_dot(v) / (lu * lv)).abs() < 1e-4 && u.dot(v) > 0.0 && (a - end).length() < 1e-9;
+                let smooth = lu > 1e-9
+                    && lv > 1e-9
+                    && (u.perp_dot(v) / (lu * lv)).abs() < 1e-4
+                    && u.dot(v) > 0.0
+                    && (a - end).length() < 1e-9;
                 if smooth {
                     joints.push(a);
                     cs.push(c);
@@ -306,7 +311,11 @@ impl Pen {
             self.done.push(c);
             let sg = std::mem::take(&mut self.segs);
             let (dx, dy, k) = (self.dx, self.dy, self.scale);
-            self.segs_done.push(sg.iter().map(|g| g.map(|p| DVec2::new(dx + p.x * k, dy + p.y * k))).collect());
+            self.segs_done.push(
+                sg.iter()
+                    .map(|g| g.map(|p| DVec2::new(dx + p.x * k, dy + p.y * k)))
+                    .collect(),
+            );
         } else {
             self.cur.clear();
             self.segs.clear();

@@ -527,6 +527,8 @@ mod coverage {
         "A wall that was to be thickened is not on the body any more", "A wall that is an opening cannot be thickened",
         "A wall that was to be thickened could not be found in the shell (only flat walls can be changed one by one)",
         "A wall would be thinner than nothing",
+        "X-ray view: every body is half transparent (Q turns it off)", "Solid view", "Making the letters", "Joining the letters to the body",
+        "The rounds next to the wall could not be kept, so the wall was pulled without following them",
         // texts chosen by an `if` or a `match` inside `tr(...)`
         "Check the mesh",
         "STL and 3MF files (*.stl, *.3mf)",

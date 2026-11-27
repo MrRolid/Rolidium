@@ -219,7 +219,11 @@ impl App {
                 for (e, sb) in m.mesh.edges.iter().zip(screen.iter()) {
                     // an edge whose box is far from the pointer on the screen is not looked at
                     if let Some(b) = sb {
-                        if pointer.x < b[0] - 8.0 || pointer.x > b[2] + 8.0 || pointer.y < b[1] - 8.0 || pointer.y > b[3] + 8.0 {
+                        if pointer.x < b[0] - 8.0
+                            || pointer.x > b[2] + 8.0
+                            || pointer.y < b[1] - 8.0
+                            || pointer.y > b[3] + 8.0
+                        {
                             continue;
                         }
                     }
@@ -259,7 +263,12 @@ impl App {
     }
 
     /// The boxes of the edges of a mesh on the screen (`None`: a corner is not on the screen, the edge is always looked at), for the view the frame is drawn with.
-    fn edge_screen_boxes(&self, stamp: u64, mesh: &Arc<rolidium_kernel::Mesh>, rect: Rect) -> Arc<Vec<Option<[f32; 4]>>> {
+    fn edge_screen_boxes(
+        &self,
+        stamp: u64,
+        mesh: &Arc<rolidium_kernel::Mesh>,
+        rect: Rect,
+    ) -> Arc<Vec<Option<[f32; 4]>>> {
         let key = (self.camera, rect.size().x.to_bits(), rect.size().y.to_bits());
         if let Some((k, v)) = self.edge_screen.borrow().get(&stamp) {
             if *k == key {
@@ -355,8 +364,15 @@ impl App {
         if let Some(v) = self.chain_cache.borrow().get(&key) {
             return v.clone();
         }
-        let Some(b) = self.doc.body(body) else { return Vec::new() };
-        let (solid, features, chamfer, edges_v) = (b.solid.clone(), b.features.clone(), self.edge_chamfer, edges.to_vec());
+        let Some(b) = self.doc.body(body) else {
+            return Vec::new();
+        };
+        let (solid, features, chamfer, edges_v) = (
+            b.solid.clone(),
+            b.features.clone(),
+            self.edge_chamfer,
+            edges.to_vec(),
+        );
         // a body of many faces: the kernel needs seconds for it, so it is asked on a thread of its own and the answer is drawn when it comes (nothing extra is
         // shown until then); a small body is answered at once
         if solid.face_count() > 300 {
@@ -754,7 +770,6 @@ mod tests {
     }
 }
 
-
 /// The edges that a round or chamfer of `edges` treats too (the kernel follows edges that continue each other tangentially).
 fn chain_extra_of(
     solid: &rolidium_kernel::Solid,
@@ -771,14 +786,21 @@ fn chain_extra_of(
             chamfer: f.kind == rolidium_doc::BlendKind::Chamfer,
         })
         .collect();
-    let combined = solid.chain_touches_blends(&inputs, &ids, chamfer).unwrap_or(false);
+    let combined = solid
+        .chain_touches_blends(&inputs, &ids, chamfer)
+        .unwrap_or(false);
     // When the chain runs through existing rounds they are redone together with the new one, so the edges beyond them stay sharp: nothing extra to warn about.
     if combined {
         return Vec::new();
     }
     solid
         .blend_chain(&ids, chamfer)
-        .map(|v| v.into_iter().map(|e| e.0).filter(|e| !edges.contains(e)).collect())
+        .map(|v| {
+            v.into_iter()
+                .map(|e| e.0)
+                .filter(|e| !edges.contains(e))
+                .collect()
+        })
         .unwrap_or_default()
 }
 

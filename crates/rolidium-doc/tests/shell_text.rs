@@ -433,7 +433,10 @@ fn a_long_text_is_exact_and_has_few_faces() {
         .map(|s| area(&s.outer) - s.holes.iter().map(|h| area(h)).sum::<f64>())
         .sum();
     let removed = v0 - volume(&d, b);
-    assert!((removed - polygons * 1.0).abs() < polygons * 0.01, "removed {removed}, letters {polygons}");
+    assert!(
+        (removed - polygons * 1.0).abs() < polygons * 0.01,
+        "removed {removed}, letters {polygons}"
+    );
     assert!(faces < 2500, "{faces} faces for 90 letters");
 }
 
@@ -458,7 +461,13 @@ fn the_inner_and_outer_edges_of_a_shell_can_be_rounded() {
     let (plain, faces0, _) = make(0.0, 0.0);
     let (inner, faces1, n1) = make(2.0, 0.0);
     // 4 vertical and 4 bottom inner edges: (1 - pi/4) r^2 L each, about 8 mm^2 of corner on 8 edges of 24 to 34 mm
-    assert!(inner > plain + 20.0 && faces1 > faces0, "inner edges rounded: {plain} -> {inner}, {faces0} -> {faces1}, {n1:?}");
+    assert!(
+        inner > plain + 20.0 && faces1 > faces0,
+        "inner edges rounded: {plain} -> {inner}, {faces0} -> {faces1}, {n1:?}"
+    );
     let (outer, faces2, n2) = make(0.0, 2.0);
-    assert!(outer < plain - 10.0 && faces2 > faces0, "outer edges rounded: {plain} -> {outer}, {faces0} -> {faces2}, {n2:?}");
+    assert!(
+        outer < plain - 10.0 && faces2 > faces0,
+        "outer edges rounded: {plain} -> {outer}, {faces0} -> {faces2}, {n2:?}"
+    );
 }

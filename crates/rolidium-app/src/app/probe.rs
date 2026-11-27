@@ -91,7 +91,12 @@ impl App {
             })
             .collect();
         // the facts of the bodies are made once for a state of the document (they cost as much as the kernel needs for every face; the probe is written every frame)
-        let cached = self.probe_bodies.borrow().as_ref().filter(|(r, _)| *r == self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64)).map(|(_, v)| v.clone());
+        let cached = self
+            .probe_bodies
+            .borrow()
+            .as_ref()
+            .filter(|(r, _)| *r == self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64))
+            .map(|(_, v)| v.clone());
         let bodies: Vec<Value> = if let Some(v) = cached {
             v
         } else {
@@ -120,7 +125,10 @@ impl App {
                 })
             })
             .collect();
-            *self.probe_bodies.borrow_mut() = Some((self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64), v.clone()));
+            *self.probe_bodies.borrow_mut() = Some((
+                self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64),
+                v.clone(),
+            ));
             v
         };
         let st = self.doc.state();

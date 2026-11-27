@@ -154,8 +154,16 @@ impl App {
             side: self.shell.side,
             round_corners: self.shell.round,
             heavier: self.shell.heavier.clone(),
-            inner_round: if self.shell.round_inner { self.shell.inner_radius } else { 0.0 },
-            outer_round: if self.shell.round_outer { self.shell.outer_radius } else { 0.0 },
+            inner_round: if self.shell.round_inner {
+                self.shell.inner_radius
+            } else {
+                0.0
+            },
+            outer_round: if self.shell.round_outer {
+                self.shell.outer_radius
+            } else {
+                0.0
+            },
         })
     }
 
@@ -216,7 +224,10 @@ impl App {
                     self.shell.open = vec![a];
                     self.shell.key.clear();
                     self.shell_sync_selection();
-                    self.set_status("Click more walls that should disappear (Ctrl), or press Enter to make the shell", false);
+                    self.set_status(
+                        "Click more walls that should disappear (Ctrl), or press Enter to make the shell",
+                        false,
+                    );
                 }
             }
             return;
@@ -289,7 +300,11 @@ impl App {
                                 self.shell.preview_on = true;
                                 // the thickness of the walls is seen only through a cut or through the walls: a section through the middle of the body
                                 if !self.section.by_tool {
-                                    let c = self.doc.body(body).and_then(|b| b.solid.bounding_box().ok()).map(|(lo, hi)| (lo + hi) * 0.5);
+                                    let c = self
+                                        .doc
+                                        .body(body)
+                                        .and_then(|b| b.solid.bounding_box().ok())
+                                        .map(|(lo, hi)| (lo + hi) * 0.5);
                                     self.section_for_tool(true, c);
                                 }
                                 self.set_preview(Some(meshops::PreviewMesh {
@@ -355,7 +370,10 @@ impl App {
             return;
         };
         if p.open.is_empty() && !self.shell.closed {
-            self.set_status("Click a wall that should disappear, or choose Closed hollow body (no opening)", true);
+            self.set_status(
+                "Click a wall that should disappear, or choose Closed hollow body (no opening)",
+                true,
+            );
             return;
         }
         if let Some(e) = &self.shell.error {

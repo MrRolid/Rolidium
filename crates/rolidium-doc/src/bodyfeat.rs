@@ -196,7 +196,9 @@ fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, V
     }
     let mut cavity: std::collections::HashSet<u32> = std::collections::HashSet::new();
     for f in solid.faces() {
-        let (Ok(info), Ok(edges)) = (solid.face_info(f), solid.face_edges(f)) else { continue };
+        let (Ok(info), Ok(edges)) = (solid.face_info(f), solid.face_edges(f)) else {
+            continue;
+        };
         // a point on the face: the middle of one of its straight edges, pushed a little along the outward normal
         let Some(mid) = edges
             .iter()
@@ -206,7 +208,11 @@ fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, V
         else {
             continue;
         };
-        let n = if info.kind == FaceKind::Plane { info.normal.normalize_or_zero() } else { continue };
+        let n = if info.kind == FaceKind::Plane {
+            info.normal.normalize_or_zero()
+        } else {
+            continue;
+        };
         if base.contains_point(mid + n * 0.05).unwrap_or(false) {
             cavity.insert(f.0);
         }
@@ -226,7 +232,11 @@ fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, V
     }
     let mut cur = solid.clone();
     if inner > 1e-9 {
-        let es: Vec<rolidium_kernel::EdgeId> = count.iter().filter(|(_, c)| c.0 == 2).map(|(e, _)| rolidium_kernel::EdgeId(*e)).collect();
+        let es: Vec<rolidium_kernel::EdgeId> = count
+            .iter()
+            .filter(|(_, c)| c.0 == 2)
+            .map(|(e, _)| rolidium_kernel::EdgeId(*e))
+            .collect();
         if !es.is_empty() {
             match cur.fillet(&es, inner) {
                 Ok(r) => cur = r.solid,
@@ -247,7 +257,8 @@ fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, V
             .edges()
             .filter(|e| {
                 cur.edge_info(*e).is_ok_and(|i| {
-                    i.kind == rolidium_kernel::EdgeKind::Line && mids.iter().any(|m| m.distance((i.start + i.end) * 0.5) < 1e-4)
+                    i.kind == rolidium_kernel::EdgeKind::Line
+                        && mids.iter().any(|m| m.distance((i.start + i.end) * 0.5) < 1e-4)
                 })
             })
             .collect();
@@ -435,8 +446,17 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
             .into_iter()
             .map(|g| match g {
                 Run::Line(a, b) => ProfileSegment::Line { a: q(a), b: q(b) },
-                Run::Quad(a, c, b) => ProfileSegment::Quad { a: q(a), c: q(c), b: q(b) },
-                Run::Cubic(a, c1, c2, b) => ProfileSegment::Cubic { a: q(a), c1: q(c1), c2: q(c2), b: q(b) },
+                Run::Quad(a, c, b) => ProfileSegment::Quad {
+                    a: q(a),
+                    c: q(c),
+                    b: q(b),
+                },
+                Run::Cubic(a, c1, c2, b) => ProfileSegment::Cubic {
+                    a: q(a),
+                    c1: q(c1),
+                    c2: q(c2),
+                    b: q(b),
+                },
                 Run::Spline2(p, k) => ProfileSegment::Spline2 {
                     poles: p.into_iter().map(q).collect(),
                     knots: k,
@@ -446,7 +466,10 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
     };
     let mut solids: Vec<Solid> = Vec::new();
     for (k, s) in shapes.iter().enumerate() {
-        crate::progress::set("Making the letters", 0.05 + 0.5 * k as f32 / shapes.len().max(1) as f32);
+        crate::progress::set(
+            "Making the letters",
+            0.05 + 0.5 * k as f32 / shapes.len().max(1) as f32,
+        );
         let mut loops = vec![to_loop(&s.outer_curves)];
         loops.extend(s.hole_curves.iter().map(|h| to_loop(h)));
         let prism = Solid::extrude_profile(&Profile { loops }, start, n, x, dist)?;
@@ -469,7 +492,12 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
     while i < solids.len() {
         let mut merged = false;
         for j in (i + 1)..solids.len() {
-            if meet(&boxes[i], &boxes[j]) && solids[i].distance_to(&solids[j]).map(|d| d < 1e-6).unwrap_or(false) {
+            if meet(&boxes[i], &boxes[j])
+                && solids[i]
+                    .distance_to(&solids[j])
+                    .map(|d| d < 1e-6)
+                    .unwrap_or(false)
+            {
                 let f = solids[i].boolean_checked(&solids[j], BooleanOp::Fuse)?.solid;
                 boxes[i] = f.bounding_box()?;
                 solids[i] = f;

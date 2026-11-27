@@ -151,7 +151,8 @@ impl App {
             });
         }
         if self.warmed.len() > 64 {
-            let alive: std::collections::HashSet<usize> = self.doc.bodies().iter().map(|b| b.solid.shape_id()).collect();
+            let alive: std::collections::HashSet<usize> =
+                self.doc.bodies().iter().map(|b| b.solid.shape_id()).collect();
             self.warmed.retain(|k| alive.contains(k));
         }
     }
