@@ -194,26 +194,28 @@ fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, V
     if inner <= 1e-9 && outer <= 1e-9 {
         return (solid.clone(), notes);
     }
+    // a point is deep when the body the shell started from reaches a little way round it on every side: the edges of the cavity lie so, those of the outside and the rim of the opening do not
+    let deep = |p: DVec3| {
+        [
+            DVec3::X,
+            DVec3::NEG_X,
+            DVec3::Y,
+            DVec3::NEG_Y,
+            DVec3::Z,
+            DVec3::NEG_Z,
+        ]
+        .iter()
+        .all(|d| base.contains_point(p + *d * 0.05).unwrap_or(false))
+    };
+    let deep_edge =
+        |e: rolidium_kernel::EdgeId| solid.edge_info(e).is_ok_and(|i| deep(i.start) && deep(i.end));
+    // a face of the cavity has an edge that is deep
     let mut cavity: std::collections::HashSet<u32> = std::collections::HashSet::new();
     for f in solid.faces() {
-        let (Ok(info), Ok(edges)) = (solid.face_info(f), solid.face_edges(f)) else {
-            continue;
-        };
-        // a point on the face: the middle of one of its straight edges, pushed a little along the outward normal
-        let Some(mid) = edges
-            .iter()
-            .filter_map(|e| solid.edge_info(*e).ok())
-            .find(|e| e.kind == rolidium_kernel::EdgeKind::Line)
-            .map(|e| (e.start + e.end) * 0.5)
-        else {
-            continue;
-        };
-        let n = if info.kind == FaceKind::Plane {
-            info.normal.normalize_or_zero()
-        } else {
-            continue;
-        };
-        if base.contains_point(mid + n * 0.05).unwrap_or(false) {
+        if solid
+            .face_edges(f)
+            .is_ok_and(|es| es.iter().any(|e| deep_edge(*e)))
+        {
             cavity.insert(f.0);
         }
     }

@@ -471,3 +471,66 @@ fn the_inner_and_outer_edges_of_a_shell_can_be_rounded() {
         "outer edges rounded: {plain} -> {outer}, {faces0} -> {faces2}, {n2:?}"
     );
 }
+
+#[test]
+fn a_container_with_a_round_bottom_keeps_the_inner_cylinders_of_its_rounds() {
+    // a box with the bottom edges rounded (cylinders and, at the corners, a sphere or a torus), made hollow with a rounded cavity: the small cylinders of the cavity stay
+    let (mut d, b) = doc_with_box(60.0, 40.0, 30.0);
+    let bottom = d
+        .body(b)
+        .unwrap()
+        .solid
+        .edges()
+        .filter(|e| {
+            let i = d.body(b).unwrap().solid.edge_info(*e).unwrap();
+            i.start.z < 0.01 && i.end.z < 0.01
+        })
+        .map(|e| e.0)
+        .collect::<Vec<_>>();
+    let vertical = d
+        .body(b)
+        .unwrap()
+        .solid
+        .edges()
+        .filter(|e| {
+            let i = d.body(b).unwrap().solid.edge_info(*e).unwrap();
+            (i.start.z - i.end.z).abs() > 1.0
+        })
+        .map(|e| e.0)
+        .collect::<Vec<_>>();
+    let mut all = vertical;
+    all.extend(bottom);
+    d.apply(Command::FilletEdges {
+        body: b,
+        edges: all,
+        size: 6.0,
+        chamfer: false,
+    })
+    .unwrap();
+    let top = face_with_normal(&d.body(b).unwrap().solid, DVec3::Z);
+    let mut p = ShellParams::new(b, 3.0);
+    p.open = vec![top];
+    d.apply(Command::AddLink {
+        kind: LinkKind::Shell(p),
+        sources: vec![],
+        name: String::new(),
+    })
+    .unwrap();
+    let s = &d.body(b).unwrap().solid;
+    assert!(s.is_valid(), "the container is a valid solid");
+    let mut r1 = 0;
+    let mut kinds = std::collections::BTreeSet::new();
+    for f in s.faces() {
+        let i = s.face_info(f).unwrap();
+        kinds.insert(format!("{:?}", i.kind));
+        if i.kind == FaceKind::Cylinder && (i.radius - 3.0).abs() < 1e-6 {
+            r1 += 1;
+        }
+    }
+    // the rounds of the cavity are tangent to its walls: there is no sharp inner edge to round, and the cylinders of radius 6 - 3 = 3 are there
+    assert!(
+        r1 >= 4,
+        "cylinders of radius 3 stay in the cavity: {r1} {kinds:?} {:?}",
+        d.state().links[0].warnings
+    );
+}
