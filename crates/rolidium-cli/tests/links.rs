@@ -343,3 +343,23 @@ fn a_revolve_takes_an_auxiliary_axis_of_the_sketch_as_its_axis() {
     let want = std::f64::consts::PI * 20.0 * (900.0 - 400.0);
     assert!((v - want).abs() < 0.5, "{v} against {want}");
 }
+
+#[test]
+fn a_shell_with_text_sunk_into_its_wall_goes_through_and_the_text_stays() {
+    // the words of the mandatory case: a box, text engraved 0.6 mm into the top (the strokes are about 1 mm wide), a shell of 2 mm that opens the bottom
+    let mut r = run("box 60 30 12\ntext \"Rolidium\" at 5 10 12 height 5 depth 0.6 engrave\n");
+    let engraved = r.doc.bodies()[0].solid.volume().unwrap();
+    r.run_line("shell 2 open z-").unwrap();
+    let hollow = r.doc.bodies()[0].solid.volume().unwrap();
+    assert!(hollow < engraved * 0.5, "{engraved} -> {hollow}");
+    // the same shell without the text would be this much: with the text there is less material in the top wall
+    let plain = {
+        let r2 = run("box 60 30 12\nshell 2 open z-\n");
+        r2.doc.bodies()[0].solid.volume().unwrap()
+    };
+    assert!(hollow < plain - 3.0, "the text is still there: {hollow} vs {plain}");
+    assert_eq!(r.doc.state().links.len(), 2);
+    // a shell is changed by edit-link, and the text goes back each time
+    r.run_line("edit-link 2 thickness 3").unwrap();
+    assert!(r.doc.bodies()[0].solid.volume().unwrap() > hollow);
+}

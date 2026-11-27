@@ -267,3 +267,40 @@ fn a_hole_through_a_wall_is_put_back_after_the_shell() {
     assert!(s.contains_point(DVec3::new(1.0, 5.0, 10.0)).unwrap(), "the rest of the wall is there");
     assert!(!s.contains_point(DVec3::new(20.0, 15.0, 10.0)).unwrap(), "and the body is hollow");
 }
+
+#[test]
+fn text_on_the_wall_of_a_mesh_is_raised_and_engraved_with_manifold() {
+    use rolidium_doc::NewMesh;
+    use rolidium_mesh::gen;
+    use std::sync::Arc;
+    let mut d = Document::new();
+    d.apply(Command::AddMeshes {
+        meshes: vec![NewMesh {
+            name: "m".into(),
+            mesh: Arc::new(gen::box_mesh(60.0, 30.0, 10.0, 1)),
+            verified: true,
+        }],
+    })
+    .unwrap();
+    let id = d.meshes()[0].id;
+    let v0 = d.meshes()[0].mesh.signed_volume();
+    // the box mesh is centred on the origin? find the top from the bounding box
+    let (lo, hi) = {
+        let m = &d.meshes()[0].mesh;
+        let z = m.positions.iter().map(|p| p[2]).fold((f32::MAX, f32::MIN), |a, v| (a.0.min(v), a.1.max(v)));
+        let x = m.positions.iter().map(|p| p[0]).fold(f32::MAX, f32::min);
+        let y = m.positions.iter().map(|p| p[1]).fold(f32::MAX, f32::min);
+        (DVec3::new(x as f64, y as f64, z.0 as f64), DVec3::new(0.0, 0.0, z.1 as f64))
+    };
+    let p = text_on_top(id, "Roli", false, 1.0, 5.0, DVec3::new(lo.x + 5.0, lo.y + 10.0, hi.z));
+    d.apply(Command::MeshText { body: id, params: p.clone() }).unwrap();
+    let raised = d.meshes()[0].mesh.signed_volume();
+    assert!(raised > v0 + 5.0, "raised text adds to the mesh: {v0} -> {raised}");
+    assert!(d.undo());
+    let mut e = p;
+    e.engrave = true;
+    e.depth = 0.6;
+    d.apply(Command::MeshText { body: id, params: e }).unwrap();
+    let engraved = d.meshes()[0].mesh.signed_volume();
+    assert!(engraved < v0 - 3.0, "engraved text takes material away: {v0} -> {engraved}");
+}
