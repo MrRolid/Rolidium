@@ -742,7 +742,7 @@ impl App {
         {
             return;
         }
-        let text = tr(&text);
+        let text = crate::i18n::tr_joined(&text);
         if error {
             log(&format!("error shown to user: {text}"));
             if self.settings.sound
@@ -911,9 +911,8 @@ impl App {
                             if let Some(n) = notice {
                                 // the sentence of a repair says what was done: it is no error (not even when nothing needed doing)
                                 match meshtool::parse_repair_notice(&n) {
-                                    Some((merged, turned)) => {
-                                        self.set_status(meshtool::repair_sentence(merged, turned), false)
-                                    }
+                                    Some((merged, turned, split)) => self
+                                        .set_status(meshtool::repair_sentence(merged, turned, split), false),
                                     None => self.set_status(n, true),
                                 }
                             }

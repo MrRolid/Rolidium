@@ -144,6 +144,16 @@ pub fn tr(text: &str) -> String {
     s.catalog.translate(text)
 }
 
+/// Translates a message that may be several sentences joined by "; " (a notice of an operation with several things to say): the whole text when it is known,
+/// else each sentence by itself.
+pub fn tr_joined(text: &str) -> String {
+    let whole = tr(text);
+    if whole != text || !text.contains("; ") {
+        return whole;
+    }
+    text.split("; ").map(tr).collect::<Vec<_>>().join("; ")
+}
+
 /// Translates `text` and fills its `{}` placeholders with `args`, in order.
 pub fn trf(text: &str, args: &[String]) -> String {
     let t = tr(text);
@@ -442,6 +452,11 @@ mod coverage {
 
     /// Texts that reach the screen through tables or `format!`, so the scan cannot see them.
     const EXTRA: &[&str] = &[
+        "Organic model, it stays a mesh", "The round next to the wall could not be kept at the new place, so the wall was moved without it",
+        "The pull went away from the body, so it was cut the other way", "{} edges where two parts of the mesh touched were separated",
+        "the mesh had {} separate pieces: a solid was made of each", "Checking the mesh", "Converting a piece of the mesh", "Looking for flat and round faces",
+        "Looking for flat faces and cylinders only", "Making the solid from the faces found", "Making the solid from flat faces and cylinders", "Making flat faces",
+        "Making flat faces at a finer accuracy", "Making a face of every triangle",
         "Click the flat rectangular face the copies go into (Pick the face)",
         "Into a face needs a hole or a pin: click its round face first",
         "The hole would lie outside the body", "The pin would not touch the body", "The shift must be numbers",

@@ -20,6 +20,7 @@ impl App {
         crate::memwatch::set_computing(!self.idle());
         if self.idle() {
             self.busy_since = None;
+            rolidium_doc::progress::clear();
             if self.cancelling {
                 // the flag is global: clear it so calculations on this thread are not stopped by mistake
                 rolidium_kernel::reset_cancel();
@@ -97,6 +98,15 @@ impl App {
                         }
                         ui.label(egui::RichText::new("(Esc)").weak());
                     });
+                    // what a long conversion is doing now, and how far it is
+                    if let Some((stage, fraction)) = rolidium_doc::progress::get() {
+                        ui.label(tr(&stage));
+                        ui.add(
+                            egui::ProgressBar::new(fraction)
+                                .desired_width(300.0)
+                                .animate(true),
+                        );
+                    }
                 });
             });
         if cancel {

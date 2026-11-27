@@ -208,7 +208,16 @@ pub fn polyfaces(
         };
         let loops = match loops_of(m, g, &points, nrm) {
             Some(l) => l,
-            None => continue,
+            None => {
+                // the boundary of the group cannot be traced (it touches itself in a way no loops come out of): it is taken apart, every triangle is a face; dropping
+                // it would leave a hole in the solid
+                for t in g {
+                    out.faces.push(vec![m.triangles[*t as usize].to_vec()]);
+                    out.triangles.push(1);
+                    out.fallback.push(Vec::new());
+                }
+                continue;
+            }
         };
         // the distance of the vertices from the plane of the face (through the mean of the vertices)
         let vs: Vec<u32> = loops.iter().flatten().copied().collect();

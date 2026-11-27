@@ -46,6 +46,53 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
    * **Text and a logo on a body.** Letters engraved into or embossed on a flat face, also a logo from an SVG file (moved here from *Then*; the shell above needs it).
    * **A simplified conversion of organic meshes into patches** (a coarse set of flat or smooth faces) as a choice at the import.
 
+## Order of work after the test of 0.3.2 (dev.189)
+
+Estimates: **small** is up to a day, **medium** several days, **large** weeks. The inspiration came from looking at how other programs of this kind are used (a picture of one was sent for it); what
+is written here is described from the point of view of the person drawing, nothing is taken from their code or documents (clean room).
+
+### Next, the highest priority
+
+* **Drawing curves in a sketch** (large, in steps of medium size):
+  * a spline through points and a spline by control points, an arc by three points, a tangent arc, an ellipse, a regular polygon, a slot;
+  * a round and a chamfer of a corner in the sketch, trim and extend, an offset of a curve, a mirror and a pattern in the sketch.
+  They make the sketch a place where a part is drawn, not only a place for the circle and the rectangle; the pull, the sweep and the loft already take any closed shape.
+* **Shell and thickening of walls** (medium to large): a shell of a body with a given thickness, openings by chosen faces, thickening of thin walls. Test for the specification: a box with a text sunk into it
+  whose letters have a stem of 1 mm, and a shell of 2 mm: the text is taken off, the shell is made, the text is put back.
+* **Text and logos** (medium): letters engraved into or embossed on a flat face, a logo from an SVG file; the shell above needs it.
+* **Two levels of the program, Easy and All** (medium): in *Easy* big icons and the basic tools only (select, pull, move, combine, line, rectangle, circle, arc, pattern, mirror, round, measure, import and export,
+  views), in *All* smaller icons and every tool. The switch is on the right of the top bar as a two-part switch with both labels (*Easy* / *All*, in Czech *Základní* / *Vše*); the active part is filled, so it is
+  always visible what is on and what a click does.
+
+### Next, small
+
+* **Transparency of bodies and display modes** (small): faces with edges, faces only, wireframe, X-ray.
+* **A search for commands by name** (small).
+* **Named views** (small): save the current view, return to it.
+* **Construction planes, axes and points in 3D** (small to medium).
+* **A Hole tool** (small to medium): diameter, depth and a countersink or counterbore by the standard from M2 to M10 with one click on a face.
+* **Tabs for several open documents** (medium).
+
+### Next, from before
+
+* **A simplified conversion of organic meshes into patches** (a coarse set of flat or smooth faces) as a choice (large). Today an organic model says *Organic model, it stays a mesh*.
+* From the list of what was not finished in 0.3.1: **extended snapping** (fractions of a curve, angles on a circle; small to medium), **the key `L` for a line everywhere** (today `L` is Loft in the 3D view; small),
+  **a quick sketch on a base plane turned to the view** (small), **a round wall of a mesh as the centre of a circular pattern** (small).
+
+### Then, medium
+
+* A cut by the view (a section through the body shown on the screen); a check of collisions of bodies; named parameters and variants through scripts; a library of standard parts (screws, nuts, threaded inserts);
+  sculpting brushes for meshes (push out, push in, smooth, flatten, drag, groove, symmetric about an axis); removal of a region and filling of holes by hand; a local refinement of the mesh under the brush.
+
+### Later, large
+
+* Assemblies with mates; sheet-metal parts (bend, flange, unfold); weldments (profiles along lines); surface modelling; a conversion of free shapes into smooth surfaces.
+
+### We will not do
+
+* A **timeline of the history** of the model. Rolidium is a direct modeller (D69): the model is what is on the screen, an edit is made on the faces, and Undo goes back. The rounds and the patterns that must follow an
+  edit are links, not steps of a history.
+
 ## Then
 
 * **Sculpting brushes for meshes**: push out, push in, smooth, flatten, drag, groove, and symmetric about an axis. Removing a region and filling holes by hand, and a local refinement of the mesh under the brush.
@@ -84,13 +131,6 @@ The theme of the next releases (0.2.1 and following, numbered in small steps): *
 * **2D sections and laser output** (DXF, SVG).
 * **Drawings**: 2D views and sections with dimensions, exported to PDF, SVG and DXF.
 * **CAM for CNC machines**: 2.5D toolpaths first, then 3D (see the CAM plan below). The program has no CAM today.
-
-## Not finished from 0.3.1
-
-* **Extended snapping** in a sketch: fractions of a curve, angles on a circle, quadrants and intersections.
-* **The key `L` for a line everywhere** (today `L` is Loft in the 3D view; a line there is `Shift+L`).
-* **A quick sketch on the base plane turned to the view.**
-* **A round wall of a mesh as the centre of a circular pattern** (a flat wall works; a round one is not found as an axis).
 
 ## Smaller improvements
 

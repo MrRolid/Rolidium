@@ -316,6 +316,8 @@ pub struct Analysis {
     pub inward: usize,
     /// The check after the joints are joined (the open edges that are left are real holes).
     pub after_merge: Report,
+    /// Edges where two parts of the mesh touch (four or more triangles share them) that `separate_pinches` mends (after the joints are joined).
+    pub pinches: usize,
 }
 
 impl Analysis {
@@ -352,11 +354,23 @@ pub fn analyse(m: &TriMesh) -> Analysis {
         report.clone()
     };
     let inward = orient_normals(&mut c);
+    let pinches = if after_merge.non_manifold_edges > 0 {
+        let mut d = c.clone();
+        let n = separate_pinches(&mut d);
+        if n > 0 && check(&d).non_manifold_edges == 0 {
+            n
+        } else {
+            0
+        }
+    } else {
+        0
+    };
     Analysis {
         report,
         loose_joints,
         inward,
         after_merge,
+        pinches,
     }
 }
 
@@ -369,4 +383,188 @@ pub fn size_text(m: &TriMesh) -> String {
         }
         None => "empty".into(),
     }
+}
+
+/// Separates the places where the surface touches itself along an edge (an edge that four or more triangles share: two parts of the model meet there): the triangles
+/// round such an edge are paired by the way they lie round it (a pair is the triangles that enclose a wedge of material), and the vertices are duplicated so that
+/// every pair has the edge to itself. The duplicates are moved apart by a hair (a few hundredths of a micron into their own material), so that a later weld of equal
+/// points does not join them again. Returns how many edges were separated; the mesh is left as it was when some edge could not be paired (a closed, consistently turned
+/// mesh is needed) and the answer is 0.
+pub fn separate_pinches(m: &mut TriMesh) -> usize {
+    let mut by_edge: HashMap<(u32, u32), Vec<(u32, bool)>> = HashMap::new();
+    for (t, tri) in m.triangles.iter().enumerate() {
+        for k in 0..3 {
+            let (a, b) = (tri[k], tri[(k + 1) % 3]);
+            by_edge
+                .entry((a.min(b), a.max(b)))
+                .or_default()
+                .push((t as u32, a < b));
+        }
+    }
+    let bad: Vec<(u32, u32)> = by_edge
+        .iter()
+        .filter(|(_, v)| v.len() > 2)
+        .map(|(k, _)| *k)
+        .collect();
+    if bad.is_empty() {
+        return 0;
+    }
+    // links[t] = the triangles that t is joined to across an edge (through the manifold edges, and through the pairs of the pinched ones)
+    let mut link: Vec<(u32, u32, u32, u32)> = Vec::new(); // (triangle, triangle, edge a, edge b)
+    for (&(a, b), v) in &by_edge {
+        if v.len() == 2 {
+            link.push((v[0].0, v[1].0, a, b));
+        }
+    }
+    let mut separated = 0usize;
+    for &(a, b) in &bad {
+        let v = &by_edge[&(a, b)];
+        if v.len() % 2 != 0 {
+            return 0;
+        }
+        let (pa, pb) = (m.vertex(a), m.vertex(b));
+        let axis = crate::unit(crate::sub(pb, pa));
+        let (u, w) = {
+            let helper = if axis[0].abs() < 0.9 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 1.0, 0.0]
+            };
+            let u = crate::unit(crate::cross(axis, helper));
+            (u, crate::cross(axis, u))
+        };
+        // every triangle: its angle round the edge, and the way its material lies (+1 towards bigger angles)
+        let mut items: Vec<(f64, f64, u32)> = Vec::new();
+        for &(t, forward) in v {
+            let tri = m.triangles[t as usize];
+            let c = tri.iter().copied().find(|x| *x != a && *x != b).unwrap_or(a);
+            let d = crate::sub(m.vertex(c), pa);
+            let perp = crate::sub(d, crate::mul(axis, crate::dot(d, axis)));
+            let ang = crate::dot(perp, w).atan2(crate::dot(perp, u));
+            let (nn, _) = m.normal_area(t as usize);
+            // the direction of growing angle at the triangle, and the outward normal: the material lies behind the normal
+            let grow = crate::cross(axis, perp);
+            let sigma = if crate::dot(grow, nn) < 0.0 { 1.0 } else { -1.0 };
+            let _ = forward;
+            items.push((ang, sigma, t));
+        }
+        items.sort_by(|x, y| x.0.total_cmp(&y.0));
+        let k = items.len();
+        // pairs: a triangle whose material lies towards bigger angles with the next one (cyclically) whose material lies towards smaller ones
+        let mut pairs: Vec<(u32, u32)> = Vec::new();
+        let mut used = vec![false; k];
+        for i in 0..k {
+            let j = (i + 1) % k;
+            if !used[i] && !used[j] && items[i].1 > 0.0 && items[j].1 < 0.0 {
+                pairs.push((items[i].2, items[j].2));
+                used[i] = true;
+                used[j] = true;
+            }
+        }
+        if used.iter().any(|u| !*u) {
+            return 0;
+        }
+        for (x, y) in pairs {
+            link.push((x, y, a, b));
+        }
+        separated += 1;
+    }
+    // for every vertex the triangles round it fall into fans (joined through the links of the edges that end at the vertex); the first fan keeps the vertex, the other
+    // fans get a copy each
+    let n = m.triangles.len();
+    let mut at: HashMap<u32, Vec<u32>> = HashMap::new();
+    for (t, tri) in m.triangles.iter().enumerate() {
+        for &x in tri {
+            at.entry(x).or_default().push(t as u32);
+        }
+    }
+    let mut parent: HashMap<(u32, u32), (u32, u32)> = HashMap::new();
+    fn find(p: &mut HashMap<(u32, u32), (u32, u32)>, x: (u32, u32)) -> (u32, u32) {
+        let mut r = x;
+        while let Some(&q) = p.get(&r) {
+            if q == r {
+                break;
+            }
+            r = q;
+        }
+        let mut c = x;
+        while let Some(&q) = p.get(&c) {
+            if q == r {
+                break;
+            }
+            p.insert(c, r);
+            c = q;
+        }
+        r
+    }
+    for (v, ts) in &at {
+        for &t in ts {
+            parent.insert((*v, t), (*v, t));
+        }
+    }
+    for &(x, y, a, b) in &link {
+        for v in [a, b] {
+            let (rx, ry) = (find(&mut parent, (v, x)), find(&mut parent, (v, y)));
+            if rx != ry {
+                parent.insert(rx, ry);
+            }
+        }
+    }
+    let _ = n;
+    let mut copies: HashMap<(u32, u32), u32> = HashMap::new(); // (vertex, fan root) -> the vertex used by that fan
+    let mut first_root: HashMap<u32, (u32, u32)> = HashMap::new();
+    let mut moves: Vec<(u32, V3)> = Vec::new(); // (new vertex, direction of the little move)
+    let mut tris = m.triangles.clone();
+    for (t, tri) in m.triangles.iter().enumerate() {
+        for (c, &v) in tri.iter().enumerate() {
+            let root = find(&mut parent, (v, t as u32));
+            let keep = *first_root.entry(v).or_insert(root);
+            if root == keep {
+                continue;
+            }
+            let id = *copies.entry(root).or_insert_with(|| {
+                m.positions.push(m.positions[v as usize]);
+                (m.positions.len() - 1) as u32
+            });
+            tris[t][c] = id;
+            moves.push((id, m.normal_area(t).0));
+        }
+    }
+    m.triangles = tris;
+    // the copy moves a hair against the outward normals of its triangles (into its own material)
+    let mut shift: HashMap<u32, V3> = HashMap::new();
+    for (id, nn) in moves {
+        let e = shift.entry(id).or_insert([0.0; 3]);
+        *e = crate::add(*e, nn);
+    }
+    for (id, d) in shift {
+        let p = m.vertex(id);
+        m.set_vertex(id, crate::sub(p, crate::mul(crate::unit(d), 3e-5)));
+    }
+    separated
+}
+
+/// The connected pieces of a mesh as meshes of their own (through shared edges), the biggest first.
+pub fn split_components(m: &TriMesh) -> Vec<TriMesh> {
+    let edges = sorted_edges(m);
+    let (comp, count) = components(m, &edges);
+    if count <= 1 {
+        return vec![m.clone()];
+    }
+    let mut parts: Vec<TriMesh> = vec![TriMesh::default(); count];
+    let mut remap: Vec<HashMap<u32, u32>> = vec![HashMap::new(); count];
+    for (t, tri) in m.triangles.iter().enumerate() {
+        let c = comp[t] as usize;
+        let mut out = [0u32; 3];
+        for k in 0..3 {
+            let v = tri[k];
+            out[k] = *remap[c].entry(v).or_insert_with(|| {
+                parts[c].positions.push(m.positions[v as usize]);
+                (parts[c].positions.len() - 1) as u32
+            });
+        }
+        parts[c].triangles.push(out);
+    }
+    parts.sort_by_key(|p| std::cmp::Reverse(p.triangles.len()));
+    parts
 }

@@ -27,6 +27,7 @@ mod links;
 pub mod meshbool;
 pub mod meshes;
 pub mod meshsolid;
+pub mod progress;
 mod sketchops;
 pub use links::{
     linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
@@ -852,6 +853,33 @@ pub fn region_profile(r: &Region) -> Profile {
 }
 
 impl Job {
+    /// Cuts `tool` out of every body and mesh it overlaps. Returns the first body that was changed and how many holes of meshes were patched; `None`
+    /// when nothing was removed (the volume only touches or lies apart).
+    fn cut_from_all(&self, st: &mut State, tool: &Solid) -> Result<Option<(BodyId, usize)>, DocError> {
+        let mut first_id = None;
+        for b in st.bodies.iter_mut() {
+            if !b.solid.may_be_within(tool, 1e-6) || !b.solid.distance_to(tool).is_ok_and(|d| d < 1e-6) {
+                continue;
+            }
+            let before = b.solid.volume()?;
+            let r = b.solid.boolean(tool, BooleanOp::Cut)?;
+            if (r.solid.volume()? - before).abs() < 1e-9 {
+                continue; // only touches: nothing removed
+            }
+            remap_features(&mut b.features, &r.history);
+            b.solid = r.solid;
+            first_id.get_or_insert(b.id);
+        }
+        let mut filled = 0;
+        if let Some((mid, n)) = self.pull_on_meshes(st, tool, true, None)? {
+            first_id.get_or_insert(mid);
+            filled = n;
+        }
+        Ok(first_id.map(|f| (f, filled)))
+    }
+}
+
+impl Job {
     /// Runs the command. Native panics are converted into an error.
     pub fn run(self) -> Result<Computed, DocError> {
         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.compute()));
@@ -1079,12 +1107,27 @@ impl Job {
                     .iter_mut()
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
-                let r = b.solid.pull_face(*face, mode.apply(*distance))?;
+                let dist = mode.apply(*distance);
+                let mut notice = None;
+                let r = match b.solid.pull_face(*face, dist) {
+                    Ok(r) => r,
+                    // the rounds next to the wall cannot be made again after the pull: the wall is moved without them, and that is said
+                    Err(e) => match b.solid.pull_face_dropping_blends(*face, dist) {
+                        Ok(r) => {
+                            notice = Some(
+                                "The round next to the wall could not be kept at the new place, so the wall was moved without it".to_string(),
+                            );
+                            r
+                        }
+                        Err(_) => return Err(e.into()),
+                    },
+                };
                 remap_features(&mut b.features, &r.history);
                 b.solid = r.solid;
                 let mut c = self.done(st, "Pull");
                 c.history = Some((*body, r.history));
                 c.touched_body = Some(*body);
+                c.notice = notice;
                 Ok(c)
             }
             Command::FillLoop { body, edges } => {
@@ -1450,6 +1493,13 @@ impl Job {
                     Solid::extrude_profile(&profile, plane.origin, plane.normal, plane.x_dir, *distance)?;
                 let mut c;
                 let mut notice = None;
+                // a sketch on a plane (not on a body) pulled inwards in Auto cuts a pocket where it overlaps a body or a mesh; where it overlaps
+                // nothing it is a body of its own as before
+                let mut pre_cut = if target.is_none() && *mode == PullMode::Auto && *distance < 0.0 && !fill {
+                    self.cut_from_all(&mut st, &tool)?
+                } else {
+                    None
+                };
                 match target {
                     _ if *mode == PullMode::New => {
                         // a body of its own, whatever it touches
@@ -1466,39 +1516,44 @@ impl Job {
                         });
                         c = (id, None);
                     }
+                    _ if pre_cut.is_some() => {
+                        // pulled inwards in Auto from a plane: a pocket of the pulled depth in what the volume overlaps
+                        let (first, n) = pre_cut.take().unwrap_or((BodyId::default(), 0));
+                        notice = meshbool::filled_text(n);
+                        c = (first, None);
+                    }
                     None if *mode == PullMode::Cut => {
                         // cutting: the volume is taken out of every body it overlaps (holes and pockets from a sketch on a plane)
-                        let mut cut_any = false;
-                        let mut first_id = None;
-                        for b in st.bodies.iter_mut() {
-                            if !b.solid.may_be_within(&tool, 1e-6)
-                                || !b.solid.distance_to(&tool).is_ok_and(|d| d < 1e-6)
-                            {
-                                continue;
-                            }
-                            let before = b.solid.volume()?;
-                            {
-                                let r = b.solid.boolean(&tool, BooleanOp::Cut)?;
-                                if (r.solid.volume()? - before).abs() < 1e-9 {
-                                    continue; // only touches: nothing removed
-                                }
-                                remap_features(&mut b.features, &r.history);
-                                b.solid = r.solid;
-                                cut_any = true;
-                                first_id.get_or_insert(b.id);
-                            }
+                        let mut found = self.cut_from_all(&mut st, &tool)?;
+                        let mut turned = false;
+                        if found.is_none() {
+                            // a sketch on a plane of no body: the pull went away from what it should cut, so the other way is tried (the depth is the same)
+                            let back = Solid::extrude_profile(
+                                &profile,
+                                plane.origin,
+                                plane.normal,
+                                plane.x_dir,
+                                -*distance,
+                            )?;
+                            found = self.cut_from_all(&mut st, &back)?;
+                            turned = found.is_some();
                         }
-                        if let Some((mid, n)) = self.pull_on_meshes(&mut st, &tool, true, None)? {
-                            first_id.get_or_insert(mid);
-                            cut_any = true;
-                            notice = meshbool::filled_text(n);
-                        }
-                        let Some(first) = first_id.filter(|_| cut_any) else {
+                        let Some((first, n)) = found else {
                             return Err(KernelError::Invalid(
                                 "There is nothing to remove here: the shape does not overlap any body".into(),
                             )
                             .into());
                         };
+                        notice = meshbool::filled_text(n);
+                        if turned {
+                            notice = Some(match notice {
+                                Some(t) => format!(
+                                    "{t}; the pull went away from the body, so it was cut the other way"
+                                ),
+                                None => "The pull went away from the body, so it was cut the other way"
+                                    .to_string(),
+                            });
+                        }
                         c = (first, None);
                     }
                     None => {
@@ -3234,6 +3289,7 @@ impl Job {
                 keep,
             } => {
                 let started = std::time::Instant::now();
+                progress::set("Checking the mesh", 0.0);
                 if !(tolerance.is_finite() && *tolerance >= 1e-4 && *tolerance <= 5.0) {
                     return Err(KernelError::Invalid(
                         "the accuracy of the conversion must be between 0.0001 and 5 mm".into(),
@@ -3258,67 +3314,133 @@ impl Job {
                     mesh = Arc::new(fixed);
                     report = rolidium_mesh::check::check(&mesh);
                 }
+                // places where two parts of the model touch along an edge: separated on the working copy (the mesh itself is not changed; the check offers the same as a repair)
+                let mut pinches = 0;
                 if report.non_manifold_edges > 0 {
-                    return Err(KernelError::Invalid(format!(
-                        "The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh",
-                        report.non_manifold_edges
-                    ))
-                    .into());
+                    let mut fixed = (*mesh).clone();
+                    pinches = rolidium_mesh::check::separate_pinches(&mut fixed);
+                    if pinches == 0 || rolidium_mesh::check::check(&fixed).non_manifold_edges > 0 {
+                        return Err(KernelError::Invalid(format!(
+                            "The mesh has {} edges that more than two faces share (two parts touch along an edge), so it cannot be made one solid. It stays a mesh",
+                            report.non_manifold_edges
+                        ))
+                        .into());
+                    }
+                    mesh = Arc::new(fixed);
                 }
-                let (solid, made) = meshsolid::solid_from_mesh(&mesh, *tolerance, *round, &stop)?;
+                // a mesh of several pieces becomes a solid for every piece
+                let parts = rolidium_mesh::check::split_components(&mesh);
+                let mut made_all: Vec<(Solid, meshsolid::MadeSolid)> = Vec::new();
+                for (k, part) in parts.iter().enumerate() {
+                    progress::set(
+                        if parts.len() > 1 {
+                            "Converting a piece of the mesh"
+                        } else {
+                            "Checking the mesh"
+                        },
+                        k as f32 / parts.len() as f32,
+                    );
+                    made_all.push(meshsolid::solid_from_mesh(part, *tolerance, *round, &stop)?);
+                }
+                progress::clear();
                 let mut kinds = [0usize; 6];
-                for f in solid.faces() {
-                    let k = solid
-                        .face_info(f)
-                        .map(|i| i.kind)
-                        .unwrap_or(rolidium_kernel::FaceKind::Other);
-                    kinds[match k {
-                        rolidium_kernel::FaceKind::Plane => 0,
-                        rolidium_kernel::FaceKind::Cylinder => 1,
-                        rolidium_kernel::FaceKind::Cone => 2,
-                        rolidium_kernel::FaceKind::Sphere => 3,
-                        rolidium_kernel::FaceKind::Torus => 4,
-                        rolidium_kernel::FaceKind::Other => 5,
-                    }] += 1;
+                for (solid, _) in &made_all {
+                    for f in solid.faces() {
+                        let k = solid
+                            .face_info(f)
+                            .map(|i| i.kind)
+                            .unwrap_or(rolidium_kernel::FaceKind::Other);
+                        kinds[match k {
+                            rolidium_kernel::FaceKind::Plane => 0,
+                            rolidium_kernel::FaceKind::Cylinder => 1,
+                            rolidium_kernel::FaceKind::Cone => 2,
+                            rolidium_kernel::FaceKind::Sphere => 3,
+                            rolidium_kernel::FaceKind::Torus => 4,
+                            rolidium_kernel::FaceKind::Other => 5,
+                        }] += 1;
+                    }
                 }
+                let single: usize = made_all.iter().map(|(_, m)| m.single).sum();
+                let area_total: f64 = parts
+                    .iter()
+                    .map(|p| (0..p.triangles.len()).map(|t| p.normal_area(t).1).sum::<f64>())
+                    .sum();
+                let weigh = |f: &dyn Fn(&meshsolid::MadeSolid) -> f64| -> f64 {
+                    if area_total <= 0.0 {
+                        return 0.0;
+                    }
+                    made_all
+                        .iter()
+                        .zip(&parts)
+                        .map(|((_, m), p)| {
+                            f(m) * (0..p.triangles.len()).map(|t| p.normal_area(t).1).sum::<f64>()
+                        })
+                        .sum::<f64>()
+                        / area_total
+                };
                 let report = meshes::ConvertReport {
                     kinds,
-                    single: made.single,
-                    single_share: made.single_area,
-                    round_share: made.stats.round_area,
-                    route: made.route,
-                    max_deviation: made.max_deviation,
+                    single,
+                    single_share: weigh(&|m| m.single_area),
+                    round_share: weigh(&|m| m.stats.round_area),
+                    route: made_all.iter().map(|(_, m)| m.route).max().unwrap_or(0),
+                    max_deviation: made_all.iter().map(|(_, m)| m.max_deviation).fold(0.0, f64::max),
                     tolerance: *tolerance,
                     volume_mesh: mesh.signed_volume(),
-                    volume_solid: solid.volume().unwrap_or(0.0),
+                    volume_solid: made_all.iter().map(|(s, _)| s.volume().unwrap_or(0.0)).sum(),
                     seconds: started.elapsed().as_secs_f64(),
                     triangles: mesh.triangles.len(),
                     kept: *keep,
-                    rounded_values: made.rounded,
+                    rounded_values: made_all.iter().map(|(_, m)| m.rounded).sum(),
                 };
-                st.body_counter += 1;
-                let id = self.next_id;
                 let name = st.meshes[mp].name.clone();
                 let color = st.meshes[mp].color;
-                st.bodies.push(Body {
-                    id,
-                    name,
-                    solid,
-                    color,
-                    visible: true,
-                    features: Vec::new(),
-                    material: None,
-                });
+                let first_id = self.next_id;
+                let count = made_all.len();
+                for (k, (solid, _)) in made_all.into_iter().enumerate() {
+                    st.body_counter += 1;
+                    st.bodies.push(Body {
+                        id: first_id + k as u64,
+                        name: if k == 0 {
+                            name.clone()
+                        } else {
+                            format!("{name} ({})", k + 1)
+                        },
+                        solid,
+                        color,
+                        visible: true,
+                        features: Vec::new(),
+                        material: None,
+                    });
+                }
                 if *keep {
                     st.meshes[mp].visible = false;
                 } else {
                     st.meshes.remove(mp);
                     links::remove_from_groups(&mut st, *body);
                 }
-                meshes::keep_report(id, report);
+                meshes::keep_report(first_id, report);
                 let mut c = self.done(st, "Convert mesh to solid");
-                c.touched_body = Some(id);
-                c.notice = meshbool::filled_text(filled_holes);
+                c.touched_body = Some(first_id);
+                let mut notes: Vec<String> = Vec::new();
+                if let Some(t) = meshbool::filled_text(filled_holes) {
+                    notes.push(t);
+                }
+                if pinches > 0 {
+                    notes.push(format!(
+                        "{pinches} edges where two parts of the mesh touched were separated"
+                    ));
+                }
+                if count > 1 {
+                    notes.push(format!(
+                        "the mesh had {count} separate pieces: a solid was made of each"
+                    ));
+                }
+                c.notice = if notes.is_empty() {
+                    None
+                } else {
+                    Some(notes.join("; "))
+                };
                 Ok(c)
             }
             Command::MeshSimplify {

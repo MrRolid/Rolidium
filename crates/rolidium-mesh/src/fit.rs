@@ -86,6 +86,9 @@ pub struct FitStats {
     pub ellipses: usize,
     /// The share (0 to 1) of the surface area in round faces.
     pub round_area: f64,
+    /// A free-form (organic) model: neither flat faces of a size nor round surfaces were found in a sample, so the search stopped early and nothing else
+    /// of these statistics is filled in. The model stays a mesh.
+    pub organic: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -733,6 +736,9 @@ struct Region {
 
 const NONE: u32 = u32::MAX;
 
+/// A mesh of fewer triangles is never judged to be a free-form model (its search is quick anyway).
+const ORGANIC_MIN_TRIANGLES: usize = 20_000;
+
 /// The largest angle (50 degrees) between the normals of two neighbouring facets of one round surface.
 const STEP_COS: f64 = 0.64;
 
@@ -927,6 +933,55 @@ pub fn fit(m: &TriMesh, o: &FitOptions, stop: &dyn Fn() -> bool) -> Option<Fitte
         let mut g_region = vec![NONE; ng];
         let mut order_g: Vec<usize> = (0..ng).collect();
         order_g.sort_by(|a, b| g_area[*a].total_cmp(&g_area[*b]));
+        // A free-form model is recognised early, from what the flat groups are and from a sample of the small ones: flat faces of a size hold the surface of a
+        // technical part, and round surfaces grow from many of the small groups; an organic model has neither, and the search of it would take minutes.
+        if n >= ORGANIC_MIN_TRIANGLES {
+            let big: f64 = (0..ng).filter(|g| groups[*g].len() >= 8).map(|g| g_area[g]).sum();
+            if big < 0.3 * total_area {
+                let small: Vec<usize> = order_g.iter().copied().filter(|g| groups[*g].len() < 8).collect();
+                let want = 300usize.min(small.len());
+                let mut hits = 0usize;
+                let mut areas: Vec<f64> = Vec::new();
+                for k in 0..want {
+                    if k % 32 == 0 && stop() {
+                        return None;
+                    }
+                    let seed = small[k * small.len() / want];
+                    // the area the best hypothesis explains
+                    let best_area = hypotheses(seed, &ctx, &o.allow, |_| true)
+                        .into_iter()
+                        .map(|s| {
+                            grow_groups(&s, seed, &ctx, tol_s, |_| true)
+                                .iter()
+                                .map(|g| g_area[*g as usize])
+                                .sum::<f64>()
+                        })
+                        .fold(0.0, f64::max);
+                    areas.push(best_area / total_area);
+                    if best_area >= 0.001 * total_area {
+                        hits += 1;
+                    }
+                }
+                if std::env::var_os("ROLIDIUM_DEBUG_CONVERT").is_some() {
+                    for lim in [1e-4, 3e-4, 1e-3, 3e-3, 1e-2] {
+                        eprintln!(
+                            "  grown area >= {lim}: {} of {want}",
+                            areas.iter().filter(|a| **a >= lim).count()
+                        );
+                    }
+                }
+                if std::env::var_os("ROLIDIUM_DEBUG_CONVERT").is_some() {
+                    eprintln!("organic test: big groups {:.1} % of the area, {hits} of {want} sampled small groups grow a surface", 100.0 * big / total_area);
+                }
+                if want > 0 && (hits as f64) < 0.05 * want as f64 {
+                    stats.organic = true;
+                    return Some(Fitted {
+                        stats,
+                        ..Default::default()
+                    });
+                }
+            }
+        }
         let mut failures = 0usize;
         let budget = 2000usize + ng / 50;
         // the search of round surfaces gets a time of its own that grows with the size of the mesh (an organic model has nothing to find and would take minutes)

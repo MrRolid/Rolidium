@@ -40,6 +40,8 @@ pub struct RepairKind {
     pub merge: bool,
     /// The triangles are turned to agree on what is outside.
     pub orient: bool,
+    /// Places where two parts of the mesh touch along an edge are separated (the vertices there are doubled).
+    pub split: bool,
 }
 
 /// Moves a planar wall of a mesh body by `distance` along its normal; with `tilt` the walls next to it may slant. Gives the mesh and the vertices that moved.
@@ -85,7 +87,16 @@ pub(crate) fn repair(b: &MeshBody, kind: RepairKind) -> (TriMesh, String) {
     } else {
         0
     };
-    (m, format!("{merged} vertices merged, {turned} triangles turned"))
+    let split = if kind.split {
+        check::separate_pinches(&mut m)
+    } else {
+        0
+    };
+    let mut text = format!("{merged} vertices merged, {turned} triangles turned");
+    if split > 0 {
+        text.push_str(&format!(", {split} edges separated"));
+    }
+    (m, text)
 }
 
 /// The triangles of the visible meshes of a document as one soup (for the STL export of the whole document or of some bodies).

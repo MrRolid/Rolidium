@@ -564,3 +564,30 @@ An own implementation (`rolidium_mesh::simplify`, no dependency): edge collapse 
 ## D68: Stretch across a plane
 
 The part of a body on the side of the normal moves by a distance along it and the gap is filled with the cross-section swept the same way. **Mesh** (`rolidium_mesh::planesweep`): the vertices are classified by the signed distance, the triangles that the plane crosses are cut exactly, the loops of the cross-section get a lower copy (stays) and an upper copy (moves with the whole positive side), and the two are joined by quads; O(n), 500 000 triangles in 0.07 s, so the preview is made on every change. It works on any closed mesh (an organic one too), refuses with a sentence when the mesh is open along the plane, and a negative distance cuts out a straight layer. **Solid** (`Solid::stretched`): the solid is split by two half-spaces, the face of the lower part that lies in the plane is pulled by the distance (a prism of its outline, holes included), the upper part is moved, and the two are fused and unified; the rounds, holes and pockets on each side keep their size because they are not touched. There is no preview of a solid (the plane and the arrow are drawn); the mesh preview is drawn in place of the original. One step of Undo.
+
+## D69: No timeline of the history (direct modelling stays)
+
+The tester of 0.3.2 sent a picture of another program that has a timeline of the steps of a model. Rolidium does **not** get one. It is a direct modeller: the model is what is on the screen, an edit is made on the faces
+(pull, move, change the diameter of a hole), and Undo goes back one step at a time. What must follow an edit is made a *link* that remembers its parameters (a pattern, a mirror, a joint with a screw, D47), not a step of a
+history that is replayed. The reasons: a replayed history breaks when an early step changes (the faces it refers to change their numbers), which is the main trouble of the programs that have one; it asks the person to
+think in the order of the steps instead of in the shape; meshes and imported solids have no history at all and are first-class bodies here. What remains of value in a timeline (to see and change what was made) is
+served by the list of bodies, the properties of a hole or a round (their size can be changed later), and the links.
+
+## D70: A conversion that fails must fail fast, and a mesh is made of what it is (0.3.2, second round)
+
+**Why the conversion of a part with small details failed (body-edc.stl, 30 848 triangles, 70 s and "invalid solid").** The faces were made, every edge was shared by exactly two faces in the data, but the shell had 762 edges that
+belonged to one face only. The cause was `BRepBuilderAPI_MakeWire`: it joins an edge to the wire by looking at the *points* and replaces an edge by a copy with other vertices when two different points lie within each other's
+tolerance; a part with details of the size of the accuracy (here ribs 0.05 to 0.2 mm wide, tolerance 0.02) has such points, so the neighbouring face no longer shared the edge. The wires are now put together edge by edge with
+`BRep_Builder` (the edges and vertices are the shared ones by construction), for the flat and for the round route. A face of one loop is no longer healed (the healing took two thirds of the time and changed nothing); one
+with holes still is. **Failing fast:** after the faces are made, a shell with an edge of one face (`solid_from_polygons`) or a sewing that leaves free edges (`solid_from_surfaces`) says so at once instead of going on to
+the healing and the validity checks (10 s each on 10 000 faces, minutes on 60 000). The flat route tries the accuracy as given, then a fifth of it (not below 0.0002 mm), then a face for every triangle; the whole conversion
+gives up with the reason after `30 s + triangles / 4000` (it was never given up before). The volume of the solid must agree with the mesh within 0.3 % plus 5 % of the share of the round surfaces (what the facets of a
+coarse mesh lose against the true surfaces), no longer a flat 2 %.
+**A free shape is told from a technical part early** (`fit`, from 20 000 triangles): when flat groups of 8 triangles and more hold less than 30 % of the surface, 300 of the small groups are tried as seeds of round
+surfaces, and when fewer than 5 % of them grow a surface of at least 0.1 % of the whole surface, the search stops with *Organic model, it stays a mesh* (the cat of 493 772 triangles: 2.2 s instead of 87 s). The quick search
+after the import (walls and round holes, `regions::find_with`) was never the slow part and is unchanged (1.3 s for the cat).
+**Parts that touch along an edge** (four triangles share an edge: LPcatBP.stl has seven such edges): the triangles round the edge are paired by the way they lie round it (the pair that encloses a wedge of material) and the
+vertices of the fans are doubled, the copy moved 0.00003 mm into its own material so that a later weld of equal points does not join it again (`check::separate_pinches`). The check offers it as a repair ("Separate the
+parts that touch"), and the conversion does it on its working copy and says so; a mesh of several pieces becomes a solid for every piece (several bodies). A group of triangles whose boundary cannot be traced is taken
+apart into triangles, never dropped.
+**Progress:** the busy overlay (already there for every long calculation: a spinner, the seconds, Cancel, Esc) shows what the conversion is doing now and how far it is (`rolidium_doc::progress`).

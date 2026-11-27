@@ -136,6 +136,8 @@ pub struct MeshUi {
 pub enum Fix {
     Join,
     Turn,
+    /// Parts that touch along an edge are separated.
+    Split,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -195,14 +197,25 @@ pub fn findings(a: &check::Analysis) -> Vec<Finding> {
         });
     }
     if rest.non_manifold_edges > 0 {
-        v.push(Finding {
-            text: trf(
-                "{} edges are shared by more than two faces (for example two parts touch along an edge). Slicers usually cope with this. The buttons do not repair it",
-                &[rest.non_manifold_edges.to_string()],
-            ),
-            level: Level::Note,
-            fix: None,
-        });
+        if a.pinches > 0 {
+            v.push(Finding {
+                text: trf(
+                    "{} edges are shared by more than two faces: two parts of the model touch along an edge. Separating them makes the mesh whole again, and it can then be made a solid (a piece each)",
+                    &[rest.non_manifold_edges.to_string()],
+                ),
+                level: Level::Warn,
+                fix: Some((Fix::Split, tr("Separate the parts that touch"))),
+            });
+        } else {
+            v.push(Finding {
+                text: trf(
+                    "{} edges are shared by more than two faces (for example two parts touch along an edge). Slicers usually cope with this. The buttons do not repair it",
+                    &[rest.non_manifold_edges.to_string()],
+                ),
+                level: Level::Note,
+                fix: None,
+            });
+        }
     }
     if rest.degenerate > 0 {
         v.push(Finding {
@@ -237,7 +250,19 @@ pub fn findings_text(a: &check::Analysis) -> String {
 }
 
 /// What a repair did, in one sentence.
-pub fn repair_sentence(merged: usize, turned: usize) -> String {
+pub fn repair_sentence(merged: usize, turned: usize, split: usize) -> String {
+    if split > 0 {
+        let base = repair_sentence(merged, turned, 0);
+        let base = if merged == 0 && turned == 0 {
+            String::new()
+        } else {
+            format!("{base}; ")
+        };
+        return format!(
+            "{base}{}",
+            trf("Separated {} edges where parts touched", &[split.to_string()])
+        );
+    }
     match (merged > 0, turned > 0) {
         (true, true) => trf(
             "Joined {} loose joints and turned {} triangles outwards",
@@ -250,10 +275,15 @@ pub fn repair_sentence(merged: usize, turned: usize) -> String {
 }
 
 /// Reads the sentence of the document ("12 vertices merged, 8 triangles turned") back into numbers.
-pub fn parse_repair_notice(n: &str) -> Option<(usize, usize)> {
+pub fn parse_repair_notice(n: &str) -> Option<(usize, usize, usize)> {
     let (a, b) = n.split_once(" vertices merged, ")?;
-    let b = b.strip_suffix(" triangles turned")?;
-    Some((a.parse().ok()?, b.parse().ok()?))
+    let (b, rest) = b.split_once(" triangles turned")?;
+    let split = rest
+        .strip_prefix(", ")
+        .and_then(|r| r.strip_suffix(" edges separated"))
+        .and_then(|r| r.parse().ok())
+        .unwrap_or(0);
+    Some((a.parse().ok()?, b.parse().ok()?, split))
 }
 
 /// Draws the findings; the result is the repair whose button was clicked. `ids` are the names of the buttons for the scripted tests.
@@ -275,7 +305,14 @@ fn findings_ui(
         ui.add(egui::Label::new(egui::RichText::new(&f.text).color(color)).wrap());
         if let Some((fix, label)) = &f.fix {
             let r = ui.add_enabled(enabled, egui::Button::new(label));
-            app.probe_widget(if *fix == Fix::Join { ids.0 } else { ids.1 }, r.rect);
+            app.probe_widget(
+                match fix {
+                    Fix::Join => ids.0,
+                    Fix::Turn => ids.1,
+                    Fix::Split => "mesh_split",
+                },
+                r.rect,
+            );
             if r.clicked() {
                 clicked = Some(*fix);
             }
@@ -480,6 +517,7 @@ impl App {
                     kind: rolidium_doc::RepairKind {
                         merge: fix == Fix::Join,
                         orient: fix == Fix::Turn,
+                        split: fix == Fix::Split,
                     },
                 });
             }
@@ -930,7 +968,7 @@ impl App {
                         0
                     };
                     let analysis = check::analyse(&mesh);
-                    let note = repair_sentence(merged, turned);
+                    let note = repair_sentence(merged, turned, 0);
                     let _ = tx.send((k, mesh, analysis, note));
                     ctx2.request_repaint();
                 });

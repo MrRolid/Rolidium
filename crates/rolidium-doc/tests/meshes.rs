@@ -176,6 +176,7 @@ fn move_mirror_scale_pattern_and_repair() {
             kind: RepairKind {
                 merge: true,
                 orient: true,
+                split: false,
             },
         })
         .unwrap();

@@ -74,6 +74,11 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Result.hxx>
+#include <BRepCheck_ListOfStatus.hxx>
+#include <cstdio>
+#include <functional>
+#include <map>
 #include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
@@ -589,6 +594,8 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
                                            rust::Slice<const uint32_t> face_offsets, rust::Slice<const double> point_tol,
                                            rust::Slice<const uint32_t> fallback_vertices, rust::Slice<const uint32_t> fallback_offsets, double tol) {
     return guarded("solid_from_polygons", [&] {
+        const auto t_start = std::chrono::steady_clock::now();
+        auto since = [&] { return std::chrono::duration<double>(std::chrono::steady_clock::now() - t_start).count(); };
         const size_t np = pts.size() / 3;
         BRep_Builder bb;
         std::vector<TopoDS_Vertex> verts(np);
@@ -618,11 +625,15 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
             }
             return a < b ? it->second : TopoDS::Edge(it->second.Reversed());
         };
+        // the wire is put together edge by edge without the connection checks of BRepBuilderAPI_MakeWire: those take two different points that lie within each other's
+        // tolerance for one and replace an edge by a copy with other vertices, and the neighbouring face no longer shares it (a hole in the shell). Here the vertices are
+        // the shared ones by construction.
         auto wire_of = [&](const uint32_t* v, size_t n) -> TopoDS_Wire {
-            BRepBuilderAPI_MakeWire mw;
-            for (size_t k = 0; k < n; ++k) mw.Add(edge(v[k], v[(k + 1) % n]));
-            if (!mw.IsDone()) fail("a loop of a face is not closed");
-            return mw.Wire();
+            TopoDS_Wire w;
+            bb.MakeWire(w);
+            for (size_t k = 0; k < n; ++k) bb.Add(w, edge(v[k], v[(k + 1) % n]));
+            w.Closed(Standard_True);
+            return w;
         };
         // every edge is made before any face: building a face may raise the tolerance of the points, and an edge cannot be made between points that are
         // closer than their tolerances
@@ -635,9 +646,12 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
                 for (int c = 0; c < 3; ++c) edge(fallback_vertices[3 * t + c], fallback_vertices[3 * t + (c + 1) % 3]);
             }
         }
+        if (std::getenv("ROLIDIUM_DEBUG_CONVERT")) std::fprintf(stderr, "polygons: edges made at %.2f s\n", since());
         TopoDS_Shell shell;
         bb.MakeShell(shell);
         size_t added = 0;
+        size_t via_fallback = 0;
+        std::vector<std::pair<TopoDS_Shape, size_t>> origin;
         const size_t nf = face_offsets.size() - 1;
         for (size_t f = 0; f < nf; ++f) {
             if (face_offsets[f] == face_offsets[f + 1]) continue;
@@ -649,16 +663,30 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
                     for (uint32_t l = l0 + 1; l < face_offsets[f + 1]; ++l) {
                         mf.Add(wire_of(&loop_vertices[loop_offsets[l]], loop_offsets[l + 1] - loop_offsets[l]));
                     }
-                    ShapeFix_Face fix(mf.Face());
-                    fix.FixOrientation();
-                    fix.Perform();
-                    bb.Add(shell, fix.Face());
-                    ++added;
+                    // a face of one loop needs no healing (the shell is oriented afterwards); one with holes is healed (the orientation of the holes), and a face whose outline
+                    // touches itself is split into several by that: all of them belong to the shell
+                    TopoDS_Shape healed = mf.Face();
+                    if (face_offsets[f + 1] - face_offsets[f] > 1) {
+                        ShapeFix_Face fix(mf.Face());
+                        fix.FixOrientation();
+                        fix.Perform();
+                        healed = fix.Result();
+                    }
+                    int got = 0;
+                    for (TopExp_Explorer fx(healed, TopAbs_FACE); fx.More(); fx.Next()) {
+                        bb.Add(shell, fx.Current());
+                        origin.emplace_back(fx.Current(), f);
+                        ++added;
+                        ++got;
+                    }
+                    if (got != 1 && std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "polygons: face %d came out of the healing as %d faces (%d loops)\n", (int)f, got, (int)(face_offsets[f + 1] - face_offsets[f]));
                     made_face = true;
                 }
             } catch (...) {
             }
+            if (!made_face && std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "polygons: face %d (%d loops) could not be made as a face\n", (int)f, (int)(face_offsets[f + 1] - face_offsets[f]));
             if (!made_face) {
+                ++via_fallback;
                 if (fallback_offsets[f] == fallback_offsets[f + 1]) fail("a flat face could not be made (its outline is not flat within the tolerance)");
                 for (uint32_t k = fallback_offsets[f]; k < fallback_offsets[f + 1]; ++k) {
                     uint32_t v[3] = {fallback_vertices[3 * k], fallback_vertices[3 * k + 1], fallback_vertices[3 * k + 2]};
@@ -667,12 +695,61 @@ std::shared_ptr<Shape> solid_from_polygons(rust::Slice<const double> pts, rust::
                     ShapeFix_Face fix(mt.Face());
                     fix.FixOrientation();
                     fix.Perform();
-                    bb.Add(shell, fix.Face());
-                    ++added;
+                    for (TopExp_Explorer fx(fix.Result(), TopAbs_FACE); fx.More(); fx.Next()) {
+                        bb.Add(shell, fx.Current());
+                        origin.emplace_back(fx.Current(), f);
+                        ++added;
+                    }
                 }
             }
         }
         if (added == 0) fail("there are no faces");
+        if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) {
+            TopTools_IndexedDataMapOfShapeListOfShape em;
+            TopExp::MapShapesAndAncestors(shell, TopAbs_EDGE, TopAbs_FACE, em);
+            std::map<int, int> by_faces;
+            for (int i = 1; i <= em.Extent(); ++i) by_faces[em.FindFromIndex(i).Extent()]++;
+            for (auto& kv : by_faces) std::fprintf(stderr, "polygons: %d edges with %d faces\n", kv.second, kv.first);
+            int shown = 0;
+            for (int i = 1; i <= em.Extent() && shown < 12; ++i) {
+                if (em.FindFromIndex(i).Extent() != 1) continue;
+                const TopoDS_Edge& fe = TopoDS::Edge(em.FindKey(i));
+                TopoDS_Vertex v0, v1;
+                TopExp::Vertices(fe, v0, v1);
+                gp_Pnt a = BRep_Tool::Pnt(v0), b = BRep_Tool::Pnt(v1);
+                size_t of = 0;
+                for (auto& o : origin) if (o.first.IsSame(em.FindFromIndex(i).First())) of = o.second;
+                std::fprintf(stderr, "polygons: free edge (%g %g %g) - (%g %g %g) length %g, face %d with %d loops, tolerances %g %g\n", a.X(), a.Y(), a.Z(), b.X(), b.Y(), b.Z(), a.Distance(b), (int)of, (int)(face_offsets[of + 1] - face_offsets[of]), BRep_Tool::Tolerance(v0), BRep_Tool::Tolerance(v1));
+                ++shown;
+            }
+            TopTools_IndexedMapOfShape fm;
+            TopExp::MapShapes(shell, TopAbs_FACE, fm);
+            std::vector<int> parent(fm.Extent() + 1);
+            for (int i = 0; i <= fm.Extent(); ++i) parent[i] = i;
+            std::function<int(int)> find = [&](int x) { return parent[x] == x ? x : parent[x] = find(parent[x]); };
+            for (int i = 1; i <= em.Extent(); ++i) {
+                int first = 0;
+                for (const TopoDS_Shape& f : em.FindFromIndex(i)) {
+                    int k = fm.FindIndex(f);
+                    if (!first) first = k; else parent[find(k)] = find(first);
+                }
+            }
+            std::map<int, int> sizes;
+            for (int i = 1; i <= fm.Extent(); ++i) sizes[find(i)]++;
+            std::fprintf(stderr, "polygons: %d faces in %d pieces, %d made of triangles\n", (int)fm.Extent(), (int)sizes.size(), (int)via_fallback);
+        }
+        if (std::getenv("ROLIDIUM_DEBUG_CONVERT")) std::fprintf(stderr, "polygons: faces made at %.2f s\n", since());
+        {
+            // the shell as built: an edge that belongs to one face only is a hole in it (the faces were made of shared edges, so the faces do not close only when the
+            // points are closer together than their tolerances: parts as thin as the accuracy). Saying so now saves the checks, which take minutes on a big shell.
+            TopTools_IndexedDataMapOfShapeListOfShape em;
+            TopExp::MapShapesAndAncestors(shell, TopAbs_EDGE, TopAbs_FACE, em);
+            int open_edges = 0;
+            for (int i = 1; i <= em.Extent(); ++i) if (em.FindFromIndex(i).Extent() == 1) ++open_edges;
+            if (open_edges > 0) {
+                fail("the flat faces do not close (" + std::to_string(open_edges) + " edges belong to one face only; the part has details as small as the accuracy)");
+            }
+        }
         ShapeFix_Shell fs(shell);
         fs.FixFaceOrientation(shell);
         fs.Perform();
@@ -741,13 +818,15 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 }
                 if (a == b) p1 = p0 + 2.0 * M_PI;
                 else if (p1 <= p0) p1 += 2.0 * M_PI;
+                // the points must lie on the curve within the tolerance of the vertex (before the edge is made: it refuses a vertex that is farther)
+                {
+                    gp_Pnt qa = curve->Value(p0), qb = curve->Value(p1);
+                    bb.UpdateVertex(vertex(a), std::max(ptol(a), qa.Distance(pnt(a)) * 1.01 + 1e-7));
+                    bb.UpdateVertex(vertex(b), std::max(ptol(b), qb.Distance(pnt(b)) * 1.01 + 1e-7));
+                }
                 BRepBuilderAPI_MakeEdge me(curve, vertex(a), vertex(b), p0, p1);
                 if (!me.IsDone()) fail("an arc of a face could not be made (edge " + std::to_string(e) + ", kind " + std::to_string(edge_kind[e]) + ", error " + std::to_string((int)me.Error()) + ", parameters " + std::to_string(p0) + " " + std::to_string(p1) + ", radius " + std::to_string(p[9]) + ")");
                 edges[e] = me.Edge();
-                // the points must lie on the curve within the tolerance of the vertex
-                gp_Pnt qa = curve->Value(p0), qb = curve->Value(p1);
-                bb.UpdateVertex(vertex(a), std::max(ptol(a), qa.Distance(pnt(a)) * 1.01 + 1e-7));
-                bb.UpdateVertex(vertex(b), std::max(ptol(b), qb.Distance(pnt(b)) * 1.01 + 1e-7));
             }
             bb.UpdateEdge(edges[e], etol);
             bb.UpdateVertex(vertex(a), etol);
@@ -768,16 +847,19 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 default: fail("unknown surface kind");
             }
         }
+        // put together edge by edge, without the connection checks of BRepBuilderAPI_MakeWire (which replaces an edge by a copy when two different points lie
+        // within each other's tolerance, and then the neighbouring face no longer shares the edge)
         auto wire_of = [&](size_t l) -> TopoDS_Wire {
-            BRepBuilderAPI_MakeWire mw;
+            TopoDS_Wire w;
+            bb.MakeWire(w);
             for (uint32_t k = loop_offsets[l]; k < loop_offsets[l + 1]; ++k) {
                 const uint32_t code = loop_edges[k];
                 TopoDS_Edge e = edges[code >> 1];
                 if (code & 1) e.Reverse();
-                mw.Add(e);
+                bb.Add(w, e);
             }
-            if (!mw.IsDone()) fail("a loop of a face is not closed");
-            return mw.Wire();
+            w.Closed(Standard_True);
+            return w;
         };
         double sew_tol = std::max(tol, 1e-6);
         for (double t : edge_tol) sew_tol = std::max(sew_tol, 2.0 * t);
@@ -870,6 +952,8 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
         if (added == 0) fail("there are no faces");
         sew.Perform();
         if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "sewing: free %d multiple %d degenerated %d\n", sew.NbFreeEdges(), sew.NbMultipleEdges(), sew.NbDegeneratedShapes());
+        // faces that were not sewn into a closed shell do not become a solid whatever is done to them afterwards; saying so now saves the healing and the checks
+        if (sew.NbFreeEdges() > 0) fail("the faces could not be sewn together (" + std::to_string(sew.NbFreeEdges()) + " edges stay open)");
         TopoDS_Shape sewn = sew.SewedShape();
         TopoDS_Shell shell;
         for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) { shell = TopoDS::Shell(ex.Current()); break; }
@@ -1839,7 +1923,26 @@ bool check_shape(const Shape& sh) {
         std::lock_guard<std::recursive_mutex> lock(g_lock);
         StageTimer st("validity check");
         BRepCheck_Analyzer an(sh.s, /*GeomControls=*/false, /*isParallel=*/true);
-        return an.IsValid();
+        const bool ok = an.IsValid();
+        if (!ok && std::getenv("ROLIDIUM_DEBUG_CONVERT")) {
+            // what is wrong, by kind of sub-shape and status (BRepCheck_Status numbers), for the diagnosis of a conversion
+            const TopAbs_ShapeEnum kinds[] = {TopAbs_VERTEX, TopAbs_EDGE, TopAbs_WIRE, TopAbs_FACE, TopAbs_SHELL, TopAbs_SOLID};
+            const char* names[] = {"vertex", "edge", "wire", "face", "shell", "solid"};
+            for (int k = 0; k < 6; ++k) {
+                TopTools_IndexedMapOfShape m;
+                TopExp::MapShapes(sh.s, kinds[k], m);
+                std::map<int, int> counts;
+                for (int i = 1; i <= m.Extent(); ++i) {
+                    Handle(BRepCheck_Result) r = an.Result(m(i));
+                    if (r.IsNull()) continue;
+                    for (BRepCheck_ListOfStatus::Iterator it(r->Status()); it.More(); it.Next()) {
+                        if (it.Value() != BRepCheck_NoError) counts[(int)it.Value()]++;
+                    }
+                }
+                for (auto& kv : counts) std::fprintf(stderr, "  check: %s status %d x %d\n", names[k], kv.first, kv.second);
+            }
+        }
+        return ok;
     } catch (...) {
         return false;
     }

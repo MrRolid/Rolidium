@@ -769,6 +769,26 @@ impl Solid {
         distance: f64,
         touching: &[usize],
     ) -> Result<OpResult> {
+        self.pull_face_blends(face, distance, touching, true)
+    }
+
+    /// The pull of [`Self::pull_face`] when the rounds and chamfers next to the face cannot be made again after it: they are taken out and
+    /// not made again (they are gone). `Err` when no round touches the face or the pull itself fails.
+    pub fn pull_face_dropping_blends(&self, face: FaceId, distance: f64) -> Result<OpResult> {
+        let touching = self.blend_map().touching(face);
+        if touching.is_empty() {
+            return Err(KernelError::Invalid("no round touches the face".into()));
+        }
+        self.pull_face_blends(face, distance, &touching, false)
+    }
+
+    fn pull_face_blends(
+        &self,
+        face: FaceId,
+        distance: f64,
+        touching: &[usize],
+        remake: bool,
+    ) -> Result<OpResult> {
         let map = self.blend_map();
         let info = self.face_info(face)?;
         let n = info.normal.normalize();
@@ -856,9 +876,13 @@ impl Solid {
             v
         };
         let items: Vec<Item> = roundings.iter().map(|r| (*r, r.size, None)).collect();
-        let made = crate::timing::stage("rounds: make them again", || {
-            sharp.make_roundings(&items, &locate)
-        })?;
+        let made = if remake {
+            crate::timing::stage("rounds: make them again", || {
+                sharp.make_roundings(&items, &locate)
+            })?
+        } else {
+            None
+        };
         let (result, hist) = match made {
             Some(m) => (m.solid, open.history.compose(&moved.history).compose(&m.history)),
             None => (moved.solid.clone(), open.history.compose(&moved.history)),

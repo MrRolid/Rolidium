@@ -197,14 +197,27 @@ fn the_panel_commands_move_a_face_with_its_rounds_and_a_failure_changes_nothing(
     assert_eq!(b.solid.face_count(), faces);
     assert!(b.features.len() >= 4, "{} rounds", b.features.len());
     assert!(b.features.iter().all(|f| (f.size - 3.0).abs() < 1e-9));
-    // too far inwards: refused, nothing changes
+    // inwards so far that the rounds no longer fit: the wall is moved without them and a notice says so (never a refusal that is about the round)
+    let c = d
+        .apply(Command::PullFace {
+            body: id,
+            face: top(&d),
+            distance: -24.0,
+            mode: PullMode::Auto,
+        })
+        .unwrap();
+    assert!(c.notice.unwrap().contains("round"), "the notice names the round");
+    let b = d.body(id).unwrap();
+    let (lo, hi) = b.solid.bounding_box().unwrap();
+    assert!((hi.z - lo.z - 1.0).abs() < 1e-6);
+    // through the whole body: refused, nothing changes
     let rev = d.revision();
     let vol = d.body(id).unwrap().solid.volume().unwrap();
     let e = d
         .apply(Command::PullFace {
             body: id,
             face: top(&d),
-            distance: -24.0,
+            distance: -30.0,
             mode: PullMode::Auto,
         })
         .unwrap_err();
