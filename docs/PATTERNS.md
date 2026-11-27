@@ -77,3 +77,10 @@ In a sketch **T** (and **B**) open the same steps for the shapes of the sketch: 
 then a click on the guide: a line gives the direction of the row, a circle or an arc its centre, a point of the sketch the centre, an edge of a body a direction. The numbers follow in the panel; "All the shapes of the sketch"
 is a choice there. The copies are ordinary shapes of the sketch. A **pattern along a curve** keeps the curve it follows (a curve of the document, a chain of lines and arcs of a sketch, the edges of a body): when the
 curve is changed the pieces move (`PathParams::source`).
+
+### Along a line or a curve: the pieces stand on the curve
+
+"Along a line or a curve" puts the pieces on the curve itself, from its start to its end: along a line over its whole length, on an arc only on the arc, on a circle all round. A chain of shapes that continue each other
+(the four sides of a rectangle, a polygon, lines and arcs one after another) is one curve; the panel can take only the shape that was clicked. The pieces: the number (spread evenly over the whole length) or the distance between
+them, *A piece at the start and at the end* (an open curve), the distances left free at both ends, *turn with the curve*, and *The pieces stand on the curve* (the centre of the object goes to every place and the object stays
+where it is; without it the first piece is the object and the others follow the shape of the curve from it). The pattern is a link that keeps the curve. With an arc as the guide of "round a point" the angle is the span of the arc.

@@ -46,6 +46,8 @@ fn id_buffer_identifies_faces() {
         render_ids: true,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     let ids = r.read_ids(&device, &queue, &frame).unwrap();
 
@@ -74,6 +76,8 @@ fn id_buffer_identifies_faces() {
         render_ids: true,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     let ids = r.read_ids(&device, &queue, &frame).unwrap();
     // Ignore single-pixel cracks along shared edges (faces do not share vertices).
@@ -120,6 +124,8 @@ fn offscreen_render_is_not_blank_and_highlights() {
         render_ids: true,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     let plain = r.render_to_rgba(&device, &queue, &frame).unwrap();
     assert_eq!(plain.len(), 160 * 120 * 4);
@@ -182,6 +188,8 @@ fn grid_is_visible_far_away_at_a_low_viewing_angle() {
         render_ids: false,
         grid_levels: None,
         scene_radius: 190.0,
+        xray: false,
+        clip: None,
     };
     let rgba = r.render_to_rgba(&device, &queue, &frame).unwrap();
     if std::env::var_os("ROLIDIUM_SAVE_SCENE").is_some() {
@@ -211,4 +219,57 @@ fn grid_is_visible_far_away_at_a_low_viewing_angle() {
         rows_with_grid > 40,
         "only {rows_with_grid} rows of the upper half show the grid: it fades out too early"
     );
+}
+
+#[test]
+fn a_section_cuts_the_picture_and_fills_the_cut_and_x_ray_shows_through() {
+    // a hollow box seen from the front: with a section through the middle the walls are cut and painted; X-ray changes the picture too
+    let (device, queue, mut r) = setup();
+    let b = Solid::cuboid(DVec3::ZERO, DVec3::new(40.0, 40.0, 40.0)).unwrap();
+    let top = b
+        .faces()
+        .find(|f| b.face_info(*f).unwrap().normal.z > 0.9)
+        .unwrap();
+    let hollow = b.shell(&[top], 4.0, true, false).unwrap().solid;
+    let mesh = hollow.view_mesh(0.05, 200_000, None).unwrap();
+    r.set_bodies(
+        &device,
+        &[BodyDraw {
+            id: 1,
+            mesh: &mesh,
+            color: [0.7, 0.7, 0.75],
+            stamp: 0,
+        }],
+    );
+    let mut cam = Camera::default();
+    cam.set_view(StandardView::Front);
+    cam.fit(glam::Vec3::ZERO, glam::Vec3::splat(40.0));
+    let mut frame = Frame {
+        camera: cam,
+        hover: ID_NONE,
+        selected: vec![],
+        body_marks: vec![],
+        size: [200, 200],
+        grid: None,
+        render_ids: false,
+        grid_levels: None,
+        scene_radius: 0.0,
+        xray: false,
+        clip: None,
+    };
+    let plain = r.render_to_rgba(&device, &queue, &frame).unwrap();
+    // the plane y = 20 and what lies behind it (larger y) stays: the camera in front sees into the cut
+    frame.clip = Some([0.0, 1.0, 0.0, -20.0]);
+    let cut = r.render_to_rgba(&device, &queue, &frame).unwrap();
+    let cap = |img: &[u8]| {
+        img.chunks(4)
+            .filter(|p| p[0] > 200 && p[1] > 130 && p[1] < 190 && p[2] < 110)
+            .count()
+    };
+    assert_eq!(cap(&plain), 0, "no cut colour without a section");
+    assert!(cap(&cut) > 300, "the walls of the cut are painted: {}", cap(&cut));
+    frame.clip = None;
+    frame.xray = true;
+    let xr = r.render_to_rgba(&device, &queue, &frame).unwrap();
+    assert_ne!(plain, xr, "X-ray changes the picture");
 }

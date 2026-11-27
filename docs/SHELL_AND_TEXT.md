@@ -9,10 +9,13 @@ remember their numbers and the place they work at, the body they made is a deriv
 2. Click the faces that should disappear (**Ctrl** or **Shift** adds more). With no face the result is a closed hollow body (a cavity inside).
 3. Set the **wall thickness** and the side the walls grow to: **Inwards** (the outside of the body stays), **Outwards** (the inside stays) or **Both ways** (half of the wall on each side of the
    surface). *Round the corners that stick out* rounds the outer corners of an outward shell instead of mitring them.
-4. The preview (the hollow body, translucent, in the place of the original) is calculated while you type and appears by itself; **Enter** or *Apply* makes the shell, **Esc** cancels.
-5. **Thicken walls**: choose it, click the walls, type how much thicker (a negative number: thinner) and press *Apply to the chosen walls*. Only flat walls can be changed one by one. The list in
+4. A click on a wall of the body opens that wall at once (a box becomes a box open at that side); the panel counts the *Removed walls* and a *Closed hollow body (no opening)* is a choice of its own.
+   *Round the inner edges* and *Round the outer edges* round the edges of the hollow and of the outside with a radius. While the preview is shown a **section** through the middle of the body is turned on
+   by itself (and off again when the tool ends) so that the thickness of the walls is seen.
+5. The preview (the hollow body, translucent, in the place of the original) is calculated while you type and appears by itself; **Enter** or *Apply* makes the shell, **Esc** cancels.
+6. **Thicken walls**: choose it, click the walls, type how much thicker (a negative number: thinner) and press *Apply to the chosen walls*. Only flat walls can be changed one by one. The list in
    the panel shows each change with a *Remove* button, and the list of opened faces has a *Close* button for each.
-6. A click on the shell in the list (*Links*) opens the panel again: change the thickness, the side, the openings; the body is calculated again. *Remove the shell* gives the solid body back.
+7. A click on the shell in the list (*Links*) opens the panel again: change the thickness, the side, the openings; the body is calculated again. *Remove the shell* gives the solid body back.
 
 **Small features.** A text, a hole or a pin that is thinner than the wall cannot be followed by the offset the shell is made of. When the shell fails, Rolidium takes these features off (the text of the
 links on the body, the round holes and pins), makes the shell of the plain body and puts them back; the panel says so. A text that is engraved 0.6 mm into a 2 mm wall stays where it was. A text or a pocket
@@ -52,3 +55,11 @@ Script word: `text "words" at x y z [normal nx ny nz] [height h] [depth d] [engr
 ### Not done yet
 Text on a curved face, SVG import (the outlines of a logo as shapes of a sketch), a font file of the person, kerning (the pairs of letters are spaced by the advance widths only) and the conversion of a text
 into shapes of a sketch.
+
+
+## X-ray (Q) and Section (Y)
+
+Two ways of looking inside that change only the picture. **X-ray** shows every body half transparent with all its edges; the selected body is less transparent. **Section** cuts the picture with a plane:
+choose X, Y or Z or *A face* (click a flat face), move the plane with the slider or type its position, *The other side* chooses what is cut away; the cut is filled with colour (the inside of the cut bodies
+is painted). Both are in the *View* block of the left column, work with every tool and are used by the Shell. In scripts: `render file.png [width height] [view] [xray] [section x|y|z <position> [flip]]`.
+Only what is shown can be clicked while a section is on.
