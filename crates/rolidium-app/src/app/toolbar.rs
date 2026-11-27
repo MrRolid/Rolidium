@@ -600,11 +600,6 @@ impl App {
                 self.activate_text();
             }
         });
-        let no_edge = if self.edge_sel.is_empty() {
-            Some("Select an edge first")
-        } else {
-            None
-        };
         let undo_why = busy.or(if self.doc.can_undo() {
             None
         } else {
@@ -630,7 +625,7 @@ impl App {
                 "round",
                 &tr("Round"),
                 !self.edge_chamfer,
-                no_edge,
+                None,
                 34.0,
                 "",
             )
@@ -644,7 +639,7 @@ impl App {
                 "chamfer",
                 &tr("Chamfer"),
                 self.edge_chamfer,
-                no_edge,
+                None,
                 34.0,
                 "",
             )
@@ -665,6 +660,14 @@ impl App {
             {
                 self.redo();
             }
+        });
+        // the size of a round or a chamfer can be set before an edge is clicked (the panel next to the edge starts with it and can change it)
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            ui.label(if self.edge_chamfer { tr("Chamfer") } else { tr("Round") });
+            let r = ui.add(egui::TextEdit::singleline(&mut self.edge_size_text).desired_width(40.0));
+            self.probe_widget("round_size", r.rect);
+            ui.label("mm");
         });
         ui.separator();
         ui.label(egui::RichText::new(tr("View")).strong());

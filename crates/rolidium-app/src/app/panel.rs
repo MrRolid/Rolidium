@@ -570,7 +570,13 @@ impl App {
         if key == self.dim.dismissed {
             return;
         }
-        let rows = target.rows();
+        let mut rows = target.rows();
+        // the field of a round says Radius, that of a chamfer Distance
+        for r in rows.iter_mut() {
+            if matches!(r.0, Row::EdgeSize) {
+                r.1 = tr(if self.edge_chamfer { "Distance" } else { "Radius" });
+            }
+        }
         let first = self.dim.key != key;
         if first {
             self.dim.key = key.clone();
