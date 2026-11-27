@@ -93,6 +93,9 @@
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <Geom_BezierCurve.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColStd_Array1OfInteger.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepOffset_Mode.hxx>
@@ -451,6 +454,24 @@ std::shared_ptr<Shape> make_planar_face(std::array<double, 9> pl, rust::Slice<co
                     if (!me.IsDone()) fail("a curve of the profile could not be made");
                     e = me.Edge();
                     i += need;
+                } else if (kind == 6) {
+                    if (i + 2 > n_all) fail("malformed profile");
+                    const int np = (int)prof[i + 1];
+                    if (np < 4 || (size_t)(i + 2 + 2 * np + (np - 1)) > n_all) fail("malformed profile");
+                    TColgp_Array1OfPnt poles(1, np);
+                    for (int k = 0; k < np; ++k) poles.SetValue(k + 1, P(prof[i + 2 + 2 * k], prof[i + 3 + 2 * k]));
+                    const int nk = np - 1;
+                    TColStd_Array1OfReal knots(1, nk);
+                    TColStd_Array1OfInteger mults(1, nk);
+                    for (int k = 0; k < nk; ++k) {
+                        knots.SetValue(k + 1, prof[i + 2 + 2 * np + k]);
+                        mults.SetValue(k + 1, (k == 0 || k == nk - 1) ? 3 : 1);
+                    }
+                    Handle(Geom_BSplineCurve) bs = new Geom_BSplineCurve(poles, knots, mults, 2);
+                    BRepBuilderAPI_MakeEdge me(bs);
+                    if (!me.IsDone()) fail("a curve of the profile could not be made");
+                    e = me.Edge();
+                    i += 2 + 2 * np + nk;
                 } else {
                     fail("unknown profile segment kind");
                 }

@@ -348,13 +348,18 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
     };
     // the outlines are the curves of the font (exact Bezier curves), so a letter has a face for every piece of it, not for every short line
     let to_loop = |segs: &[rolidium_text::Seg]| -> Vec<ProfileSegment> {
-        use rolidium_text::Seg;
+        use rolidium_text::Run;
         let q = |p: glam::DVec2| [p.x, p.y];
-        segs.iter()
-            .map(|g| match *g {
-                Seg::Line(a, b) => ProfileSegment::Line { a: q(a), b: q(b) },
-                Seg::Quad(a, c, b) => ProfileSegment::Quad { a: q(a), c: q(c), b: q(b) },
-                Seg::Cubic(a, c1, c2, b) => ProfileSegment::Cubic { a: q(a), c1: q(c1), c2: q(c2), b: q(b) },
+        rolidium_text::merge_runs(segs)
+            .into_iter()
+            .map(|g| match g {
+                Run::Line(a, b) => ProfileSegment::Line { a: q(a), b: q(b) },
+                Run::Quad(a, c, b) => ProfileSegment::Quad { a: q(a), c: q(c), b: q(b) },
+                Run::Cubic(a, c1, c2, b) => ProfileSegment::Cubic { a: q(a), c1: q(c1), c2: q(c2), b: q(b) },
+                Run::Spline2(p, k) => ProfileSegment::Spline2 {
+                    poles: p.into_iter().map(q).collect(),
+                    knots: k,
+                },
             })
             .collect()
     };
@@ -410,5 +415,6 @@ pub fn apply_text(base: &Solid, p: &TextParams) -> Result<Solid, DocError> {
     } else {
         BooleanOp::Fuse
     };
-    Ok(base.boolean_checked(&tool, op)?.solid)
+    // the faces of the letters are not coplanar with anything that could be merged: no unifying of faces (it took a tenth of the time for nothing)
+    Ok(base.boolean_unify_opt(&tool, op, false)?.solid)
 }

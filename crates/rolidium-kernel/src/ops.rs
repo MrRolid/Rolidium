@@ -37,7 +37,7 @@ pub struct FaceSpec {
 }
 
 /// One piece of a 2D profile, in plane coordinates.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ProfileSegment {
     Line {
         a: [f64; 2],
@@ -59,6 +59,12 @@ pub enum ProfileSegment {
         a: [f64; 2],
         c: [f64; 2],
         b: [f64; 2],
+    },
+    /// A quadratic B-spline that is smooth (C1) all along: `poles` (the first and the last are the ends) and the distinct `knots` (the first and the last with the
+    /// multiplicity 3, the others 1). A run of the curves of a font that continue each other is one such curve, so a side of a letter is one face.
+    Spline2 {
+        poles: Vec<[f64; 2]>,
+        knots: Vec<f64>,
     },
     /// A cubic Bezier curve.
     Cubic {
@@ -82,15 +88,22 @@ impl Profile {
             v.push(0.0);
             v.push(l.len() as f64);
             for s in l {
-                match *s {
+                match s {
                     ProfileSegment::Line { a, b } => v.extend([1.0, a[0], a[1], b[0], b[1]]),
                     ProfileSegment::Arc { a, mid, b } => {
                         v.extend([2.0, a[0], a[1], mid[0], mid[1], b[0], b[1]])
                     }
                     ProfileSegment::Circle { center, radius } => {
-                        v.extend([3.0, center[0], center[1], radius])
+                        v.extend([3.0, center[0], center[1], *radius])
                     }
                     ProfileSegment::Quad { a, c, b } => v.extend([4.0, a[0], a[1], c[0], c[1], b[0], b[1]]),
+                    ProfileSegment::Spline2 { poles, knots } => {
+                        v.extend([6.0, poles.len() as f64]);
+                        for p in poles.iter() {
+                            v.extend([p[0], p[1]]);
+                        }
+                        v.extend(knots.iter().copied());
+                    }
                     ProfileSegment::Cubic { a, c1, c2, b } => {
                         v.extend([5.0, a[0], a[1], c1[0], c1[1], c2[0], c2[1], b[0], b[1]])
                     }

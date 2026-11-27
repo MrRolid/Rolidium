@@ -159,6 +159,95 @@ impl Seg {
     }
 }
 
+/// A piece of an outline as it is handed on to make a solid: a line, a Bezier curve, or a smooth run of quadratic curves as one B-spline.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Run {
+    Line(DVec2, DVec2),
+    Quad(DVec2, DVec2, DVec2),
+    Cubic(DVec2, DVec2, DVec2, DVec2),
+    /// A C1 quadratic B-spline: the poles (the first and the last are the ends) and the distinct knots (the ends with the multiplicity 3, the others 1).
+    Spline2(Vec<DVec2>, Vec<f64>),
+}
+
+/// Joins the quadratic curves of an outline that continue each other smoothly (the joint is on the line between the two off-curve points, between them) into
+/// one B-spline each: a smooth side of a letter becomes one face instead of a face for each little curve.
+pub fn merge_runs(segs: &[Seg]) -> Vec<Run> {
+    let mut out: Vec<Run> = Vec::new();
+    // the run being collected: the start, the off-curve points and the joints between the curves
+    let mut cs: Vec<DVec2> = Vec::new();
+    let mut start = DVec2::ZERO;
+    let mut joints: Vec<DVec2> = Vec::new();
+    let mut end = DVec2::ZERO;
+    let flush = |out: &mut Vec<Run>, cs: &mut Vec<DVec2>, start: DVec2, joints: &mut Vec<DVec2>, end: DVec2| {
+        if cs.is_empty() {
+            return;
+        }
+        if cs.len() == 1 {
+            out.push(Run::Quad(start, cs[0], end));
+        } else {
+            // the knots from the position of the joints on the segments between the off-curve points
+            let n = cs.len();
+            let mut deltas = vec![1.0f64];
+            for i in 0..n - 1 {
+                let lam = (joints[i] - cs[i]).length() / (cs[i + 1] - cs[i]).length();
+                let prev = deltas[i];
+                deltas.push(prev * (1.0 - lam) / lam);
+            }
+            let mut knots = vec![0.0];
+            for d in &deltas {
+                knots.push(knots.last().copied().unwrap_or(0.0) + d);
+            }
+            let total = *knots.last().unwrap_or(&1.0);
+            for k in knots.iter_mut() {
+                *k /= total;
+            }
+            let mut poles = vec![start];
+            poles.extend(cs.iter().copied());
+            poles.push(end);
+            out.push(Run::Spline2(poles, knots));
+        }
+        cs.clear();
+        joints.clear();
+    };
+    for g in segs {
+        match *g {
+            Seg::Line(a, b) => {
+                flush(&mut out, &mut cs, start, &mut joints, end);
+                out.push(Run::Line(a, b));
+            }
+            Seg::Cubic(a, c1, c2, b) => {
+                flush(&mut out, &mut cs, start, &mut joints, end);
+                out.push(Run::Cubic(a, c1, c2, b));
+            }
+            Seg::Quad(a, c, b) => {
+                if cs.is_empty() {
+                    start = a;
+                    cs.push(c);
+                    end = b;
+                    continue;
+                }
+                // does this curve continue the last one smoothly? the joint `a` lies on the line between the last off-curve point and this one, between them
+                let last = *cs.last().unwrap_or(&c);
+                let (u, v) = (a - last, c - a);
+                let (lu, lv) = (u.length(), v.length());
+                let smooth = lu > 1e-9 && lv > 1e-9 && (u.perp_dot(v) / (lu * lv)).abs() < 1e-4 && u.dot(v) > 0.0 && (a - end).length() < 1e-9;
+                if smooth {
+                    joints.push(a);
+                    cs.push(c);
+                    end = b;
+                } else {
+                    flush(&mut out, &mut cs, start, &mut joints, end);
+                    start = a;
+                    cs.push(c);
+                    end = b;
+                }
+            }
+        }
+    }
+    flush(&mut out, &mut cs, start, &mut joints, end);
+    out
+}
+
 /// An outline turned the other way round.
 pub fn reverse_outline(c: &[Seg]) -> Vec<Seg> {
     c.iter().rev().map(Seg::reversed).collect()

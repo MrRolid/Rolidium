@@ -460,6 +460,9 @@ pub struct App {
     ctx_target: Option<CtxTarget>,
     rename: Option<(ItemId, String)>,
     chain_cache: std::cell::RefCell<ChainCache>,
+    /// The edges that a round also treats, asked on threads for bodies of many faces: what is being asked, and the answers that came.
+    chain_pending: std::cell::RefCell<std::collections::HashSet<(u64, BodyId, Vec<u32>, bool)>>,
+    chain_inbox: Arc<std::sync::Mutex<Vec<((u64, BodyId, Vec<u32>, bool), Vec<u32>)>>>,
     /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
     /// Fill tool: sketch lines chosen so far, and whether a Fill command is running (its result starts the Pull tool).
     fill_entities: Vec<(SketchId, EntityId)>,
@@ -710,6 +713,8 @@ impl App {
             ctx_target: None,
             rename: None,
             chain_cache: Default::default(),
+            chain_pending: Default::default(),
+            chain_inbox: Default::default(),
             fill_entities: Vec::new(),
             fill_pending: false,
             join: Default::default(),

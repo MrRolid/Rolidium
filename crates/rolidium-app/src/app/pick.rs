@@ -338,35 +338,26 @@ impl App {
         if let Some(v) = self.chain_cache.borrow().get(&key) {
             return v.clone();
         }
-        let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
-        let combined = self.doc.body(body).is_some_and(|b| {
-            let inputs: Vec<rolidium_kernel::BlendInput> = b
-                .features
-                .iter()
-                .map(|f| rolidium_kernel::BlendInput {
-                    faces: f.faces.clone(),
-                    size: f.size,
-                    chamfer: f.kind == rolidium_doc::BlendKind::Chamfer,
-                })
-                .collect();
-            b.solid
-                .chain_touches_blends(&inputs, &ids, self.edge_chamfer)
-                .unwrap_or(false)
-        });
-        // When the chain runs through existing rounds they are redone together with the new one, so the
-        // edges beyond them stay sharp: nothing extra to warn about.
-        let extra: Vec<u32> = self
-            .doc
-            .body(body)
-            .filter(|_| !combined)
-            .and_then(|b| b.solid.blend_chain(&ids, self.edge_chamfer).ok())
-            .map(|v| {
-                v.into_iter()
-                    .map(|e| e.0)
-                    .filter(|e| !edges.contains(e))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let Some(b) = self.doc.body(body) else { return Vec::new() };
+        let (solid, features, chamfer, edges_v) = (b.solid.clone(), b.features.clone(), self.edge_chamfer, edges.to_vec());
+        // a body of many faces: the kernel needs seconds for it, so it is asked on a thread of its own and the answer is drawn when it comes (nothing extra is
+        // shown until then); a small body is answered at once
+        if solid.face_count() > 300 {
+            if self.chain_pending.borrow_mut().insert(key.clone()) {
+                let inbox = self.chain_inbox.clone();
+                let ctx = self.egui_ctx.clone();
+                let k = key.clone();
+                let _ = std::thread::Builder::new().stack_size(64 << 20).spawn(move || {
+                    let extra = chain_extra_of(&solid, &features, &edges_v, chamfer);
+                    if let Ok(mut g) = inbox.lock() {
+                        g.push((k, extra));
+                    }
+                    ctx.request_repaint();
+                });
+            }
+            return Vec::new();
+        }
+        let extra = chain_extra_of(&solid, &features, &edges_v, chamfer);
         let mut c = self.chain_cache.borrow_mut();
         if c.len() > 256 {
             c.clear();
@@ -743,5 +734,56 @@ mod tests {
         assert_eq!(cycle_index(Some((at, 0)), Pos2::new(102.0, 101.0), 3), 1);
         // nothing to cycle through
         assert_eq!(cycle_index(Some((at, 0)), at, 0), 0);
+    }
+}
+
+
+/// The edges that a round or chamfer of `edges` treats too (the kernel follows edges that continue each other tangentially).
+fn chain_extra_of(
+    solid: &rolidium_kernel::Solid,
+    features: &[rolidium_doc::Feature],
+    edges: &[u32],
+    chamfer: bool,
+) -> Vec<u32> {
+    let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
+    let inputs: Vec<rolidium_kernel::BlendInput> = features
+        .iter()
+        .map(|f| rolidium_kernel::BlendInput {
+            faces: f.faces.clone(),
+            size: f.size,
+            chamfer: f.kind == rolidium_doc::BlendKind::Chamfer,
+        })
+        .collect();
+    let combined = solid.chain_touches_blends(&inputs, &ids, chamfer).unwrap_or(false);
+    // When the chain runs through existing rounds they are redone together with the new one, so the edges beyond them stay sharp: nothing extra to warn about.
+    if combined {
+        return Vec::new();
+    }
+    solid
+        .blend_chain(&ids, chamfer)
+        .map(|v| v.into_iter().map(|e| e.0).filter(|e| !edges.contains(e)).collect())
+        .unwrap_or_default()
+}
+
+impl App {
+    /// The answers of the threads that look for the edges a round also treats are taken into the cache (once a frame).
+    pub(super) fn take_chain_answers(&mut self) {
+        let got: Vec<_> = match self.chain_inbox.lock() {
+            Ok(mut g) => std::mem::take(&mut *g),
+            Err(_) => return,
+        };
+        if got.is_empty() {
+            return;
+        }
+        let mut c = self.chain_cache.borrow_mut();
+        if c.len() > 256 {
+            c.clear();
+        }
+        for (k, v) in got {
+            self.chain_pending.borrow_mut().remove(&k);
+            c.insert(k, v);
+        }
+        drop(c);
+        self.layers_changed = true;
     }
 }

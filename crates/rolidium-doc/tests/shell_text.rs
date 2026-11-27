@@ -400,3 +400,39 @@ fn text_on_the_wall_of_a_mesh_is_raised_and_engraved_with_manifold() {
         "engraved text takes material away: {v0} -> {engraved}"
     );
 }
+
+#[test]
+fn a_long_text_is_exact_and_has_few_faces() {
+    // 90 letters at 17 mm: the outlines are the curves of the font, so the faces are far fewer than short lines would give, and the volume is the area of the letters times the depth
+    let s = "Rolidium je program pro modelovani 3D dilu, ktery umi i text. Zkusime delsi vetu 0123456789 ABC";
+    let text: String = s.repeat(3).chars().take(90).collect();
+    let (mut d, b) = doc_with_box(1600.0, 60.0, 20.0);
+    let v0 = volume(&d, b);
+    let p = text_on_top(b, &text, true, 1.0, 17.0, DVec3::new(10.0, 20.0, 20.0));
+    let t0 = std::time::Instant::now();
+    d.apply(Command::AddLink {
+        kind: LinkKind::Text(p.clone()),
+        sources: vec![],
+        name: String::new(),
+    })
+    .unwrap();
+    let secs = t0.elapsed().as_secs_f64();
+    let faces = d.body(b).unwrap().solid.face_count();
+    println!("90 letters: {secs:.1} s, {faces} faces");
+    let (shapes, _) = rolidium_text::text_shapes(&text, &p.style()).unwrap();
+    let area = |c: &[glam::DVec2]| {
+        let mut a = 0.0;
+        for i in 0..c.len() {
+            let (p, q) = (c[i], c[(i + 1) % c.len()]);
+            a += p.x * q.y - q.x * p.y;
+        }
+        a.abs() / 2.0
+    };
+    let polygons: f64 = shapes
+        .iter()
+        .map(|s| area(&s.outer) - s.holes.iter().map(|h| area(h)).sum::<f64>())
+        .sum();
+    let removed = v0 - volume(&d, b);
+    assert!((removed - polygons * 1.0).abs() < polygons * 0.01, "removed {removed}, letters {polygons}");
+    assert!(faces < 2500, "{faces} faces for 90 letters");
+}
