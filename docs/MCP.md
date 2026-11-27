@@ -127,6 +127,8 @@ The server uses one thread per core less one for the calculations that can share
 | `repeat_feature` | Repeat a hole or a pin of a body in the same body: a row (also with the second piece at a point), round an axis, a mirror, into the four corners or a grid of a flat rectangular face (a link; a hidden tool body is made from the round faces) |
 | `circular_pattern` | Make a pattern of a body round an axis (a link): copies turned by an angle one after another, or spread evenly round the whole circle |
 | `mirror_body` | Mirror a body in a plane: in place, keeping the original, merged with it into one symmetric body, or as a live link that follows the original |
+| `shell_body` | Make a body hollow (a link): wall thickness, the flat faces that are taken away (x+, x-, y+, y-, z+, z-), inwards, outwards or both ways; text, holes and pins thinner than the wall are taken off and put back |
+| `add_text` | Put text on a flat face of a body (a link): the words, the place, the normal, the height of the capitals, the depth, raised or engraved, one of four bundled fonts, bold, italic, alignment |
 | `list_links` | List the links (patterns and mirrors) with their parameters, source bodies and the bodies they made |
 | `edit_link` | Change a link (number of pieces, spacing, angle, mirror plane, name) and calculate it again |
 | `unlink` | Remove a link; the bodies it made stay as ordinary bodies |

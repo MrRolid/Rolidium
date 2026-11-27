@@ -1341,3 +1341,4 @@ A wall that was to be thickened is not on the body any more => 厚くするは�
 A wall that is an opening cannot be thickened => 開口になっている壁は厚くできません
 A wall that was to be thickened could not be found in the shell (only flat walls can be changed one by one) => 厚くするはずの壁がシェルに見つかりません(個別に変更できるのは平らな壁だけです)
 A wall would be thinner than nothing => 壁の厚さがゼロ以下になります
+The hole has no depth => 穴に深さがありません

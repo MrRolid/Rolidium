@@ -1341,3 +1341,4 @@ A wall that was to be thickened is not on the body any more => Stěna, která se
 A wall that is an opening cannot be thickened => Stěna, která je otvorem, se nedá zesílit
 A wall that was to be thickened could not be found in the shell (only flat walls can be changed one by one) => Stěnu, která se měla zesílit, se v skořepině nepodařilo najít (po jedné jdou měnit jen rovné stěny)
 A wall would be thinner than nothing => Stěna by byla tenčí než nic
+The hole has no depth => Díra nemá hloubku

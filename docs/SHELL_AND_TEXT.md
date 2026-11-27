@@ -31,7 +31,7 @@ Script words: `shell <thickness> [open x+ x- y+ y- z+ z-] [outwards | both] [rou
 3. *Apply* makes the letters. On a body the text is a link: click it in the list of the document, change the words, the font or the size, and it is made again (also under a shell). On a mesh the letters
    are joined to the mesh or cut out of it with the Manifold library (a plain change, not a link). In a sketch that lies on no body the letters become a body of their own.
 
-Czech and the other accented letters work (the glyphs of the fonts are used as they are). The holes of letters (the inside of an "O", "e", "ě") stay holes. The letters are made of straight pieces within
+Czech and the other accented letters work (the glyphs of the fonts are used as they are). The holes of letters (the inside of an "O" or an "e") stay holes. The letters are made of straight pieces within
 0.01 mm of the curves of the font; a text of 17 letters is a body of about 800 faces and takes 1 to 3 seconds to make.
 
 ### Fonts

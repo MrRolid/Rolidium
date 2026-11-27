@@ -1341,3 +1341,4 @@ A wall that was to be thickened is not on the body any more => Una pared que deb
 A wall that is an opening cannot be thickened => Una pared que es una abertura no puede engrosarse
 A wall that was to be thickened could not be found in the shell (only flat walls can be changed one by one) => No se encontró en la carcasa una pared que debía engrosarse (solo las paredes planas se pueden cambiar una a una)
 A wall would be thinner than nothing => Una pared sería más fina que nada
+The hole has no depth => El agujero no tiene profundidad
