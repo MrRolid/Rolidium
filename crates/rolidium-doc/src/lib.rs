@@ -32,7 +32,7 @@ mod sketchops;
 pub use links::{
     linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
     Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams, Link, LinkId,
-    LinkKind, MirrorParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
+    LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES, path_places,
 };
 pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
@@ -3025,7 +3025,7 @@ impl Job {
                     && sources.iter().all(|s| st.meshes.iter().any(|m| m.id == *s))
                     && matches!(
                         kind,
-                        LinkKind::Linear(..) | LinkKind::Circular(..) | LinkKind::Mirror(_)
+                        LinkKind::Linear(..) | LinkKind::Circular(..) | LinkKind::Path(..) | LinkKind::Mirror(_)
                     ) =>
             {
                 // a mesh is not a solid: a pattern or a mirror of it makes plain copies (no link that follows the original)
@@ -3865,6 +3865,11 @@ impl Document {
         mode: SweepMode,
     ) -> Result<LinkKind, DocError> {
         generate::sweep_kind(self.state(), profile, path, rounded, mode)
+    }
+
+    /// A curve of a pattern or a sweep as a polyline (and whether it is closed): the shapes of a sketch that continue each other, a curve, edges of a body.
+    pub fn path_polyline(&self, path: &SweepPath) -> Result<(Vec<DVec3>, bool), DocError> {
+        generate::path_polyline(self.state(), path)
     }
 
     pub fn state(&self) -> &Arc<State> {

@@ -358,6 +358,20 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("full".into(), json!(p.full));
             j.insert("keep_orientation".into(), json!(p.keep_orientation));
         }
+        LinkKind::Path(p, m) => {
+            j.insert("type".into(), json!("path"));
+            mode(m, &mut j);
+            j.insert(
+                "points".into(),
+                Value::Array(p.points.iter().map(|q| arr3(*q)).collect()),
+            );
+            j.insert("closed".into(), json!(p.closed));
+            j.insert("count".into(), json!(p.count));
+            j.insert("pitch".into(), json!(p.pitch));
+            j.insert("start".into(), json!(p.start));
+            j.insert("end".into(), json!(p.end));
+            j.insert("orient".into(), json!(p.orient));
+        }
         LinkKind::Mirror(m) => {
             j.insert("type".into(), json!("mirror"));
             if !matches!(m.into, PatternMode::New) {
@@ -527,6 +541,23 @@ fn link_from(
                 angle_deg: get_f(&j["angle_deg"])?,
                 full: j["full"].as_bool().unwrap_or(true),
                 keep_orientation: j["keep_orientation"].as_bool().unwrap_or(false),
+            },
+            mode()?,
+        ),
+        Some("path") => LinkKind::Path(
+            crate::PathParams {
+                points: j["points"]
+                    .as_array()
+                    .ok_or_else(|| corrupt("a pattern along a curve without points"))?
+                    .iter()
+                    .map(get3)
+                    .collect::<Result<_, _>>()?,
+                closed: j["closed"].as_bool().unwrap_or(false),
+                count: j["count"].as_u64().unwrap_or(2) as u32,
+                pitch: get_f(&j["pitch"]).unwrap_or(0.0),
+                start: get_f(&j["start"]).unwrap_or(0.0),
+                end: get_f(&j["end"]).unwrap_or(0.0),
+                orient: j["orient"].as_bool().unwrap_or(false),
             },
             mode()?,
         ),

@@ -18,6 +18,19 @@ pub enum LinkMode {
     Mirror,
     /// A hole or a pin repeated into the corners (or a grid) of a flat rectangular face.
     Fill,
+    /// Along a curve of any shape (an arc, a circle, a spline, a helix, a chain of lines and arcs, the edges of a body).
+    Path,
+}
+
+/// What the person chose in the first step of the Pattern tool (after the object): what the second click is on.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Want {
+    /// A line or a curve: a row along it.
+    Curve,
+    /// A point or an axis: round it.
+    Point,
+    /// A face: its corners or a grid on it.
+    Face,
 }
 
 /// What the next click in the view sets.
@@ -30,6 +43,8 @@ pub enum LinkPick {
     Axis,
     Plane,
     Target,
+    /// The centre of a circular pattern: any point that can be snapped to (a vertex, the centre of a circle or an arc, the middle of a line, a point of a sketch).
+    Centre,
 }
 
 /// What the second click of the Pattern and Mirror tools is on.
@@ -82,6 +97,15 @@ pub struct LinkParams {
     pub plane: Axis,
     pub plane_label: String,
     pub how: MirrorHow,
+    /// Along a curve: the curve as a polyline, whether it is closed, a name for the panel, the distance between the pieces (0: by the count), the distances left
+    /// free at the ends, and whether the pieces turn with the tangent.
+    pub path: Vec<DVec3>,
+    pub path_closed: bool,
+    pub path_label: String,
+    pub pitch: f64,
+    pub start: f64,
+    pub end: f64,
+    pub orient: bool,
 }
 
 impl Default for LinkParams {
@@ -115,6 +139,13 @@ impl Default for LinkParams {
             },
             plane_label: "YZ".into(),
             how: MirrorHow::Keep,
+            path: Vec::new(),
+            path_closed: false,
+            path_label: String::new(),
+            pitch: 0.0,
+            start: 0.0,
+            end: 0.0,
+            orient: true,
         }
     }
 }
@@ -151,6 +182,8 @@ pub struct LinkUi {
     pub second_edit: super::edgeedit::EdgeEdit,
     /// The panel of patterns and mirrors of the shapes of the sketch that is open (`Linear`, `Circular` or `Mirror`).
     pub sk_open: Option<LinkMode>,
+    /// What the person chose after the object: a line or a curve, a point or an axis, a face (the wizard of the Pattern tool).
+    pub want: Option<Want>,
     pub sk_count: u32,
     pub sk_spacing: f64,
     pub sk_by_total: bool,
@@ -260,6 +293,18 @@ impl LinkParams {
                 },
                 mode,
             ),
+            LinkMode::Path => LinkKind::Path(
+                rolidium_doc::PathParams {
+                    points: self.path.clone(),
+                    closed: self.path_closed,
+                    count: self.count,
+                    pitch: self.pitch,
+                    start: self.start,
+                    end: self.end,
+                    orient: self.orient,
+                },
+                mode,
+            ),
             LinkMode::Mirror => LinkKind::Mirror(MirrorParams {
                 origin: self.plane.origin,
                 normal: self.plane.dir,
@@ -292,6 +337,18 @@ impl LinkParams {
                     p.spacing2 = s.spacing;
                     p.by_total2 = s.by_total;
                 }
+                (p.result, p.target) = result(*m);
+            }
+            LinkKind::Path(q, m) => {
+                p.mode = LinkMode::Path;
+                p.path = q.points.clone();
+                p.path_closed = q.closed;
+                p.path_label = tr("a curve");
+                p.count = q.count;
+                p.pitch = q.pitch;
+                p.start = q.start;
+                p.end = q.end;
+                p.orient = q.orient;
                 (p.result, p.target) = result(*m);
             }
             LinkKind::Circular(q, m) => {
@@ -357,6 +414,7 @@ impl App {
             }
         }
         self.link_ui.editing = None;
+        self.link_ui.want = None;
         self.link_ui.feature = None;
         self.link_ui.armed = false;
         self.link_ui.rect_face = None;
@@ -569,6 +627,12 @@ impl App {
                     self.layers_changed = true;
                 }
             }
+            Some(LinkPick::Centre) => {
+                if self.pick_centre_point(resp) {
+                    self.link_ui.pick = None;
+                    self.layers_changed = true;
+                }
+            }
             Some(p @ (LinkPick::Direction | LinkPick::Direction2 | LinkPick::Axis | LinkPick::Plane)) => {
                 if self.pick_link_geometry(p) {
                     self.link_ui.pick = None;
@@ -583,7 +647,7 @@ impl App {
                 let ctrl = resp.ctx.input(|i| i.modifiers.command);
                 if have && !ctrl {
                     // the second click: what is under the pointer decides the kind
-                    if self.second_click() {
+                    if self.second_click(resp) {
                         return;
                     }
                     if self.hovered_second() == Hovered::Nothing {
@@ -632,10 +696,54 @@ impl App {
     /// The second click of the Pattern and Mirror tools: a circle, an arc, a round edge or a round face means round its centre, a straight line, edge or
     /// axis a row along it, a flat face the corners of it (a hole) or a grid; for the Mirror tool a flat face, a straight edge or a line is the plane.
     /// `true` when the click was taken.
-    fn second_click(&mut self) -> bool {
+    fn second_click(&mut self, resp: &egui::Response) -> bool {
         let mirror = self.tool == Tool::Mirror;
         let h = self.hovered_second();
         let before = self.link_ui.p.mode;
+        // the person chose "along a line or a curve": any curve under the pointer is the path (a straight line stays a row)
+        let curve_wanted = !mirror && self.link_ui.want == Some(Want::Curve);
+        if curve_wanted && matches!(self.hover_obj, Some(Obj::Entity(..) | Obj::Curve(_) | Obj::Edge(..))) {
+            let straight = h == Hovered::Line;
+            if !straight && self.pick_path_guide() {
+                let p = &mut self.link_ui.p;
+                if !self.link_ui.armed || before != LinkMode::Path {
+                    p.count = 5;
+                    p.pitch = 0.0;
+                    p.start = 0.0;
+                    p.end = 0.0;
+                }
+                self.link_ui.armed = true;
+                self.link_ui.pick = None;
+                self.layers_changed = true;
+                self.set_status("A pattern along a curve: set the numbers in the panel, Enter applies, Esc cancels", false);
+                return true;
+            }
+        }
+        // the person chose "round a point": a circle or a round face is the centre as before, an axis or a line is the axis, any other point of a body or a sketch is the centre
+        if !mirror && self.link_ui.want == Some(Want::Point) && h != Hovered::Round && h != Hovered::Nothing {
+            let taken = if h == Hovered::Line {
+                self.link_ui.p.mode = LinkMode::Circular;
+                self.pick_link_geometry(LinkPick::Axis)
+            } else {
+                self.link_ui.p.mode = LinkMode::Circular;
+                let suggested = self.suggested_axis();
+                self.link_ui.p.axis.dir = suggested;
+                self.pick_centre_point(resp)
+            };
+            if taken {
+                let p = &mut self.link_ui.p;
+                if !self.link_ui.armed {
+                    (p.count, p.full) = (6, true);
+                }
+                self.link_ui.armed = true;
+                self.link_ui.pick = None;
+                self.layers_changed = true;
+                self.set_status("Round a centre: set the number in the panel, Enter applies, Esc cancels", false);
+            } else {
+                self.link_ui.p.mode = before;
+            }
+            return true;
+        }
         let ok = match (mirror, h) {
             (_, Hovered::Nothing) => return false,
             (true, Hovered::Line) => self.pick_link_geometry(LinkPick::Plane),
@@ -695,6 +803,134 @@ impl App {
         };
         self.set_status(say, false);
         true
+    }
+
+    /// A curve under the pointer as a polyline in space (and whether it is closed): the shapes of a sketch that continue each other, a curve, an edge of a body.
+    fn guide_polyline(&self) -> Option<(Vec<DVec3>, bool, String)> {
+        use rolidium_doc::SweepPath;
+        match self.hover_obj? {
+            Obj::Entity(s, e) => {
+                let sk = self.doc.sketch(s)?;
+                let chain = rolidium_doc::sketch_chain(&sk.sketch, e);
+                let (pts, closed) = self
+                    .doc
+                    .path_polyline(&SweepPath::Sketch { sketch: s, entities: chain })
+                    .ok()?;
+                Some((pts, closed, tr("a curve of a sketch")))
+            }
+            Obj::Curve(c) => {
+                let (pts, closed) = self.doc.path_polyline(&SweepPath::Curve(c)).ok()?;
+                Some((pts, closed, tr("a curve")))
+            }
+            Obj::Edge(b, e) => {
+                let body = self.doc.body(b)?;
+                let chain = body.solid.smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0);
+                let ids: Vec<u32> = chain.iter().map(|x| x.0).collect();
+                let (pts, closed) = self.doc.path_polyline(&SweepPath::Edges { body: b, edges: ids }).ok()?;
+                Some((pts, closed, tr("an edge")))
+            }
+        }
+    }
+
+    /// The curve under the pointer becomes the path of the pattern. `true` when the click took one.
+    fn pick_path_guide(&mut self) -> bool {
+        let Some((pts, closed, label)) = self.guide_polyline() else {
+            return false;
+        };
+        let p = &mut self.link_ui.p;
+        p.path = pts;
+        p.path_closed = closed;
+        p.path_label = label;
+        p.mode = LinkMode::Path;
+        true
+    }
+
+    /// The point for the centre of a circular pattern from a click: a vertex of a body, the centre of a round edge, a point of a shape of a sketch (an end point, a middle,
+    /// a centre), or else the point of the face under the pointer. The direction of the axis stays (it was suggested from the face the object lies on).
+    fn pick_centre_point(&mut self, resp: &egui::Response) -> bool {
+        let (Some(pointer), rect) = (resp.hover_pos(), resp.rect) else {
+            return false;
+        };
+        let mut best: Option<(f32, DVec3, String)> = None;
+        let offer = |d: f32, p: DVec3, what: String, best: &mut Option<(f32, DVec3, String)>| {
+            if d <= 12.0 && best.as_ref().is_none_or(|(bd, _, _)| d < *bd) {
+                *best = Some((d, p, what));
+            }
+        };
+        // the vertices of the bodies
+        for m in self.meshes.iter() {
+            for e in &m.mesh.edges {
+                for q in [e.points.first(), e.points.last()].into_iter().flatten() {
+                    if let Some(sp) = self.project(*q, rect) {
+                        offer((sp - pointer).length(), q.as_dvec3(), tr("a vertex"), &mut best);
+                    }
+                }
+            }
+        }
+        // the shapes of the sketches: end points, middles and centres
+        for s in self.doc.sketches().iter().filter(|s| s.visible) {
+            for (_, e) in s.sketch.entities() {
+                for (q, _) in e.snap_points() {
+                    let q3 = s.plane.to_3d(q);
+                    if let Some(sp) = self.project(q3.as_vec3(), rect) {
+                        offer((sp - pointer).length(), q3, tr("a point of a sketch"), &mut best);
+                    }
+                }
+            }
+        }
+        // the centre of a round edge
+        if let Some(Obj::Edge(b, e)) = self.hover_obj {
+            if let Some(pl) = self.edge_polyline(b, e).filter(|p| p.len() >= 8) {
+                let n = pl.len();
+                let (a, m, c) = (dv(pl[0]), dv(pl[n / 3]), dv(pl[2 * n / 3]));
+                let (u, v) = (m - a, c - a);
+                if u.cross(v).length() > 1e-9 {
+                    let (uu, vv, uv) = (u.dot(u), v.dot(v), u.dot(v));
+                    let k = 2.0 * (uu * vv - uv * uv);
+                    if k.abs() > 1e-12 {
+                        let centre = a + u * (vv * (uu - uv) / k) + v * (uu * (vv - uv) / k);
+                        if let Some(sp) = self.project(centre.as_vec3(), rect) {
+                            offer(0.0 * (sp - pointer).length(), centre, tr("the centre of a round edge"), &mut best);
+                        }
+                    }
+                }
+            }
+        }
+        let picked = match best {
+            Some((_, p, what)) => Some((p, what)),
+            None => {
+                let aspect = rect.width() / rect.height().max(1.0);
+                let (o, d) = self.camera.ray(Self::ndc(pointer, rect), aspect);
+                self.hovered_face()
+                    .and_then(|(b, f)| self.ray_face_point(b, f, o, d))
+                    .map(|p| (p, tr("a point of a face")))
+            }
+        };
+        let Some((point, what)) = picked else {
+            self.set_status("Click a vertex, a centre, a point of a sketch or a face", true);
+            return false;
+        };
+        let p = &mut self.link_ui.p;
+        p.axis.origin = point;
+        p.axis_label = what;
+        true
+    }
+
+    /// The axis a circular pattern of the source suggests: the normal of the biggest flat face of the first source (the face it lies on), else Z.
+    pub(super) fn suggested_axis(&self) -> DVec3 {
+        let Some(b) = self.link_sources().first().copied() else {
+            return DVec3::Z;
+        };
+        let Some(body) = self.doc.body(b) else { return DVec3::Z };
+        let mut best: Option<(f64, DVec3)> = None;
+        for f in body.solid.faces() {
+            if let Ok(i) = body.solid.face_info(f) {
+                if i.kind == FaceKind::Plane && best.is_none_or(|(a, _)| i.area > a) {
+                    best = Some((i.area, i.normal.normalize()));
+                }
+            }
+        }
+        best.map_or(DVec3::Z, |(_, n)| n)
     }
 
     /// A flat face as the second click of the Pattern tool: into the corners of it for a hole or a pin, else a grid on it.
@@ -781,6 +1017,7 @@ impl App {
                 LinkPick::Plane => tr("Click a flat face, a straight edge, an axis or a line of a sketch, or the plane of a sketch for the mirror plane."),
                 LinkPick::Axis => tr("Click a round edge, a cylindrical face, a straight edge, a face, or an axis or a line of a sketch for the axis (or press X, Y, Z)."),
                 LinkPick::Target => tr("Click the body the pieces are added to or cut out of."),
+                LinkPick::Centre => tr("Click a point: a vertex, the centre of a circle or an arc, the middle of a line, or a point of a sketch."),
                 LinkPick::Direction | LinkPick::Direction2 => tr("Click a straight edge, a face, or a line of a sketch for the direction."),
             };
         }
@@ -788,7 +1025,7 @@ impl App {
             return if self.tool == Tool::Mirror {
                 tr("Mirror: click what is mirrored: a body, or the round face of a hole or a pin.")
             } else {
-                tr("Pattern: click what is repeated: a body (Ctrl adds more), or the round face of a hole or a pin.")
+                tr("Click what you want to repeat: a body (Ctrl adds more), or the round face of a hole or a pin.")
             };
         }
         if u.armed {
@@ -808,7 +1045,7 @@ impl App {
             return String::new();
         }
         if u.feature.is_none() && self.link_sources().is_empty() {
-            return tr("Click an object");
+            return tr("Click what you want to repeat");
         }
         match (self.tool == Tool::Mirror, self.hovered_second()) {
             (false, Hovered::Round) => tr("around the centre"),
@@ -1059,7 +1296,7 @@ impl App {
                     };
                     (p.plane, p.plane_label) = (pl, label);
                 }
-                LinkPick::Target | LinkPick::Point => return false,
+                LinkPick::Target | LinkPick::Point | LinkPick::Centre => return false,
             }
             return true;
         }
@@ -1135,7 +1372,7 @@ impl App {
                                     tr("the middle of an edge"),
                                 )
                             }
-                            LinkPick::Target | LinkPick::Point => {}
+                            LinkPick::Target | LinkPick::Point | LinkPick::Centre => {}
                         }
                         return true;
                     }
@@ -1578,6 +1815,7 @@ impl App {
             .and_then(|l| l.error.clone());
         let armed = self.link_ui.armed;
         let hint_text = self.link_hint();
+        let suggested = self.suggested_axis();
         let mut ui_state = std::mem::take(&mut self.link_ui);
         let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
         docks.panel(ctx, "link", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
@@ -1592,7 +1830,61 @@ impl App {
             });
             if !armed && editing.is_none() {
                 // before the second click: only what to click, no numbers yet
+                if !has_feature && sources.is_empty() {
+                    // nothing is chosen yet: the first thing to say
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(tr("Click what you want to repeat"))
+                            .size(16.0)
+                            .color(crate::theme::rgb(255, 200, 100)),
+                    );
+                    ui.add_space(4.0);
+                }
                 ui.colored_label(crate::theme::rgb(255, 200, 100), hint_text.as_str());
+                if (has_feature || !sources.is_empty()) && p.mode != LinkMode::Mirror {
+                    // the object is chosen: the three ways to repeat it, as big buttons; a click on a guide in the view without a choice still works (the kind is told by what it is)
+                    ui.add_space(4.0);
+                    for (want, label, name) in [
+                        (Want::Curve, tr("Along a line or a curve"), "want_curve"),
+                        (Want::Point, tr("Round a point"), "want_point"),
+                        (Want::Face, tr("On a face"), "want_face"),
+                    ] {
+                        let on = ui_state.want == Some(want);
+                        let r = ui.add_sized(
+                            [ui.available_width(), 34.0],
+                            egui::Button::new(egui::RichText::new(label).size(15.0)).selected(on),
+                        );
+                        probe_w.borrow_mut().push((name, r.rect));
+                        if r.clicked() {
+                            ui_state.want = Some(want);
+                            ui_state.pick = None;
+                            if want == Want::Point {
+                                p.axis.dir = suggested;
+                                p.axis_label = tr("the face the object lies on");
+                            }
+                        }
+                    }
+                    if let Some(want) = ui_state.want {
+                        ui.colored_label(
+                            crate::theme::rgb(120, 220, 255),
+                            match want {
+                                Want::Curve => tr("Click a line or a curve"),
+                                Want::Point => tr("Click a point or an axis"),
+                                Want::Face => tr("Click a face"),
+                            },
+                        );
+                        if want == Want::Point {
+                            ui.horizontal(|ui| {
+                                let on = ui_state.pick == Some(LinkPick::Centre);
+                                let r = ui.selectable_label(on, tr("Pick a point"));
+                                probe_w.borrow_mut().push(("pick_centre", r.rect));
+                                if r.clicked() {
+                                    ui_state.pick = if on { None } else { Some(LinkPick::Centre) };
+                                }
+                            });
+                        }
+                    }
+                }
                 if has_feature || !sources.is_empty() {
                     // no curve to click: start with a base direction or a base plane
                     ui.horizontal_wrapped(|ui| {
@@ -1652,6 +1944,14 @@ impl App {
                     if r.clicked() && !line {
                         p.mode = LinkMode::Linear;
                         p.second = false;
+                    }
+                    if !p.path.is_empty() {
+                        let on = p.mode == LinkMode::Path;
+                        let r = ui.selectable_label(on, tr("Along a curve"));
+                        probe_w.borrow_mut().push(("kind_path", r.rect));
+                        if r.clicked() && !on {
+                            p.mode = LinkMode::Path;
+                        }
                     }
                     let r = ui.selectable_label(round, tr("Round a centre"));
                     probe_w.borrow_mut().push(("kind_round", r.rect));
@@ -1750,8 +2050,41 @@ impl App {
                         ui.checkbox(&mut p.by_total2, tr("The spacing is the whole length"));
                     }
                 }
+                LinkMode::Path => {
+                    ui.weak(trf("The curve: {}", std::slice::from_ref(&p.path_label)));
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Pieces"));
+                        ui.add_enabled(p.pitch <= 0.0, egui::DragValue::new(&mut p.count).range(1..=1000).speed(0.2));
+                        ui.label(tr("or the distance between pieces"));
+                        ui.add(egui::DragValue::new(&mut p.pitch).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                    });
+                    if !p.path_closed {
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Free at the start"));
+                            ui.add(egui::DragValue::new(&mut p.start).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                            ui.label(tr("at the end"));
+                            ui.add(egui::DragValue::new(&mut p.end).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                        });
+                    } else {
+                        ui.weak(tr("A closed curve: the pieces are spread evenly over the whole length"));
+                    }
+                    ui.checkbox(&mut p.orient, tr("The pieces turn with the curve"));
+                }
                 LinkMode::Circular => {
                     ui.label(tr("Axis"));
+                    ui.horizontal_wrapped(|ui| {
+                        let r = ui.selectable_label(ui_state.pick == Some(LinkPick::Centre), tr("Pick a point"));
+                        probe_w.borrow_mut().push(("pick_centre", r.rect));
+                        if r.clicked() {
+                            ui_state.pick = if ui_state.pick == Some(LinkPick::Centre) { None } else { Some(LinkPick::Centre) };
+                        }
+                        let r = ui.selectable_label(false, tr("Axis by the face the object lies on"));
+                        probe_w.borrow_mut().push(("axis_suggested", r.rect));
+                        if r.clicked() {
+                            p.axis.dir = suggested;
+                            p.axis_label = tr("the face the object lies on");
+                        }
+                    });
                     ui.horizontal_wrapped(|ui| {
                         for (v, n) in [(DVec3::X, "X"), (DVec3::Y, "Y"), (DVec3::Z, "Z")] {
                             if ui.selectable_label(p.axis_label == n, n).clicked() {
@@ -2507,9 +2840,13 @@ impl App {
                     tr("All the shapes of the sketch")
                 });
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Linear), tr("Along a line"));
-                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Circular), tr("Round a point"));
-                    ui.selectable_value(&mut u.sk_open, Some(LinkMode::Mirror), tr("Mirror"));
+                    // the pattern has no choice of the mirror: that is the tool of its own (B)
+                    if mode != LinkMode::Mirror {
+                        ui.selectable_value(&mut u.sk_open, Some(LinkMode::Linear), tr("Along a line"));
+                        ui.selectable_value(&mut u.sk_open, Some(LinkMode::Circular), tr("Round a point"));
+                    } else {
+                        ui.selectable_value(&mut u.sk_open, Some(LinkMode::Mirror), tr("Mirror"));
+                    }
                 });
                 match u.sk_open {
                     Some(LinkMode::Linear) => {
@@ -2631,7 +2968,7 @@ impl App {
             let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
             let entities: Vec<_> = one.into_iter().collect();
             Some(match mode {
-                LinkMode::Linear | LinkMode::Fill => Command::SketchPattern {
+                LinkMode::Linear | LinkMode::Fill | LinkMode::Path => Command::SketchPattern {
                     sketch: sk,
                     entities,
                     pattern: rolidium_doc::SketchPattern::Linear {
@@ -2698,7 +3035,7 @@ impl App {
         let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
         let ids: Vec<_> = one.into_iter().collect();
         let made = match mode {
-            LinkMode::Linear | LinkMode::Fill => rolidium_doc::preview_pattern(
+            LinkMode::Linear | LinkMode::Fill | LinkMode::Path => rolidium_doc::preview_pattern(
                 sd,
                 &ids,
                 &rolidium_doc::SketchPattern::Linear {

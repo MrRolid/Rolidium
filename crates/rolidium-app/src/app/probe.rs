@@ -165,6 +165,10 @@ impl App {
             "multi_copies": self.multi_centres().len(),
             "multi_on": self.sk.as_ref().is_some_and(|m| m.multi.is_some()),
             "link_armed": self.link_ui.armed,
+            "link_want": format!("{:?}", self.link_ui.want),
+            "link_path": self.link_ui.p.path.len(),
+            "link_path_closed": self.link_ui.p.path_closed,
+            "link_orient": self.link_ui.p.orient,
             "link_mode": format!("{:?}", self.link_ui.p.mode),
             "link_second": self.link_ui.p.second,
             "link_count2": self.link_ui.p.count2,
@@ -435,6 +439,7 @@ fn link_count(k: &rolidium_doc::LinkKind) -> u32 {
     match k {
         rolidium_doc::LinkKind::Linear(p, _) => p.count * p.second.as_ref().map_or(1, |s| s.count),
         rolidium_doc::LinkKind::Circular(p, _) => p.count,
+        rolidium_doc::LinkKind::Path(p, _) => rolidium_doc::path_places(p).map_or(0, |v| v.len() as u32),
         _ => 0,
     }
 }

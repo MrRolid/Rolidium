@@ -96,6 +96,22 @@ pub struct CircularParams {
     pub keep_orientation: bool,
 }
 
+/// Copies along any curve: the curve is kept as a polyline (the lines and arcs of a sketch, a spline, a helix, the edges of a body), the pieces stand at equal
+/// distances along it, from `start` mm from its beginning to `end` mm before its end (a closed curve is shared out evenly over the whole length), and turn with
+/// the tangent when `orient` is set. The original (piece 0) stands where the curve begins (after `start`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PathParams {
+    pub points: Vec<DVec3>,
+    pub closed: bool,
+    /// The number of pieces, the original included (ignored when `pitch` is set).
+    pub count: u32,
+    /// The distance between two pieces along the curve; 0: the pieces are shared out by `count`.
+    pub pitch: f64,
+    pub start: f64,
+    pub end: f64,
+    pub orient: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MirrorParams {
     pub origin: DVec3,
@@ -108,6 +124,8 @@ pub struct MirrorParams {
 pub enum LinkKind {
     Linear(LinearParams, PatternMode),
     Circular(CircularParams, PatternMode),
+    /// Along a curve of any shape (a line, an arc, a spline, a helix, a chain of them).
+    Path(PathParams, PatternMode),
     Mirror(MirrorParams),
     /// A loft through the profiles (regions of sketches, faces or edge loops of bodies); it follows the sketches and bodies it was made from.
     Loft {
@@ -127,7 +145,7 @@ pub enum LinkKind {
 impl LinkKind {
     pub fn mode(&self) -> PatternMode {
         match self {
-            LinkKind::Linear(_, m) | LinkKind::Circular(_, m) => *m,
+            LinkKind::Linear(_, m) | LinkKind::Circular(_, m) | LinkKind::Path(_, m) => *m,
             LinkKind::Loft { mode, .. } | LinkKind::Sweep { mode, .. } => *mode,
             LinkKind::Mirror(m) => m.into,
         }
@@ -137,7 +155,7 @@ impl LinkKind {
     pub fn with_mode(&self, mode: PatternMode) -> LinkKind {
         let mut k = self.clone();
         match &mut k {
-            LinkKind::Linear(_, m) | LinkKind::Circular(_, m) => *m = mode,
+            LinkKind::Linear(_, m) | LinkKind::Circular(_, m) | LinkKind::Path(_, m) => *m = mode,
             LinkKind::Mirror(p) => p.into = mode,
             LinkKind::Loft { mode: m, .. } | LinkKind::Sweep { mode: m, .. } => *m = mode,
         }
@@ -155,6 +173,7 @@ impl LinkKind {
             LinkKind::Linear(p, _) if p.second.is_some() => "Grid",
             LinkKind::Linear(..) => "Linear pattern",
             LinkKind::Circular(..) => "Circular pattern",
+            LinkKind::Path(..) => "Pattern along a curve",
             LinkKind::Mirror(_) => "Mirror",
             LinkKind::Loft { .. } => "Loft",
             LinkKind::Sweep { .. } => "Sweep",
@@ -214,6 +233,69 @@ fn step_of(count: u32, spacing: f64, by_total: bool) -> f64 {
 
 fn bad(msg: impl Into<String>) -> DocError {
     DocError::Kernel(KernelError::Invalid(msg.into()))
+}
+
+/// Where the pieces of a pattern along a curve stand: the place and the direction of the curve there, the original first.
+pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
+    if p.points.len() < 2 || p.points.iter().any(|q| !q.is_finite()) {
+        return Err(bad("The curve of the pattern has no length"));
+    }
+    let mut pts = p.points.clone();
+    if p.closed && pts.first() != pts.last() {
+        pts.push(pts[0]);
+    }
+    let mut cum = vec![0.0];
+    for w in pts.windows(2) {
+        cum.push(cum.last().copied().unwrap_or(0.0) + w[0].distance(w[1]));
+    }
+    let total = *cum.last().unwrap_or(&0.0);
+    if !(total > 1e-9) {
+        return Err(bad("The curve of the pattern has no length"));
+    }
+    if !(p.start.is_finite() && p.end.is_finite() && p.pitch.is_finite()) || p.start < 0.0 || p.end < 0.0 || p.pitch < 0.0 {
+        return Err(bad("The distances along the curve must be numbers, not negative"));
+    }
+    let usable = if p.closed { total } else { total - p.start - p.end };
+    if !(usable > 1e-9) {
+        return Err(bad("The curve is shorter than the distances left free at its ends"));
+    }
+    let (n, step) = if p.pitch > 1e-9 {
+        let n = if p.closed {
+            (total / p.pitch).floor() as usize
+        } else {
+            ((usable + 1e-9) / p.pitch).floor() as usize + 1
+        };
+        (n.max(1), p.pitch)
+    } else {
+        let n = p.count.max(1) as usize;
+        let step = if p.closed {
+            total / n as f64
+        } else if n > 1 {
+            usable / (n - 1) as f64
+        } else {
+            0.0
+        };
+        (n, step)
+    };
+    if n > MAX_PIECES {
+        return Err(bad(format!("A pattern can have at most {MAX_PIECES} pieces")));
+    }
+    let at = |s: f64| -> (DVec3, DVec3) {
+        let s = if p.closed { s.rem_euclid(total) } else { s.clamp(0.0, total) };
+        let i = cum.partition_point(|c| *c <= s).saturating_sub(1).min(pts.len() - 2);
+        // skip a segment of no length
+        let (mut a, mut b) = (pts[i], pts[i + 1]);
+        let mut j = i;
+        while a.distance(b) < 1e-12 && j + 2 < pts.len() {
+            j += 1;
+            (a, b) = (pts[j], pts[j + 1]);
+        }
+        let seg = cum[i + 1] - cum[i];
+        let t = if seg > 1e-12 { (s - cum[i]) / seg } else { 0.0 };
+        (a + (b - a) * t.clamp(0.0, 1.0), (b - a).normalize_or_zero())
+    };
+    let first = if p.closed { p.start } else { p.start };
+    Ok((0..n).map(|i| at(first + step * i as f64)).collect())
 }
 
 /// The placements of the pieces other than the original (the original is piece 0 and is not moved).
@@ -293,6 +375,33 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
                     pivot: p.axis.origin,
                     axis: p.axis.dir.normalize(),
                     angle: step * i as f64,
+                });
+            }
+        }
+        LinkKind::Path(p, _) => {
+            let places = path_places(p)?;
+            let (p0, t0) = places[0];
+            for (pos, tan) in places.into_iter().skip(1) {
+                let (axis, angle) = if p.orient {
+                    let c = t0.cross(tan);
+                    if c.length() < 1e-9 {
+                        // the same or the opposite direction: a half turn about any square axis
+                        if t0.dot(tan) < 0.0 {
+                            (t0.any_orthonormal_vector(), std::f64::consts::PI)
+                        } else {
+                            (DVec3::Z, 0.0)
+                        }
+                    } else {
+                        (c.normalize(), t0.dot(tan).clamp(-1.0, 1.0).acos())
+                    }
+                } else {
+                    (DVec3::Z, 0.0)
+                };
+                out.push(Placement {
+                    translation: pos - p0,
+                    pivot: p0,
+                    axis,
+                    angle,
                 });
             }
         }

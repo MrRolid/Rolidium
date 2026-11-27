@@ -602,6 +602,11 @@ impl Runner {
                                 format!("{} degrees apart", p.angle_deg)
                             }
                         ),
+                        LinkKind::Path(p, _) => format!(
+                            "along a curve, {} pieces{}",
+                            rolidium_doc::path_places(p).map_or(p.count as usize, |v| v.len()),
+                            if p.pitch > 0.0 { format!(", every {} mm", p.pitch) } else { String::new() }
+                        ),
                         LinkKind::Mirror(_) => "mirror".to_string(),
                         LinkKind::Loft { profiles, .. } => {
                             format!("loft through {} profiles", profiles.len())
@@ -677,6 +682,16 @@ impl Runner {
                             p.full = false;
                         }
                         Some(LinkKind::Circular(p, *m))
+                    }
+                    LinkKind::Path(p, m) => {
+                        let mut p = p.clone();
+                        if let Some(k) = val("count")? {
+                            p.count = k as u32;
+                        }
+                        if let Some(s) = val("spacing")? {
+                            p.pitch = s;
+                        }
+                        Some(LinkKind::Path(p, *m))
                     }
                     LinkKind::Mirror(m) => {
                         let mut m = m.clone();

@@ -103,6 +103,38 @@ pub(crate) fn loft(st: &State, profiles: &[LoftRef], ruled: bool) -> Result<Made
     })
 }
 
+/// A curve (a curve of the document, the shapes of a sketch that continue each other, edges of a body) as a polyline, and whether it is closed.
+pub(crate) fn path_polyline(st: &State, path: &SweepPath) -> Result<(Vec<DVec3>, bool), DocError> {
+    let kpath = match path {
+        SweepPath::Curve(id) => st
+            .curves
+            .iter()
+            .find(|c| c.id == *id)
+            .ok_or(DocError::NoSuchCurve)?
+            .def
+            .path()?,
+        SweepPath::Sketch { sketch, entities } => {
+            let sd = st
+                .sketches
+                .iter()
+                .find(|s| s.id == *sketch)
+                .ok_or(DocError::NoSuchSketch)?;
+            let segs = sketch_path_segments(&sd.plane, &sd.sketch, entities)?;
+            rolidium_kernel::Path::build(rolidium_kernel::PathSource::Segments(&segs))?
+        }
+        SweepPath::Edges { body, edges } => {
+            let b = body_of(st, *body)?;
+            let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
+            rolidium_kernel::Path::build(rolidium_kernel::PathSource::Edges {
+                solid: &b.solid,
+                edges: &ids,
+            })?
+        }
+    };
+    let pts = kpath.polyline(0.02)?;
+    Ok((pts, kpath.closed))
+}
+
 /// The solid of a sweep of `profile` along `path`.
 pub(crate) fn sweep(
     st: &State,
