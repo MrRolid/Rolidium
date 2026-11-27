@@ -362,6 +362,11 @@ pub fn import_advice_text(items: &[ImportItem]) -> String {
     import_advice(items).0
 }
 
+/// An STL or 3MF file (what the import reads).
+pub(super) fn is_mesh_file(p: &std::path::Path) -> bool {
+    is_stl(p)
+}
+
 fn is_stl(p: &std::path::Path) -> bool {
     p.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("stl") || e.eq_ignore_ascii_case("3mf"))
@@ -724,6 +729,11 @@ impl App {
             self.set_status("The files are read when the running operation is done", false);
             return;
         }
+        // the files that are imported are in the list of the recent files like the documents (a click on one imports it again)
+        for p in &paths {
+            self.settings.remember(&p.display().to_string());
+        }
+        self.settings.save();
         if self.worker.send(Work::ReadStl { paths }) {
             self.busy = Busy::File;
             self.set_status("Reading the file…", false);
@@ -1162,6 +1172,14 @@ impl App {
         }
     }
 
+    /// Whether the round region of a mesh is a hole (else a pin); `None` when it is not a round region.
+    pub(super) fn mesh_hole_is_hole(&self, body: BodyId, face: u32) -> Option<bool> {
+        match self.mesh_region(body, face).ok()? {
+            MeshRegion::Hole(h) => Some(h.is_hole),
+            MeshRegion::Wall(_) => None,
+        }
+    }
+
     /// A command that names a face or a body of a mesh: what the mesh does for it (a pull of a wall, the diameter of a hole), or why it cannot.
     pub(super) fn mesh_translate(&self, command: Command) -> Result<Command, String> {
         let is_mesh = |b: &BodyId| self.doc.mesh(*b).is_some();
@@ -1174,7 +1192,19 @@ impl App {
                         distance: mode.apply(*distance),
                         tilt: self.mesh_ui.tilt,
                     }),
-                    MeshRegion::Hole(_) => Err(tr("Only a flat wall of a mesh can be pulled")),
+                    // a hole or a pin of a mesh: the face moves along its normal, the diameter changes
+                    MeshRegion::Hole(h) => {
+                        let new_r = if h.is_hole { h.radius - distance } else { h.radius + distance };
+                        if new_r <= 1e-6 {
+                            Err(tr("A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first"))
+                        } else {
+                            Ok(Command::MeshHole {
+                                body: *body,
+                                hole: h,
+                                diameter: 2.0 * new_r,
+                            })
+                        }
+                    }
                 }
             }
             Command::SetCylinderDiameter { body, face, diameter } if is_mesh(body) => {

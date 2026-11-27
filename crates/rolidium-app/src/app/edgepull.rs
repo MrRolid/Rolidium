@@ -44,6 +44,8 @@ impl App {
             edges,
             cands: Vec::new(),
             snap: None,
+            group: Vec::new(),
+            round: None,
         });
         self.edge_sel = self
             .pull

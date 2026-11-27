@@ -230,6 +230,12 @@ impl App {
 
     /// The state of the newer pieces: the sizes of a selected body, the quick sketch, the pull that cannot be made, the check of a mesh.
     fn probe_extra(&self) -> Value {
+        let mut regions_selected: Vec<(u64, usize)> = self.region_multi.clone();
+        if let Some(r) = self.region_sel {
+            if !regions_selected.contains(&r) {
+                regions_selected.push(r);
+            }
+        }
         json!({
             "body_dims": self.body_dims.shown.map(|s| json!([round3(s[0]), round3(s[1]), round3(s[2])])),
             "body_dims_editing": self.body_dims.editing,
@@ -245,6 +251,11 @@ impl App {
             "stretch": json!({"plane": self.stretch.plane.as_ref().map(|(p, n, l)| json!({"label": l, "point": [round3(p.x), round3(p.y), round3(p.z)], "normal": [round3(n.x), round3(n.y), round3(n.z)]})), "pick": self.stretch.pick, "distance": self.stretch.distance, "position": self.stretch.position, "preview": self.stretch.preview}),
             "pull_blocked": self.mesh_ui.blocked.as_ref().map(super::meshtool::short_reason),
             "pull_active": self.pull.is_some(),
+            "pull_group": self.pull.as_ref().map_or(0, |p| p.group.len()),
+            "regions_selected": regions_selected,
+            "entities_selected": self.entity_multi.len().max(usize::from(self.entity_sel.is_some())),
+            "pieces": self.sk.as_ref().map(|s| json!({"available": s.pieces_available(), "editing": s.pieces_edit, "text": s.pieces_text, "n": s.pieces()})),
+            "box_sel": self.box_sel.map(|b| json!({"window": b.window()})),
             "tilt": self.mesh_ui.tilt,
             "conversion": self.body_sel.and_then(rolidium_doc::meshes::conversion_report).map(|r| json!({"kinds": r.kinds, "single": r.single, "single_share": round3(r.single_share), "deviation": round3(r.max_deviation), "volume_solid": round3(r.volume_solid), "volume_mesh": round3(r.volume_mesh), "seconds": round3(r.seconds), "kept": r.kept})),
             "move_arrows": self.probe_move_arrows(),

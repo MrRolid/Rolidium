@@ -75,6 +75,13 @@ pub type SketchId = u64;
 
 /// How a pull treats its direction. `Auto` adds material outwards and removes it inwards; `Add`
 /// and `Cut` force one or the other whatever the sign of the distance.
+/// One thing of a pull of several: a face of a body or a region of a sketch (its index in `Sketch::regions()` when the command is made).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PullItem {
+    Face { body: BodyId, face: FaceId },
+    Region { sketch: SketchId, region: usize },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PullMode {
     #[default]
@@ -318,6 +325,12 @@ pub enum Command {
         distance: f64,
         mode: PullMode,
     },
+    /// Pulls several faces and sketch regions at once by the same distance: one command, one step of Undo, and nothing changes when one of them cannot be pulled.
+    PullMany {
+        items: Vec<PullItem>,
+        distance: f64,
+        mode: PullMode,
+    },
     /// Fill: the closed planar loop of edges of a body (a hole, the inner circle of a pipe) becomes a sketch with a region on the
     /// loop's plane, from the exact geometry of the edges. Pull the region to close the hole or to make a plug.
     FillLoop {
@@ -418,6 +431,11 @@ pub enum Command {
     DeleteEntity {
         sketch: SketchId,
         entity: rolidium_sketch::EntityId,
+    },
+    /// Deletes several shapes of one sketch at once (one step of Undo).
+    DeleteEntities {
+        sketch: SketchId,
+        entities: Vec<rolidium_sketch::EntityId>,
     },
     /// Sets the material of a body (`None`: back to the default).
     SetMaterial {
@@ -853,6 +871,59 @@ pub fn region_profile(r: &Region) -> Profile {
 }
 
 impl Job {
+    /// A pull of a round face: the face moves along its outward normal by `distance`, so a hole (the normal points to its axis) gets smaller, a pin (the normal points
+    /// away from it) bigger, and the size of a round gets smaller by the distance. A diameter or a size that reaches zero removes the hole, the pin or the round.
+    fn pull_round(&self, mut st: State, body: BodyId, face: FaceId, distance: f64) -> Result<Computed, DocError> {
+        if !distance.is_finite() || distance.abs() < 1e-6 {
+            return Err(KernelError::ZeroDistance.into());
+        }
+        let b = st
+            .bodies
+            .iter_mut()
+            .find(|b| b.id == body)
+            .ok_or(DocError::NoSuchBody)?;
+        let label;
+        let history;
+        if let Some(c) = b.solid.cylinder_info(face)? {
+            let new_r = if c.is_hole { c.radius - distance } else { c.radius + distance };
+            let r = if new_r <= 1e-6 {
+                label = if c.is_hole { "Close hole" } else { "Remove pin" };
+                b.solid.remove_feature(face)?
+            } else {
+                label = "Change diameter";
+                b.solid.set_cylinder_diameter(face, 2.0 * new_r)?
+            };
+            remap_features(&mut b.features, &r.history);
+            b.solid = r.solid;
+            history = r.history;
+        } else if let Some((ci, ri)) = b.solid.blend_map().rounding_of(face) {
+            let (size, chamfer, angle) = {
+                let map = b.solid.blend_map();
+                let r = &map.components[ci].roundings[ri];
+                (r.size, r.chamfer, r.angle_deg)
+            };
+            let new = if size - distance <= 1e-6 { 0.0 } else { size - distance };
+            let r = b.solid.resize_blend(face, new, false, chamfer.then_some((angle, false)))?;
+            b.solid = r.solid;
+            label = match (chamfer, new > 1e-9) {
+                (false, true) => "Change round",
+                (true, true) => "Change chamfer",
+                (false, false) => "Remove round",
+                (true, false) => "Remove chamfer",
+            };
+            history = r.history;
+        } else {
+            return Err(KernelError::Invalid(
+                "Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them".into(),
+            )
+            .into());
+        }
+        let mut c = self.done(st, label);
+        c.history = Some((body, history));
+        c.touched_body = Some(body);
+        Ok(c)
+    }
+
     /// Cuts `tool` out of every body and mesh it overlaps. Returns the first body that was changed and how many holes of meshes were patched; `None`
     /// when nothing was removed (the volume only touches or lies apart).
     fn cut_from_all(&self, st: &mut State, tool: &Solid) -> Result<Option<(BodyId, usize)>, DocError> {
@@ -1107,6 +1178,10 @@ impl Job {
                     .iter_mut()
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
+                // a round face is not pulled flat: the diameter of a hole or a pin, or the size of a round changes
+                if b.solid.face_info(*face).is_ok_and(|i| i.kind != rolidium_kernel::FaceKind::Plane) {
+                    return self.pull_round(st, *body, *face, *distance);
+                }
                 let dist = mode.apply(*distance);
                 let mut notice = None;
                 let r = match b.solid.pull_face(*face, dist) {
@@ -1128,6 +1203,108 @@ impl Job {
                 c.history = Some((*body, r.history));
                 c.touched_body = Some(*body);
                 c.notice = notice;
+                Ok(c)
+            }
+            Command::PullMany {
+                items,
+                distance,
+                mode,
+            } => {
+                if items.is_empty() {
+                    return Err(KernelError::Invalid("there is nothing to pull".into()).into());
+                }
+                // a region is known by the curves that belong to it alone (its index changes when another region of the sketch is used up), a face by its id,
+                // which the history of the pull of a face of the same body carries on
+                enum Key {
+                    Face(BodyId, FaceId),
+                    Region(SketchId, Vec<rolidium_sketch::EntityId>, usize),
+                }
+                let mut keys: Vec<Key> = Vec::new();
+                for it in items {
+                    match it {
+                        PullItem::Face { body, face } => keys.push(Key::Face(*body, *face)),
+                        PullItem::Region { sketch, region } => {
+                            let sd = st
+                                .sketches
+                                .iter()
+                                .find(|s| s.id == *sketch)
+                                .ok_or(DocError::NoSuchSketch)?;
+                            let regs = sd.sketch.regions();
+                            let r = regs.get(*region).ok_or(DocError::NoSuchRegion)?;
+                            let mut ex = r.exclusive_entities.clone();
+                            ex.sort();
+                            keys.push(Key::Region(*sketch, ex, *region));
+                        }
+                    }
+                }
+                let mut cur: State = st;
+                let mut first: Option<BodyId> = None;
+                let mut notices: Vec<String> = Vec::new();
+                for k in 0..keys.len() {
+                    let command = match &keys[k] {
+                        Key::Face(b, f) => Command::PullFace {
+                            body: *b,
+                            face: *f,
+                            distance: *distance,
+                            mode: *mode,
+                        },
+                        Key::Region(sk, ex, idx) => {
+                            let sd = cur
+                                .sketches
+                                .iter()
+                                .find(|s| s.id == *sk)
+                                .ok_or(DocError::NoSuchSketch)?;
+                            let regs = sd.sketch.regions();
+                            let at = if ex.is_empty() {
+                                *idx
+                            } else {
+                                regs.iter()
+                                    .position(|r| {
+                                        let mut e = r.exclusive_entities.clone();
+                                        e.sort();
+                                        e == *ex
+                                    })
+                                    .ok_or(DocError::NoSuchRegion)?
+                            };
+                            Command::PullRegion {
+                                sketch: *sk,
+                                region: at,
+                                distance: *distance,
+                                mode: *mode,
+                            }
+                        }
+                    };
+                    let job = Job {
+                        command,
+                        base: Arc::new(cur),
+                        base_revision: self.base_revision,
+                        next_id: self.next_id + k as u64,
+                    };
+                    let c = job.compute_command()?;
+                    first = first.or(c.touched_body);
+                    if let Some(n) = c.notice.clone() {
+                        if !notices.contains(&n) {
+                            notices.push(n);
+                        }
+                    }
+                    // the faces that are still to be pulled keep their place in the body that was changed
+                    if let Some((b, h)) = &c.history {
+                        for later in keys.iter_mut().skip(k + 1) {
+                            if let Key::Face(lb, lf) = later {
+                                if lb == b {
+                                    let s = h.successors(0, *lf);
+                                    if let [one] = s[..] {
+                                        *lf = one;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    cur = c.state;
+                }
+                let mut c = self.done(cur, "Pull");
+                c.touched_body = first;
+                c.notice = if notices.is_empty() { None } else { Some(notices.join("; ")) };
                 Ok(c)
             }
             Command::FillLoop { body, edges } => {
@@ -2122,6 +2299,21 @@ impl Job {
                     .ok_or(DocError::NoSuchSketch)?;
                 sk.sketch.replace(*entity, *new)?;
                 Ok(self.done(st, "Change size"))
+            }
+            Command::DeleteEntities { sketch, entities } => {
+                let idx = st
+                    .sketches
+                    .iter()
+                    .position(|s| s.id == *sketch)
+                    .ok_or(DocError::NoSuchSketch)?;
+                if entities.is_empty() || entities.iter().any(|e| st.sketches[idx].sketch.entity(*e).is_none()) {
+                    return Err(SketchError::NoSuchEntity.into());
+                }
+                st.sketches[idx].sketch.remove(entities);
+                if st.sketches[idx].sketch.is_empty() {
+                    st.sketches.remove(idx);
+                }
+                Ok(self.done(st, "Delete shapes"))
             }
             Command::DeleteEntity { sketch, entity } => {
                 let idx = st

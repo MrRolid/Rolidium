@@ -452,6 +452,7 @@ mod coverage {
 
     /// Texts that reach the screen through tables or `format!`, so the scan cannot see them.
     const EXTRA: &[&str] = &[
+        "Pieces", "Round size {} → {} mm", "Diameter {} → {} mm", "the round is gone", "the hole is closed", "the pin is gone",
         "Organic model, it stays a mesh", "The round next to the wall could not be kept at the new place, so the wall was moved without it",
         "The pull went away from the body, so it was cut the other way", "{} edges where two parts of the mesh touched were separated",
         "the mesh had {} separate pieces: a solid was made of each", "Checking the mesh", "Converting a piece of the mesh", "Looking for flat and round faces",

@@ -283,6 +283,19 @@ impl Solid {
         }))
     }
 
+    /// The hole of the round face `face` filled (it is gone), or the pin taken off. A counterbore or a countersink goes with it (the whole feature).
+    pub fn remove_feature(&self, face: FaceId) -> Result<crate::OpResult> {
+        let exact = self.feature_tool_with(face, 0.0)?;
+        self.boolean_checked(
+            &exact.solid,
+            if exact.is_hole {
+                crate::BooleanOp::Fuse
+            } else {
+                crate::BooleanOp::Cut
+            },
+        )
+    }
+
     /// The hole or the pin of the round face `face` moved by `delta`: the hole is filled and cut out again at the new place (the pin is taken off and
     /// fused on again). The flat part of `delta` along the axis changes the depth of a blind hole, and that is allowed.
     pub fn move_feature(&self, face: FaceId, delta: DVec3) -> Result<Solid> {

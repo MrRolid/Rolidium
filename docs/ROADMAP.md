@@ -61,7 +61,7 @@ is written here is described from the point of view of the person drawing, nothi
   whose letters have a stem of 1 mm, and a shell of 2 mm: the text is taken off, the shell is made, the text is put back.
 * **Text and logos** (medium): letters engraved into or embossed on a flat face, a logo from an SVG file; the shell above needs it.
 * **Two levels of the program, Easy and All** (medium): in *Easy* big icons and the basic tools only (select, pull, move, combine, line, rectangle, circle, arc, pattern, mirror, round, measure, import and export,
-  views), in *All* smaller icons and every tool. The switch is on the right of the top bar as a two-part switch with both labels (*Easy* / *All*, in Czech *Základní* / *Vše*); the active part is filled, so it is
+  views), in *All* smaller icons and every tool. The switch is on the right of the top bar as a two-part switch with both labels (*Easy* / *All*, translated in the language files); the active part is filled, so it is
   always visible what is on and what a click does.
 
 ### Next, small

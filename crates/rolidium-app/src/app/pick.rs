@@ -686,6 +686,7 @@ impl App {
         self.curve_sel = None;
         self.move_curves.clear();
         self.region_multi.clear();
+        self.entity_multi.clear();
         self.sel_order.clear();
         self.move_sel.clear();
         self.layers_changed = true;

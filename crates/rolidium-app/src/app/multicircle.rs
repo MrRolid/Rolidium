@@ -11,7 +11,7 @@ use rolidium_doc::rolidium_sketch::multi::{
 };
 
 /// The most pieces round a circle.
-pub const MULTI_MAX: usize = 10;
+pub const MULTI_MAX: usize = crate::sketchmode::SketchMode::MAX_PIECES;
 
 impl App {
     /// While a circle is drawn and its centre is placed: what it is inside (found once for the centre).
@@ -85,6 +85,10 @@ impl App {
                 (n > 1).then_some(Multi { container: c, n })
             }
         };
+        if let Some(sm) = &mut self.sk {
+            // what was typed in the field of the pieces gives way to the count the button made
+            sm.pieces_text = sm.pieces().to_string();
+        }
         self.layers_changed = true;
         true
     }

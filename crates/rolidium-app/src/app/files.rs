@@ -156,6 +156,10 @@ impl App {
             Pending::OpenDialog => {
                 self.file_dialog = Some(self.new_file_dialog(Purpose::Open, ""));
             }
+            // a mesh from the list of the recent files is imported again (the dialog of the units follows), it is no document
+            Pending::Open(path) if super::meshtool::is_mesh_file(&path) => {
+                self.start_stl_read(vec![path]);
+            }
             Pending::Open(path) => {
                 if self.worker.send(Work::OpenFile { path: path.clone() }) {
                     self.busy = Busy::File;

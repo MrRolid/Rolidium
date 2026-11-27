@@ -290,3 +290,121 @@ fn a_sketch_on_a_plane_cuts_through_a_mesh_in_auto_and_cut_whichever_way_it_is_p
         }
     }
 }
+
+/// F1: several regions of a sketch (five circles in a rectangle) are pulled at once by the same distance: one command, one step of Undo.
+#[test]
+fn five_circles_are_pulled_together_in_one_step() {
+    use rolidium_doc::PullItem;
+    let mut d = Document::new();
+    d.apply(Command::AddBox { name: "B".into(), min: DVec3::ZERO, max: DVec3::new(60.0, 30.0, 20.0) }).unwrap();
+    let id = d.bodies()[0].id;
+    let mut ents = vec![Entity::Rect { a: DVec2::new(1.0, 1.0), b: DVec2::new(59.0, 29.0) }];
+    for k in 0..5 {
+        ents.push(Entity::Circle { center: DVec2::new(8.0 + 11.0 * k as f64, 15.0), radius: 3.0 });
+    }
+    let sk = sketch_on(&mut d, Some(id), 20.0, ents);
+    let regions = d.sketches()[0].sketch.regions();
+    // the five discs: the regions with a single exclusive circle and no holes
+    let discs: Vec<usize> = (0..regions.len()).filter(|i| regions[*i].holes.is_empty()).collect();
+    assert_eq!(discs.len(), 5, "{} regions", regions.len());
+    d.apply(Command::PullMany {
+        items: discs.iter().map(|r| PullItem::Region { sketch: sk, region: *r }).collect(),
+        distance: -8.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    let v = d.body(id).unwrap().solid.volume().unwrap();
+    let expect = 36000.0 - 5.0 * std::f64::consts::PI * 9.0 * 8.0;
+    assert!((v - expect).abs() < 0.5, "{v} {expect}");
+    assert!(d.undo());
+    assert_eq!(d.sketches().len(), 1, "the sketch is back with all its curves");
+    assert!((d.body(id).unwrap().solid.volume().unwrap() - 36000.0).abs() < 1e-6);
+}
+
+/// F1: two faces of a body are pulled together.
+#[test]
+fn two_faces_are_pulled_together() {
+    use rolidium_doc::PullItem;
+    let mut d = Document::new();
+    d.apply(Command::AddBox { name: "B".into(), min: DVec3::ZERO, max: DVec3::new(40.0, 30.0, 20.0) }).unwrap();
+    let id = d.bodies()[0].id;
+    let (top, front) = {
+        let s = &d.body(id).unwrap().solid;
+        let f = |n: DVec3| s.faces().find(|f| s.face_info(*f).unwrap().normal.dot(n) > 0.99).unwrap();
+        (f(DVec3::Z), f(DVec3::new(0.0, -1.0, 0.0)))
+    };
+    d.apply(Command::PullMany {
+        items: vec![PullItem::Face { body: id, face: top }, PullItem::Face { body: id, face: front }],
+        distance: 5.0,
+        mode: PullMode::Auto,
+    })
+    .unwrap();
+    let (lo, hi) = d.body(id).unwrap().solid.bounding_box().unwrap();
+    assert!((hi.z - 25.0).abs() < 1e-6 && (lo.y + 5.0).abs() < 1e-6, "{lo:?} {hi:?}");
+}
+
+fn box_with_hole() -> (Document, BodyId, rolidium_kernel::FaceId) {
+    let mut d = Document::new();
+    d.apply(Command::AddBox { name: "B".into(), min: DVec3::ZERO, max: DVec3::new(40.0, 30.0, 20.0) }).unwrap();
+    let id = d.bodies()[0].id;
+    let cyl = rolidium_kernel::Solid::cylinder(5.0, 30.0, DVec3::new(20.0, 15.0, -5.0), DVec3::Z).unwrap();
+    d.apply(Command::AddSolids { solids: vec![cyl] }).unwrap();
+    let tool = d.bodies()[1].id;
+    d.apply(Command::Combine { target: id, tools: vec![tool], op: CombineOp::Cut, keep_tools: false }).unwrap();
+    let s = &d.body(id).unwrap().solid;
+    let face = s.faces().find(|f| s.cylinder_info(*f).ok().flatten().is_some()).unwrap();
+    (d, id, face)
+}
+
+/// E3: the cylindrical face of a hole pulled along its normal (towards its axis) makes the hole smaller, pushed the other way bigger, and pulled by the radius it closes the hole.
+#[test]
+fn a_pulled_hole_changes_its_diameter_and_closes_at_zero() {
+    let radius_of = |d: &Document, id: BodyId| {
+        let s = &d.body(id).unwrap().solid;
+        s.faces().find_map(|f| s.cylinder_info(f).ok().flatten()).map(|c| c.radius)
+    };
+    let (mut d, id, face) = box_with_hole();
+    d.apply(Command::PullFace { body: id, face, distance: 1.0, mode: PullMode::Auto }).unwrap();
+    assert!((radius_of(&d, id).unwrap() - 4.0).abs() < 1e-6);
+    let face = { let s = &d.body(id).unwrap().solid; s.faces().find(|f| s.cylinder_info(*f).ok().flatten().is_some()).unwrap() };
+    d.apply(Command::PullFace { body: id, face, distance: -3.0, mode: PullMode::Auto }).unwrap();
+    assert!((radius_of(&d, id).unwrap() - 7.0).abs() < 1e-6);
+    let face = { let s = &d.body(id).unwrap().solid; s.faces().find(|f| s.cylinder_info(*f).ok().flatten().is_some()).unwrap() };
+    d.apply(Command::PullFace { body: id, face, distance: 7.0, mode: PullMode::Auto }).unwrap();
+    assert!(radius_of(&d, id).is_none(), "the hole is gone");
+    assert!((d.body(id).unwrap().solid.volume().unwrap() - 24000.0).abs() < 1e-3);
+    assert!(d.undo());
+    assert!((radius_of(&d, id).unwrap() - 7.0).abs() < 1e-6);
+}
+
+/// E3: a pin grows with the pull along its normal; a round gets smaller by the distance and is gone at its size.
+#[test]
+fn a_pulled_pin_grows_and_a_pulled_round_shrinks_and_vanishes() {
+    let mut d = Document::new();
+    d.apply(Command::AddBox { name: "B".into(), min: DVec3::ZERO, max: DVec3::new(40.0, 30.0, 20.0) }).unwrap();
+    let id = d.bodies()[0].id;
+    let pin = rolidium_kernel::Solid::cylinder(4.0, 10.0, DVec3::new(20.0, 15.0, 20.0), DVec3::Z).unwrap();
+    d.apply(Command::AddSolids { solids: vec![pin] }).unwrap();
+    let tool = d.bodies()[1].id;
+    d.apply(Command::Combine { target: id, tools: vec![tool], op: CombineOp::Merge, keep_tools: false }).unwrap();
+    let face = { let s = &d.body(id).unwrap().solid; s.faces().find(|f| s.cylinder_info(*f).ok().flatten().is_some()).unwrap() };
+    d.apply(Command::PullFace { body: id, face, distance: 2.0, mode: PullMode::Auto }).unwrap();
+    let s = &d.body(id).unwrap().solid;
+    let r = s.faces().find_map(|f| s.cylinder_info(f).ok().flatten()).unwrap().radius;
+    assert!((r - 6.0).abs() < 1e-6, "{r}");
+    // a round of the vertical edge
+    let edge = {
+        let s = &d.body(id).unwrap().solid;
+        s.edges().find(|e| { let i = s.edge_info(*e).unwrap(); i.start.x < 1e-6 && i.start.y < 1e-6 && (i.start.z - i.end.z).abs() > 10.0 }).unwrap()
+    };
+    d.apply(Command::FilletEdges { body: id, edges: vec![edge.0], size: 4.0, chamfer: false }).unwrap();
+    let round_face = d.body(id).unwrap().features[0].faces[0];
+    let v0 = d.body(id).unwrap().solid.volume().unwrap();
+    d.apply(Command::PullFace { body: id, face: round_face, distance: 1.0, mode: PullMode::Auto }).unwrap();
+    let v1 = d.body(id).unwrap().solid.volume().unwrap();
+    assert!(v1 > v0, "a smaller round leaves more material: {v0} {v1}");
+    assert!((d.body(id).unwrap().features[0].size - 3.0).abs() < 1e-6);
+    let round_face = d.body(id).unwrap().features[0].faces[0];
+    d.apply(Command::PullFace { body: id, face: round_face, distance: 3.0, mode: PullMode::Auto }).unwrap();
+    assert!(d.body(id).unwrap().features.is_empty(), "at zero the round is gone");
+}

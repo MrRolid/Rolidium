@@ -14,7 +14,7 @@ use eframe::egui::{self, Color32, Key, PointerButton, Pos2, Rect, Sense, Stroke,
 use eframe::egui_wgpu;
 use glam::Vec3;
 use rolidium_doc::rolidium_sketch::{DVec2, Entity, EntityId, PlaneDef, Region, SnapKind};
-use rolidium_doc::{BodyId, Command, Document, ItemId, PullMode, SketchId, SketchTarget};
+use rolidium_doc::{BodyId, Command, Document, ItemId, PullItem, PullMode, SketchId, SketchTarget};
 use rolidium_kernel::{DVec3, FaceId, FaceKind};
 use rolidium_render::{
     blocked_preview, decode_pick, encode_pick, face_boundary, fill_layer, grid_levels, pull_preview,
@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 mod bench;
+mod boxselect;
 mod bodydims;
 mod busy;
 mod combinetool;
@@ -57,6 +58,7 @@ mod properties;
 mod quicksketch;
 mod remesh;
 mod revolve;
+mod roundpull;
 mod selftest;
 mod shapedrag;
 mod snap;
@@ -155,6 +157,10 @@ struct PullState {
     /// Planes and vertices the distance can snap to, and the one it is attached to now.
     cands: Vec<Candidate>,
     snap: Option<SnapTarget>,
+    /// The faces and regions that are pulled together (more than one, the first is `kind`); empty for a pull of one.
+    group: Vec<PullItem>,
+    /// A round face (a hole, a pin or a round) is pulled: what its radius is and how it changes.
+    round: Option<roundpull::RoundPull>,
 }
 
 /// "Up to": waiting for a click on the target the face should be pulled to.
@@ -367,6 +373,14 @@ pub struct App {
     sketch_sel: Option<SketchId>,
     move_sel: Vec<BodyId>,
     region_multi: Vec<(SketchId, usize)>,
+    /// The circles that were just drawn together (the copies of the right button): their regions are selected when the regions are made again, so that P pulls all of them.
+    select_discs: Option<(PlaneDef, Vec<(DVec2, f64)>)>,
+    /// The rectangle of the box selection that is being dragged.
+    box_sel: Option<boxselect::BoxSel>,
+    /// The shapes of a sketch that are selected together (the rectangle, Ctrl); `entity_sel` is the last of them.
+    entity_multi: Vec<(SketchId, EntityId)>,
+    /// The holes of a pattern of a hole (the body and the diameter): they are selected when the pattern is made.
+    select_holes: Option<(BodyId, f64)>,
     sel_order: Vec<rolidium_doc::LoftRef>,
     plane_move: Option<planemove::PlaneMove>,
     /// The tool Sketch plane (key N).
@@ -619,6 +633,10 @@ impl App {
             sketch_sel: None,
             move_sel: Vec::new(),
             region_multi: Vec::new(),
+            select_discs: None,
+            box_sel: None,
+            entity_multi: Vec::new(),
+            select_holes: None,
             sel_order: Vec::new(),
             plane_move: None,
             plane_at: None,
@@ -1032,6 +1050,20 @@ impl App {
                 self.body_sel = Some(b);
             }
         }
+        if let Some((b, dia)) = self.select_holes.take() {
+            if let Some(m) = self.entry(b) {
+                let found: Vec<(BodyId, u32)> = m
+                    .faces
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, f)| f.cyl_diameter.is_some_and(|d| (d - dia).abs() < 1e-6))
+                    .map(|(i, _)| (b, i as u32))
+                    .collect();
+                if !found.is_empty() {
+                    self.selection = found;
+                }
+            }
+        }
         if let Some((b, f)) = self.mesh_ui.keep_face.take() {
             if self.entry(b).is_some_and(|m| (f as usize) < m.faces.len()) {
                 self.selection.push((b, f));
@@ -1192,6 +1224,31 @@ impl App {
         {
             self.region_sel = None;
         }
+        self.region_multi.retain(|(s, i)| self.regions.iter().any(|r| r.id == *s && *i < r.regions.len()));
+        if let Some((plane, circles)) = self.select_discs.take() {
+            // the discs of the circles that were drawn together are selected, all of them
+            let mut found: Vec<(SketchId, usize)> = Vec::new();
+            for sr in self.regions.iter().filter(|r| r.plane.same_plane(&plane)) {
+                for (i, reg) in sr.regions.iter().enumerate() {
+                    if !reg.holes.is_empty() {
+                        continue;
+                    }
+                    let area = reg.outer.signed_area().abs();
+                    if circles.iter().any(|(c, r)| {
+                        (area - std::f64::consts::PI * r * r).abs() < 0.03 * std::f64::consts::PI * r * r && reg.outer.contains(*c)
+                    }) {
+                        found.push((sr.id, i));
+                    }
+                }
+            }
+            if !found.is_empty() {
+                self.selection.clear();
+                self.edge_sel.clear();
+                self.body_sel = None;
+                self.region_sel = found.last().copied();
+                self.region_multi = found;
+            }
+        }
         self.layers_changed = true;
     }
 
@@ -1210,10 +1267,15 @@ impl App {
                 layers.push(fill_layer(&[g], [1.0, 0.75, 0.30, 0.42]));
             }
         }
-        if let Some((s, i)) = self.region_sel {
-            if let Some(g) = self.geom_of(s, i) {
-                layers.push(fill_layer(&[g], [0.25, 0.55, 1.0, 0.50]));
+        let mut chosen: Vec<(SketchId, usize)> = self.region_multi.clone();
+        if let Some(r) = self.region_sel {
+            if !chosen.contains(&r) {
+                chosen.push(r);
             }
+        }
+        let geoms: Vec<&RegionGeom> = chosen.iter().filter_map(|(s, i)| self.geom_of(*s, *i)).collect();
+        if !geoms.is_empty() {
+            layers.push(fill_layer(&geoms, [0.25, 0.55, 1.0, 0.50]));
         }
         let mut lines = Vec::new();
         for s in self.doc.sketches().iter().filter(|s| s.visible) {
@@ -1254,6 +1316,11 @@ impl App {
         }
         if let Some((s, e)) = self.entity_sel {
             sel_lines.extend(obj_lines(self, Obj::Entity(s, e)));
+        }
+        for (s, e) in &self.entity_multi {
+            if Some((*s, *e)) != self.entity_sel {
+                sel_lines.extend(obj_lines(self, Obj::Entity(*s, *e)));
+            }
         }
         // Edges that would be rounded or chamfered too because they continue a selected one tangentially.
         let mut extra: Vec<Vec3> = Vec::new();
@@ -1406,6 +1473,7 @@ impl App {
     }
 
     fn begin_pull(&mut self, kind: PullKind, pointer: Pos2, rect: Rect) -> bool {
+        let mut round: Option<roundpull::RoundPull> = None;
         let (normal, centre, origin, geom) = match kind {
             PullKind::Face { body, face } => {
                 let Some(m) = self.entry(body) else { return false };
@@ -1413,15 +1481,24 @@ impl App {
                     return false;
                 };
                 if meta.kind != FaceKind::Plane {
-                    self.set_status("Pull works on planar faces in this version", true);
-                    return false;
+                    // a round face: a hole or a pin changes its diameter, a round its size
+                    let Some(r) = self.round_pull_info(body, face) else {
+                        self.set_status("Pull works on flat faces, on whole holes and pins and on rounds", true);
+                        return false;
+                    };
+                    let Some((point, normal)) = self.round_pull_grab(body, face) else {
+                        return false;
+                    };
+                    round = Some(r);
+                    (normal, point, point.as_dvec3(), None)
+                } else {
+                    (
+                        meta.normal.as_vec3().normalize(),
+                        meta.centroid,
+                        meta.origin,
+                        None,
+                    )
                 }
-                (
-                    meta.normal.as_vec3().normalize(),
-                    meta.centroid,
-                    meta.origin,
-                    None,
-                )
             }
             PullKind::Edges { .. } => return false,
             PullKind::Region { sketch, idx } => {
@@ -1439,6 +1516,7 @@ impl App {
         };
         let (axis_dir, px_per_mm) = self.axis_mapping(centre, normal, rect);
         let cands = snap::candidates(&self.meshes, origin, normal.as_dvec3());
+        let group = self.pull_group_of(kind);
         self.pull = Some(PullState {
             kind,
             normal,
@@ -1453,17 +1531,29 @@ impl App {
             edges: Vec::new(),
             cands,
             snap: None,
+            group: group.clone(),
+            round,
         });
-        match kind {
-            PullKind::Face { body, face } => {
-                self.selection = vec![(body, face)];
-                self.region_sel = None;
+        if group.len() > 1 {
+            // what is selected stays selected: all of it is pulled
+            self.set_status(
+                trf("Pulling {} things together by the same distance", &[group.len().to_string()]),
+                false,
+            );
+        } else {
+            match kind {
+                PullKind::Face { body, face } => {
+                    self.selection = vec![(body, face)];
+                    self.region_sel = None;
+                    self.region_multi.clear();
+                }
+                PullKind::Region { sketch, idx } => {
+                    self.region_sel = Some((sketch, idx));
+                    self.region_multi = vec![(sketch, idx)];
+                    self.selection.clear();
+                }
+                PullKind::Edges { .. } => {}
             }
-            PullKind::Region { sketch, idx } => {
-                self.region_sel = Some((sketch, idx));
-                self.selection.clear();
-            }
-            PullKind::Edges { .. } => {}
         }
         self.entity_sel = None;
         self.edge_sel.clear();
@@ -1471,6 +1561,75 @@ impl App {
         // a wall of a mesh that cannot be pulled says so at once (red outline, the reason at the cursor)
         self.update_pull_preview();
         true
+    }
+
+    /// The faces (flat ones) and sketch regions that are selected together with `kind`, when `kind` is one of them and there are several: they are pulled all at once.
+    fn pull_group_of(&self, kind: PullKind) -> Vec<PullItem> {
+        let mut items: Vec<PullItem> = Vec::new();
+        for &(b, f) in &self.selection {
+            let planar = self
+                .entry(b)
+                .and_then(|m| m.faces.get(f as usize))
+                .is_some_and(|m| m.kind == FaceKind::Plane);
+            if planar || self.round_pull_info(b, f).is_some() {
+                items.push(PullItem::Face { body: b, face: FaceId(f) });
+            }
+        }
+        let mut regions: Vec<(SketchId, usize)> = self.region_multi.clone();
+        if let Some(r) = self.region_sel {
+            if !regions.contains(&r) {
+                regions.push(r);
+            }
+        }
+        items.extend(regions.into_iter().map(|(sketch, region)| PullItem::Region { sketch, region }));
+        let me = match kind {
+            PullKind::Face { body, face } => PullItem::Face { body, face: FaceId(face) },
+            PullKind::Region { sketch, idx } => PullItem::Region { sketch, region: idx },
+            PullKind::Edges { .. } => return Vec::new(),
+        };
+        if items.len() > 1 && items.contains(&me) {
+            // the one the person grabbed first
+            items.retain(|i| *i != me);
+            items.insert(0, me);
+            items
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// The preview of a pull of several things: the previews of each, in one.
+    fn group_preview(&self, group: &[PullItem], d: f32) -> Option<PreviewDraw> {
+        let mut out: Option<PreviewDraw> = None;
+        for it in group {
+            let one = match it {
+                PullItem::Face { body, face } => {
+                    let m = self.entry(*body)?;
+                    if m.faces.get(face.0 as usize)?.kind != FaceKind::Plane {
+                        // a round face: the new cylinder (a round has no preview, only the text)
+                        match self.round_pull_info(*body, face.0).and_then(|r| self.round_pull_preview(&r, d)) {
+                            Some(p) => p,
+                            None => continue,
+                        }
+                    } else {
+                        let n = m.faces.get(face.0 as usize)?.normal.as_vec3().normalize();
+                        pull_preview(&m.mesh, face.0, n, d)
+                    }
+                }
+                PullItem::Region { sketch, region } => {
+                    let sr = self.regions.iter().find(|r| r.id == *sketch)?;
+                    region_pull_preview(sr.geoms.get(*region)?, sr.plane.normal.as_vec3(), d)
+                }
+            };
+            match &mut out {
+                None => out = Some(one),
+                Some(acc) => {
+                    acc.triangles.extend(one.triangles);
+                    acc.lines.extend(one.lines);
+                    acc.thick.extend(one.thick);
+                }
+            }
+        }
+        out
     }
 
     fn update_pull_preview(&mut self) {
@@ -1486,6 +1645,21 @@ impl App {
             _ => None,
         };
         let Some(p) = &self.pull else { return };
+        if p.group.len() > 1 {
+            let group = p.group.clone();
+            self.preview = self.group_preview(&group, d);
+            self.preview_changed = true;
+            self.preview_ms = t.elapsed().as_secs_f32() * 1000.0;
+            return;
+        }
+        if let Some(r) = p.round {
+            let text = self.round_pull_text(&r, d);
+            self.preview = self.round_pull_preview(&r, d);
+            self.preview_changed = true;
+            self.set_status(text, false);
+            self.preview_ms = t.elapsed().as_secs_f32() * 1000.0;
+            return;
+        }
         match (&p.kind, &p.geom) {
             (PullKind::Face { body, face }, _) => {
                 if let Some(m) = self.entry(*body) {
@@ -1510,7 +1684,14 @@ impl App {
     /// The distance a pull really moves by, after the Add / Cut mode forced a direction.
     fn effective_distance(&self, kind: PullKind, d: f32) -> f32 {
         match kind {
-            PullKind::Face { .. } => self.pull_mode.apply(d as f64) as f32,
+            PullKind::Face { body, face } => {
+                // a round face follows the sign of the pull, the Add and Cut modes are for flat faces
+                if self.entry(body).and_then(|m| m.faces.get(face as usize)).is_some_and(|f| f.kind != FaceKind::Plane) {
+                    d
+                } else {
+                    self.pull_mode.apply(d as f64) as f32
+                }
+            }
             PullKind::Region { sketch, .. } => {
                 if self.doc.sketch(sketch).is_some_and(|s| s.target.is_some()) {
                     self.pull_mode.apply(d as f64) as f32
@@ -1562,6 +1743,24 @@ impl App {
                     chamfer: self.edge_chamfer,
                 });
             }
+            self.set_status("Computing…", false);
+            return;
+        }
+        if p.group.len() > 1 {
+            if d.abs() < 1e-3 {
+                self.set_status("Pull cancelled (zero distance)", false);
+                return;
+            }
+            if !self.idle() {
+                self.set_status("Still working on the previous operation", true);
+                return;
+            }
+            self.pending = None;
+            self.submit(Command::PullMany {
+                items: p.group.clone(),
+                distance: d,
+                mode: self.pull_mode,
+            });
             self.set_status("Computing…", false);
             return;
         }
@@ -1629,14 +1828,25 @@ impl App {
                 })
             })
         } else if let [(b, f)] = self.selection[..] {
-            self.entry(b)
+            let flat = self
+                .entry(b)
                 .and_then(|m| m.faces.get(f as usize))
                 .filter(|m| m.kind == FaceKind::Plane)
                 .map(|m| UpToState {
                     kind: PullKind::Face { body: b, face: f },
                     origin: m.origin,
                     normal: m.normal.as_vec3().normalize(),
+                });
+            // a round face (a hole, a pin, a round): up to the target along its normal; the diameter follows
+            flat.or_else(|| {
+                self.round_pull_info(b, f)?;
+                let (point, normal) = self.round_pull_grab(b, f)?;
+                Some(UpToState {
+                    kind: PullKind::Face { body: b, face: f },
+                    origin: point.as_dvec3(),
+                    normal,
                 })
+            })
         } else {
             None
         };
@@ -2022,7 +2232,18 @@ impl App {
         if tool == SkTool::Circle {
             all.extend(self.multi_copies(e));
         }
+        let drawn_circles: Vec<(DVec2, f64)> = all
+            .iter()
+            .filter_map(|x| match x {
+                Entity::Circle { center, radius } => Some((*center, *radius)),
+                _ => None,
+            })
+            .collect();
+        let plane = self.sk.as_ref().map(|m| m.plane);
         if self.add_entities(all) {
+            if let (Some(plane), true) = (plane, drawn_circles.len() > 1) {
+                self.select_discs = Some((plane, drawn_circles));
+            }
             if let Some(sm) = &mut self.sk {
                 sm.drawing = None;
                 sm.multi = None;
@@ -2402,7 +2623,12 @@ impl App {
         if !self.idle() {
             return;
         }
-        let cmd = if let Some((sketch, entity)) = self.entity_sel {
+        let cmd = if self.entity_multi.len() > 1 && self.entity_multi.iter().all(|(s, _)| *s == self.entity_multi[0].0) {
+            Command::DeleteEntities {
+                sketch: self.entity_multi[0].0,
+                entities: self.entity_multi.iter().map(|(_, e)| *e).collect(),
+            }
+        } else if let Some((sketch, entity)) = self.entity_sel {
             Command::DeleteEntity { sketch, entity }
         } else if let Some((sketch, region)) = self.region_sel {
             Command::DeleteRegionShapes { sketch, region }
@@ -3248,6 +3474,7 @@ impl App {
             }
         }
         self.paint_sketch_overlay(ui, rect);
+        self.box_select_paint(ui);
         self.hole_drag_paint(ui, rect);
         self.shape_drag_paint(ui, rect);
         self.second_paint(ui, rect);
@@ -3401,6 +3628,9 @@ impl App {
             Tool::Select => {
                 self.shape_drag_input(resp, pointer, rect);
                 self.hole_drag_input(resp, pointer, rect, hovered_face);
+                // a drag from an empty place is a rectangle: what it holds entirely (left to right) or touches (right to left) is selected
+                let empty = hovered_obj.is_none() && hovered_region.is_none() && hovered_face.is_none();
+                self.box_select_input(resp, rect, empty);
                 if resp.clicked_by(PointerButton::Primary) {
                     let add = ctx.input(|i| i.modifiers.command || i.modifiers.shift);
                     select(self, add);
@@ -3570,6 +3800,8 @@ impl App {
         }
         if self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None) {
             self.shape_drag_input(resp, pointer, rect);
+            let empty = !matches!(self.hover_obj, Some(Obj::Entity(..)));
+            self.box_select_input(resp, rect, empty);
         }
         if resp.clicked_by(PointerButton::Primary) && self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None)
         {
@@ -4002,7 +4234,7 @@ impl App {
         }
         // the right button multiplies a circle inside a closed shape: said under the diameter box
         if let Some(h) = self.multi_hint() {
-            let n = sm.field_texts(snap.pos).len() as f32;
+            let n = (sm.field_texts(snap.pos).len() + usize::from(sm.pieces_available())) as f32;
             painter.text(
                 c + Vec2::new(14.0, -58.0 + 21.0 * n + 2.0),
                 egui::Align2::LEFT_TOP,
@@ -4042,6 +4274,42 @@ impl App {
                 text,
                 font.clone(),
                 vc,
+            );
+        }
+        // inside a circle: the number of pieces is a field of its own (Tab goes to it)
+        if sm.pieces_available() {
+            let i = fields.len();
+            let pos = c + Vec2::new(14.0, -58.0 + 21.0 * i as f32);
+            let r = Rect::from_min_size(pos, Vec2::new(150.0, 19.0));
+            painter.rect_filled(r, 3.0, Color32::from_black_alpha(205));
+            let border = if sm.pieces_edit {
+                crate::theme::rgb(255, 215, 90)
+            } else {
+                Color32::from_gray(90)
+            };
+            painter.rect_stroke(r, 3.0, Stroke::new(1.5, border), egui::StrokeKind::Inside);
+            painter.text(
+                r.left_center() + Vec2::new(6.0, 0.0),
+                egui::Align2::LEFT_CENTER,
+                tr("Pieces"),
+                font.clone(),
+                Color32::from_gray(170),
+            );
+            let text = if sm.pieces_edit && !sm.pieces_text.is_empty() {
+                sm.pieces_text.clone()
+            } else {
+                sm.pieces().to_string()
+            };
+            painter.text(
+                r.right_center() - Vec2::new(6.0, 0.0),
+                egui::Align2::RIGHT_CENTER,
+                text,
+                font.clone(),
+                if sm.pieces_edit {
+                    crate::theme::rgb(255, 235, 120)
+                } else {
+                    Color32::from_gray(225)
+                },
             );
         }
     }

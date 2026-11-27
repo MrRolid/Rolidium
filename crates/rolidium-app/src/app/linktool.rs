@@ -1501,6 +1501,14 @@ impl App {
         }
         let Some(cmd) = self.link_command() else { return };
         self.pending = None;
+        // the holes (pins) of a pattern of a hole stay selected afterwards, all of them, so that P pulls them at once
+        if let Command::AddFeatureLink { body, face, .. } = &cmd {
+            let d = self
+                .entry(*body)
+                .and_then(|m| m.faces.get(face.0 as usize))
+                .and_then(|f| f.cyl_diameter);
+            self.select_holes = d.map(|d| (*body, d));
+        }
         self.submit(cmd);
         self.set_status("Computing…", false);
         let editing = self.link_ui.editing.is_some();

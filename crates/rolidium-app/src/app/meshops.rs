@@ -461,7 +461,7 @@ impl App {
                 let r = ui.add(egui::TextEdit::singleline(&mut self.stretch.distance).desired_width(60.0));
                 self.probe_widget("stretch_distance", r.rect);
             });
-            if is_mesh {
+            {
                 let r = ui.checkbox(&mut self.stretch.preview, tr("Show the result"));
                 self.probe_widget("stretch_preview", r.rect);
                 if !self.stretch.preview && self.preview_mesh.as_ref().is_some_and(|p| p.hides == Some(id)) {
@@ -484,8 +484,12 @@ impl App {
                     });
                     self.set_status("Stretching… (Esc stops it)", false);
                 }
-            } else if is_mesh && self.stretch.preview {
-                self.stretch_preview(id, inputs);
+            } else if self.stretch.preview {
+                if is_mesh {
+                    self.stretch_preview(id, inputs);
+                } else {
+                    self.stretch_preview_solid(id, inputs);
+                }
             }
         }
     }
@@ -528,6 +532,44 @@ impl App {
             Err(e) => {
                 self.set_preview(None);
                 self.set_status(e, true);
+            }
+        }
+    }
+
+    /// The stretched solid is drawn in place of the original (made by the kernel: a body of up to 150 faces, a few tenths of a second).
+    fn stretch_preview_solid(&mut self, id: BodyId, inputs: Option<(DVec3, DVec3, f64)>) {
+        let Some((point, normal, distance)) = inputs else {
+            return;
+        };
+        let key = [point.x, point.y, point.z, normal.x, normal.y, normal.z, distance];
+        if self.stretch.shown == Some((id, key)) {
+            return;
+        }
+        self.stretch.shown = Some((id, key));
+        let Some(solid) = self.doc.body(id).map(|b| b.solid.clone()) else { return };
+        if solid.face_count() > 150 {
+            self.set_preview(None);
+            self.set_status("The body has too many faces for a preview; the stretch itself is made at Stretch", false);
+            return;
+        }
+        let made = solid
+            .stretched(point, normal, distance)
+            .and_then(|s| s.display_mesh());
+        match made {
+            Ok(m) => {
+                let mesh = TriMesh {
+                    positions: m.positions.iter().map(|p| [p.x, p.y, p.z]).collect(),
+                    triangles: m.indices.as_chunks::<3>().0.to_vec(),
+                };
+                self.set_preview(Some(PreviewMesh {
+                    mesh: Arc::new(mesh),
+                    hides: Some(id),
+                }));
+                self.set_status("Stretched: this is how the body will look", false);
+            }
+            Err(e) => {
+                self.set_preview(None);
+                self.set_status(e.to_string(), true);
             }
         }
     }

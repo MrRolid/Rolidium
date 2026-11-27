@@ -52,6 +52,9 @@ pub fn spec_of(f: &fit::Fitted) -> SurfaceSpec {
     }
 }
 
+/// The most faces a solid made of a mesh may have.
+pub const MAX_FACES: usize = 30_000;
+
 /// The sentence for a free-form model (also translated).
 pub const ORGANIC: &str = "Organic model, it stays a mesh";
 
@@ -103,6 +106,13 @@ pub fn solid_from_mesh(
                 t0.elapsed().as_secs_f64(),
                 fitted.stats
             );
+        }
+        // so many faces that the kernel would take minutes (sewing 67 000 faces took 7 minutes) and every later operation would be slow: the person is told at once
+        let faces = fitted.stats.planes + fitted.stats.cylinders + fitted.stats.cones + fitted.stats.spheres + fitted.stats.tori;
+        if faces > MAX_FACES {
+            return Err(KernelError::Invalid(format!(
+                "The solid would have {faces} faces (the limit is {MAX_FACES}): it would take minutes to make and every operation on it would be slow. It stays a mesh; simplify the mesh first"
+            )));
         }
         // a free shape (a cat, a figure): nothing to make faces of; the flat conversion would take minutes and give a million faces
         if fitted.stats.organic {
@@ -158,7 +168,7 @@ pub fn solid_from_mesh(
     if finer < tolerance * 0.7 {
         attempts.extend([(finer, 2), (finer, 4)]);
     }
-    if n <= 150_000 {
+    if n <= MAX_FACES {
         attempts.push((finer.min(tolerance), usize::MAX));
     }
     let total = attempts.len();
@@ -192,6 +202,13 @@ pub fn solid_from_mesh(
                 t0.elapsed().as_secs_f64(),
                 pf.faces.len()
             );
+        }
+        if pf.faces.len() > MAX_FACES {
+            failure = format!(
+                "The solid would have {} faces (the limit is {MAX_FACES}): it would take minutes to make and every operation on it would be slow. It stays a mesh; simplify the mesh first",
+                pf.faces.len()
+            );
+            break;
         }
         let points: Vec<DVec3> = pf.points.iter().map(|p| DVec3::new(p[0], p[1], p[2])).collect();
         match Solid::from_polygons(&points, &pf.faces, &pf.point_tolerance, &pf.fallback, 1e-5) {
@@ -234,6 +251,9 @@ pub fn solid_from_mesh(
                 failure = e.to_string()
             }
         }
+    }
+    if failure.starts_with("The solid would have") {
+        return Err(KernelError::Invalid(failure));
     }
     Err(KernelError::Invalid(format!(
         "The mesh could not be made a solid ({failure}). It stays a mesh; repair it (holes, turned triangles) or try a larger accuracy"

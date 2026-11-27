@@ -199,6 +199,9 @@ pub struct SketchMode {
     pub container: Option<(DVec2, Option<rolidium_doc::rolidium_sketch::multi::Container>)>,
     /// The right button made copies: the container and the number of pieces (round a circle; for a closed shape the copies are in its corners).
     pub multi: Option<Multi>,
+    /// The field "Pieces" next to the diameter (inside a circle): it is being typed into, and what has been typed.
+    pub pieces_edit: bool,
+    pub pieces_text: String,
 }
 
 /// The copies of the circle that is being drawn.
@@ -251,6 +254,8 @@ impl SketchMode {
             quick: false,
             container: None,
             multi: None,
+            pieces_edit: false,
+            pieces_text: String::new(),
         }
     }
 
@@ -268,6 +273,8 @@ impl SketchMode {
         self.tool = t;
         self.drawing = None;
         self.multi = None;
+        self.pieces_edit = false;
+        self.pieces_text.clear();
         self.edge_edit.clear();
     }
 
@@ -280,6 +287,8 @@ impl SketchMode {
         self.edge_edit.clear();
         self.multi = None;
         self.container = None;
+        self.pieces_edit = false;
+        self.pieces_text.clear();
         let labels: &[&'static str] = match self.tool {
             SkTool::Line | SkTool::Axis => &["Length", "Angle"],
             SkTool::Rect => &["Width", "Height"],
@@ -470,6 +479,13 @@ impl SketchMode {
             }
             return;
         }
+        if self.pieces_edit {
+            if ch.is_ascii_digit() && self.pieces_text.len() < 3 {
+                self.pieces_text.push(ch);
+                self.apply_pieces();
+            }
+            return;
+        }
         let Some(d) = &mut self.drawing else { return };
         if !(ch.is_ascii_digit() || ch == '.' || ch == '-') {
             return;
@@ -515,14 +531,59 @@ impl SketchMode {
         if let (None, Some(p)) = (&self.drawing, &mut self.place) {
             p.fields[p.active].pop();
         }
+        if self.pieces_edit {
+            self.pieces_text.pop();
+            self.apply_pieces();
+            return;
+        }
         if let Some(d) = &mut self.drawing {
             d.fields[d.active].text.pop();
         }
     }
 
+    /// The most pieces round a circle (the right button, or typed).
+    pub const MAX_PIECES: usize = 100;
+
+    /// Whether the circle that is drawn is inside a circle, so that the field of the number of pieces exists.
+    pub fn pieces_available(&self) -> bool {
+        self.tool == SkTool::Circle
+            && self.drawing.is_some()
+            && matches!(
+                self.container.as_ref().and_then(|(_, c)| c.as_ref()),
+                Some(rolidium_doc::rolidium_sketch::multi::Container::Circle(..))
+            )
+    }
+
+    /// The number of pieces now (1: only the circle itself).
+    pub fn pieces(&self) -> usize {
+        self.multi.as_ref().map_or(1, |m| m.n)
+    }
+
+    /// Takes the typed number as the number of pieces.
+    fn apply_pieces(&mut self) {
+        let Some(c) = self
+            .container
+            .as_ref()
+            .and_then(|(_, c)| c.clone())
+            .filter(|c| matches!(c, rolidium_doc::rolidium_sketch::multi::Container::Circle(..)))
+        else {
+            return;
+        };
+        let n = self.pieces_text.parse::<usize>().unwrap_or(1).clamp(1, Self::MAX_PIECES);
+        self.multi = (n > 1).then_some(Multi { container: c, n });
+    }
+
     pub fn tab(&mut self) {
         if self.edge_typing() {
             self.edge_edit.tab();
+            return;
+        }
+        // inside a circle the Tab goes from the diameter to the number of pieces and back
+        if self.pieces_available() {
+            self.pieces_edit = !self.pieces_edit;
+            if self.pieces_edit {
+                self.pieces_text = self.pieces().to_string();
+            }
             return;
         }
         if self.drawing.is_none() && self.tool != SkTool::None {
