@@ -943,6 +943,58 @@ std::shared_ptr<Shape> solid_from_surfaces(rust::Slice<const double> pts, rust::
                 const double want = face_area.size() > f ? face_area[f] : 0.0;
                 const double err = want > 0 ? std::abs(std::abs(fp.Mass()) - want) / want : 0.0;
                 if (std::getenv("ROLIDIUM_DEBUG_SURFACES")) std::fprintf(stderr, "face %zu kind %u r %g loops %u attempt %d area %g want %g%s\n", f, surf_kind[face_surf[f]], surf_params[12 * face_surf[f] + 6], l1 - l0, attempt, fp.Mass(), want, want > 0 && std::abs(std::abs(fp.Mass()) - want) / want > 0.1 ? " BAD" : "");
+                if (std::getenv("ROLIDIUM_DEBUG_SURFACES") && want > 0 && err > 0.1) {
+                    for (uint32_t k = l0; k < l1; ++k) {
+                        std::fprintf(stderr, "   loop %u:", k - l0);
+                        for (uint32_t q = loop_offsets[k]; q < loop_offsets[k + 1]; ++q) {
+                            const uint32_t code = loop_edges[q]; const uint32_t e = code >> 1;
+                            const double* ep = &edge_params[12 * e];
+                            { const uint32_t va = (code & 1) ? edge_v[2 * e + 1] : edge_v[2 * e], vb = (code & 1) ? edge_v[2 * e] : edge_v[2 * e + 1];
+                              std::fprintf(stderr, "[%u(%.3f %.3f %.3f)->%u(%.3f %.3f %.3f)]", va, pts[3*va], pts[3*va+1], pts[3*va+2], vb, pts[3*vb], pts[3*vb+1], pts[3*vb+2]); }
+                            if (surf_kind[face_surf[f]] == 0 && edge_kind[e] != 0) {
+                                const double* sp = &surf_params[12 * face_surf[f]];
+                                const double dn = ep[3] * sp[3] + ep[4] * sp[4] + ep[5] * sp[5];
+                                const double off = (ep[0] - sp[0]) * sp[3] + (ep[1] - sp[1]) * sp[4] + (ep[2] - sp[2]) * sp[5];
+                                std::fprintf(stderr, "{normals dot %.4f, centre off the plane by %.4f}", dn, off);
+                            }
+                            if (edge_kind[e] == 0) std::fprintf(stderr, " L%u%s", e, (code & 1) ? "r" : "");
+                            else {
+                                const gp_Pnt c(ep[0], ep[1], ep[2]); const gp_Dir n(ep[3], ep[4], ep[5]); const gp_Dir x(ep[6], ep[7], ep[8]);
+                                gp_Circ circ(gp_Ax2(c, n, x), ep[9]);
+                                double a0 = ElCLib::Parameter(circ, pnt(edge_v[2 * e])), a1 = ElCLib::Parameter(circ, pnt(edge_v[2 * e + 1]));
+                                if (edge_v[2 * e] == edge_v[2 * e + 1]) a1 = a0 + 2 * M_PI; else if (a1 <= a0) a1 += 2 * M_PI;
+                                std::fprintf(stderr, " C%u%s(r%.3g sweep %.1fdeg)", e, (code & 1) ? "r" : "", ep[9], (a1 - a0) * 180 / M_PI);
+                            }
+                        }
+                        std::fprintf(stderr, "\n");
+                    }
+                }
+                if (std::getenv("ROLIDIUM_DEBUG_SURFACES") && want > 0 && err > 0.1 && surf_kind[face_surf[f]] == 0 && l1 - l0 == 1) {
+                    // the area of the loop as a polygon, the arcs walked as the edge says (a) and the other way round (b)
+                    const double* sp = &surf_params[12 * face_surf[f]];
+                    gp_Vec nn(sp[3], sp[4], sp[5]);
+                    for (int variant = 0; variant < 2; ++variant) {
+                        std::vector<gp_Pnt> poly;
+                        for (uint32_t q = loop_offsets[l0]; q < loop_offsets[l0 + 1]; ++q) {
+                            const uint32_t code = loop_edges[q]; const uint32_t e = code >> 1;
+                            std::vector<gp_Pnt> seg;
+                            if (edge_kind[e] == 0) { seg.push_back(pnt(edge_v[2*e])); seg.push_back(pnt(edge_v[2*e+1])); }
+                            else if (edge_kind[e] == 1) {
+                                const double* ep = &edge_params[12 * e];
+                                gp_Circ circ(gp_Ax2(gp_Pnt(ep[0], ep[1], ep[2]), gp_Dir(ep[3], ep[4], ep[5]), gp_Dir(ep[6], ep[7], ep[8])), ep[9]);
+                                double a0 = ElCLib::Parameter(circ, pnt(edge_v[2*e])), a1 = ElCLib::Parameter(circ, pnt(edge_v[2*e+1]));
+                                if (a1 <= a0) a1 += 2 * M_PI;
+                                if (variant == 1) a1 -= 2 * M_PI;
+                                for (int i = 0; i <= 64; ++i) seg.push_back(ElCLib::Value(a0 + (a1 - a0) * i / 64.0, circ));
+                            } else { seg.push_back(pnt(edge_v[2*e])); seg.push_back(pnt(edge_v[2*e+1])); }
+                            if (code & 1) std::reverse(seg.begin(), seg.end());
+                            for (auto& g : seg) poly.push_back(g);
+                        }
+                        gp_Vec sum(0, 0, 0);
+                        for (size_t i = 0; i < poly.size(); ++i) { gp_Vec a(gp_Pnt(0,0,0), poly[i]), b(gp_Pnt(0,0,0), poly[(i + 1) % poly.size()]); sum += a.Crossed(b); }
+                        std::fprintf(stderr, "   polygon area variant %d: %g\n", variant, std::abs(sum.Dot(nn)) / 2.0);
+                    }
+                }
                 if (err < best_err) {
                     best_err = err;
                     best = face;
