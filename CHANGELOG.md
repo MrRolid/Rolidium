@@ -25,8 +25,14 @@ features is visible. 0.2.0 is the first public release.
 - The pieces of the right button: up to 100 pieces inside a circle, with a field **Pieces** in the diameter box (Tab, type the number).
 - The files that were imported (STL, 3MF) are in the list of the recent files; a click imports them again.
 - Window tests t52 to t59; `pull_fixes`, `path_pattern`, `mesh_conversion_rules`, `pinches` and the unit tests of `snapcurves`.
+- **Shell (O)**: a body made hollow: click the faces that disappear (Ctrl or Shift adds; none makes a closed hollow body), the wall thickness, inwards, outwards or both ways, a live preview, Enter; **thicken single walls**; a link whose thickness and openings are changed later in its panel. Text, holes and pins that are thinner than the wall are taken off for the shell and put back (a text engraved 0.6 mm into a 2 mm wall stays). Works on solids, also those converted from STL; for a mesh the status line says to convert it first. `docs/SHELL_AND_TEXT.md`, D75.
+- **Text (G)**: text raised from a flat face of a body or engraved into it, on a flat wall of a mesh (Manifold) or into a sketch: the words, four bundled fonts (Liberation Sans, Liberation Serif, Hack, DejaVu Sans; licences in `THIRD-PARTY-LICENSES`), height of the capitals, bold, italic, alignment, turn, letter spacing, depth; Czech and other accented letters; the holes of letters stay holes; on a body it is a link that is changed later (also under a shell). New crate `rolidium-text`. Script words `shell` and `text`.
+- **A sketch pattern wizard**: T and B work in a sketch; what to repeat (a click, Ctrl, Shift, a rectangle), the three ways, the guide; "all the shapes" is a choice in the panel. **S in a sketch** chooses shapes and stays in the sketch. **Ctrl + click on a body** adds it to the chosen bodies. D76.
+- **A pattern along a curve keeps the curve** (a curve, a chain of a sketch, edges of a body): the pieces move when it changes. **A hole of a mesh is closed by pulling it to nothing**, a pin is taken off (Manifold). The hole that is moved and Pick a point snap to crossings, quadrants and end points. D77.
+- Window tests t60 (the sketch wizard, no stale preview), t61 (Ctrl + click on bodies), t62 (shell), t63 (text); tests `shell` of the kernel, `shell_text` of the document, `rolidium-text`.
 
 ### Fixed
+- A preview of a pattern of sketch shapes stayed on the screen after Ctrl+Z and after a new document until the next zoom; every temporary drawing is made again when what it depends on changes.
 - A pull of a wall next to rounds that could not be made again after the pull ended with "The round could not be made cleanly"; the wall is now moved without the rounds and the notice says so.
 - A region of a sketch on a plane that belongs to no body, pulled inwards in Auto, did nothing ("nothing to add"): it now cuts a pocket of that depth; in Cut a pull that goes away from the body is turned round (the circle on the base plane above a mesh now cuts it).
 
@@ -34,7 +40,8 @@ features is visible. 0.2.0 is the first public release.
 - Tori with a small major radius (the round at the bottom of a pocket whose corner radius is about the round's radius) stay flat strips after a conversion; the rest of the part is real faces.
 - A cut through a mesh of 500 000 triangles takes about 3 s on a busy machine (the library runs on one core: the parallel build with oneTBB was looked at and not made).
 - A stretch by a negative distance needs the cross-section to be the same along the removed layer; the preview of a stretch of a solid is made for bodies of up to 150 faces.
-- A pattern along a curve keeps the curve as it was when the link was made (a later change of the curve does not move the pieces).
+- The rounds and pockets (other than round holes and pins) are not taken off for a shell: a shell that is stopped by them fails with the reason. A text sits on flat faces only; kerning, SVG import and fonts of the system are not there.
+- A mesh made of small details (body-edc.stl) still becomes flat faces only: the round routes fail (sewing leaves open edges; 366 flat faces next to arcs of 0.4 to 1 mm get an area that differs from the mesh). The cause is narrowed down (`ROLIDIUM_DEBUG_SURFACES` lists the faces), not mended.
 
 ### Changed
 - A sketch drawn on a wall of a mesh and pulled in mode Auto or Add is **joined to the mesh** (before it made a solid of its own); in mode Cut it is cut out of the mesh. Combine of a mesh with a solid no longer refuses; a merge of bodies that touch nothing says so.

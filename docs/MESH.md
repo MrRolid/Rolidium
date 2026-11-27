@@ -39,3 +39,9 @@ Tried on models made for the tests (`crates/rolidium-doc/tests/mesh_roundtrip.rs
 ## Tried on the private files (not in the repository), 0.3.2 dev, release build, a machine with a load of about 18
 
 The table of `docs/DECISIONS.md` D70 and the report of the round give the numbers; they are made by `ROLIDIUM_STL=<file> cargo test --release -p rolidium-doc --test local_stl -- --ignored --nocapture` (the conversion) and `... -p rolidium-mesh --test local_stl` (the search after the import and the full recognition). `ROLIDIUM_DEBUG_CONVERT=1` prints what each rung of the ladder did and how long it took, `ROLIDIUM_DEBUG_SURFACES=1` the faces made by the kernel and the sewing.
+
+
+## Closing a hole, text on a wall
+
+A hole of a mesh pulled to a diameter of nothing is **closed** and a pin is taken off: a cylinder (a little wider than the facets of the hole, as long as the hole) is joined to the mesh or cut out of it with
+Manifold, so the surface is flush with the mouths. Text raised from a flat wall of a mesh or engraved into it is meshed finely and joined or cut the same way (`Command::MeshText`, see `SHELL_AND_TEXT.md`).

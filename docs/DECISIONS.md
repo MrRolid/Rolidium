@@ -608,4 +608,38 @@ The order of what wins, nearest first inside each class: the **end points, middl
 
 ## D74: The Pattern wizard and the pattern along a curve
 
-See `PATTERNS.md`. `LinkKind::Path` keeps the guide as a **polyline** (sampled from the curve with a deflection of 0.02 mm when the link is made), not a reference to the curve: a change of the curve does not move the pieces (a link to the curve would need the history of curves; the sweep has it, the pattern does not yet). The original (piece 0) stays where it is; a piece i is the original moved by the vector from the start of the path to the place i and, with *The pieces turn with the curve*, first turned by the smallest rotation that takes the first tangent to the tangent there. The pitch or the count, the free distances at the ends and the closed-curve rule are in `links::path_places`.
+See `PATTERNS.md`. `LinkKind::Path` keeps the guide as a **polyline** (sampled from the curve with a deflection of 0.02 mm when the link is made), not a reference to the curve: a change of the curve did not move the pieces at first; since D77 the link also keeps the curve and follows it. The original (piece 0) stays where it is; a piece i is the original moved by the vector from the start of the path to the place i and, with *The pieces turn with the curve*, first turned by the smallest rotation that takes the first tangent to the tangent there. The pitch or the count, the free distances at the ends and the closed-curve rule are in `links::path_places`.
+
+
+## D75: The Shell and the Text work in place as links that follow each other
+
+`LinkKind::Shell(ShellParams)` and `LinkKind::Text(TextParams)` (`bodyfeat.rs`, `links.rs`). They change the **one body they name** (`mode()` is `Add(target)`; `works_in_place()`), keep the solid of that body
+before the link as `base` and the solid they made as `produced`. A face is not named by its number but by what it is and where (`FaceAnchor`: kind, normal or axis, a point, radius, area: found again by the
+plane, so it survives a text that was added before). **Chains:** links of this kind on one body are calculated in the order they were made; when a link was calculated again (a changed text) and another
+link after it finds the body not as that link left it (`produced`), it takes the body as it is now as its `base` (`links::refresh`) and is calculated again. Deleting a link gives the body its `base`. A hand
+edit of the body is refused as for every derived body (D44).
+**The shell** uses `BRepOffsetAPI_MakeThickSolid` (the faces taken away, a signed thickness: negative inwards) and for a closed hollow body the body minus the same body offset inwards; both ways is the union of
+the inward and the outward shell of half the thickness; a single thicker wall is the Pull of the face of that wall in the result (found through the kernel history). **Small features:** when the shell fails, the
+holes and pins (`feature_tool`, `remove_feature`) and the text of the earlier links on the body are taken off, the shell is made of the plain body and they are put back (`shell_with_details`; a text that is
+engraved in a wall thinner than the offset makes OCCT's offset fail, tested: box 60 x 30 x 12, "Rolidium" engraved 0.6 mm, shell 2 mm). Rounds and other pockets are not taken off (open).
+**The text** (`rolidium-text`): `skrifa` outlines, Bezier curves flattened to 0.01 mm, grouped by containment depth into shapes (an outer outline and its holes), each shape a prism on the plane of the face
+(`Solid::extrude_profile`, 0.05 mm over the face so that the boolean leaves no skin), letters that touch are fused first, then one fuse or cut. The height is the height of the capital letters. On a mesh:
+`Command::MeshText` (the letters meshed finely, Manifold union or difference).
+**The preview** of the shell is calculated on a thread of its own on a copy of the state (`links::trial`, the same code as the real link) and shown in the place of the body (`PreviewMesh`); the preview of
+the text is the outlines of the letters on the face. D75 is why the Shell and the Text are not a "history of the model": there are only the links and the order they were made in.
+
+## D76: The sketch wizard, S in a sketch, previews that go away
+
+**T and B in a sketch** work as in 3D (they did nothing while a size field of the selected shape had the keyboard; the letters T, B and S now take the keyboard from such a field when it has not been typed
+into, and so do Ctrl+Z and Ctrl+Y). The panel of the pattern of a sketch has the steps of the 3D wizard: *Click what you want to repeat* (the shapes chosen with Select: a click, Ctrl or Shift, a rectangle),
+the three buttons, the guide (a line, an arc, a circle, a point of the sketch or an edge), then the numbers; "all the shapes of the sketch" is a choice in the panel. **S in a sketch** (and the Select
+button) keeps the sketch and chooses shapes (a rectangle from left to right takes what is inside, from right to left what it touches); D, P and the Finish button leave it. **Previews:** a fingerprint of
+everything a temporary drawing depends on (the tool, the sketch, the panel, the preview, the document revision) is taken every frame and the drawing is made again when it changes (it used to wait for the next
+zoom); a pattern panel of a sketch closes with its sketch, with Esc, with a new or an opened document, and its copies go with what was chosen when Undo takes that away.
+**Ctrl or Shift + click on a body** adds it to the chosen bodies (and takes a chosen one out) when whole bodies are chosen.
+
+## D77: What changed in D71, D73 and D74
+
+D71: a hole of a mesh pulled to **zero diameter is closed** and a pin taken off (Manifold: a cylinder a little wider than the facets is joined to the mesh or cut out of it, flush with the mouths of the hole).
+D73: the hole that is moved and **Pick a point** of the circular pattern snap to the crossings, quadrants and end points of the sketches (Shift turns it off). D74: a pattern along a curve keeps **the curve**
+(`PathParams::source`: a curve of the document, a chain of a sketch, edges of a body); the polyline is read again whenever the curve changes (`links::follow`), the pieces move, the file keeps it.

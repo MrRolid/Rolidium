@@ -74,6 +74,14 @@ Noto Sans JP (used for Japanese texts), under the SIL Open Font License 1.1 whos
 
 EOF
 cat assets/fonts/NotoSansJP-OFL.txt
+cat <<'EOF'
+
+
+The fonts of the Text tool (Liberation Sans and Liberation Serif under the SIL Open Font License 1.1, Hack under the MIT licence and the Bitstream Vera licence,
+DejaVu Sans under the Bitstream Vera licence; the files are in crates/rolidium-text/fonts/) and their licences:
+
+EOF
+cat crates/rolidium-text/fonts/LICENSES.txt
 printf '\n\n(The fonts bundled in the egui libraries are listed in part 3.)\n\n\nPART 4. RUST LIBRARIES\n----------------------\n\n'
 sed -n '/^\* /,$p' "$tmp"
 } > "$out"

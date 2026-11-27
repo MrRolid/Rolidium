@@ -69,3 +69,11 @@ A circle of a sketch cannot be copied into the corners of a rectangle of a sketc
 When a circle is drawn inside a closed shape of straight walls (a face of a body, a rectangle or a closed polygon of the sketch) the diameter box says **Right button: more pieces**. A right click shows the same circle in **all the corners** with the same distances from the two nearest walls (a second right click takes them away). Inside a **circle** every right click adds a piece, 2 to 10 evenly round its centre; **Shift + right click** takes one away. The left click draws all of them as **one step of Ctrl+Z**, Esc draws nothing. Outside a closed shape the right button stops the drawing as before. It works in the quick sketch on a wall too.
 
 The circles that are drawn together (the copies of the right button) all stay selected, and so do the holes or pins of a pattern of a hole, so that `P` pulls them all at once (see *Pull several things at once* in the guide of the pull).
+
+
+## In a sketch, and the curve that is kept
+
+In a sketch **T** (and **B**) open the same steps for the shapes of the sketch: *Click what you want to repeat* (Select of the sketch: a click, Ctrl or Shift, a rectangle), then *Along a line or a curve*, *Round a point* or *A grid* (a second row at a right angle),
+then a click on the guide: a line gives the direction of the row, a circle or an arc its centre, a point of the sketch the centre, an edge of a body a direction. The numbers follow in the panel; "All the shapes of the sketch"
+is a choice there. The copies are ordinary shapes of the sketch. A **pattern along a curve** keeps the curve it follows (a curve of the document, a chain of lines and arcs of a sketch, the edges of a body): when the
+curve is changed the pieces move (`PathParams::source`).
