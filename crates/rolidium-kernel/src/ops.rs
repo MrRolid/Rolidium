@@ -1127,7 +1127,7 @@ impl Solid {
     }
 
     /// [`Self::pull_face`] without looking at rounds and chamfers next to the face.
-    pub(crate) fn pull_face_plain(&self, face: FaceId, distance: f64) -> Result<OpResult> {
+    pub fn pull_face_plain(&self, face: FaceId, distance: f64) -> Result<OpResult> {
         let info = self.face_info(face)?;
         if info.kind != FaceKind::Plane {
             return Err(KernelError::NotPlanar);

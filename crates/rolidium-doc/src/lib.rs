@@ -1225,7 +1225,16 @@ impl Job {
                             );
                             r
                         }
-                        Err(_) => return Err(e.into()),
+                        // the rounds cannot even be taken out cleanly: the wall is pulled as it is, the rounds next to it are not followed
+                        Err(_) => match b.solid.pull_face_plain(*face, dist) {
+                            Ok(r) => {
+                                notice = Some(
+                                    "The rounds next to the wall could not be kept, so the wall was pulled without following them".to_string(),
+                                );
+                                r
+                            }
+                            Err(_) => return Err(e.into()),
+                        },
                     },
                 };
                 remap_features(&mut b.features, &r.history);

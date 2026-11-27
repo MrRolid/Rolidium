@@ -49,3 +49,73 @@ fn the_conversion_of_a_private_file() {
         Err(e) => eprintln!("refused after {secs:.2} s: {e}"),
     }
 }
+
+/// E1 (a private file): converted, a vertical edge rounded, then the walls of the body pulled one after another (twice, as "Up to" twice does); every refusal is printed.
+/// `ROLIDIUM_STL=<file> cargo test --release -p rolidium-doc --test local_stl -- --ignored --nocapture pull_after_a_round`
+#[test]
+#[ignore]
+fn pull_after_a_round_of_a_private_file() {
+    use rolidium_doc::PullMode;
+    let Ok(path) = std::env::var("ROLIDIUM_STL") else {
+        return;
+    };
+    let bytes = std::fs::read(&path).unwrap();
+    let mut m = rolidium_mesh::stl::parse(&bytes).unwrap();
+    let tol = rolidium_mesh::check::merge_tolerance(&m);
+    rolidium_mesh::check::merge_vertices(&mut m, tol);
+    let mut d = Document::new();
+    d.apply(Command::AddMeshes {
+        meshes: vec![NewMesh { name: "m".into(), mesh: Arc::new(m), verified: true }],
+    })
+    .unwrap();
+    let id = d.meshes()[0].id;
+    d.apply(Command::ConvertMesh { body: id, tolerance: 0.02, round: false, keep: false }).unwrap();
+    let body = d.bodies()[0].id;
+    let solid = d.body(body).unwrap().solid.clone();
+    println!("converted: {} faces", solid.face_count());
+    // vertical straight edges between two flat faces
+    let mut verticals = Vec::new();
+    for e in solid.edges() {
+        let i = solid.edge_info(e).unwrap();
+        if i.kind == rolidium_kernel::EdgeKind::Line && ((i.end - i.start).normalize().z.abs() > 0.999) && i.length > 3.0 {
+            verticals.push((e, i.length));
+        }
+    }
+    println!("vertical edges: {}", verticals.len());
+    for (e, len) in verticals.iter().take(12) {
+        let e_id = *e;
+        let mut dd = d.clone();
+        let r = dd.apply(Command::FilletEdges { body, edges: vec![e.0], size: 2.0, chamfer: false });
+        println!("round of edge {} (length {len:.1}): {:?}", e.0, r.as_ref().map(|_| "ok").map_err(|e| e.to_string()));
+        if r.is_err() {
+            continue;
+        }
+        let solid = dd.body(body).unwrap().solid.clone();
+        let faces: Vec<_> = solid
+            .faces()
+            .filter(|f| solid.face_info(*f).map(|i| i.kind == rolidium_kernel::FaceKind::Plane).unwrap_or(false))
+            .collect();
+        for f in faces.iter().take(40) {
+            let mut d3 = dd.clone();
+            for pass in 0..2 {
+                let cur = d3.body(body).unwrap().solid.clone();
+                // the same wall again: found by its plane
+                let Some(face) = cur.faces().find(|g| {
+                    let (a, b) = (cur.face_info(*g), solid.face_info(*f));
+                    match (a, b) {
+                        (Ok(a), Ok(b)) => a.kind == b.kind && a.normal.dot(b.normal) > 0.999 && ((a.origin - b.origin).dot(b.normal)).abs() < 0.5 + pass as f64 * 3.0,
+                        _ => false,
+                    }
+                }) else {
+                    break;
+                };
+                let dist = [2.0, 6.0, -2.0, 12.0, -6.0][(f.0 as usize + pass) % 5];
+                let r = d3.apply(Command::PullFace { body, face, distance: dist, mode: PullMode::Auto });
+                if let Err(e) = r {
+                    println!("  round of edge {}: pull of the wall {} by {dist} pass {pass}: {e}", e_id.0, f.0);
+                    break;
+                }
+            }
+        }
+    }
+}
