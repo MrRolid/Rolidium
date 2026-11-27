@@ -23,7 +23,9 @@ for t in "${TESTS[@]}"; do
   SCREEN=$(sed -n 's/^# SCREEN: *//p' "$py" | head -1)      # the size of the virtual screen, default 1280x800
   EXTRA=$(sed -n 's/^# ENV: *//p' "$py" | head -1)          # more environment variables for the program, NAME=value separated by spaces
   MODEL="$W/model.rolidium"
-  if [ -n "$FIXTURE" ]; then
+  if [ -n "${GUI_MODELFILE:-}" ]; then
+    cp "$GUI_MODELFILE" "$MODEL"   # a ready file instead of the fixture (for measuring on a model that is slow to make)
+  elif [ -n "$FIXTURE" ]; then
     IFS=';' read -ra CMDS <<< "$FIXTURE"
     ARGS=()
     for c in "${CMDS[@]}"; do ARGS+=("$(echo "$c" | sed 's/^ *//; s/ *$//')"); done

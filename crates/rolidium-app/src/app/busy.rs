@@ -17,6 +17,7 @@ impl App {
     /// Bookkeeping once a frame: since when the program has been busy.
     pub(super) fn busy_tick(&mut self) {
         self.take_chain_answers();
+        self.warm_big_bodies();
         // a tool that was left (another tool, a new document) takes its panel state and its preview with it
         if self.tool != Tool::Shell
             && (self.shell.body.is_some() || self.shell.preview_on || self.shell.editing.is_some())
@@ -124,6 +125,34 @@ impl App {
             });
         if cancel {
             self.cancel_computation();
+        }
+    }
+}
+
+impl App {
+    /// A body of many faces needs seconds of the kernel for the things the window asks about it (the rounds it recognises, the box, the volume, the chains of
+    /// edges): they are worked out once on a thread of its own, as soon as the body is there, so that the window finds them ready when the pointer comes.
+    fn warm_big_bodies(&mut self) {
+        for b in self.doc.bodies() {
+            let n = b.solid.face_count();
+            if n <= 200 {
+                continue;
+            }
+            let id = b.solid.shape_id();
+            if !self.warmed.insert(id) {
+                continue;
+            }
+            let solid = b.solid.clone();
+            let _ = std::thread::Builder::new().stack_size(64 << 20).spawn(move || {
+                let _ = solid.bounding_box();
+                let _ = solid.volume();
+                let _ = solid.blend_map();
+                let _ = solid.smooth_chain(&[rolidium_kernel::EdgeId(0)], rolidium_kernel::CHAIN_ANGLE_DEG);
+            });
+        }
+        if self.warmed.len() > 64 {
+            let alive: std::collections::HashSet<usize> = self.doc.bodies().iter().map(|b| b.solid.shape_id()).collect();
+            self.warmed.retain(|k| alive.contains(k));
         }
     }
 }

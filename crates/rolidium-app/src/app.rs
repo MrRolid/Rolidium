@@ -461,6 +461,11 @@ pub struct App {
     rename: Option<(ItemId, String)>,
     chain_cache: std::cell::RefCell<ChainCache>,
     /// The edges that a round also treats, asked on threads for bodies of many faces: what is being asked, and the answers that came.
+    /// The bodies of many faces whose slow answers were worked out in the background (by the identity of the shape).
+    warmed: std::collections::HashSet<usize>,
+    /// The boxes of the edges of every mesh on the screen for the view they were made for.
+    edge_screen: std::cell::RefCell<std::collections::HashMap<u64, ((Camera, u32, u32), Arc<Vec<Option<[f32; 4]>>>)>>,
+    probe_bodies: std::cell::RefCell<Option<(u64, Vec<serde_json::Value>)>>,
     chain_pending: std::cell::RefCell<std::collections::HashSet<(u64, BodyId, Vec<u32>, bool)>>,
     chain_inbox: Arc<std::sync::Mutex<Vec<((u64, BodyId, Vec<u32>, bool), Vec<u32>)>>>,
     /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
@@ -713,6 +718,9 @@ impl App {
             ctx_target: None,
             rename: None,
             chain_cache: Default::default(),
+            warmed: Default::default(),
+            edge_screen: Default::default(),
+            probe_bodies: Default::default(),
             chain_pending: Default::default(),
             chain_inbox: Default::default(),
             fill_entities: Vec::new(),
@@ -3424,7 +3432,9 @@ impl App {
         let prev_hover_region = self.hover_region;
         let prev_obj = self.hover_obj;
         let t_pointer = Instant::now();
-        self.hover_obj = match (resp.hovered(), pick_pointer, self.pull.is_some()) {
+        // while the view is turned or moved (the middle or the right button is down) nothing is picked: the picture changes every frame
+        let camera_drag = ctx.input(|i| i.pointer.middle_down() || i.pointer.secondary_down());
+        self.hover_obj = match (resp.hovered() && !camera_drag, pick_pointer, self.pull.is_some()) {
             (true, Some(p), false) => {
                 let entities = self.sk.as_ref().is_none_or(|s| s.tool == SkTool::None);
                 let hit = self.pick_object_d(p, rect, self.sk.is_none(), entities);

@@ -214,11 +214,14 @@ impl App {
         }
         if edges {
             for m in self.meshes.iter() {
-                let boxes = self.pick_cache.borrow_mut().edge_boxes(m.stamp, &m.mesh);
-                for (e, (lo, hi)) in m.mesh.edges.iter().zip(boxes.iter()) {
+                // the boxes of the edges on the screen are made once for a view (the camera and the size of the window), not for every move of the pointer
+                let screen = self.edge_screen_boxes(m.stamp, &m.mesh, rect);
+                for (e, sb) in m.mesh.edges.iter().zip(screen.iter()) {
                     // an edge whose box is far from the pointer on the screen is not looked at
-                    if !self.box_near_pointer(*lo, *hi, pointer, rect, 8.0) {
-                        continue;
+                    if let Some(b) = sb {
+                        if pointer.x < b[0] - 8.0 || pointer.x > b[2] + 8.0 || pointer.y < b[1] - 8.0 || pointer.y > b[3] + 8.0 {
+                            continue;
+                        }
                     }
                     let proj: Vec<Option<Pos2>> = e.points.iter().map(|p| self.project(*p, rect)).collect();
                     let mut it = proj.windows(2).map(|w| (w[0], w[1]));
@@ -255,25 +258,39 @@ impl App {
         Some(c[next].0)
     }
 
-    /// True if the screen box of the 3D box `lo`..`hi`, widened by `margin` pixels, holds the pointer (always true when a corner is not on the screen).
-    fn box_near_pointer(&self, lo: Vec3, hi: Vec3, pointer: Pos2, rect: Rect, margin: f32) -> bool {
-        let (mut min, mut max) = (Pos2::new(f32::MAX, f32::MAX), Pos2::new(f32::MIN, f32::MIN));
-        for i in 0..8 {
-            let c = Vec3::new(
-                if i & 1 == 0 { lo.x } else { hi.x },
-                if i & 2 == 0 { lo.y } else { hi.y },
-                if i & 4 == 0 { lo.z } else { hi.z },
-            );
-            let Some(p) = self.project(c, rect) else {
-                return true;
-            };
-            min = Pos2::new(min.x.min(p.x), min.y.min(p.y));
-            max = Pos2::new(max.x.max(p.x), max.y.max(p.y));
+    /// The boxes of the edges of a mesh on the screen (`None`: a corner is not on the screen, the edge is always looked at), for the view the frame is drawn with.
+    fn edge_screen_boxes(&self, stamp: u64, mesh: &Arc<rolidium_kernel::Mesh>, rect: Rect) -> Arc<Vec<Option<[f32; 4]>>> {
+        let key = (self.camera, rect.size().x.to_bits(), rect.size().y.to_bits());
+        if let Some((k, v)) = self.edge_screen.borrow().get(&stamp) {
+            if *k == key {
+                return v.clone();
+            }
         }
-        pointer.x >= min.x - margin
-            && pointer.x <= max.x + margin
-            && pointer.y >= min.y - margin
-            && pointer.y <= max.y + margin
+        let boxes = self.pick_cache.borrow_mut().edge_boxes(stamp, mesh);
+        let v: Vec<Option<[f32; 4]>> = boxes
+            .iter()
+            .map(|(lo, hi)| {
+                let (mut min, mut max) = (Pos2::new(f32::MAX, f32::MAX), Pos2::new(f32::MIN, f32::MIN));
+                for i in 0..8 {
+                    let c = Vec3::new(
+                        if i & 1 == 0 { lo.x } else { hi.x },
+                        if i & 2 == 0 { lo.y } else { hi.y },
+                        if i & 4 == 0 { lo.z } else { hi.z },
+                    );
+                    let p = self.project(c, rect)?;
+                    min = Pos2::new(min.x.min(p.x), min.y.min(p.y));
+                    max = Pos2::new(max.x.max(p.x), max.y.max(p.y));
+                }
+                Some([min.x, min.y, max.x, max.y])
+            })
+            .collect();
+        let v = Arc::new(v);
+        let mut c = self.edge_screen.borrow_mut();
+        if c.len() > 16 {
+            c.clear();
+        }
+        c.insert(stamp, (key, v.clone()));
+        v
     }
 
     /// True if a body surface lies between the camera and the point. The triangles of every body are searched through a hierarchy of boxes

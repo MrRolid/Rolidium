@@ -8,6 +8,7 @@
 #include "rolidium-kernel/src/occt.rs.h"
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <sstream>
@@ -172,6 +173,8 @@ std::atomic<bool> g_hit{false};
 struct ThreadStats {
     double calls = 0, wait_ms = 0, run_ms = 0, worst_ms = 0;
     std::string worst;
+    // by the name of the call: how many times and how long in all (the three dearest are told with the dearest call)
+    std::map<std::string, std::pair<int, double>> by_name;
 };
 thread_local ThreadStats t_stats;
 
@@ -183,6 +186,9 @@ struct RunTimer {
         double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         t_stats.calls += 1;
         t_stats.run_ms += ms;
+        auto& e = t_stats.by_name[name];
+        e.first += 1;
+        e.second += ms;
         if (ms > t_stats.worst_ms) {
             t_stats.worst_ms = ms;
             t_stats.worst = name;
@@ -2040,7 +2046,17 @@ rust::Vec<double> take_thread_stats() {
     return v;
 }
 
-rust::String take_thread_worst() { return rust::String(t_stats.worst); }
+rust::String take_thread_worst() {
+    std::vector<std::pair<std::string, std::pair<int, double>>> v(t_stats.by_name.begin(), t_stats.by_name.end());
+    std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
+    std::string out = t_stats.worst;
+    for (size_t i = 0; i < v.size() && i < 3; ++i) {
+        char buf[160];
+        std::snprintf(buf, sizeof buf, "%s%s x%d %.1f ms", i == 0 ? " | by name: " : ", ", v[i].first.c_str(), v[i].second.first, v[i].second.second);
+        out += buf;
+    }
+    return rust::String(out);
+}
 
 static TopoDS_Shape measure_part(const Shape& sh, uint32_t kind, uint32_t index, const std::array<double, 3>& p) {
     if (kind == 0) return BRepBuilderAPI_MakeVertex(gp_Pnt(p[0], p[1], p[2]));
