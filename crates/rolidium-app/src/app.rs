@@ -253,8 +253,12 @@ pub struct App {
     regions: Vec<SketchRegions>,
     regions_rev: u64,
     layers_changed: bool,
+    /// What the temporary drawings (previews, helper lines) depended on in the last frame: when it changes they are drawn again.
+    layers_sig: u64,
     /// How many vertices of curves the last uploaded layers hold (for the self-test: what is drawn must match the document).
     drawn_curve_vertices: usize,
+    /// The line vertices of the blue preview of a pattern of sketch shapes that were drawn last (the probe and the tests read it).
+    drawn_sk_preview: usize,
     status: Status,
     adapter: String,
     adapter_software: bool,
@@ -541,7 +545,9 @@ impl App {
             regions: Vec::new(),
             regions_rev: u64::MAX,
             layers_changed: true,
+            layers_sig: 0,
             drawn_curve_vertices: 0,
+            drawn_sk_preview: 0,
             status: Status {
                 text: tr("Ready"),
                 error: false,
@@ -1259,6 +1265,24 @@ impl App {
             .iter()
             .find(|r| r.id == sketch)
             .and_then(|r| r.geoms.get(idx))
+    }
+
+    /// A fingerprint of everything that decides whether a temporary drawing exists.
+    fn layers_signature(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        format!("{:?}", self.tool).hash(&mut h);
+        self.sk.as_ref().map(|s| (s.sketch, s.drawing.is_some())).hash(&mut h);
+        self.link_ui.sk_open.map(|m| m as u8).hash(&mut h);
+        self.link_ui.sk_preview.len().hash(&mut h);
+        self.preview.is_some().hash(&mut h);
+        self.pull.is_some().hash(&mut h);
+        self.link_ui.armed.hash(&mut h);
+        self.link_ui.editing.hash(&mut h);
+        self.doc.revision().hash(&mut h);
+        self.doc.sketches().len().hash(&mut h);
+        self.doc.bodies().len().hash(&mut h);
+        h.finish()
     }
 
     fn build_layers(&self) -> Vec<PreviewDraw> {
@@ -2172,6 +2196,35 @@ impl App {
         );
     }
 
+    /// The Select tool inside a sketch: no drawing tool, a click or a rectangle chooses shapes of the sketch.
+    pub(super) fn sketch_select_tool(&mut self) {
+        let Some(sm) = &mut self.sk else { return };
+        sm.drawing = None;
+        sm.place = None;
+        sm.edge_edit.clear();
+        sm.set_tool(SkTool::None);
+        self.tool = Tool::Select;
+        self.layers_changed = true;
+        self.set_status("Select: click a shape, or drag a rectangle (Ctrl or Shift adds)", false);
+    }
+
+    /// Ctrl or Shift on a shape of a sketch: adds it to the chosen shapes, or takes it out.
+    fn toggle_entity(&mut self, s: SketchId, e: EntityId) {
+        let mut all = self.entity_multi.clone();
+        if let Some(x) = self.entity_sel {
+            if !all.contains(&x) {
+                all.push(x);
+            }
+        }
+        if let Some(i) = all.iter().position(|x| *x == (s, e)) {
+            all.remove(i);
+        } else {
+            all.push((s, e));
+        }
+        self.entity_sel = all.last().copied();
+        self.entity_multi = all;
+    }
+
     fn leave_sketch(&mut self) {
         if self.sk.take().is_some() {
             self.return_from_sketch();
@@ -2406,6 +2459,7 @@ impl App {
 
     // ---- input ----
 
+    #[allow(deprecated)]
     fn handle_keys(&mut self, ctx: &egui::Context, rect: Rect) {
         // the file dialogs read the keyboard themselves
         if self.file_dialog.is_some() || self.export.open {
@@ -2415,6 +2469,43 @@ impl App {
         // mean anything to a text field, and they must not depend on where the focus happens to be.
         if ctx.egui_wants_keyboard_input() {
             let events = ctx.input(|i| i.events.clone());
+            // a field of the sizes of the selected shape has the keyboard after a click on the shape: T, B and S still choose the tool (the letter is
+            // taken out of the field), so the tools of a sketch work right after a click
+            let in_dim = ctx
+                .memory(|m| m.focused())
+                .is_some_and(|f| (0..6).any(|i| f == egui::Id::new(("dim_field", i))));
+            if in_dim && self.sk.is_some() {
+                for ev in &events {
+                    if let egui::Event::Key {
+                        key: key @ (Key::Z | Key::Y),
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = ev
+                    {
+                        if modifiers.command && self.dim_untouched() {
+                            self.key_pressed(*key, *modifiers, rect);
+                        }
+                    }
+                    if let egui::Event::Key {
+                        key: key @ (Key::T | Key::B | Key::S),
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } = ev
+                    {
+                        if !modifiers.command && !modifiers.shift && !modifiers.alt {
+                            let letter = format!("{key:?}").to_lowercase();
+                            self.dim_drop_letter(&letter);
+                            ctx.memory_mut(|m| m.stop_text_input());
+                            if let Some(id) = ctx.memory(|m| m.focused()) {
+                                ctx.memory_mut(|m| m.surrender_focus(id));
+                            }
+                            self.key_pressed(*key, *modifiers, rect);
+                        }
+                    }
+                }
+            }
             for ev in events {
                 if let egui::Event::Key {
                     key,
@@ -2571,18 +2662,19 @@ impl App {
                 Key::X => self.sk.as_mut().unwrap().set_tool(SkTool::Axis),
                 Key::V => self.view_normal_to_sketch(),
                 Key::N => self.begin_plane_at(),
+                // T and B work as in 3D: the same wizard, for the shapes of the sketch
+                Key::T => self.activate_link_tool(linktool::LinkMode::Linear),
+                Key::B => self.activate_link_tool(linktool::LinkMode::Mirror),
                 // K finishes the sketch (as the main button does); D and P still work
                 Key::K => self.leave_sketch(),
-                Key::D | Key::S => {
-                    if key == Key::S {
-                        self.tool = Tool::Select;
-                    }
-                    self.leave_sketch();
-                }
+                // S selects the shapes of the sketch (rectangle, Ctrl, Shift) and stays in the sketch; D leaves it
+                Key::S => self.sketch_select_tool(),
+                Key::D => self.leave_sketch(),
                 Key::P => {
                     self.tool = Tool::Pull;
                     self.leave_sketch();
                 }
+                Key::Escape if self.link_ui.sk_open.is_some() => self.close_sketch_pattern(),
                 Key::Escape => {
                     // a sketch started from the 3D view: Esc stops the shape, and when none is being drawn it ends the sketch (an empty one leaves nothing behind)
                     if self
@@ -3424,12 +3516,23 @@ impl App {
             u: sm.plane.x_dir.as_vec3(),
             v: sm.plane.y_dir().as_vec3(),
         });
+        let sig = self.layers_signature();
+        if sig != self.layers_sig {
+            // a tool, a panel or a document went away or came: its temporary drawings must go with it, not wait for the next zoom
+            self.layers_sig = sig;
+            self.layers_changed = true;
+        }
         let layers = if std::mem::take(&mut self.layers_changed) {
             let l = self.build_layers();
             self.drawn_curve_vertices = l
                 .iter()
                 .filter(|d| d.thick_color == curvetools::CURVE_COLOR)
                 .map(|d| d.thick.len())
+                .sum();
+            self.drawn_sk_preview = l
+                .iter()
+                .filter(|d| d.line_color == [0.35, 0.65, 1.0, 1.0])
+                .map(|d| d.lines.len())
                 .sum();
             Some(l)
         } else {
@@ -3601,6 +3704,23 @@ impl App {
         let mesh_rest = hovered_face.filter(|(b, f)| self.is_mesh_rest(*b, *f));
         let select = |app: &mut App, add: bool| {
             match (hovered_obj, hovered_region, hovered_face) {
+                // whole bodies are chosen (a double click, the list, a rectangle): Ctrl or Shift on another body adds it, on a chosen one takes it out
+                (None, None, Some((b, _))) if add && (app.body_sel.is_some() || !app.move_sel.is_empty()) && app.selection.is_empty() => {
+                    let mut set = app.move_sel.clone();
+                    if let Some(x) = app.body_sel {
+                        if !set.contains(&x) {
+                            set.push(x);
+                        }
+                    }
+                    app.clear_selection();
+                    if let Some(i) = set.iter().position(|x| *x == b) {
+                        set.remove(i);
+                    } else {
+                        set.push(b);
+                    }
+                    app.body_sel = set.last().copied();
+                    app.move_sel = set;
+                }
                 // the part of a mesh that no wall or hole covers: the click takes the whole mesh
                 (None, None, Some((b, _))) if mesh_rest.is_some() => {
                     app.clear_selection();
@@ -3736,6 +3856,7 @@ impl App {
                     if let Some((b, _)) = hovered_face {
                         self.clear_selection();
                         self.body_sel = Some(b);
+                        self.move_sel = vec![b];
                         self.layers_changed = true;
                     }
                 }
@@ -3914,9 +4035,17 @@ impl App {
         }
         if resp.clicked_by(PointerButton::Primary) && self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None)
         {
-            match self.hover_obj {
-                Some(Obj::Entity(s, e)) => self.pick_entity(s, e),
-                _ => self.clear_selection(),
+            let hover = self.hover_obj;
+            let add = resp.ctx.input(|i| i.modifiers.command || i.modifiers.shift);
+            if self.link_ui.sk_open.is_some() && self.sketch_guide_click(hover) {
+                // the pattern wizard asked for the guide: the click is the guide, the chosen shapes stay chosen
+            } else {
+                match hover {
+                    Some(Obj::Entity(s, e)) if add => self.toggle_entity(s, e),
+                    Some(Obj::Entity(s, e)) => self.pick_entity(s, e),
+                    _ if add => {}
+                    _ => self.clear_selection(),
+                }
             }
             self.layers_changed = true;
         }

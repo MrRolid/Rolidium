@@ -14,6 +14,8 @@ use rolidium_doc::{BlendKind, PullMode};
 pub struct DimPanel {
     key: String,
     fields: Vec<String>,
+    /// What the fields said when they were made: a field that still says it has not been typed into.
+    initial: Vec<String>,
     dismissed: String,
     focus: bool,
     /// A second click on the selected shape: the field next to it takes the keyboard again.
@@ -445,6 +447,20 @@ impl App {
 
     /// A click on a shape of a sketch: the first click selects it, a second click on the selected shape (or a double click) puts the cursor into the
     /// field of its size next to it (a closed panel opens again).
+    /// No field of the sizes has been typed into: Undo and Redo are then for the document, not for the text of the field.
+    pub(super) fn dim_untouched(&self) -> bool {
+        self.dim.fields == self.dim.initial
+    }
+
+    /// A letter that was a shortcut and landed in a field of the sizes: takes it out again.
+    pub(super) fn dim_drop_letter(&mut self, letter: &str) {
+        for f in self.dim.fields.iter_mut() {
+            if f.to_lowercase().ends_with(letter) {
+                f.pop();
+            }
+        }
+    }
+
     pub(super) fn pick_entity(&mut self, s: SketchId, e: EntityId) {
         if self.entity_sel == Some((s, e)) {
             self.dim.refocus = true;
@@ -564,6 +580,7 @@ impl App {
                 .iter()
                 .map(|(r, _)| target.initial(*r, &self.edge_size_text))
                 .collect();
+            self.dim.initial = self.dim.fields.clone();
         }
         let anchor_screen = self.project(anchor, rect).unwrap_or(rect.center());
         let pos = anchor_screen;

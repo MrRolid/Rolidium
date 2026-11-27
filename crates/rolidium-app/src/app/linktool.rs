@@ -197,6 +197,17 @@ pub struct LinkUi {
     /// The preview of the copies in the model area (line pairs in 3D) and what it was made for.
     pub sk_preview: Vec<Vec3>,
     pub sk_key: String,
+    /// The pattern of a sketch repeats all its shapes (a choice in the panel), instead of the ones that are selected.
+    pub sk_all: bool,
+    /// What the person chose in the first step in a sketch, and whether the guide was clicked (the numbers are shown then).
+    pub sk_want: Option<Want>,
+    pub sk_guided: bool,
+    /// A grid: the second direction (degrees), its pieces and its spacing.
+    pub sk_second: bool,
+    pub sk_count2: u32,
+    pub sk_spacing2: f64,
+    /// The text of the guide that was clicked ("a line of the sketch", ...).
+    pub sk_guide_label: String,
 }
 
 /// The lines and axes of a sketch (name, a point, the angle) and the centres it offers (name, point).
@@ -395,6 +406,17 @@ impl App {
                     (3, 20.0, 60.0, true, true);
             }
             u.sk_open = Some(mode);
+            u.sk_want = None;
+            u.sk_guided = false;
+            u.sk_all = false;
+            u.sk_second = false;
+            u.sk_guide_label.clear();
+            if u.sk_count2 == 0 {
+                (u.sk_count2, u.sk_spacing2) = (3, 20.0);
+            }
+            // the shapes are chosen with the Select of the sketch (a click, Ctrl, Shift, a rectangle)
+            self.sketch_select_tool();
+            self.link_ui.sk_open = Some(mode);
             return;
         }
         if self.doc.bodies().is_empty() && self.doc.meshes().is_empty() {
@@ -1590,7 +1612,7 @@ impl App {
 
     pub(super) fn link_layers(&self) -> Vec<PreviewDraw> {
         let mut out = Vec::new();
-        if self.link_ui.sk_open.is_some() && !self.link_ui.sk_preview.is_empty() {
+        if self.link_ui.sk_open.is_some() && self.sk.is_some() && !self.link_ui.sk_preview.is_empty() {
             // the copies of the shapes of the sketch (with the mirror line drawn through the point)
             out.push(PreviewDraw {
                 lines: self.link_ui.sk_preview.clone(),
@@ -2799,15 +2821,52 @@ impl App {
 }
 
 impl App {
-    /// The panel of patterns and mirrors of the shapes of the sketch (all the shapes, or the one that is selected).
+    /// Closes the sketch pattern panel and takes its copies off the screen.
+    pub(super) fn close_sketch_pattern(&mut self) {
+        let u = &mut self.link_ui;
+        if u.sk_open.is_some() || !u.sk_preview.is_empty() {
+            u.sk_open = None;
+            u.sk_want = None;
+            u.sk_guided = false;
+            u.sk_preview.clear();
+            u.sk_key.clear();
+            self.layers_changed = true;
+        }
+    }
+
+    /// The shapes of the open sketch that are selected (a click, Ctrl, Shift, a rectangle).
+    pub(super) fn sketch_chosen(&self) -> Vec<rolidium_doc::rolidium_sketch::EntityId> {
+        let Some(sk) = self.sk.as_ref().and_then(|s| s.sketch) else {
+            return Vec::new();
+        };
+        let mut v: Vec<_> = self
+            .entity_multi
+            .iter()
+            .filter(|(s, _)| *s == sk)
+            .map(|(_, e)| *e)
+            .collect();
+        if let Some((s, e)) = self.entity_sel {
+            if s == sk && !v.contains(&e) {
+                v.push(e);
+            }
+        }
+        v
+    }
+
+    /// The panel of patterns and mirrors of the shapes of the sketch: the same steps as in 3D (what to repeat, three ways, the guide),
+    /// and the numbers. Repeating all the shapes of the sketch is a choice in the panel.
     #[allow(deprecated)]
     pub(super) fn sketch_pattern_panel(&mut self, ctx: &egui::Context, rect: Rect) {
         let Some(mode) = self.link_ui.sk_open else { return };
         let Some(sk) = self.sk.as_ref().and_then(|s| s.sketch) else {
-            self.link_ui.sk_open = None;
+            self.close_sketch_pattern();
             return;
         };
-        let one = self.entity_sel.filter(|(s, _)| *s == sk).map(|(_, e)| e);
+        let chosen = self.sketch_chosen();
+        let mirror = mode == LinkMode::Mirror;
+        // the entities the command works on: empty means all of them
+        let all = self.link_ui.sk_all || (mirror && chosen.is_empty());
+        let entities: Vec<_> = if all { Vec::new() } else { chosen.clone() };
         // the lines and the auxiliary axes of the sketch (a mirror line, a direction), and the centres of its circles and arcs
         let (lines, centres): SketchRefs = self
             .doc
@@ -2835,37 +2894,108 @@ impl App {
             })
             .unwrap_or_default();
         let mut u = std::mem::take(&mut self.link_ui);
+        if !mirror && !all && chosen.is_empty() && (u.sk_guided || !u.sk_preview.is_empty()) {
+            // what was chosen is gone (Undo, a deletion): back to the first step, and nothing is drawn for it
+            u.sk_guided = false;
+            u.sk_want = None;
+            u.sk_preview.clear();
+            u.sk_key.clear();
+            self.layers_changed = true;
+        }
         let mut docks = std::mem::take(&mut self.docks);
         let mut apply = false;
         let mut close = false;
-        let title = if mode == LinkMode::Mirror {
-            tr("Mirror")
-        } else {
-            tr("Pattern")
-        };
+        let title = if mirror { tr("Mirror") } else { tr("Pattern") };
+        let have = all || !chosen.is_empty();
+        let n_chosen = chosen.len();
+        let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
         docks.panel(
             ctx,
             "skpattern",
             Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0),
             None,
-            250.0,
+            270.0,
             &title,
             false,
             |ui| {
-                ui.label(if one.is_some() {
-                    tr("The selected shape")
-                } else {
-                    tr("All the shapes of the sketch")
+                ui.horizontal_wrapped(|ui| {
+                    ui.colored_label(crate::theme::rgb(242, 89, 242), tr("Source"));
+                    ui.label(if all {
+                        tr("All the shapes of the sketch")
+                    } else if n_chosen == 0 {
+                        tr("click a shape of the sketch")
+                    } else {
+                        trf("{} shapes of the sketch", &[n_chosen.to_string()])
+                    });
                 });
-                ui.horizontal(|ui| {
-                    // the pattern has no choice of the mirror: that is the tool of its own (B)
-                    if mode != LinkMode::Mirror {
+                if !mirror && !u.sk_guided {
+                    // the first steps: what to repeat, then the three ways, then the guide
+                    if !have {
+                        ui.add_space(4.0);
+                        ui.label(
+                            egui::RichText::new(tr("Click what you want to repeat"))
+                                .size(16.0)
+                                .color(crate::theme::rgb(255, 200, 100)),
+                        );
+                        ui.colored_label(
+                            crate::theme::rgb(255, 200, 100),
+                            tr("One or more shapes: Ctrl or Shift adds, a rectangle takes everything in it"),
+                        );
+                        if ui.button(tr("All the shapes of the sketch")).clicked() {
+                            u.sk_all = true;
+                        }
+                    } else {
+                        ui.add_space(4.0);
+                        for (want, label, name) in [
+                            (Want::Curve, tr("Along a line or a curve"), "want_curve"),
+                            (Want::Point, tr("Round a point"), "want_point"),
+                            (Want::Face, tr("A grid"), "want_face"),
+                        ] {
+                            let on = u.sk_want == Some(want);
+                            let r = ui.add_sized(
+                                [ui.available_width(), 34.0],
+                                egui::Button::new(egui::RichText::new(label).size(15.0)).selected(on),
+                            );
+                            probe_w.borrow_mut().push((name, r.rect));
+                            if r.clicked() {
+                                u.sk_want = Some(want);
+                            }
+                        }
+                        if let Some(want) = u.sk_want {
+                            ui.colored_label(
+                                crate::theme::rgb(120, 220, 255),
+                                match want {
+                                    Want::Curve | Want::Face => {
+                                        tr("Click a line, an arc, a circle or an edge: the direction of the row")
+                                    }
+                                    Want::Point => tr("Click a point of the sketch, a centre of a circle, or an axis"),
+                                },
+                            );
+                        } else {
+                            ui.colored_label(crate::theme::rgb(255, 200, 100), tr("Choose how to repeat it"));
+                        }
+                        if u.sk_all {
+                            ui.weak(tr("The shapes you click replace \"all the shapes\""));
+                        }
+                    }
+                    if ui.button(tr("Cancel")).clicked() {
+                        close = true;
+                    }
+                    return;
+                }
+                if !mirror {
+                    ui.horizontal(|ui| {
                         ui.selectable_value(&mut u.sk_open, Some(LinkMode::Linear), tr("Along a line"));
                         ui.selectable_value(&mut u.sk_open, Some(LinkMode::Circular), tr("Round a point"));
-                    } else {
-                        ui.selectable_value(&mut u.sk_open, Some(LinkMode::Mirror), tr("Mirror"));
+                    });
+                    if !u.sk_guide_label.is_empty() {
+                        ui.weak(trf("Guide: {}", std::slice::from_ref(&u.sk_guide_label)));
                     }
-                });
+                    let mut all_now = u.sk_all;
+                    if ui.checkbox(&mut all_now, tr("All the shapes of the sketch")).changed() {
+                        u.sk_all = all_now;
+                    }
+                }
                 match u.sk_open {
                     Some(LinkMode::Linear) => {
                         ui.horizontal(|ui| {
@@ -2894,6 +3024,15 @@ impl App {
                             ui.add(egui::DragValue::new(&mut u.sk_spacing).speed(0.5).suffix(" mm"));
                         });
                         ui.checkbox(&mut u.sk_by_total, tr("The spacing is the whole length"));
+                        ui.checkbox(&mut u.sk_second, tr("A second row (a grid) at a right angle"));
+                        if u.sk_second {
+                            ui.horizontal(|ui| {
+                                ui.label(tr("Pieces"));
+                                ui.add(egui::DragValue::new(&mut u.sk_count2).range(1..=1000).speed(0.2));
+                                ui.label(tr("Spacing"));
+                                ui.add(egui::DragValue::new(&mut u.sk_spacing2).speed(0.5).suffix(" mm"));
+                            });
+                        }
                     }
                     Some(LinkMode::Circular) => {
                         ui.horizontal(|ui| {
@@ -2955,6 +3094,9 @@ impl App {
                     if ui.button(tr("Apply")).clicked() {
                         apply = true;
                     }
+                    if !mirror && ui.button(tr("Change the guide")).clicked() {
+                        u.sk_guided = false;
+                    }
                     if ui.button(tr("Cancel")).clicked() {
                         close = true;
                     }
@@ -2962,10 +3104,16 @@ impl App {
             },
         );
         self.docks = docks;
+        for (n, r) in probe_w.into_inner() {
+            self.probe_widget(n, r);
+        }
         let mode = u.sk_open.unwrap_or(mode);
-        // the preview in the model area follows the numbers
+        let all = u.sk_all || (mirror && chosen.is_empty());
+        let entities: Vec<_> = if all { Vec::new() } else { entities };
+        // the preview in the model area follows the numbers (only once the guide is clicked, or for a mirror)
+        let show = u.sk_guided || mirror;
         let key = format!(
-            "{mode:?}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{one:?}|{}",
+            "{show}|{mode:?}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{entities:?}|{}|{}|{}|{}",
             u.sk_count,
             u.sk_spacing,
             u.sk_by_total,
@@ -2975,16 +3123,22 @@ impl App {
             u.sk_step_angle,
             u.sk_full,
             u.sk_keep,
+            u.sk_second,
+            u.sk_count2,
+            u.sk_spacing2,
             self.doc.revision()
         );
         if key != u.sk_key {
             u.sk_key = key;
-            u.sk_preview = self.sketch_pattern_preview(&u, sk, mode, one);
+            u.sk_preview = if show {
+                self.sketch_pattern_preview(&u, sk, mode, &entities)
+            } else {
+                Vec::new()
+            };
             self.layers_changed = true;
         }
         let cmd = if apply {
             let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
-            let entities: Vec<_> = one.into_iter().collect();
             Some(match mode {
                 LinkMode::Linear | LinkMode::Fill | LinkMode::Path => Command::SketchPattern {
                     sketch: sk,
@@ -2994,7 +3148,14 @@ impl App {
                         count: u.sk_count,
                         spacing: u.sk_spacing,
                         by_total: u.sk_by_total,
-                        second: None,
+                        second: u.sk_second.then(|| {
+                            (
+                                glam::DVec2::new(-dir.y, dir.x),
+                                u.sk_count2,
+                                u.sk_spacing2,
+                                false,
+                            )
+                        }),
                     },
                 },
                 LinkMode::Circular => Command::SketchPattern {
@@ -3023,6 +3184,9 @@ impl App {
         };
         if close {
             u.sk_open = None;
+            u.sk_want = None;
+            u.sk_guided = false;
+            u.sk_all = false;
             u.sk_preview.clear();
             u.sk_key.clear();
             self.layers_changed = true;
@@ -3030,11 +3194,99 @@ impl App {
         if cmd.is_some() {
             u.sk_preview.clear();
             u.sk_key.clear();
+            u.sk_open = None;
+            u.sk_want = None;
+            u.sk_guided = false;
+            u.sk_all = false;
         }
         self.link_ui = u;
         if let Some(c) = cmd {
             self.submit(c);
         }
+    }
+
+    /// A click in the view of a sketch while the pattern wizard waits for the guide: a line gives the direction of the row, a circle or an arc
+    /// its centre, a point of the sketch the centre. Returns `true` when the click was meant for the wizard.
+    pub(super) fn sketch_guide_click(&mut self, hover: Option<Obj>) -> bool {
+        let (Some(mode), Some(want)) = (self.link_ui.sk_open, self.link_ui.sk_want) else {
+            return false;
+        };
+        if mode == LinkMode::Mirror || self.link_ui.sk_guided {
+            return false;
+        }
+        let Some(sm) = &self.sk else { return false };
+        let Some(sk) = sm.sketch else { return false };
+        let plane = sm.plane;
+        let snap = sm.snap.map(|s| s.pos);
+        enum Guide {
+            Direction(glam::DVec2, String),
+            Centre(glam::DVec2, String),
+        }
+        let mut guide: Option<Guide> = None;
+        match hover {
+            Some(Obj::Entity(s, id)) => {
+                if let Some(e) = self.doc.sketch(s).and_then(|d| d.sketch.entity(id).copied()) {
+                    if let (Some((_, d)), true) = (e.axis_line(), want != Want::Point) {
+                        guide = Some(Guide::Direction(d, tr("a line of the sketch")));
+                    } else if let Entity::Circle { center, .. } | Entity::Arc { center, .. } = e {
+                        guide = Some(Guide::Centre(center, tr("the centre of a circle of the sketch")));
+                    } else if let Some((a, _)) = e.axis_line() {
+                        // a line or an axis for "round a point": the point under the pointer on it, else its start
+                        guide = Some(Guide::Centre(snap.unwrap_or(a), tr("a point of the sketch")));
+                    }
+                }
+            }
+            Some(Obj::Edge(b, e)) => {
+                if let Some(pl) = self.edge_polyline(b, e) {
+                    if pl.len() >= 2 && want != Want::Point {
+                        let d3 = (pl[pl.len() - 1] - pl[0]).as_dvec3();
+                        let d = plane.to_2d(plane.origin + d3) - plane.to_2d(plane.origin);
+                        if d.length() > 1e-9 {
+                            guide = Some(Guide::Direction(d.normalize(), tr("an edge of a body")));
+                        }
+                    } else if let Some(p) = snap {
+                        guide = Some(Guide::Centre(p, tr("a point of the sketch")));
+                    }
+                }
+            }
+            _ => {}
+        }
+        if guide.is_none() && want == Want::Point {
+            if let Some(p) = snap {
+                guide = Some(Guide::Centre(p, tr("a point of the sketch")));
+            }
+        }
+        let _ = sk;
+        let Some(g) = guide else {
+            self.set_status(
+                if want == Want::Point {
+                    "Click a point of the sketch, the centre of a circle, or an axis"
+                } else {
+                    "Click a line, an arc, a circle or an edge"
+                },
+                true,
+            );
+            return true;
+        };
+        let u = &mut self.link_ui;
+        match g {
+            Guide::Direction(d, what) => {
+                u.sk_open = Some(LinkMode::Linear);
+                u.sk_angle = d.y.atan2(d.x).to_degrees();
+                u.sk_second = want == Want::Face;
+                u.sk_guide_label = what;
+            }
+            Guide::Centre(c, what) => {
+                u.sk_open = Some(LinkMode::Circular);
+                (u.sk_cx, u.sk_cy) = (c.x, c.y);
+                u.sk_second = false;
+                u.sk_guide_label = what;
+            }
+        }
+        u.sk_guided = true;
+        u.sk_key.clear();
+        self.layers_changed = true;
+        true
     }
 }
 
@@ -3045,28 +3297,29 @@ impl App {
         u: &LinkUi,
         sk: SketchId,
         mode: LinkMode,
-        one: Option<rolidium_doc::rolidium_sketch::EntityId>,
+        ids: &[rolidium_doc::rolidium_sketch::EntityId],
     ) -> Vec<Vec3> {
         let Some(sd) = self.doc.sketch(sk) else {
             return Vec::new();
         };
         let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
-        let ids: Vec<_> = one.into_iter().collect();
         let made = match mode {
             LinkMode::Linear | LinkMode::Fill | LinkMode::Path => rolidium_doc::preview_pattern(
                 sd,
-                &ids,
+                ids,
                 &rolidium_doc::SketchPattern::Linear {
                     dir,
                     count: u.sk_count,
                     spacing: u.sk_spacing,
                     by_total: u.sk_by_total,
-                    second: None,
+                    second: u
+                        .sk_second
+                        .then(|| (glam::DVec2::new(-dir.y, dir.x), u.sk_count2, u.sk_spacing2, false)),
                 },
             ),
             LinkMode::Circular => rolidium_doc::preview_pattern(
                 sd,
-                &ids,
+                ids,
                 &rolidium_doc::SketchPattern::Circular {
                     center: glam::DVec2::new(u.sk_cx, u.sk_cy),
                     count: u.sk_count,
@@ -3076,7 +3329,7 @@ impl App {
             ),
             LinkMode::Mirror => {
                 let a = glam::DVec2::new(u.sk_cx, u.sk_cy);
-                rolidium_doc::preview_mirror(sd, &ids, a, a + dir, true)
+                rolidium_doc::preview_mirror(sd, ids, a, a + dir, true)
             }
         };
         let mut out = Vec::new();

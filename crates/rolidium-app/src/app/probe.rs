@@ -257,6 +257,7 @@ impl App {
             "pull_active": self.pull.is_some(),
             "pull_group": self.pull.as_ref().map_or(0, |p| p.group.len()),
             "regions_selected": regions_selected,
+            "sk_pattern": json!({"open": self.link_ui.sk_open.map(|m| format!("{m:?}")), "want": self.link_ui.sk_want.map(|w| format!("{w:?}")), "guided": self.link_ui.sk_guided, "preview": self.link_ui.sk_preview.len(), "drawn": self.drawn_sk_preview, "all": self.link_ui.sk_all, "second": self.link_ui.sk_second, "angle": round3(self.link_ui.sk_angle), "centre": [round3(self.link_ui.sk_cx), round3(self.link_ui.sk_cy)]}),
             "entities_selected": self.entity_multi.len().max(usize::from(self.entity_sel.is_some())),
             "pieces": self.sk.as_ref().map(|s| json!({"available": s.pieces_available(), "editing": s.pieces_edit, "text": s.pieces_text, "n": s.pieces()})),
             "box_sel": self.box_sel.map(|b| json!({"window": b.window()})),

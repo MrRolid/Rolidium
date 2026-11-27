@@ -472,12 +472,20 @@ impl App {
                 self.measure_unavailable(),
             ),
         ] {
-            let sel = self.tool == tool && self.sk.is_none();
+            // in a sketch the Select button is the sketch's own selecting (no drawing tool), it does not leave the sketch
+            let in_sketch_select = tool == Tool::Select && self.sk.is_some();
+            let sel = if in_sketch_select {
+                self.sk.as_ref().is_some_and(|m| m.tool == SkTool::None)
+            } else {
+                self.tool == tool && self.sk.is_none()
+            };
             let r = icons::tool_button_why(ui, &self.help, id, &format!("{} ({key})", tr(name)), sel, why);
             if tool == Tool::Pull {
                 self.pull_btn_rect = r.rect;
             }
-            if r.clicked() {
+            if r.clicked() && in_sketch_select {
+                self.sketch_select_tool();
+            } else if r.clicked() {
                 self.tool = tool;
                 self.leave_sketch();
                 if tool == Tool::Loft {

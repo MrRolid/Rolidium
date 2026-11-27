@@ -182,6 +182,7 @@ impl App {
         self.clear_edge_preview();
         self.pull = None;
         self.sk = None;
+        self.close_sketch_pattern();
         self.view_before_sketch = None;
         self.pending = None;
         self.up_to = None;
@@ -498,7 +499,9 @@ impl App {
                     if ui.button(tr("Save")).clicked() {
                         choice = Some(0);
                     }
-                    if ui.button(tr("Discard")).clicked() {
+                    let r = ui.button(tr("Discard"));
+                    self.probe_widget("confirm_discard", r.rect);
+                    if r.clicked() {
                         choice = Some(1);
                     }
                     if ui.button(tr("Cancel")).clicked() {
