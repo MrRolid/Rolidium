@@ -14,6 +14,7 @@ fn params(points: Vec<DVec3>, closed: bool) -> PathParams {
         start: 0.0,
         end: 0.0,
         orient: false,
+        source: None,
     }
 }
 
@@ -131,4 +132,81 @@ fn copies_stand_along_a_line_and_turn_with_the_tangent_of_a_corner_curve_in_one_
             .any(|l| matches!(l.kind, LinkKind::Path(..))),
         "the link comes back"
     );
+}
+
+#[test]
+fn a_pattern_remembers_its_curve_and_the_pieces_move_when_the_curve_changes() {
+    use rolidium_doc::rolidium_sketch::{DVec2, Entity, PlaneDef};
+    use rolidium_doc::{SketchTarget, SweepPath};
+    let mut d = Document::new();
+    d.apply(Command::AddNamedSolids {
+        solids: vec![(
+            Solid::cuboid(DVec3::new(18.0, -2.0, -2.0), DVec3::new(22.0, 2.0, 2.0)).unwrap(),
+            "pin".into(),
+        )],
+    })
+    .unwrap();
+    let src = d.bodies()[0].id;
+    let plane = PlaneDef {
+        origin: DVec3::ZERO,
+        normal: DVec3::Z,
+        x_dir: DVec3::X,
+    };
+    let c = d
+        .apply(Command::AddEntity {
+            target: SketchTarget::New { plane, body: None },
+            entity: Entity::Circle {
+                center: DVec2::ZERO,
+                radius: 20.0,
+            },
+        })
+        .unwrap();
+    let sk = c.created_sketch.unwrap();
+    let e = d.sketch(sk).unwrap().sketch.entities()[0].0;
+    let (pts, closed) = d
+        .path_polyline(&SweepPath::Sketch {
+            sketch: sk,
+            entities: vec![e],
+        })
+        .unwrap();
+    let mut p = params(pts, closed);
+    p.count = 4;
+    p.source = Some(SweepPath::Sketch {
+        sketch: sk,
+        entities: vec![e],
+    });
+    d.apply(Command::AddLink {
+        kind: LinkKind::Path(p, PatternMode::New),
+        sources: vec![src],
+        name: String::new(),
+    })
+    .unwrap();
+    // the distance of two neighbouring pieces: the side of a square on the circle (radius r: r * sqrt 2)
+    let side = |d: &Document| {
+        let c = |i: usize| {
+            let (lo, hi) = d.bodies()[i].solid.bounding_box().unwrap();
+            (lo + hi) * 0.5
+        };
+        (c(1) - c(2)).length()
+    };
+    assert!((side(&d) - 20.0 * 2f64.sqrt()).abs() < 0.3, "the pieces stand on the circle of 20: {}", side(&d));
+    // the circle is made bigger: the pieces move with it
+    d.apply(Command::ReplaceEntity {
+        sketch: sk,
+        entity: e,
+        new: Entity::Circle {
+            center: DVec2::ZERO,
+            radius: 35.0,
+        },
+    })
+    .unwrap();
+    assert!((side(&d) - 35.0 * 2f64.sqrt()).abs() < 0.3, "the pieces follow the curve: {}", side(&d));
+    // the file keeps the curve
+    let bytes = rolidium_doc::file::save_to_bytes(&d, None, "test").unwrap();
+    let d2 = Document::from_loaded(rolidium_doc::file::load_from_bytes(&bytes).unwrap());
+    let l = d2.state().links.iter().find(|l| matches!(l.kind, LinkKind::Path(..))).unwrap();
+    match &l.kind {
+        LinkKind::Path(p, _) => assert!(p.source.is_some(), "the curve comes back"),
+        _ => unreachable!(),
+    }
 }

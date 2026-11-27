@@ -371,6 +371,9 @@ fn link_json(l: &crate::Link) -> Value {
             j.insert("start".into(), json!(p.start));
             j.insert("end".into(), json!(p.end));
             j.insert("orient".into(), json!(p.orient));
+            if let Some(src) = &p.source {
+                j.insert("source".into(), path_json(src));
+            }
         }
         LinkKind::Mirror(m) => {
             j.insert("type".into(), json!("mirror"));
@@ -642,6 +645,12 @@ fn link_from(
                 start: get_f(&j["start"]).unwrap_or(0.0),
                 end: get_f(&j["end"]).unwrap_or(0.0),
                 orient: j["orient"].as_bool().unwrap_or(false),
+                // a curve that is not in the file any more: the pieces keep their polyline
+                source: path_from(&j["source"]).ok().filter(|s| match s {
+                    crate::SweepPath::Curve(c) => state.curves.iter().any(|x| x.id == *c),
+                    crate::SweepPath::Sketch { sketch, .. } => state.sketches.iter().any(|x| x.id == *sketch),
+                    crate::SweepPath::Edges { body, .. } => bodies.iter().any(|x| x.id == *body),
+                }),
             },
             mode()?,
         ),

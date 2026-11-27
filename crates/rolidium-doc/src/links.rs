@@ -110,6 +110,9 @@ pub struct PathParams {
     pub start: f64,
     pub end: f64,
     pub orient: bool,
+    /// The curve the pieces follow (a curve of the document, a chain of a sketch, edges of a body): `points` are calculated from it again whenever it changes.
+    /// `None`: the polyline is all there is (a curve that is not kept).
+    pub source: Option<SweepPath>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1577,6 +1580,16 @@ pub(crate) fn rect_of_rule(st: &State, base: Option<&Solid>, r: &RectRef) -> Res
 
 /// Places the source of a link with a [`FillRule`] and makes the pattern again from the rectangle as it is now.
 pub(crate) fn follow(st: &mut State, link: &mut Link) -> Result<(), DocError> {
+    // a pattern along a curve that is kept: the polyline is read from the curve again
+    if let LinkKind::Path(p, m) = &link.kind {
+        if let Some(src) = &p.source {
+            let (pts, closed) = generate::path_polyline(st, src)?;
+            let mut q = p.clone();
+            q.points = pts;
+            q.closed = closed;
+            link.kind = LinkKind::Path(q, *m);
+        }
+    }
     let Some(mut rule) = link.fill.clone() else {
         return Ok(());
     };

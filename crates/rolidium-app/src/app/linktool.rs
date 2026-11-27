@@ -102,6 +102,8 @@ pub struct LinkParams {
     pub path: Vec<DVec3>,
     pub path_closed: bool,
     pub path_label: String,
+    /// The curve the pattern follows, so that the pieces move when the curve changes.
+    pub path_source: Option<rolidium_doc::SweepPath>,
     pub pitch: f64,
     pub start: f64,
     pub end: f64,
@@ -142,6 +144,7 @@ impl Default for LinkParams {
             path: Vec::new(),
             path_closed: false,
             path_label: String::new(),
+            path_source: None,
             pitch: 0.0,
             start: 0.0,
             end: 0.0,
@@ -313,6 +316,7 @@ impl LinkParams {
                     start: self.start,
                     end: self.end,
                     orient: self.orient,
+                    source: self.path_source.clone(),
                 },
                 mode,
             ),
@@ -355,6 +359,7 @@ impl LinkParams {
                 p.path = q.points.clone();
                 p.path_closed = q.closed;
                 p.path_label = tr("a curve");
+                p.path_source = q.source.clone();
                 p.count = q.count;
                 p.pitch = q.pitch;
                 p.start = q.start;
@@ -845,44 +850,42 @@ impl App {
     }
 
     /// A curve under the pointer as a polyline in space (and whether it is closed): the shapes of a sketch that continue each other, a curve, an edge of a body.
-    fn guide_polyline(&self) -> Option<(Vec<DVec3>, bool, String)> {
+    fn guide_polyline(&self) -> Option<(Vec<DVec3>, bool, String, rolidium_doc::SweepPath)> {
         use rolidium_doc::SweepPath;
         match self.hover_obj? {
             Obj::Entity(s, e) => {
                 let sk = self.doc.sketch(s)?;
                 let chain = rolidium_doc::sketch_chain(&sk.sketch, e);
-                let (pts, closed) = self
-                    .doc
-                    .path_polyline(&SweepPath::Sketch {
-                        sketch: s,
-                        entities: chain,
-                    })
-                    .ok()?;
-                Some((pts, closed, tr("a curve of a sketch")))
+                let path = SweepPath::Sketch {
+                    sketch: s,
+                    entities: chain,
+                };
+                let (pts, closed) = self.doc.path_polyline(&path).ok()?;
+                Some((pts, closed, tr("a curve of a sketch"), path))
             }
             Obj::Curve(c) => {
-                let (pts, closed) = self.doc.path_polyline(&SweepPath::Curve(c)).ok()?;
-                Some((pts, closed, tr("a curve")))
+                let path = SweepPath::Curve(c);
+                let (pts, closed) = self.doc.path_polyline(&path).ok()?;
+                Some((pts, closed, tr("a curve"), path))
             }
             Obj::Edge(b, e) => {
                 let body = self.doc.body(b)?;
                 let chain = body.solid.smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0);
                 let ids: Vec<u32> = chain.iter().map(|x| x.0).collect();
-                let (pts, closed) = self
-                    .doc
-                    .path_polyline(&SweepPath::Edges { body: b, edges: ids })
-                    .ok()?;
-                Some((pts, closed, tr("an edge")))
+                let path = SweepPath::Edges { body: b, edges: ids };
+                let (pts, closed) = self.doc.path_polyline(&path).ok()?;
+                Some((pts, closed, tr("an edge"), path))
             }
         }
     }
 
     /// The curve under the pointer becomes the path of the pattern. `true` when the click took one.
     fn pick_path_guide(&mut self) -> bool {
-        let Some((pts, closed, label)) = self.guide_polyline() else {
+        let Some((pts, closed, label, source)) = self.guide_polyline() else {
             return false;
         };
         let p = &mut self.link_ui.p;
+        p.path_source = Some(source);
         p.path = pts;
         p.path_closed = closed;
         p.path_label = label;

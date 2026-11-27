@@ -224,6 +224,15 @@ pub(crate) fn deps(kind: &LinkKind) -> Deps {
     };
     match kind {
         LinkKind::Shell(_) | LinkKind::Text(_) => {}
+        LinkKind::Path(p, _) => {
+            if let Some(path) = &p.source {
+                match path {
+                    SweepPath::Curve(c) => d.curves.push(*c),
+                    SweepPath::Sketch { sketch, .. } => d.sketches.push(*sketch),
+                    SweepPath::Edges { body, .. } => d.bodies.push(*body),
+                }
+            }
+        }
         LinkKind::Loft { profiles, .. } => profiles.iter().for_each(|p| add_ref(&mut d, p)),
         LinkKind::Sweep { profile, path, .. } => {
             add_ref(&mut d, profile);
@@ -257,6 +266,12 @@ pub(crate) fn stamp(st: &State, kind: &LinkKind) -> u64 {
         match st.curves.iter().find(|c| c.id == *id) {
             Some(c) => format!("{:?}", c.def).hash(&mut h),
             None => (u64::MAX - 1, *id).hash(&mut h),
+        }
+    }
+    // the edges of a body a pattern follows: the body as it is now
+    if matches!(kind, LinkKind::Path(..)) {
+        for id in &d.bodies {
+            st.bodies.iter().find(|b| b.id == *id).map(|b| b.solid.shape_id()).hash(&mut h);
         }
     }
     h.finish()
