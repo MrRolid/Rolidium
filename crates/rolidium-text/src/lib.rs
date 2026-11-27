@@ -380,7 +380,7 @@ pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
     order.sort_by_key(|i| around[*i].len());
     for i in &order {
         let depth = around[*i].len();
-        if depth % 2 == 0 {
+        if depth.is_multiple_of(2) {
             let mut c = contours[*i].clone();
             if area(&c) < 0.0 {
                 c.reverse();
@@ -394,7 +394,7 @@ pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
     }
     for i in &order {
         let depth = around[*i].len();
-        if depth % 2 == 1 {
+        if !depth.is_multiple_of(2) {
             // the nearest outline round it (the smallest) is its outer outline
             let parent = around[*i]
                 .iter()

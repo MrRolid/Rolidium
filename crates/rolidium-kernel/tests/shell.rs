@@ -34,7 +34,7 @@ fn walls_grown_outwards_keep_the_inside() {
         (hi - lo - DVec3::new(44.0, 34.0, 22.0)).length() < 1e-6,
         "{lo:?} {hi:?}"
     );
-    assert!(r.solid.contains_point(DVec3::new(20.0, 15.0, 10.0)).unwrap() == false);
+    assert!(!r.solid.contains_point(DVec3::new(20.0, 15.0, 10.0)).unwrap());
 }
 
 #[test]

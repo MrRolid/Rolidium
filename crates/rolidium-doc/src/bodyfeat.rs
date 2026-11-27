@@ -232,7 +232,7 @@ pub fn shell_with_details(
     texts: &[TextParams],
 ) -> Result<(Solid, Vec<String>), DocError> {
     match shell(base, p) {
-        Ok(r) => return Ok(r),
+        Ok(r) => Ok(r),
         Err(first) => {
             // the text: start again from the body before it (the first link of text)
             let mut notes = Vec::new();
