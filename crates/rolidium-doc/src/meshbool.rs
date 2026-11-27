@@ -239,6 +239,34 @@ impl Job {
     }
 }
 
+/// A hole of a mesh is closed (it is filled flush with its two mouths) or a pin is taken off: the cylinder of the hole or the pin, a little wider than the surface it
+/// replaces, is joined to the mesh (a hole) or cut out of it (a pin) with the Manifold library.
+pub fn close_round(mesh: &TriMesh, cyl: &rolidium_mesh::regions::Cylinder) -> Result<TriMesh, crate::DocError> {
+    let axis = rolidium_kernel::DVec3::new(cyl.axis[0], cyl.axis[1], cyl.axis[2]).normalize();
+    let point = rolidium_kernel::DVec3::new(cyl.point[0], cyl.point[1], cyl.point[2]);
+    let height = cyl.z_range.1 - cyl.z_range.0;
+    if !(height > 1e-6 && cyl.radius > 1e-6) {
+        return Err(KernelError::Invalid("The hole has no depth".into()).into());
+    }
+    // the surface of a coarse mesh is a polygon: the circle that holds it is wider by 1 / cos(pi / facets)
+    let wider = if cyl.facets >= 3 {
+        1.0 / (std::f64::consts::PI / cyl.facets as f64).cos()
+    } else {
+        1.0
+    };
+    let radius = cyl.radius * wider * 1.004 + 0.01;
+    let plug = Solid::cylinder(radius, height, point + axis * cyl.z_range.0, axis)?;
+    let tm = solid_to_mesh(&plug)?;
+    let (cur, _) = prepare(mesh, "mesh")?;
+    let op = if cyl.is_hole { Op::Union } else { Op::Difference };
+    let stop = || rolidium_kernel::cancel_requested();
+    let r = combine_meshes(&cur, &tm, op, &stop)?;
+    if r.triangles.is_empty() {
+        return Err(KernelError::Invalid("The result is empty".into()).into());
+    }
+    Ok(r)
+}
+
 impl Job {
     /// Text raised from a flat wall of a mesh or engraved into it: the letters are a solid, meshed finely, and joined to the mesh or cut out of it (the Manifold
     /// library). The result is a mesh in the place of the mesh; it is a plain change, not a link.

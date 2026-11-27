@@ -3494,6 +3494,15 @@ impl Job {
                     .iter()
                     .position(|m| m.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
+                if *diameter <= 1e-6 {
+                    // a diameter of nothing closes the hole (or takes the pin off), as for a solid: the cylinder is joined to the mesh or cut out of it
+                    let m = meshbool::close_round(&st.meshes[mp].mesh, hole)?;
+                    st.meshes[mp].mesh = Arc::new(m);
+                    st.meshes[mp].verified = true;
+                    let mut c = self.done(st, if hole.is_hole { "Close hole" } else { "Remove pin" });
+                    c.touched_body = Some(*body);
+                    return Ok(c);
+                }
                 let (m, moved) = meshes::hole(&st.meshes[mp], hole, *diameter)?;
                 let m = Arc::new(m);
                 if let Some(first) = hole.triangles.first() {

@@ -1201,7 +1201,6 @@ Making the solid from flat faces and cylinders => 平面と円柱からソリッ
 Making flat faces => 平面を作っています
 Making flat faces at a finer accuracy => より細かい精度で平面を作っています
 Making a face of every triangle => 三角形ごとに面を作っています
-A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first => メッシュの穴は引いても閉じられません。先にメッシュをソリッドに変換してください
 Pull works on flat faces, on whole holes and pins and on rounds => 引く操作は平面、完全な穴とピン、丸めで使えます
 Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them => 引く操作は平面、完全な穴とピン、丸めで使えます。この面はそのどれでもありません
 Pulling {} things together by the same distance => {} 個をまとめて同じ距離だけ引いています

@@ -1201,7 +1201,6 @@ Making the solid from flat faces and cylinders => Aus ebenen Flächen und Zylind
 Making flat faces => Ebene Flächen werden erzeugt
 Making flat faces at a finer accuracy => Ebene Flächen werden mit feinerer Genauigkeit erzeugt
 Making a face of every triangle => Aus jedem Dreieck wird eine Fläche
-A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first => Ein Loch in einem Netz lässt sich nicht durch Ziehen schließen. Wandle das Netz zuerst in einen Körper um
 Pull works on flat faces, on whole holes and pins and on rounds => Ziehen funktioniert bei ebenen Flächen, ganzen Löchern und Zapfen und bei Rundungen
 Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them => Ziehen funktioniert bei ebenen Flächen, ganzen Löchern und Zapfen und bei Rundungen; diese Fläche ist nichts davon
 Pulling {} things together by the same distance => {} Dinge werden gemeinsam um dieselbe Strecke gezogen

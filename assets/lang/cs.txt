@@ -1201,7 +1201,6 @@ Making the solid from flat faces and cylinders => Z rovných ploch a válců se 
 Making flat faces => Vytvářejí se rovné plochy
 Making flat faces at a finer accuracy => Vytvářejí se rovné plochy s jemnější přesností
 Making a face of every triangle => Z každého trojúhelníku se dělá plocha
-A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first => Díru v síti nejde zavřít tažením. Nejdřív síť převeď na těleso
 Pull works on flat faces, on whole holes and pins and on rounds => Tažení funguje na rovných plochách, celých dírách a čepech a na zaobleních
 Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them => Tažení funguje na rovných plochách, celých dírách a čepech a na zaobleních; tahle plocha není nic z toho
 Pulling {} things together by the same distance => Táhne se {} věcí najednou o stejnou vzdálenost

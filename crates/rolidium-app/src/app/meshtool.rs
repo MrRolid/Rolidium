@@ -1195,15 +1195,12 @@ impl App {
                     // a hole or a pin of a mesh: the face moves along its normal, the diameter changes
                     MeshRegion::Hole(h) => {
                         let new_r = if h.is_hole { h.radius - distance } else { h.radius + distance };
-                        if new_r <= 1e-6 {
-                            Err(tr("A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first"))
-                        } else {
-                            Ok(Command::MeshHole {
-                                body: *body,
-                                hole: h,
-                                diameter: 2.0 * new_r,
-                            })
-                        }
+                        // a diameter of nothing closes the hole (the pin is taken off): the cylinder is joined to the mesh or cut out of it with Manifold
+                        Ok(Command::MeshHole {
+                            body: *body,
+                            hole: h,
+                            diameter: (2.0 * new_r).max(0.0),
+                        })
                     }
                 }
             }

@@ -1201,7 +1201,6 @@ Making the solid from flat faces and cylinders => Construction du solide à part
 Making flat faces => Création des faces planes
 Making flat faces at a finer accuracy => Création des faces planes avec une précision plus fine
 Making a face of every triangle => Une face est créée pour chaque triangle
-A hole of a mesh cannot be closed by pulling it. Convert the mesh to a solid first => Un trou d'un maillage ne peut pas être fermé en tirant dessus. Convertissez d'abord le maillage en solide
 Pull works on flat faces, on whole holes and pins and on rounds => La traction fonctionne sur les faces planes, les trous et tenons entiers et les arrondis
 Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them => La traction fonctionne sur les faces planes, les trous et tenons entiers et les arrondis ; cette face n'en est aucun
 Pulling {} things together by the same distance => {} éléments sont tirés ensemble de la même distance

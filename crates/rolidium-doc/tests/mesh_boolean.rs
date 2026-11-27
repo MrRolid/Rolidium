@@ -236,3 +236,27 @@ fn where_the_time_of_the_cat_goes() {
     let _ = r.signed_volume();
     eprintln!("volume: {:.3} s", t.elapsed().as_secs_f64());
 }
+
+#[test]
+fn a_hole_of_a_mesh_is_closed_with_a_diameter_of_nothing_and_a_pin_is_taken_off() {
+    let (mut d, id) = mesh_doc(gen::plate_with_hole(60.0, 40.0, 10.0, 6.0, 48));
+    let v0 = volume(&d, id);
+    let regions = rolidium_mesh::regions::find(&d.meshes()[0].mesh, 8.0, 8);
+    let hole = regions
+        .cylinders
+        .iter()
+        .find(|c| c.is_hole)
+        .cloned()
+        .expect("the hole is found");
+    d.apply(Command::MeshHole {
+        body: id,
+        hole: std::sync::Arc::new(hole.clone()),
+        diameter: 0.0,
+    })
+    .unwrap();
+    let v1 = volume(&d, id);
+    let hole_volume = std::f64::consts::PI * 36.0 * 10.0;
+    assert!((v1 - v0 - hole_volume).abs() < hole_volume * 0.03, "the hole is filled: {v0} -> {v1} (expected +{hole_volume})");
+    assert!(d.undo());
+    assert!((volume(&d, id) - v0).abs() < 1e-6, "one Undo opens it again");
+}
