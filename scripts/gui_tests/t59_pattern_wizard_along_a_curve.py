@@ -22,7 +22,7 @@ for w in ("want_curve", "want_point", "want_face"):
     check(w in p["widgets"], f"the big button {w} is in the panel")
 shot("02-three-buttons")
 click(*steady("want_curve"))
-click(73, 430)   # Fit all: the circle of the sketch is bigger than the box
+click(*steady("fit_all"))   # Fit all: the circle of the sketch is bigger than the box
 p = settle(1.2)
 check(p["link_want"] == "Some(Curve)", f"Along a line or a curve is chosen: {p['link_want']}")
 vx, vy, vw, vh = p["viewport"]
@@ -39,7 +39,7 @@ check(p["link_armed"] and p["link_mode"] == "Path", f"the circle is the path: {p
 check(p["link_path"] > 20 and p["link_path_closed"], f"the polyline of a closed curve: {p['link_path']} points, closed {p['link_path_closed']}")
 shot("03-path")
 key("Return")
-p = wait_for(lambda q: len(q["bodies"]) == 5 and not q["busy"], "five bodies", 30)
+p = wait_for(lambda q: len(q["bodies"]) == 6 and not q["busy"], "the object and five pieces on the circle", 30)
 check(p["links"] and p["links"][0]["kind"] == "Pattern along a curve", f"the link: {p['links']}")
 shot("04-pieces")
 key("z", ctrl=True)

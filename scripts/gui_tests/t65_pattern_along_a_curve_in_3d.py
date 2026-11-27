@@ -11,7 +11,7 @@ import math
 time.sleep(1.0)
 focus_app_window()
 p = settle()
-key("k")   # Fit all
+click(*steady("fit_all"))   # Fit all
 p = settle(1.2)
 
 def centres(q):

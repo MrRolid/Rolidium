@@ -22,7 +22,7 @@ def sample(what):
     pf = q["extra"]["perf"]
     samples.append((what, pf["window_ms"], pf["pointer_ms"], pf["frame_ms"], pf["parts"] + " | " + pf["worst_kernel"]))
 
-click(73, 460)   # Fit all
+click(*steady("fit_all"))   # Fit all
 settle(1.0)
 # the pointer over the faces and edges
 for i in range(40):

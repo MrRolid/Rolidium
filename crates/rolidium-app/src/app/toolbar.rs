@@ -720,9 +720,9 @@ impl App {
             if r.clicked() {
                 self.toggle_section();
             }
-            if icons::icon_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None, 34.0, "")
-                .clicked()
-            {
+            let r = icons::icon_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None, 34.0, "");
+            self.probe_widget("fit_all", r.rect);
+            if r.clicked() {
                 self.fit_all();
             }
         });

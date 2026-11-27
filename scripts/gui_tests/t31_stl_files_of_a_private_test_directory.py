@@ -40,6 +40,7 @@ for i, name in enumerate(files, 1):
         row["check"] = [it["check"] for it in items][:2]
         shot(f"file{i:02d}-dialog")
         n0 = len(p["meshes"])
+        click(*steady("stl_as_mesh"))   # the dialog advises a solid for files of flat walls: this test is about the mesh
         click(*steady("stl_import_ok"))
         p = wait_for(lambda q: len(q["meshes"]) == n0 + len(items) and all(m["shown"] for m in q["meshes"]), f"file {i} is shown", 120)
         p = wait_for(lambda q: all(m["walls"] is not None for m in q["meshes"]) and q["mesh_job"] is None, f"the walls of file {i}", 180)
@@ -69,6 +70,7 @@ for i, name in enumerate(files, 1):
     row["size_mm"] = it["size"]
     row["check"] = it["check"]
     shot(f"file{i:02d}-dialog")
+    click(*steady("stl_as_mesh"))   # the dialog advises a solid for files of flat walls: this test is about the mesh
     click(*steady("stl_import_ok"))
     t1 = time.time()
     n0 = len(p["meshes"])
@@ -96,6 +98,7 @@ for i, name in enumerate(files, 1):
 stl_paths = [os.path.join(d, n) for n in files if n.lower().endswith(".stl")]
 drop_files(*stl_paths)
 p = wait_for(lambda q: q["stl_dialog"], "the dialog for all the files", 180)
+click(*steady("stl_as_mesh"))   # the dialog advises a solid for files of flat walls: this test is about the mesh
 click(*steady("stl_import_ok"))
 p = wait_for(lambda q: len(q["meshes"]) == len(stl_paths) and all(m["shown"] for m in q["meshes"]), "all the meshes are shown", 240)
 p = wait_for(lambda q: all(m["walls"] is not None for m in q["meshes"]) and q["mesh_job"] is None, "all the walls", 600)
