@@ -108,7 +108,7 @@ fn a_thicker_wall_is_one_wall_only() {
 fn the_text_is_raised_and_engraved_and_its_link_is_edited() {
     let (mut d, b) = doc_with_box(60.0, 30.0, 10.0);
     let v0 = volume(&d, b);
-    let mut p = text_on_top(b, "Rolidium ěščř 123", false, 1.0, 5.0, DVec3::new(5.0, 10.0, 10.0));
+    let mut p = text_on_top(b, "Rolidium \u{11b}\u{161}\u{10d}\u{159} 123", false, 1.0, 5.0, DVec3::new(5.0, 10.0, 10.0));
     d.apply(Command::AddLink {
         kind: LinkKind::Text(p.clone()),
         sources: vec![],
@@ -132,7 +132,7 @@ fn the_text_is_raised_and_engraved_and_its_link_is_edited() {
     // engraved: the other way
     p.engrave = true;
     p.depth = 0.6;
-    p.text = "Rolidium ěščř 123".into();
+    p.text = "Rolidium \u{11b}\u{161}\u{10d}\u{159} 123".into();
     d.apply(Command::DeleteLink { link }).unwrap();
     assert!((volume(&d, b) - v0).abs() < 1e-6);
     d.apply(Command::AddLink {
@@ -149,7 +149,7 @@ fn the_text_is_raised_and_engraved_and_its_link_is_edited() {
     let d2 = Document::from_loaded(rolidium_doc::file::load_from_bytes(&bytes).unwrap());
     let l = d2.state().links.iter().find(|l| matches!(l.kind, LinkKind::Text(_))).expect("the text comes back");
     match &l.kind {
-        LinkKind::Text(t) => assert_eq!((t.text.as_str(), t.engrave, t.depth), ("Rolidium ěščř 123", true, 0.6)),
+        LinkKind::Text(t) => assert_eq!((t.text.as_str(), t.engrave, t.depth), ("Rolidium \u{11b}\u{161}\u{10d}\u{159} 123", true, 0.6)),
         _ => unreachable!(),
     }
     assert!((volume(&d2, b) - volume(&d, b)).abs() < 1e-6);

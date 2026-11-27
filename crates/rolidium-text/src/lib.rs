@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Rolid spol. s r.o.
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Text as outlines. A line of text is laid out with one of the bundled fonts (Liberation Sans and Serif, Hack, DejaVu Sans: see `fonts/LICENSES.txt`) and
-//! comes out as closed polylines in millimetres: the outlines of the letters and the holes inside them (the inside of an "O", "e", "ě"). The outlines can
+//! comes out as closed polylines in millimetres: the outlines of the letters and the holes inside them (the inside of an "O", "e", "\u{11b}"). The outlines can
 //! then be grouped into shapes (an outer outline with its holes) for extruding.
 
 use glam::DVec2;
@@ -448,7 +448,7 @@ mod tests {
                     italic,
                     ..sty()
                 };
-                let l = layout("ěščřžýáíéůúďťňĚŠČŘŽÝÁÍÉŮÚĎŤŇ ó ü ß", &st).unwrap();
+                let l = layout("\u{11b}\u{161}\u{10d}\u{159}\u{17e}\u{fd}\u{e1}\u{ed}\u{e9}\u{16f}\u{fa}\u{10f}\u{165}\u{148}\u{11a}\u{160}\u{10c}\u{158}\u{17d}\u{dd}\u{c1}\u{cd}\u{c9}\u{16e}\u{da}\u{10e}\u{164}\u{147} \u{f3} \u{fc} \u{df}", &st).unwrap();
                 assert!(l.missing.is_empty(), "{} {bold} {italic}: {:?}", f.name, l.missing);
             }
         }

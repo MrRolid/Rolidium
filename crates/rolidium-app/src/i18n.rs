@@ -519,6 +519,14 @@ mod coverage {
         "The hole is not round enough to change its diameter",
         "The file is not an STL file (no triangles were found)",
         "The file contains numbers that are not finite",
+        // the Shell and the Text tools, and the sketch pattern wizard
+        "Type the text", "The height of the letters must be a positive number", "The text was taken off for the shell and put back",
+        "{} hole(s) or pin(s) were taken off for the shell and put back",
+        "Click a point of the sketch, the centre of a circle, or an axis", "Click a line, an arc, a circle or an edge",
+        "The wall thickness must be a positive number", "A face that was to be taken away is not on the body any more",
+        "A wall that was to be thickened is not on the body any more", "A wall that is an opening cannot be thickened",
+        "A wall that was to be thickened could not be found in the shell (only flat walls can be changed one by one)",
+        "A wall would be thinner than nothing",
         // texts chosen by an `if` or a `match` inside `tr(...)`
         "Check the mesh",
         "STL and 3MF files (*.stl, *.3mf)",
