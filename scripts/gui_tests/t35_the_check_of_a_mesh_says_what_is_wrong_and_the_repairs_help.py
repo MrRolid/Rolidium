@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """The check of a mesh in the panel, in plain words: after "Check the mesh" the result stays, the button stays ("Check again") and the other buttons of the panel
 work at once (the scale); a mesh with a loose joint and a turned triangle offers "Join the loose joints", then "Turn them outwards", each result is one sentence that is
-no error, and at the end "The mesh is fine for printing"; a mesh whose two parts touch along an edge says what that is and that no button repairs it."""
+no error, and at the end "The mesh is fine for printing"; a mesh whose two parts touch along an edge says what that is and offers to separate them (since 0.3.2); the repair makes it two pieces."""
 # FIXTURE: box 5 5 5
 from guitest import *
 
@@ -66,7 +66,10 @@ p = settle(0.5)
 click(*screen(p, "mesh_check"))
 p = wait_for(lambda q: q["extra"]["mesh_check"], "the check of the two parts", 30)
 t = p["extra"]["mesh_check"]
-check("more than two faces" in t and "do not repair" in t, f"the edges are explained and no button is said to repair them: {t}")
-check("mesh_merge" not in p["widgets"] and "mesh_orient" not in p["widgets"], "no repair button for them")
+check("more than two faces" in t and "Separate the parts that touch" in t, f"the edges are explained and the separation is offered: {t}")
+check("mesh_split" in p["widgets"] and "mesh_merge" not in p["widgets"], "the button of the separation is there")
+click(*steady("mesh_split"))
+p = wait_for(lambda q: q["extra"]["mesh_check"] and "more than two faces" not in q["extra"]["mesh_check"], "the check after the separation", 30)
+check("Separated" in p["status"] and not p["status_error"], f"the repair says what it did: {p['status']}")
 shot("04-edges")
 finish()
