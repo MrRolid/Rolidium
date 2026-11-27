@@ -437,6 +437,9 @@ impl LinkParams {
     }
 }
 
+/// The points of a curve and whether it is closed.
+type Polyline = (Vec<DVec3>, bool);
+
 impl App {
     /// The bodies the tool works on: the bodies marked in the view or in the list.
     pub(super) fn link_sources(&self) -> Vec<BodyId> {
@@ -3524,71 +3527,70 @@ impl App {
             let to2 = |pts: Vec<DVec3>, closed: bool| -> (Vec<glam::DVec2>, bool) {
                 (pts.iter().map(|q| plane.to_2d(*q)).collect(), closed)
             };
-            let (whole, single, what): (Option<(Vec<DVec3>, bool)>, Option<(Vec<DVec3>, bool)>, String) =
-                match hover {
-                    Some(Obj::Entity(s, id)) if s == sk => {
-                        let chain = self
-                            .doc
-                            .sketch(s)
-                            .map(|d| rolidium_doc::sketch_chain(&d.sketch, id))
-                            .unwrap_or_default();
-                        let w = self
-                            .doc
+            let (whole, single, what): (Option<Polyline>, Option<Polyline>, String) = match hover {
+                Some(Obj::Entity(s, id)) if s == sk => {
+                    let chain = self
+                        .doc
+                        .sketch(s)
+                        .map(|d| rolidium_doc::sketch_chain(&d.sketch, id))
+                        .unwrap_or_default();
+                    let w = self
+                        .doc
+                        .path_polyline(&SweepPath::Sketch {
+                            sketch: s,
+                            entities: chain.clone(),
+                        })
+                        .ok();
+                    let one = if chain.len() > 1 {
+                        self.doc
                             .path_polyline(&SweepPath::Sketch {
                                 sketch: s,
-                                entities: chain.clone(),
+                                entities: vec![id],
                             })
-                            .ok();
-                        let one = if chain.len() > 1 {
-                            self.doc
-                                .path_polyline(&SweepPath::Sketch {
-                                    sketch: s,
-                                    entities: vec![id],
-                                })
-                                .ok()
-                        } else {
-                            None
-                        };
-                        (w, one, tr("a curve of the sketch"))
-                    }
-                    Some(Obj::Edge(b, e)) => {
-                        let chain: Vec<u32> = self
-                            .doc
-                            .body(b)
-                            .map(|x| {
-                                x.solid
-                                    .smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0)
-                                    .iter()
-                                    .map(|k| k.0)
-                                    .collect()
-                            })
-                            .unwrap_or_else(|| vec![e]);
-                        let w = self
-                            .doc
+                            .ok()
+                    } else {
+                        None
+                    };
+                    (w, one, tr("a curve of the sketch"))
+                }
+                Some(Obj::Edge(b, e)) => {
+                    let chain: Vec<u32> = self
+                        .doc
+                        .body(b)
+                        .map(|x| {
+                            x.solid
+                                .smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0)
+                                .iter()
+                                .map(|k| k.0)
+                                .collect()
+                        })
+                        .unwrap_or_else(|| vec![e]);
+                    let w = self
+                        .doc
+                        .path_polyline(&SweepPath::Edges {
+                            body: b,
+                            edges: chain.clone(),
+                        })
+                        .ok();
+                    let one = if chain.len() > 1 {
+                        self.doc
                             .path_polyline(&SweepPath::Edges {
                                 body: b,
-                                edges: chain.clone(),
+                                edges: vec![e],
                             })
-                            .ok();
-                        let one = if chain.len() > 1 {
-                            self.doc
-                                .path_polyline(&SweepPath::Edges {
-                                    body: b,
-                                    edges: vec![e],
-                                })
-                                .ok()
-                        } else {
-                            None
-                        };
-                        (w, one, tr("an edge of a body"))
-                    }
-                    Some(Obj::Curve(c)) => (
-                        self.doc.path_polyline(&SweepPath::Curve(c)).ok(),
-                        None,
-                        tr("a curve"),
-                    ),
-                    _ => (None, None, String::new()),
-                };
+                            .ok()
+                    } else {
+                        None
+                    };
+                    (w, one, tr("an edge of a body"))
+                }
+                Some(Obj::Curve(c)) => (
+                    self.doc.path_polyline(&SweepPath::Curve(c)).ok(),
+                    None,
+                    tr("a curve"),
+                ),
+                _ => (None, None, String::new()),
+            };
             if let Some((pts, closed)) = whole {
                 let full = to2(pts, closed);
                 let alt = single.map(|(p, c)| to2(p, c));

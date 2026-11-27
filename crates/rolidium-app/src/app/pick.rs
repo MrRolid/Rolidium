@@ -725,51 +725,6 @@ impl App {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const DRAWN_BONUS: f32 = 4.0;
-
-    #[test]
-    fn a_drawn_curve_wins_over_a_body_edge_in_the_same_place() {
-        // the curve is 3 px from the pointer and the edge 2 px: the curve still comes first (bonus of a few pixels)
-        let mut found = vec![
-            (2.0, 2.0, Obj::Edge(1, 5), Vec3::ZERO),
-            (3.0 - DRAWN_BONUS, 3.0, Obj::Curve(7), Vec3::ZERO),
-        ];
-        rank_candidates(&mut found);
-        assert_eq!(found[0].2, Obj::Curve(7));
-        assert_eq!(found[1].2, Obj::Edge(1, 5));
-        // an edge that is clearly closer than the curve (curve 7 px away) wins
-        let mut found = vec![
-            (7.0 - DRAWN_BONUS, 7.0, Obj::Curve(7), Vec3::ZERO),
-            (1.0, 1.0, Obj::Edge(1, 5), Vec3::ZERO),
-        ];
-        rank_candidates(&mut found);
-        assert_eq!(found[0].2, Obj::Edge(1, 5));
-    }
-
-    #[test]
-    fn repeated_clicks_cycle_through_the_candidates() {
-        let at = Pos2::new(100.0, 100.0);
-        let mut prev = None;
-        let mut taken = Vec::new();
-        for _ in 0..5 {
-            let i = cycle_index(prev, at, 3);
-            taken.push(i);
-            prev = Some((at, i));
-        }
-        assert_eq!(taken, vec![0, 1, 2, 0, 1]);
-        // a click somewhere else starts again at the first candidate
-        assert_eq!(cycle_index(prev, Pos2::new(200.0, 100.0), 3), 0);
-        // a click within 3 pixels counts as the same place
-        assert_eq!(cycle_index(Some((at, 0)), Pos2::new(102.0, 101.0), 3), 1);
-        // nothing to cycle through
-        assert_eq!(cycle_index(Some((at, 0)), at, 0), 0);
-    }
-}
-
 /// The edges that a round or chamfer of `edges` treats too (the kernel follows edges that continue each other tangentially).
 fn chain_extra_of(
     solid: &rolidium_kernel::Solid,
@@ -824,5 +779,50 @@ impl App {
         }
         drop(c);
         self.layers_changed = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const DRAWN_BONUS: f32 = 4.0;
+
+    #[test]
+    fn a_drawn_curve_wins_over_a_body_edge_in_the_same_place() {
+        // the curve is 3 px from the pointer and the edge 2 px: the curve still comes first (bonus of a few pixels)
+        let mut found = vec![
+            (2.0, 2.0, Obj::Edge(1, 5), Vec3::ZERO),
+            (3.0 - DRAWN_BONUS, 3.0, Obj::Curve(7), Vec3::ZERO),
+        ];
+        rank_candidates(&mut found);
+        assert_eq!(found[0].2, Obj::Curve(7));
+        assert_eq!(found[1].2, Obj::Edge(1, 5));
+        // an edge that is clearly closer than the curve (curve 7 px away) wins
+        let mut found = vec![
+            (7.0 - DRAWN_BONUS, 7.0, Obj::Curve(7), Vec3::ZERO),
+            (1.0, 1.0, Obj::Edge(1, 5), Vec3::ZERO),
+        ];
+        rank_candidates(&mut found);
+        assert_eq!(found[0].2, Obj::Edge(1, 5));
+    }
+
+    #[test]
+    fn repeated_clicks_cycle_through_the_candidates() {
+        let at = Pos2::new(100.0, 100.0);
+        let mut prev = None;
+        let mut taken = Vec::new();
+        for _ in 0..5 {
+            let i = cycle_index(prev, at, 3);
+            taken.push(i);
+            prev = Some((at, i));
+        }
+        assert_eq!(taken, vec![0, 1, 2, 0, 1]);
+        // a click somewhere else starts again at the first candidate
+        assert_eq!(cycle_index(prev, Pos2::new(200.0, 100.0), 3), 0);
+        // a click within 3 pixels counts as the same place
+        assert_eq!(cycle_index(Some((at, 0)), Pos2::new(102.0, 101.0), 3), 1);
+        // nothing to cycle through
+        assert_eq!(cycle_index(Some((at, 0)), at, 0), 0);
     }
 }

@@ -233,6 +233,13 @@ pub(crate) fn presentation_env() -> bool {
 
 type DiagnosticsJob = std::sync::Arc<std::sync::Mutex<Option<Result<std::path::PathBuf, String>>>>;
 
+/// The view and the screen boxes of the edges of one mesh made for it.
+type EdgeScreen = ((Camera, u32, u32), Arc<Vec<Option<[f32; 4]>>>);
+/// What a thread that looks for the edges a round also treats was asked: (revision, body, edges, chamfer).
+type ChainKey = (u64, BodyId, Vec<u32>, bool);
+/// The question and the answer (the edges that are treated too).
+type ChainAnswer = (ChainKey, Vec<u32>);
+
 pub struct App {
     doc: Document,
     worker: Worker,
@@ -464,11 +471,10 @@ pub struct App {
     /// The bodies of many faces whose slow answers were worked out in the background (by the identity of the shape).
     warmed: std::collections::HashSet<usize>,
     /// The boxes of the edges of every mesh on the screen for the view they were made for.
-    edge_screen:
-        std::cell::RefCell<std::collections::HashMap<u64, ((Camera, u32, u32), Arc<Vec<Option<[f32; 4]>>>)>>,
+    edge_screen: std::cell::RefCell<std::collections::HashMap<u64, EdgeScreen>>,
     probe_bodies: std::cell::RefCell<Option<(u64, Vec<serde_json::Value>)>>,
-    chain_pending: std::cell::RefCell<std::collections::HashSet<(u64, BodyId, Vec<u32>, bool)>>,
-    chain_inbox: Arc<std::sync::Mutex<Vec<((u64, BodyId, Vec<u32>, bool), Vec<u32>)>>>,
+    chain_pending: std::cell::RefCell<std::collections::HashSet<ChainKey>>,
+    chain_inbox: Arc<std::sync::Mutex<Vec<ChainAnswer>>>,
     /// Whether the selected edges lie where another body touches (revision, body, edges) -> yes/no.
     /// Fill tool: sketch lines chosen so far, and whether a Fill command is running (its result starts the Pull tool).
     fill_entities: Vec<(SketchId, EntityId)>,
