@@ -249,7 +249,7 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         cum.push(cum.last().copied().unwrap_or(0.0) + w[0].distance(w[1]));
     }
     let total = *cum.last().unwrap_or(&0.0);
-    if !(total > 1e-9) {
+    if total.is_nan() || total <= 1e-9 {
         return Err(bad("The curve of the pattern has no length"));
     }
     if !(p.start.is_finite() && p.end.is_finite() && p.pitch.is_finite())
@@ -260,7 +260,7 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         return Err(bad("The distances along the curve must be numbers, not negative"));
     }
     let usable = if p.closed { total } else { total - p.start - p.end };
-    if !(usable > 1e-9) {
+    if usable.is_nan() || usable <= 1e-9 {
         return Err(bad(
             "The curve is shorter than the distances left free at its ends",
         ));
@@ -307,7 +307,7 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         let t = if seg > 1e-12 { (s - cum[i]) / seg } else { 0.0 };
         (a + (b - a) * t.clamp(0.0, 1.0), (b - a).normalize_or_zero())
     };
-    let first = if p.closed { p.start } else { p.start };
+    let first = p.start;
     Ok((0..n).map(|i| at(first + step * i as f64)).collect())
 }
 

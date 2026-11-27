@@ -47,16 +47,6 @@ fn vertical_edge_at(d: &Document, id: BodyId, x: f64, y: f64) -> u32 {
     panic!("no edge")
 }
 
-fn ledge_face(d: &Document, id: BodyId, z: f64) -> rolidium_kernel::FaceId {
-    let s = &d.body(id).unwrap().solid;
-    s.faces()
-        .find(|f| {
-            let i = s.face_info(*f).unwrap();
-            i.kind == FaceKind::Plane && i.normal.z > 0.99 && (i.origin.z - z).abs() < 1e-6
-        })
-        .unwrap()
-}
-
 #[test]
 fn a_wall_next_to_rounds_pulled_again_and_again_is_never_refused_with_a_message_about_the_round() {
     for (label, xs) in [

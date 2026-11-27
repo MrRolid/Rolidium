@@ -47,7 +47,7 @@ fn a_free_shape_is_refused_in_a_moment_with_a_sentence() {
     }
     let (mut d, id) = doc_with(m);
     let t = std::time::Instant::now();
-    let e = convert(&mut d, id).err().expect("an organic model is refused");
+    let e = convert(&mut d, id).expect_err("an organic model is refused");
     assert!(e.to_string().contains("Organic model, it stays a mesh"), "{e}");
     assert!(t.elapsed().as_secs_f64() < 15.0, "{:?}", t.elapsed());
     assert_eq!(d.meshes().len(), 1, "the mesh is still there");

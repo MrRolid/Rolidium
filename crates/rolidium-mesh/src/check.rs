@@ -419,7 +419,7 @@ pub fn separate_pinches(m: &mut TriMesh) -> usize {
     let mut separated = 0usize;
     for &(a, b) in &bad {
         let v = &by_edge[&(a, b)];
-        if v.len() % 2 != 0 {
+        if !v.len().is_multiple_of(2) {
             return 0;
         }
         let (pa, pb) = (m.vertex(a), m.vertex(b));
