@@ -91,7 +91,7 @@ impl App {
             })
             .collect();
         // the facts of the bodies are made once for a state of the document (they cost as much as the kernel needs for every face; the probe is written every frame)
-        let cached = self.probe_bodies.borrow().as_ref().filter(|(r, _)| *r == self.doc.revision()).map(|(_, v)| v.clone());
+        let cached = self.probe_bodies.borrow().as_ref().filter(|(r, _)| *r == self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64)).map(|(_, v)| v.clone());
         let bodies: Vec<Value> = if let Some(v) = cached {
             v
         } else {
@@ -120,7 +120,7 @@ impl App {
                 })
             })
             .collect();
-            *self.probe_bodies.borrow_mut() = Some((self.doc.revision(), v.clone()));
+            *self.probe_bodies.borrow_mut() = Some((self.doc.revision() ^ (Arc::as_ptr(self.doc.state()) as u64), v.clone()));
             v
         };
         let st = self.doc.state();
@@ -267,7 +267,7 @@ impl App {
             "regions_selected": regions_selected,
             "sk_pattern": json!({"open": self.link_ui.sk_open.map(|m| format!("{m:?}")), "want": self.link_ui.sk_want.map(|w| format!("{w:?}")), "guided": self.link_ui.sk_guided, "preview": self.link_ui.sk_preview.len(), "drawn": self.drawn_sk_preview, "all": self.link_ui.sk_all, "second": self.link_ui.sk_second, "path": self.link_ui.sk_path.as_ref().map(|p| p.0.len()), "path_closed": self.link_ui.sk_path.as_ref().map(|p| p.1), "full": self.link_ui.sk_full, "fit": self.link_ui.sk_fit, "step": round3(self.link_ui.sk_step_angle), "count": self.link_ui.sk_count, "angle": round3(self.link_ui.sk_angle), "centre": [round3(self.link_ui.sk_cx), round3(self.link_ui.sk_cy)]}),
             "shell": json!({"body": self.shell.body, "open": self.shell.open.len(), "thickness": self.shell.thickness, "side": format!("{:?}", self.shell.side), "editing": self.shell.editing, "preview": self.shell.preview_on, "error": self.shell.error, "notes": self.shell.notes, "heavier": self.shell.heavier.len()}),
-            "text": json!({"target": self.text.target.map(|t| format!("{t:?}")), "text": self.text.text, "outline": self.text.outline.len(), "engrave": self.text.engrave, "height": self.text.height, "depth": self.text.depth, "error": self.text.error, "editing": self.text.editing, "family": self.text.family, "origin": [self.text.origin.x, self.text.origin.y, self.text.origin.z]}),
+            "text": json!({"target": self.text.target.map(|t| format!("{t:?}")), "text": self.text.text, "outline": self.text.outline.len(), "engrave": self.text.engrave, "height": self.text.height, "depth": self.text.depth, "error": self.text.error, "editing": self.text.editing, "family": self.text.family, "origin": [self.text.origin.x, self.text.origin.y, self.text.origin.z], "x_dir": [round3(self.text.x_dir.x), round3(self.text.x_dir.y), round3(self.text.x_dir.z)]}),
             "perf": json!({"window_ms": round3(self.work_ms[0] as f64), "viewport_ms": round3(self.work_ms[1] as f64), "pointer_ms": round3(self.work_ms[2] as f64), "frame_ms": round3(self.frame_ms as f64), "faces": self.meshes.iter().map(|m| m.faces.len()).sum::<usize>(), "parts": crate::prof::all_text(), "worst_kernel": format!("{:?}", crate::prof::worst_kernel_call())}),
             "round_size": self.edge_size_text,
             "view": json!({"xray": self.xray, "section": {"on": self.section.on, "axis": self.section.axis, "pos": round3(self.section.pos), "flip": self.section.flip, "lo": round3(self.section.lo), "hi": round3(self.section.hi), "by_tool": self.section.by_tool}}),

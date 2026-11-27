@@ -413,6 +413,8 @@ fn link_json(l: &crate::Link) -> Value {
                 }),
             );
             j.insert("round_corners".into(), json!(p.round_corners));
+            j.insert("inner_round".into(), json!(p.inner_round));
+            j.insert("outer_round".into(), json!(p.outer_round));
             j.insert(
                 "open".into(),
                 Value::Array(p.open.iter().map(face_anchor_json).collect()),
@@ -694,6 +696,8 @@ fn link_from(
                 _ => crate::ShellSide::Inwards,
             },
             round_corners: j["round_corners"].as_bool().unwrap_or(false),
+            inner_round: get_f(&j["inner_round"]).unwrap_or(0.0),
+            outer_round: get_f(&j["outer_round"]).unwrap_or(0.0),
             heavier: j["heavier"]
                 .as_array()
                 .map(|a| {

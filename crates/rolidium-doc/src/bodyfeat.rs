@@ -104,6 +104,9 @@ pub struct ShellParams {
     pub round_corners: bool,
     /// Walls that are thicker (positive) or thinner (negative) than the rest, by this much; the wall is found by the face of the body it grew from.
     pub heavier: Vec<(FaceAnchor, f64)>,
+    /// The inner edges of the hollow (the cavity) and the outer edges are rounded with these radii (0: not rounded).
+    pub inner_round: f64,
+    pub outer_round: f64,
 }
 
 impl ShellParams {
@@ -115,6 +118,8 @@ impl ShellParams {
             side: ShellSide::Inwards,
             round_corners: false,
             heavier: Vec::new(),
+            inner_round: 0.0,
+            outer_round: 0.0,
         }
     }
 }
@@ -177,7 +182,83 @@ pub fn shell(base: &Solid, p: &ShellParams) -> Result<(Solid, Vec<String>), DocE
             history: History::default(),
         };
     }
-    Ok((r.solid, notes))
+    let (solid, mut more) = round_shell(&r.solid, base, p.inner_round, p.outer_round);
+    notes.append(&mut more);
+    Ok((solid, notes))
+}
+
+/// The inner edges of the hollow and the outer edges of a shell rounded: a face is a face of the cavity when the point just beyond it (outside the material) lies inside
+/// the body the shell started from; an edge between two faces of the cavity is an inner edge, an edge between two other faces an outer one.
+fn round_shell(solid: &Solid, base: &Solid, inner: f64, outer: f64) -> (Solid, Vec<String>) {
+    let mut notes = Vec::new();
+    if inner <= 1e-9 && outer <= 1e-9 {
+        return (solid.clone(), notes);
+    }
+    let mut cavity: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for f in solid.faces() {
+        let (Ok(info), Ok(edges)) = (solid.face_info(f), solid.face_edges(f)) else { continue };
+        // a point on the face: the middle of one of its straight edges, pushed a little along the outward normal
+        let Some(mid) = edges
+            .iter()
+            .filter_map(|e| solid.edge_info(*e).ok())
+            .find(|e| e.kind == rolidium_kernel::EdgeKind::Line)
+            .map(|e| (e.start + e.end) * 0.5)
+        else {
+            continue;
+        };
+        let n = if info.kind == FaceKind::Plane { info.normal.normalize_or_zero() } else { continue };
+        if base.contains_point(mid + n * 0.05).unwrap_or(false) {
+            cavity.insert(f.0);
+        }
+    }
+    let mut count: std::collections::HashMap<u32, (u32, u32)> = std::collections::HashMap::new();
+    for f in solid.faces() {
+        if let Ok(edges) = solid.face_edges(f) {
+            for e in edges {
+                let c = count.entry(e.0).or_default();
+                if cavity.contains(&f.0) {
+                    c.0 += 1;
+                } else {
+                    c.1 += 1;
+                }
+            }
+        }
+    }
+    let mut cur = solid.clone();
+    if inner > 1e-9 {
+        let es: Vec<rolidium_kernel::EdgeId> = count.iter().filter(|(_, c)| c.0 == 2).map(|(e, _)| rolidium_kernel::EdgeId(*e)).collect();
+        if !es.is_empty() {
+            match cur.fillet(&es, inner) {
+                Ok(r) => cur = r.solid,
+                Err(e) => notes.push(format!("The inner edges could not be rounded: {e}")),
+            }
+        }
+    }
+    if outer > 1e-9 {
+        // the edges of the solid as it is now (the numbers have changed): found again by their place
+        let mids: Vec<DVec3> = count
+            .iter()
+            .filter(|(_, c)| c.0 == 0 && c.1 == 2)
+            .filter_map(|(e, _)| solid.edge_info(rolidium_kernel::EdgeId(*e)).ok())
+            .filter(|i| i.kind == rolidium_kernel::EdgeKind::Line)
+            .map(|i| (i.start + i.end) * 0.5)
+            .collect();
+        let es: Vec<rolidium_kernel::EdgeId> = cur
+            .edges()
+            .filter(|e| {
+                cur.edge_info(*e).is_ok_and(|i| {
+                    i.kind == rolidium_kernel::EdgeKind::Line && mids.iter().any(|m| m.distance((i.start + i.end) * 0.5) < 1e-4)
+                })
+            })
+            .collect();
+        if !es.is_empty() {
+            match cur.fillet(&es, outer) {
+                Ok(r) => cur = r.solid,
+                Err(e) => notes.push(format!("The outer edges could not be rounded: {e}")),
+            }
+        }
+    }
+    (cur, notes)
 }
 
 /// A hole or a pin of the body taken out so that the shell does not have to follow it (it is put back afterwards).

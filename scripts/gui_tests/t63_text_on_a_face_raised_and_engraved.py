@@ -20,6 +20,7 @@ tx = p["extra"]["text"]
 check(tx["target"] is not None and tx["outline"] > 20, f"the text is put there and its outlines are drawn: {tx}")
 for w in ("text_field", "text_height", "text_apply", "text_raised", "text_engraved", "text_depth"):
     check(w in p["widgets"], f"the panel has {w}")
+check(tx["x_dir"][0] > 0.7, f"the text reads from left to right in the view: the direction of the writing {tx['x_dir']}")
 shot("01-placed")
 # the words
 click(*steady("text_field"))

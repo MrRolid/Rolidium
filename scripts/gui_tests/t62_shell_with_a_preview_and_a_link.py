@@ -17,10 +17,9 @@ check(p["tool"] == "Shell", f"O chooses the Shell tool: {p['tool']}")
 click(*screen(p, "top"))
 p = settle(0.6)
 sh = p["extra"]["shell"]
-check(sh["body"] == p["bodies"][0]["id"] and sh["open"] == 0, f"a click on the body chooses it: {sh}")
+check(sh["body"] == p["bodies"][0]["id"] and sh["open"] == 1, f"a click on a wall chooses the body and opens that wall at once: {sh}")
 check("shell_thickness" in p["widgets"] and "shell_apply" in p["widgets"], "the panel has the thickness and Apply")
 shot("01-body-chosen")
-click(*screen(p, "top"))
 p = wait_for(lambda q: q["extra"]["shell"]["open"] == 1 and q["extra"]["shell"]["preview"], "the top face is open and the preview is there", 40)
 pv = p["extra"]["preview_mesh"]
 check(pv is not None and pv["hides"] == p["bodies"][0]["id"], f"the preview takes the place of the body: {pv and pv['hides']}")

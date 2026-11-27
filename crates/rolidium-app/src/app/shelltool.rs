@@ -29,6 +29,13 @@ pub struct ShellUi {
     pub walls: Vec<FaceAnchor>,
     pub extra: f64,
     pub editing: Option<LinkId>,
+    /// The person chose a closed hollow body (no opening) on purpose.
+    pub closed: bool,
+    /// The inner and the outer edges are rounded, with these radii.
+    pub round_inner: bool,
+    pub inner_radius: f64,
+    pub round_outer: bool,
+    pub outer_radius: f64,
     job: Option<ShellJob>,
     key: String,
     /// The reason the preview could not be made, and the remarks of the calculation.
@@ -58,6 +65,8 @@ impl App {
         self.drop_mesh_previews();
         self.shell = ShellUi {
             thickness: 2.0,
+            inner_radius: 1.0,
+            outer_radius: 1.0,
             ..ShellUi::default()
         };
         self.clear_selection();
@@ -121,6 +130,11 @@ impl App {
             round: p.round_corners,
             heavier: p.heavier.clone(),
             editing: Some(id),
+            closed: p.open.is_empty(),
+            round_inner: p.inner_round > 0.0,
+            inner_radius: if p.inner_round > 0.0 { p.inner_round } else { 1.0 },
+            round_outer: p.outer_round > 0.0,
+            outer_radius: if p.outer_round > 0.0 { p.outer_round } else { 1.0 },
             ..ShellUi::default()
         };
         self.link_sel = Some(id);
@@ -140,6 +154,8 @@ impl App {
             side: self.shell.side,
             round_corners: self.shell.round,
             heavier: self.shell.heavier.clone(),
+            inner_round: if self.shell.round_inner { self.shell.inner_radius } else { 0.0 },
+            outer_round: if self.shell.round_outer { self.shell.outer_radius } else { 0.0 },
         })
     }
 
@@ -193,7 +209,17 @@ impl App {
         let add = resp.ctx.input(|i| i.modifiers.command || i.modifiers.shift);
         let Some((b, f)) = hovered_face else { return };
         let Some(body) = self.shell.body else {
-            return self.shell_choose_body(b);
+            self.shell_choose_body(b);
+            // the wall that was clicked is the first opening at once (a box becomes a box open at that side)
+            if self.shell.body == Some(b) && self.shell.editing.is_none() {
+                if let Some(a) = self.shell_anchor_of_click(b, f) {
+                    self.shell.open = vec![a];
+                    self.shell.key.clear();
+                    self.shell_sync_selection();
+                    self.set_status("Click more walls that should disappear (Ctrl), or press Enter to make the shell", false);
+                }
+            }
+            return;
         };
         if b != body {
             if !add {
@@ -239,6 +265,16 @@ impl App {
             return;
         };
         let Some(p) = self.shell_params() else { return };
+        // no opening and no wish for a closed hollow body: nothing to show yet
+        if p.open.is_empty() && !self.shell.closed {
+            if self.shell.preview_on || self.shell.error.is_some() {
+                self.shell.preview_on = false;
+                self.shell.error = None;
+                self.shell.key.clear();
+                self.set_preview(None);
+            }
+            return;
+        }
         let want = format!("{p:?}|{}|{:?}", self.doc.revision(), self.shell.editing);
         if let Some(j) = &self.shell.job {
             match j.rx.try_recv() {
@@ -318,6 +354,10 @@ impl App {
             self.set_status("Click the body to make hollow first", true);
             return;
         };
+        if p.open.is_empty() && !self.shell.closed {
+            self.set_status("Click a wall that should disappear, or choose Closed hollow body (no opening)", true);
+            return;
+        }
         if let Some(e) = &self.shell.error {
             let e = e.clone();
             self.set_status(e, true);
@@ -405,16 +445,37 @@ impl App {
                 }
             });
             ui.checkbox(&mut ui_state.round, tr("Round the corners that stick out"));
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut ui_state.round_inner, tr("Round the inner edges"));
+                if ui_state.round_inner {
+                    ui.add(egui::DragValue::new(&mut ui_state.inner_radius).speed(0.1).range(0.1..=200.0).suffix(" mm"));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut ui_state.round_outer, tr("Round the outer edges"));
+                if ui_state.round_outer {
+                    ui.add(egui::DragValue::new(&mut ui_state.outer_radius).speed(0.1).range(0.1..=200.0).suffix(" mm"));
+                }
+            });
             ui.separator();
             if !ui_state.thicken {
                 ui.colored_label(
                     crate::theme::rgb(255, 200, 100),
-                    if ui_state.open.is_empty() {
-                        tr("No opening: a closed hollow body. Click a face to open it (Ctrl or Shift adds more)")
-                    } else {
-                        trf("{} face(s) open", &[ui_state.open.len().to_string()])
-                    },
+                    trf("Removed walls: {}", &[ui_state.open.len().to_string()]),
                 );
+                if ui_state.open.is_empty() {
+                    ui.label(tr("Click a wall that should disappear (Ctrl or Shift adds more), or choose a closed hollow body"));
+                    let r = ui.selectable_label(ui_state.closed, tr("Closed hollow body (no opening)"));
+                    probe_w.borrow_mut().push(("shell_closed", r.rect));
+                    if r.clicked() {
+                        ui_state.closed = !ui_state.closed;
+                    }
+                } else {
+                    ui.colored_label(
+                        crate::theme::rgb(120, 220, 255),
+                        tr("Click more walls that should disappear (Ctrl), or confirm with Enter"),
+                    );
+                }
                 let mut gone = None;
                 for (i, a) in ui_state.open.iter().enumerate() {
                     ui.horizontal(|ui| {

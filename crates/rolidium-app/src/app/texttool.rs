@@ -225,10 +225,34 @@ impl App {
         self.text.target = Some(target);
         self.text.origin = hit;
         self.text.normal = n;
-        self.text.x_dir = writing_direction(n);
+        self.text.x_dir = self.readable_direction(n, hit, rect);
         self.text.focus_text = true;
         self.text.key.clear();
         self.layers_changed = true;
+    }
+
+    /// The direction of the writing on the face (a multiple of 90 degrees from the usual one) that reads from left to right and stands upright in the view
+    /// that is on the screen now.
+    fn readable_direction(&self, n: DVec3, at: DVec3, rect: Rect) -> DVec3 {
+        let base = writing_direction(n);
+        let Some(p0) = self.project(at.as_vec3(), rect) else {
+            return base;
+        };
+        let mut best = (f32::MIN, base);
+        for k in 0..4 {
+            let a = k as f64 * std::f64::consts::FRAC_PI_2;
+            let x = (base * a.cos() + n.cross(base) * a.sin()).normalize_or_zero();
+            let y = n.cross(x);
+            let (Some(px), Some(py)) = (self.project((at + x * 10.0).as_vec3(), rect), self.project((at + y * 10.0).as_vec3(), rect)) else {
+                continue;
+            };
+            // to the right on the screen, and up (the y of the screen grows downwards)
+            let score = (px.x - p0.x) + (p0.y - py.y);
+            if score > best.0 {
+                best = (score, x);
+            }
+        }
+        best.1
     }
 
     /// A click in a sketch while the tool waits for the place.
