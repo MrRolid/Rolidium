@@ -8,11 +8,13 @@
 use rolidium_kernel::{BooleanOp, DVec3, FaceId, History, KernelError, Profile, ProfileSegment, Solid};
 
 mod anchor;
+mod bodyfeat;
 mod curves;
 mod endface;
 pub use anchor::{
     angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor,
 };
+pub use bodyfeat::{apply_text, shell, shell_with_details, text_tool, FaceAnchor, ShellParams, ShellSide, TextAlign, TextParams};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
 pub use endface::{end_circle, end_face_of, EndFace, EndKind};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};

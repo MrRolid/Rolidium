@@ -2507,6 +2507,7 @@ dependencies = [
  "rolidium-manifold",
  "rolidium-mesh",
  "rolidium-sketch",
+ "rolidium-text",
  "serde_json",
  "thiserror 2.0.21",
  "zip",
@@ -2587,6 +2588,15 @@ name = "rolidium-svg2png"
 version = "0.3.2"
 dependencies = [
  "resvg",
+]
+
+[[package]]
+name = "rolidium-text"
+version = "0.3.2"
+dependencies = [
+ "glam",
+ "skrifa",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

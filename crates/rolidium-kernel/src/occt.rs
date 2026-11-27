@@ -156,6 +156,7 @@ pub mod ffi {
         fn unify_same_domain(shape: &Shape) -> Result<OpResult>;
         fn fillet_edges(shape: &Shape, edges: &[u32], radius: f64) -> Result<OpResult>;
         fn defeature_faces(shape: &Shape, faces: &[u32]) -> Result<OpResult>;
+        fn shell_solid(shape: &Shape, faces: &[u32], thickness: f64, arcs: bool) -> Result<OpResult>;
         fn blend_scan(shape: &Shape) -> Result<Vec<f64>>;
         fn blend_chain(shape: &Shape, edges: &[u32], chamfer: bool) -> Result<Vec<u32>>;
         fn fillet_edges_radii(shape: &Shape, edges: &[u32], radii: &[f64]) -> Result<OpResult>;

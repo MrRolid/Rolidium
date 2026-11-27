@@ -91,6 +91,10 @@
 #include <BRepPrimAPI_MakeCone.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_MakeOffsetShape.hxx>
+#include <BRepOffset_Mode.hxx>
+#include <GeomAbs_JoinType.hxx>
 #include <TopoDS_Wire.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -1405,6 +1409,59 @@ OpResult defeature_faces(const Shape& sh, rust::Slice<const uint32_t> faces) {
         TopoDS_Shape res = df.Shape();
         if (res.IsNull()) fail("removing the faces produced an empty result");
         return make_result(first_solid(res), df.History(), &sh, nullptr);
+    });
+}
+
+
+// A hollow solid: the faces in `faces` are taken away (the openings) and the walls get the thickness `thickness` (negative: inwards, positive: outwards).
+// Without a face to take away the solid is closed and hollow: the outer solid minus the same solid offset inwards. `arcs`: round the corners
+// that stick out (otherwise they are mitred).
+OpResult shell_solid(const Shape& sh, rust::Slice<const uint32_t> faces, double thickness, bool arcs) {
+    return guarded("shell", [&] {
+        if (!(std::abs(thickness) > 1e-6)) fail("the wall thickness must not be zero");
+        GeomAbs_JoinType jt = arcs ? GeomAbs_Arc : GeomAbs_Intersection;
+        OpResult r;
+        if (faces.size() == 0) {
+            // closed: the cavity is the solid offset inwards
+            BRepOffsetAPI_MakeOffsetShape off;
+            off.PerformByJoin(sh.s, -std::abs(thickness) * (thickness < 0 ? 1.0 : -1.0), 1e-4, BRepOffset_Skin, false, false, jt);
+            check_cancelled();
+            if (!off.IsDone()) fail("the cavity cannot be made (the walls are thicker than the body allows)");
+            TopoDS_Shape cavity = off.Shape();
+            if (cavity.IsNull()) fail("the cavity is empty");
+            BRepAlgoAPI_Cut cut(thickness < 0 ? sh.s : cavity, thickness < 0 ? cavity : sh.s);
+            cut.SetToFillHistory(true);
+            cut.Build();
+            if (!cut.IsDone() || cut.HasErrors()) fail("the hollow body cannot be made");
+            return make_result(first_solid(cut.Shape()), cut.History(), &sh, nullptr);
+        }
+        TopTools_ListOfShape rem;
+        for (uint32_t f : faces) rem.Append(face_at(sh, f));
+        BRepOffsetAPI_MakeThickSolid mk;
+        mk.MakeThickSolidByJoin(sh.s, rem, thickness, 1e-4, BRepOffset_Skin, false, false, jt);
+        check_cancelled();
+        if (!mk.IsDone()) fail("the shell cannot be made (a wall is thicker than the body allows, or a small feature is thinner than the wall)");
+        TopoDS_Shape res = mk.Shape();
+        if (res.IsNull()) fail("the shell is empty");
+        r.shape = wrap(first_solid(res));
+        for (int i = 1; i <= sh.faces.Extent(); ++i) {
+            const TopoDS_Shape& f = sh.faces.FindKey(i);
+            if (mk.IsDeleted(f)) continue;
+            bool any = false;
+            for (const TopoDS_Shape& g : mk.Modified(f)) {
+                int idx = r.shape->faces.FindIndex(g);
+                if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); any = true; }
+            }
+            for (const TopoDS_Shape& g : mk.Generated(f)) {
+                int idx = r.shape->faces.FindIndex(g);
+                if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); any = true; }
+            }
+            if (!any) {
+                int idx = r.shape->faces.FindIndex(f);
+                if (idx > 0) { r.history.push_back(0); r.history.push_back(i - 1); r.history.push_back(idx - 1); }
+            }
+        }
+        return r;
     });
 }
 

@@ -60,6 +60,7 @@ OpResult boolean_op(const Shape& a, const Shape& b, uint32_t op, bool unify);
 OpResult unify_same_domain(const Shape& shape);
 OpResult fillet_edges(const Shape& shape, rust::Slice<const uint32_t> edges, double radius);
 OpResult defeature_faces(const Shape& shape, rust::Slice<const uint32_t> faces);
+OpResult shell_solid(const Shape& shape, rust::Slice<const uint32_t> faces, double thickness, bool arcs);
 rust::Vec<double> blend_scan(const Shape& shape);
 rust::Vec<uint32_t> blend_chain(const Shape& shape, rust::Slice<const uint32_t> edges, bool chamfer);
 OpResult fillet_edges_radii(const Shape& shape, rust::Slice<const uint32_t> edges, rust::Slice<const double> radii);

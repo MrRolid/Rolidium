@@ -223,6 +223,7 @@ pub(crate) fn deps(kind: &LinkKind) -> Deps {
         curves: Vec::new(),
     };
     match kind {
+        LinkKind::Shell(_) | LinkKind::Text(_) => {}
         LinkKind::Loft { profiles, .. } => profiles.iter().for_each(|p| add_ref(&mut d, p)),
         LinkKind::Sweep { profile, path, .. } => {
             add_ref(&mut d, profile);

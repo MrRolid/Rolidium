@@ -608,6 +608,29 @@ impl Solid {
         finish(native::defeature_faces(self.raw(), &ids)?)
     }
 
+    /// A hollow body: the `open` faces are taken away and the walls are `thickness` thick (`inwards`: the outside stays as it is; otherwise the walls grow outwards
+    /// from the outside). With no open face the body is closed and hollow. `round_corners` rounds the corners that stick out instead of mitring them.
+    pub fn shell(&self, open: &[FaceId], thickness: f64, inwards: bool, round_corners: bool) -> Result<OpResult> {
+        if !(thickness.is_finite() && thickness > 1e-6) {
+            return Err(KernelError::Invalid("the wall thickness must be a positive number".into()));
+        }
+        let ids: Vec<u32> = open.iter().map(|f| f.0).collect();
+        let signed = if inwards { -thickness } else { thickness };
+        finish(native::shell_solid(self.raw(), &ids, signed, round_corners)?)
+    }
+
+    /// A hollow body whose walls lie half inside and half outside the surface of the body (`thickness` in all).
+    pub fn shell_centre(&self, open: &[FaceId], thickness: f64, round_corners: bool) -> Result<OpResult> {
+        let inner = self.shell(open, thickness / 2.0, true, round_corners)?;
+        let outer = self.shell(open, thickness / 2.0, false, round_corners)?;
+        let r = inner.solid.boolean_checked(&outer.solid, BooleanOp::Fuse)?;
+        let u = r.solid.unify()?;
+        Ok(OpResult {
+            solid: u.solid,
+            history: History::default(),
+        })
+    }
+
     /// Changes the size of an existing round or chamfer made of `faces`: the faces are removed
     /// (restoring the sharp edges) and, unless `size` is zero, the sharp edges are rounded or
     /// chamfered again with the new size. On failure the solid is untouched.

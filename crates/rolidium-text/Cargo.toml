@@ -1,0 +1,14 @@
+[package]
+name = "rolidium-text"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Text as outlines: the bundled fonts, the layout of lines and the shapes of the letters (outer outlines and holes) for the Text tool"
+
+[dependencies]
+glam.workspace = true
+skrifa = "0.44"
+thiserror.workspace = true

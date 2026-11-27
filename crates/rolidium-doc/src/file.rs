@@ -393,6 +393,54 @@ fn link_json(l: &crate::Link) -> Value {
             );
             j.insert("ruled".into(), json!(ruled));
         }
+        LinkKind::Shell(p) => {
+            j.insert("type".into(), json!("shell"));
+            mode(&PatternMode::Add(p.target), &mut j);
+            j.insert("thickness".into(), json!(p.thickness));
+            j.insert(
+                "side".into(),
+                json!(match p.side {
+                    crate::ShellSide::Inwards => "inwards",
+                    crate::ShellSide::Outwards => "outwards",
+                    crate::ShellSide::Centre => "centre",
+                }),
+            );
+            j.insert("round_corners".into(), json!(p.round_corners));
+            j.insert("open".into(), Value::Array(p.open.iter().map(face_anchor_json).collect()));
+            j.insert(
+                "heavier".into(),
+                Value::Array(
+                    p.heavier
+                        .iter()
+                        .map(|(a, e)| json!({"face": face_anchor_json(a), "extra": e}))
+                        .collect(),
+                ),
+            );
+        }
+        LinkKind::Text(p) => {
+            j.insert("type".into(), json!("text"));
+            mode(&PatternMode::Add(p.target), &mut j);
+            j.insert("text".into(), json!(p.text));
+            j.insert("font".into(), json!(p.font));
+            j.insert("bold".into(), json!(p.bold));
+            j.insert("italic".into(), json!(p.italic));
+            j.insert("height".into(), json!(p.height));
+            j.insert(
+                "align".into(),
+                json!(match p.align {
+                    crate::TextAlign::Left => "left",
+                    crate::TextAlign::Centre => "centre",
+                    crate::TextAlign::Right => "right",
+                }),
+            );
+            j.insert("rotation".into(), json!(p.rotation));
+            j.insert("spacing".into(), json!(p.spacing));
+            j.insert("depth".into(), json!(p.depth));
+            j.insert("engrave".into(), json!(p.engrave));
+            j.insert("origin".into(), arr3(p.origin));
+            j.insert("normal".into(), arr3(p.normal));
+            j.insert("x_dir".into(), arr3(p.x_dir));
+        }
         LinkKind::Sweep {
             profile,
             path,
@@ -410,6 +458,42 @@ fn link_json(l: &crate::Link) -> Value {
         j.insert("fill".into(), fill_json(f));
     }
     Value::Object(j)
+}
+
+fn face_anchor_json(a: &crate::FaceAnchor) -> Value {
+    use rolidium_kernel::FaceKind;
+    json!({
+        "kind": match a.kind {
+            FaceKind::Plane => "plane",
+            FaceKind::Cylinder => "cylinder",
+            FaceKind::Cone => "cone",
+            FaceKind::Sphere => "sphere",
+            FaceKind::Torus => "torus",
+            FaceKind::Other => "other",
+        },
+        "normal": arr3(a.normal),
+        "origin": arr3(a.origin),
+        "radius": a.radius,
+        "area": a.area,
+    })
+}
+
+fn face_anchor_from_json(v: &Value) -> Result<crate::FaceAnchor, FileError> {
+    use rolidium_kernel::FaceKind;
+    Ok(crate::FaceAnchor {
+        kind: match v["kind"].as_str() {
+            Some("plane") => FaceKind::Plane,
+            Some("cylinder") => FaceKind::Cylinder,
+            Some("cone") => FaceKind::Cone,
+            Some("sphere") => FaceKind::Sphere,
+            Some("torus") => FaceKind::Torus,
+            _ => FaceKind::Other,
+        },
+        normal: get3(&v["normal"])?,
+        origin: get3(&v["origin"])?,
+        radius: get_f(&v["radius"])?,
+        area: get_f(&v["area"])?,
+    })
 }
 
 fn fill_json(f: &crate::FillRule) -> Value {
@@ -576,6 +660,50 @@ fn link_from(
             ruled: j["ruled"].as_bool().unwrap_or(false),
             mode: mode()?,
         },
+        Some("shell") => LinkKind::Shell(crate::ShellParams {
+            target: j["target"].as_u64().ok_or_else(|| corrupt("a shell without a body"))?,
+            open: j["open"]
+                .as_array()
+                .map(|a| a.iter().map(face_anchor_from_json).collect::<Result<Vec<_>, _>>())
+                .transpose()?
+                .unwrap_or_default(),
+            thickness: get_f(&j["thickness"])?,
+            side: match j["side"].as_str() {
+                Some("outwards") => crate::ShellSide::Outwards,
+                Some("centre") => crate::ShellSide::Centre,
+                _ => crate::ShellSide::Inwards,
+            },
+            round_corners: j["round_corners"].as_bool().unwrap_or(false),
+            heavier: j["heavier"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|h| Ok((face_anchor_from_json(&h["face"])?, get_f(&h["extra"])?)))
+                        .collect::<Result<Vec<_>, FileError>>()
+                })
+                .transpose()?
+                .unwrap_or_default(),
+        }),
+        Some("text") => LinkKind::Text(crate::TextParams {
+            target: j["target"].as_u64().ok_or_else(|| corrupt("a text without a body"))?,
+            text: j["text"].as_str().unwrap_or("").to_string(),
+            font: j["font"].as_str().unwrap_or("sans").to_string(),
+            bold: j["bold"].as_bool().unwrap_or(false),
+            italic: j["italic"].as_bool().unwrap_or(false),
+            height: get_f(&j["height"])?,
+            align: match j["align"].as_str() {
+                Some("centre") => crate::TextAlign::Centre,
+                Some("right") => crate::TextAlign::Right,
+                _ => crate::TextAlign::Left,
+            },
+            rotation: get_f(&j["rotation"]).unwrap_or(0.0),
+            spacing: get_f(&j["spacing"]).unwrap_or(0.0),
+            depth: get_f(&j["depth"])?,
+            engrave: j["engrave"].as_bool().unwrap_or(false),
+            origin: get3(&j["origin"])?,
+            normal: get3(&j["normal"])?,
+            x_dir: get3(&j["x_dir"])?,
+        }),
         Some("sweep") => LinkKind::Sweep {
             profile: ref_from(&j["profile"])?,
             path: path_from(&j["path"])?,
@@ -629,7 +757,17 @@ fn link_from(
         warnings: Vec::new(),
         stamp: 0,
         fill,
+        produced: None,
     };
+    if link.kind.works_in_place() {
+        // the body in the file is what the link made
+        link.produced = link
+            .kind
+            .mode()
+            .target()
+            .and_then(|t| bodies.iter().find(|b| b.id == t))
+            .map(|b| b.solid.clone());
+    }
     link.stamp = crate::links::stamp_of(state, &link);
     Ok(Some(link))
 }

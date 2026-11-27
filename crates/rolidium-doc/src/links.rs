@@ -133,6 +133,10 @@ pub enum LinkKind {
         ruled: bool,
         mode: PatternMode,
     },
+    /// The body made hollow (see `bodyfeat`): it works on the body `target`, whose solid before the shell is the `base` of the link.
+    Shell(ShellParams),
+    /// Text raised from a flat face of a body or engraved into it.
+    Text(TextParams),
     /// A profile swept along a path (a curve, a chain of a sketch or edges of a body); it follows the profile and the path.
     Sweep {
         profile: LoftRef,
@@ -147,6 +151,8 @@ impl LinkKind {
         match self {
             LinkKind::Linear(_, m) | LinkKind::Circular(_, m) | LinkKind::Path(_, m) => *m,
             LinkKind::Loft { mode, .. } | LinkKind::Sweep { mode, .. } => *mode,
+            LinkKind::Shell(p) => PatternMode::Add(p.target),
+            LinkKind::Text(p) => PatternMode::Add(p.target),
             LinkKind::Mirror(m) => m.into,
         }
     }
@@ -158,13 +164,23 @@ impl LinkKind {
             LinkKind::Linear(_, m) | LinkKind::Circular(_, m) | LinkKind::Path(_, m) => *m = mode,
             LinkKind::Mirror(p) => p.into = mode,
             LinkKind::Loft { mode: m, .. } | LinkKind::Sweep { mode: m, .. } => *m = mode,
+            LinkKind::Shell(_) | LinkKind::Text(_) => {}
         }
         k
     }
 
     /// Whether the link makes its solid from sketches, curves and faces (a loft or a sweep) and not from copies of bodies.
     pub fn generates(&self) -> bool {
-        matches!(self, LinkKind::Loft { .. } | LinkKind::Sweep { .. })
+        matches!(
+            self,
+            LinkKind::Loft { .. } | LinkKind::Sweep { .. } | LinkKind::Shell(_) | LinkKind::Text(_)
+        )
+    }
+
+    /// A link that changes the one body it names (a shell, a text) instead of making bodies of its own; links of this kind on one body follow each other in
+    /// the order they were made.
+    pub fn works_in_place(&self) -> bool {
+        matches!(self, LinkKind::Shell(_) | LinkKind::Text(_))
     }
 
     /// The default name of a new link.
@@ -177,6 +193,8 @@ impl LinkKind {
             LinkKind::Mirror(_) => "Mirror",
             LinkKind::Loft { .. } => "Loft",
             LinkKind::Sweep { .. } => "Sweep",
+            LinkKind::Shell(_) => "Shell",
+            LinkKind::Text(_) => "Text",
         }
     }
 }
@@ -202,6 +220,8 @@ pub struct Link {
     pub stamp: u64,
     /// For a pattern into the corners (or a grid) of a rectangle: what it follows, so that it is made again when the rectangle changes.
     pub fill: Option<FillRule>,
+    /// For a shell or a text: the solid this link made last (kept alive, so that it can be told whether another link changed the body since).
+    pub produced: Option<Solid>,
 }
 
 /// A group of bodies in the right column. Groups nest; a body belongs to one group at most.
@@ -423,7 +443,7 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
                 return Err(bad("The mirror plane has no normal"));
             }
         }
-        LinkKind::Loft { .. } | LinkKind::Sweep { .. } => {}
+        LinkKind::Loft { .. } | LinkKind::Sweep { .. } | LinkKind::Shell(_) | LinkKind::Text(_) => {}
     }
     Ok(out)
 }
@@ -492,6 +512,9 @@ fn calculate_generated(st: &State, link: &Link) -> Result<Outcome, DocError> {
             b.solid = base.clone();
         }
     }
+    if link.kind.works_in_place() {
+        return calculate_in_place(st, link);
+    }
     let made = match &link.kind {
         LinkKind::Loft { profiles, ruled, .. } => generate::loft(&at, profiles, *ruled)?,
         LinkKind::Sweep {
@@ -523,6 +546,43 @@ fn calculate_generated(st: &State, link: &Link) -> Result<Outcome, DocError> {
             })
         }
     }
+}
+
+/// A shell or a text: the body before it (`base`) with the shell or the letters.
+fn calculate_in_place(st: &State, link: &Link) -> Result<Outcome, DocError> {
+    let base = link
+        .base
+        .clone()
+        .ok_or_else(|| bad("The link lost the body it works on"))?;
+    let mut warnings = Vec::new();
+    let solid = match &link.kind {
+        LinkKind::Text(p) => bodyfeat::apply_text(&base, p)?,
+        LinkKind::Shell(p) => {
+            // the text that was put on the body before this link: when the shell cannot follow it, it is taken off and put back
+            let before: Vec<&Link> = st
+                .links
+                .iter()
+                .filter(|l| l.id < link.id && l.results.contains(&p.target) && matches!(l.kind, LinkKind::Text(_)))
+                .collect();
+            let texts: Vec<TextParams> = before
+                .iter()
+                .filter_map(|l| match &l.kind {
+                    LinkKind::Text(t) => Some(t.clone()),
+                    _ => None,
+                })
+                .collect();
+            let plain = before.first().and_then(|l| l.base.as_ref());
+            let (s, notes) = bodyfeat::shell_with_details(&base, p, plain, &texts)?;
+            warnings.extend(notes);
+            s
+        }
+        _ => return Err(bad("This link does not work in place")),
+    };
+    Ok(Outcome {
+        copies: Vec::new(),
+        target: Some(solid),
+        warnings,
+    })
 }
 
 /// Calculates a link from the sources in `st` (and `base` for a pattern that adds or cuts).
@@ -645,6 +705,9 @@ fn apply(st: &mut State, link: &mut Link, out: Outcome, next: &mut u64) {
     link.warnings = out.warnings;
     link.error = None;
     if let (Some(solid), Some(t)) = (out.target, link.kind.mode().target()) {
+        if link.kind.works_in_place() {
+            link.produced = Some(solid.clone());
+        }
         if let Some(b) = st.bodies.iter_mut().find(|b| b.id == t) {
             b.solid = solid;
         }
@@ -824,6 +887,7 @@ pub(crate) fn create_with(
         warnings: Vec::new(),
         stamp: 0,
         fill,
+        produced: None,
     };
     let out = calculate(st, &link)?;
     apply(st, &mut link, out, next);
@@ -995,7 +1059,23 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             .map(|s| st.bodies.iter().find(|b| b.id == *s).map(|b| &b.solid))
             .collect();
         let missing = now.iter().any(|o| o.is_none());
+        // a shell or a text works on a body that another link of the same kind has changed since (it was made before this one, and has been calculated again):
+        // this link starts from the body as it is now
+        let chain_base: Option<Solid> = if link.kind.works_in_place() {
+            let t = link.kind.mode().target();
+            let cur = t.and_then(|t| st.bodies.iter().find(|b| b.id == t)).map(|b| b.solid.clone());
+            let earlier = st.links[..i]
+                .iter()
+                .any(|l| l.kind.works_in_place() && l.kind.mode().target() == t);
+            match (&link.produced, cur) {
+                (Some(p), Some(c)) if earlier && p.shape_id() != c.shape_id() => Some(c),
+                _ => None,
+            }
+        } else {
+            None
+        };
         let same = !missing
+            && chain_base.is_none()
             && stamp_of(st, link) == link.stamp
             && now.len() == link.seen.len()
             && now
@@ -1015,6 +1095,9 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
             ));
             st.links[i] = link;
             continue;
+        }
+        if let Some(b) = chain_base {
+            link.base = Some(b);
         }
         let followed = follow(st, &mut link).and_then(|_| calculate(st, &link));
         match followed {
