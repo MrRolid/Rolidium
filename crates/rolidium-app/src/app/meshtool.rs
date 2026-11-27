@@ -998,7 +998,7 @@ impl App {
         // a preview belongs to the body that is selected
         if let Some(p) = &self.preview_mesh {
             let stale = match p.hides {
-                Some(h) => self.body_sel != Some(h),
+                Some(h) => self.body_sel != Some(h) && !(self.tool == Tool::Shell && self.shell.body == Some(h)),
                 None => !self.simplify_result_for(self.body_sel),
             };
             if stale {

@@ -15,7 +15,8 @@
 
 use super::*;
 use rolidium_doc::{
-    Axis, CircularParams, Direction2, LinearParams, LinkKind, MirrorParams, PatternMode, SketchPattern,
+    Axis, CircularParams, Direction2, FaceAnchor, LinearParams, LinkKind, MirrorParams, PatternMode, ShellParams, ShellSide,
+    SketchPattern, TextAlign, TextParams,
 };
 
 fn number(s: &str) -> Result<f64, String> {
@@ -572,6 +573,108 @@ impl Runner {
                     self.say(format!("mirror: {} body(ies)", self.doc.bodies().len()));
                 }
             }
+            "shell" => {
+                let mut c = Cursor { w, i: 1 };
+                let thickness = c.num("the wall thickness")?;
+                let body = self.sources_of(w)?[0];
+                let solid = self
+                    .doc
+                    .body(body)
+                    .ok_or("there is no such body")?
+                    .solid
+                    .clone();
+                let mut p = ShellParams::new(body, thickness);
+                if let Some(i) = w.iter().position(|t| *t == "open") {
+                    for t in w.iter().skip(i + 1) {
+                        let n = match *t {
+                            "x+" => DVec3::X,
+                            "x-" => -DVec3::X,
+                            "y+" => DVec3::Y,
+                            "y-" => -DVec3::Y,
+                            "z+" => DVec3::Z,
+                            "z-" => -DVec3::Z,
+                            _ => break,
+                        };
+                        let f = solid
+                            .faces()
+                            .filter(|f| {
+                                solid
+                                    .face_info(*f)
+                                    .is_ok_and(|i| i.kind == rolidium_kernel::FaceKind::Plane && i.normal.dot(n) > 0.999)
+                            })
+                            .max_by(|a, b| {
+                                let ar = |f: &rolidium_kernel::FaceId| solid.face_info(*f).map(|i| i.area).unwrap_or(0.0);
+                                ar(a).total_cmp(&ar(b))
+                            })
+                            .ok_or_else(|| format!("the body has no flat face facing {t}"))?;
+                        p.open.push(FaceAnchor::of(&solid, f).map_err(err)?);
+                    }
+                }
+                if w.contains(&"outwards") {
+                    p.side = ShellSide::Outwards;
+                } else if w.contains(&"both") {
+                    p.side = ShellSide::Centre;
+                }
+                p.round_corners = w.contains(&"round");
+                self.doc
+                    .apply(Command::AddLink {
+                        kind: LinkKind::Shell(p),
+                        sources: Vec::new(),
+                        name: Self::name_of(w),
+                    })
+                    .map_err(err)?;
+                self.report_link("shell");
+            }
+            "text" => {
+                let text = w.get(1).ok_or("text needs the words in quotes")?.to_string();
+                let body = self.sources_of(w)?[0];
+                let find = |word: &str| w.iter().position(|t| *t == word);
+                let num_after = |word: &str, default: f64| -> Result<f64, String> {
+                    match find(word) {
+                        Some(i) => number(w.get(i + 1).ok_or_else(|| format!("'{word}' needs a number"))?),
+                        None => Ok(default),
+                    }
+                };
+                let origin = match find("at") {
+                    Some(i) => Cursor { w, i: i + 1 }.vec3("the place of the text")?,
+                    None => return Err("text needs 'at x y z' (where the text starts)".into()),
+                };
+                let normal = match find("normal") {
+                    Some(i) => Cursor { w, i: i + 1 }.vec3("the normal of the face")?,
+                    None => DVec3::Z,
+                };
+                let n = normal.normalize_or_zero();
+                let x_dir = if n.z.abs() > 0.9 { DVec3::X } else { DVec3::Z.cross(n).normalize_or_zero() };
+                let word_after = |word: &str| find(word).and_then(|i| w.get(i + 1)).copied();
+                let p = TextParams {
+                    target: body,
+                    text,
+                    font: word_after("font").unwrap_or("sans").to_string(),
+                    bold: w.contains(&"bold"),
+                    italic: w.contains(&"italic"),
+                    height: num_after("height", 5.0)?,
+                    align: match word_after("align") {
+                        Some("centre") | Some("center") => TextAlign::Centre,
+                        Some("right") => TextAlign::Right,
+                        _ => TextAlign::Left,
+                    },
+                    rotation: num_after("turn", 0.0)?,
+                    spacing: num_after("spacing", 0.0)?,
+                    depth: num_after("depth", 1.0)?,
+                    engrave: w.contains(&"engrave"),
+                    origin,
+                    normal: n,
+                    x_dir,
+                };
+                self.doc
+                    .apply(Command::AddLink {
+                        kind: LinkKind::Text(p),
+                        sources: Vec::new(),
+                        name: Self::name_of(w),
+                    })
+                    .map_err(err)?;
+                self.report_link("text");
+            }
             "links" => {
                 let st = self.doc.state().clone();
                 if st.links.is_empty() {
@@ -616,6 +719,23 @@ impl Runner {
                             format!("loft through {} profiles", profiles.len())
                         }
                         LinkKind::Sweep { .. } => "sweep along a path".to_string(),
+                        LinkKind::Shell(p) => format!(
+                            "shell, walls {} mm ({}), {} opening(s)",
+                            p.thickness,
+                            match p.side {
+                                ShellSide::Inwards => "inwards",
+                                ShellSide::Outwards => "outwards",
+                                ShellSide::Centre => "both ways",
+                            },
+                            p.open.len()
+                        ),
+                        LinkKind::Text(p) => format!(
+                            "text '{}', {} mm high, {} {} mm",
+                            p.text,
+                            p.height,
+                            if p.engrave { "engraved" } else { "raised" },
+                            p.depth
+                        ),
                     };
                     self.say(format!(
                         "link {}: '{}' {what}; from body {}; made body {}{}{}",
@@ -706,6 +826,26 @@ impl Runner {
                     }
                     // the profiles and the path are changed where they are (the sketch, the curve), not here
                     LinkKind::Loft { .. } | LinkKind::Sweep { .. } => None,
+                    LinkKind::Shell(p) => {
+                        let mut p = p.clone();
+                        if let Some(t) = val("thickness")? {
+                            p.thickness = t;
+                        }
+                        Some(LinkKind::Shell(p))
+                    }
+                    LinkKind::Text(p) => {
+                        let mut p = p.clone();
+                        if let Some(i) = w.iter().position(|t| *t == "text") {
+                            p.text = w.get(i + 1).ok_or("'text' needs the words")?.to_string();
+                        }
+                        if let Some(t) = val("height")? {
+                            p.height = t;
+                        }
+                        if let Some(t) = val("depth")? {
+                            p.depth = t;
+                        }
+                        Some(LinkKind::Text(p))
+                    }
                 };
                 self.doc
                     .apply(Command::EditLink { link: id, kind, name })

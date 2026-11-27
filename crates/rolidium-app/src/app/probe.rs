@@ -258,6 +258,8 @@ impl App {
             "pull_group": self.pull.as_ref().map_or(0, |p| p.group.len()),
             "regions_selected": regions_selected,
             "sk_pattern": json!({"open": self.link_ui.sk_open.map(|m| format!("{m:?}")), "want": self.link_ui.sk_want.map(|w| format!("{w:?}")), "guided": self.link_ui.sk_guided, "preview": self.link_ui.sk_preview.len(), "drawn": self.drawn_sk_preview, "all": self.link_ui.sk_all, "second": self.link_ui.sk_second, "angle": round3(self.link_ui.sk_angle), "centre": [round3(self.link_ui.sk_cx), round3(self.link_ui.sk_cy)]}),
+            "shell": json!({"body": self.shell.body, "open": self.shell.open.len(), "thickness": self.shell.thickness, "side": format!("{:?}", self.shell.side), "editing": self.shell.editing, "preview": self.shell.preview_on, "error": self.shell.error, "notes": self.shell.notes, "heavier": self.shell.heavier.len()}),
+            "text": json!({"target": self.text.target.map(|t| format!("{t:?}")), "text": self.text.text, "outline": self.text.outline.len(), "engrave": self.text.engrave, "height": self.text.height, "depth": self.text.depth, "error": self.text.error, "editing": self.text.editing, "family": self.text.family, "origin": [self.text.origin.x, self.text.origin.y, self.text.origin.z]}),
             "entities_selected": self.entity_multi.len().max(usize::from(self.entity_sel.is_some())),
             "pieces": self.sk.as_ref().map(|s| json!({"available": s.pieces_available(), "editing": s.pieces_edit, "text": s.pieces_text, "n": s.pieces()})),
             "box_sel": self.box_sel.map(|b| json!({"window": b.window()})),

@@ -32,7 +32,7 @@ pub mod meshsolid;
 pub mod progress;
 mod sketchops;
 pub use links::{
-    linear_through, link_of_result, path_places, placements_of, rect_fill, sketch_line_in_space,
+    linear_through, link_of_result, path_places, trial as trial_link, placements_of, rect_fill, sketch_line_in_space,
     sketch_mirror_plane, Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams,
     Link, LinkId, LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
 };
@@ -499,6 +499,11 @@ pub enum Command {
         kind: RepairKind,
     },
     /// `count` pieces of a mesh in a row (the mesh and `count - 1` copies, each `step` further), copies as new meshes.
+    /// Text raised from a flat wall of a mesh or engraved into it (Manifold); the plane and the letters are in `params`, whose `target` is the mesh.
+    MeshText {
+        body: BodyId,
+        params: TextParams,
+    },
     MeshPattern {
         body: BodyId,
         count: u32,
@@ -3785,6 +3790,7 @@ impl Job {
                 c.notice = Some(what);
                 Ok(c)
             }
+            Command::MeshText { body, params } => self.mesh_text(st, *body, params),
             Command::MeshPattern { body, count, step } => {
                 if *count < 2 || *count as usize > MAX_PIECES {
                     return Err(KernelError::Invalid(format!(

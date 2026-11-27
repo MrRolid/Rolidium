@@ -2469,6 +2469,7 @@ dependencies = [
  "rolidium-mesh",
  "rolidium-net",
  "rolidium-render",
+ "rolidium-text",
  "rqrr",
  "serde",
  "serde_json",

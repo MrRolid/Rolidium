@@ -558,6 +558,11 @@ impl App {
         if self.hole_drag.is_some() || self.shape_drag.is_some() {
             return;
         }
+        // the Shell and Text tools choose faces for their own panel: the sizes of a face are not offered next to it
+        if matches!(self.tool, Tool::Shell | Tool::Text) {
+            self.dim.key.clear();
+            return;
+        }
         let Some((key, target, anchor)) = self.dim_target() else {
             self.dim.key.clear();
             return;

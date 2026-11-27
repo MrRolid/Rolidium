@@ -20,6 +20,7 @@ rolidium-mesh = { path = "../rolidium-mesh" }
 rolidium-render = { path = "../rolidium-render" }
 rolidium-cli = { path = "../rolidium-cli" }
 rolidium-net = { path = "../rolidium-net" }
+rolidium-text = { path = "../rolidium-text" }
 glam.workspace = true
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "wayland", "default_fonts"] }
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }

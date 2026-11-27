@@ -527,5 +527,29 @@
     "tips": [],
     "illustration": "chamfer.svg",
     "animation": null
+  },
+  {
+    "id": "shell",
+    "title": "Shell",
+    "shortcut": "O",
+    "text": "Makes a body hollow. Click the body, click the faces that should disappear (the openings; Ctrl or Shift adds more; none makes a closed hollow body), set the wall thickness and whether the walls grow inwards, outwards or on both sides of the surface. A preview shows the result, Enter confirms, Esc cancels. Small features (text, holes, pins) that are thinner than the wall are taken off for the shell and put back.",
+    "tips": [
+      "The shell is a link: click it in the document list to change the thickness or the openings later.",
+      "To make one wall thicker or thinner, choose Thicken walls, click the walls and type how much."
+    ],
+    "illustration": "shell.svg",
+    "animation": null
+  },
+  {
+    "id": "text",
+    "title": "Text",
+    "shortcut": "G",
+    "text": "Puts text on a flat face of a body, on a flat wall of a mesh, or into a sketch. Click the place, type the text, choose the font, the height of the capital letters, the alignment, the turn and the spacing, and whether the letters stand out of the face (raised) or are cut into it (engraved), and how far. A preview shows the letters. Czech and other accented letters work.",
+    "tips": [
+      "The text is a link: click it in the document list to change the words, the font or the size, and the letters are made again.",
+      "Holes of letters (the inside of an O) stay holes."
+    ],
+    "illustration": "text.svg",
+    "animation": null
   }
 ]

@@ -240,6 +240,37 @@ impl Job {
 }
 
 impl Job {
+    /// Text raised from a flat wall of a mesh or engraved into it: the letters are a solid, meshed finely, and joined to the mesh or cut out of it (the Manifold
+    /// library). The result is a mesh in the place of the mesh; it is a plain change, not a link.
+    pub(crate) fn mesh_text(&self, mut st: State, body: BodyId, p: &crate::TextParams) -> Result<Computed, DocError> {
+        let stop = || rolidium_kernel::cancel_requested();
+        let i = st
+            .meshes
+            .iter()
+            .position(|m| m.id == body)
+            .ok_or(DocError::NoSuchBody)?;
+        let (cur, _, filled) = body_mesh(&st, body)?;
+        let tool = crate::text_tool(p)?;
+        let tm = solid_to_mesh(&tool)?;
+        let op = if p.engrave { Op::Difference } else { Op::Union };
+        let before = cur.signed_volume();
+        let r = combine_meshes(&cur, &tm, op, &stop)?;
+        if r.triangles.is_empty() {
+            return Err(KernelError::Invalid("The result is empty".into()).into());
+        }
+        if p.engrave && (r.signed_volume() - before).abs() < 1e-9 * before.abs().max(1.0) {
+            return Err(KernelError::Invalid("The letters do not reach the mesh: there is nothing to engrave".into()).into());
+        }
+        st.meshes[i].mesh = Arc::new(r);
+        st.meshes[i].verified = true;
+        let mut c = self.done(st, if p.engrave { "Engrave text" } else { "Raise text" });
+        c.touched_body = Some(body);
+        c.notice = filled_text(filled);
+        Ok(c)
+    }
+}
+
+impl Job {
     /// A volume pulled from a sketch meets meshes: cut out of them (`cut`) or joined to them. `only` limits it to one mesh (the sketch was drawn on its wall).
     /// Returns the mesh that was changed (the first one) and how many holes were patched; `None` when no mesh was touched.
     pub(crate) fn pull_on_meshes(

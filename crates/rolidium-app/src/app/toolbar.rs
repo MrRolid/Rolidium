@@ -564,6 +564,42 @@ impl App {
                 }
             }
         });
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            icons::stateful();
+            let why = busy.or(if self.doc.bodies().is_empty() && self.doc.meshes().is_empty() {
+                Some("There is no body to make hollow")
+            } else {
+                None
+            });
+            let r = icons::icon_button_why(
+                ui,
+                &self.help,
+                "shell",
+                &format!("{} (O)", tr("Shell")),
+                self.tool == Tool::Shell && self.sk.is_none(),
+                why,
+                34.0,
+                "O",
+            );
+            if r.clicked() {
+                self.activate_shell();
+            }
+            icons::stateful();
+            let r = icons::icon_button_why(
+                ui,
+                &self.help,
+                "text",
+                &format!("{} (G)", tr("Text")),
+                self.tool == Tool::Text && self.sk.is_none(),
+                busy,
+                34.0,
+                "G",
+            );
+            if r.clicked() {
+                self.activate_text();
+            }
+        });
         let no_edge = if self.edge_sel.is_empty() {
             Some("Select an edge first")
         } else {

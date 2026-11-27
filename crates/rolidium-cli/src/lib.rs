@@ -269,6 +269,8 @@ impl Runner {
                 | "mirror"
                 | "group"
                 | "edit-link"
+                | "shell"
+                | "text"
         ) {
             if let Some(i) = tokens.iter().position(|t| t == "name") {
                 if let Some(n) = tokens.get(i + 1).cloned() {
@@ -1587,7 +1589,7 @@ impl Runner {
             "mesh-open" | "export-mesh-stl" => {
                 self.run_mesh_command(&w)?;
             }
-            "linear-pattern" | "circular-pattern" | "mirror" | "links" => {
+            "linear-pattern" | "circular-pattern" | "mirror" | "links" | "shell" | "text" => {
                 self.run_links_command(&w)?;
             }
             "repeat-feature" | "move-feature" => {

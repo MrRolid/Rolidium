@@ -382,7 +382,7 @@ impl LinkParams {
                 p.how = MirrorHow::Live;
             }
             // a loft and a sweep have no panel of parameters: their profiles and path are edited where they are
-            LinkKind::Loft { .. } | LinkKind::Sweep { .. } => {}
+            LinkKind::Loft { .. } | LinkKind::Sweep { .. } | LinkKind::Shell(_) | LinkKind::Text(_) => {}
         }
         p
     }
@@ -497,6 +497,12 @@ impl App {
         let Some(l) = self.doc.state().links.iter().find(|l| l.id == id).cloned() else {
             return;
         };
+        if matches!(l.kind, LinkKind::Shell(_)) {
+            return self.open_shell_link(id);
+        }
+        if matches!(l.kind, LinkKind::Text(_)) {
+            return self.open_text_link(id);
+        }
         if l.kind.generates() {
             // a loft or a sweep has no panel of numbers: its body is selected, and the Selection panel names its sources
             self.clear_selection();
@@ -2470,6 +2476,7 @@ impl App {
                                 (None, Some(w)) => r.on_hover_text(w),
                                 _ => r.on_hover_text(tr("Click to change the numbers of the link")),
                             };
+                            self.probe_widget(&format!("link_row_{}", l.id), r.rect);
                             if r.clicked() {
                                 self.open_link(l.id);
                             }

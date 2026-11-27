@@ -117,7 +117,7 @@ impl App {
             || self.simplify.job.is_some()
     }
 
-    fn set_preview(&mut self, p: Option<PreviewMesh>) {
+    pub(super) fn set_preview(&mut self, p: Option<PreviewMesh>) {
         self.preview_mesh = p;
         self.request_meshes();
         self.layers_changed = true;

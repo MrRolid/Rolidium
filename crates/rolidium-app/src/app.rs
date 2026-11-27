@@ -61,8 +61,10 @@ mod revolve;
 mod roundpull;
 mod selftest;
 mod shapedrag;
+mod shelltool;
 mod snap;
 mod sources;
+mod texttool;
 mod toolbar;
 mod updates;
 mod viewanim;
@@ -131,6 +133,8 @@ pub enum Tool {
     Join,
     Pattern,
     Mirror,
+    Shell,
+    Text,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -255,6 +259,9 @@ pub struct App {
     layers_changed: bool,
     /// What the temporary drawings (previews, helper lines) depended on in the last frame: when it changes they are drawn again.
     layers_sig: u64,
+    /// The Shell tool and the Text tool.
+    shell: shelltool::ShellUi,
+    text: texttool::TextUi,
     /// How many vertices of curves the last uploaded layers hold (for the self-test: what is drawn must match the document).
     drawn_curve_vertices: usize,
     /// The line vertices of the blue preview of a pattern of sketch shapes that were drawn last (the probe and the tests read it).
@@ -546,6 +553,8 @@ impl App {
             regions_rev: u64::MAX,
             layers_changed: true,
             layers_sig: 0,
+            shell: Default::default(),
+            text: Default::default(),
             drawn_curve_vertices: 0,
             drawn_sk_preview: 0,
             status: Status {
@@ -1400,6 +1409,7 @@ impl App {
         layers.extend(self.combine_layers());
         layers.extend(self.stretch_layers());
         layers.extend(self.link_layers());
+        layers.extend(self.text_layers());
         layers.extend(self.hole_drag_layers());
         layers.extend(self.shape_drag_layers());
         layers.extend(self.loft_layers());
@@ -2665,6 +2675,7 @@ impl App {
                 // T and B work as in 3D: the same wizard, for the shapes of the sketch
                 Key::T => self.activate_link_tool(linktool::LinkMode::Linear),
                 Key::B => self.activate_link_tool(linktool::LinkMode::Mirror),
+                Key::G => self.activate_text(),
                 // K finishes the sketch (as the main button does); D and P still work
                 Key::K => self.leave_sketch(),
                 // S selects the shapes of the sketch (rectangle, Ctrl, Shift) and stays in the sketch; D leaves it
@@ -2742,6 +2753,10 @@ impl App {
                 } else if self.measure_escape() || self.join_cancel() {
                 } else if matches!(self.tool, Tool::Pattern | Tool::Mirror) {
                     self.close_link_tool();
+                } else if self.tool == Tool::Shell {
+                    self.shell_close();
+                } else if self.tool == Tool::Text {
+                    self.text_close();
                 } else {
                     self.clear_selection();
                 }
@@ -2753,6 +2768,8 @@ impl App {
                     self.apply_loft();
                 } else if self.tool == Tool::Combine && self.combine.target.is_some() {
                     self.apply_combine();
+                } else if self.tool == Tool::Shell && self.shell.body.is_some() {
+                    self.shell_apply();
                 } else if matches!(self.tool, Tool::Pattern | Tool::Mirror)
                     && (self.link_ui.armed || self.link_ui.editing.is_some())
                     && self.link_ui.pick.is_none()
@@ -2783,6 +2800,8 @@ impl App {
             Key::L => self.activate_loft(),
             Key::W => self.activate_sweep(),
             Key::H => self.activate_helix(),
+            Key::O => self.activate_shell(),
+            Key::G => self.activate_text(),
             Key::K => self.enter_sketch(),
             // the drawing tools from the 3D view (L stays the Loft here: the line is Shift+L or its button)
             Key::R => self.begin_quick_sketch(SkTool::Rect),
@@ -3829,6 +3848,8 @@ impl App {
             }
             Tool::Helix => self.helix_input(resp, pointer, rect),
             Tool::Fill => self.fill_input(resp, pointer, rect),
+            Tool::Shell => self.shell_input(resp, hovered_face),
+            Tool::Text => self.text_input(resp, pointer, rect, hovered_face),
             Tool::Join => self.join_input(resp, pointer, rect),
             Tool::Measure => {
                 let raw_face = self.hovered_face();
@@ -4037,7 +4058,9 @@ impl App {
         {
             let hover = self.hover_obj;
             let add = resp.ctx.input(|i| i.modifiers.command || i.modifiers.shift);
-            if self.link_ui.sk_open.is_some() && self.sketch_guide_click(hover) {
+            if self.text.wait_sketch && self.sketch_text_click() {
+                // the Text tool asked for the place: the click is the place
+            } else if self.link_ui.sk_open.is_some() && self.sketch_guide_click(hover) {
                 // the pattern wizard asked for the guide: the click is the guide, the chosen shapes stay chosen
             } else {
                 match hover {
@@ -5030,6 +5053,8 @@ impl App {
             (None, Tool::Pattern | Tool::Mirror) => self.link_hint(),
             (None, Tool::Join) => tr("Join ends: select the lines (Shift adds more; nothing selected means the whole sketch), choose the largest gap, Enter confirms"),
             (None, Tool::Fill) => tr("Fill: click an edge of a hole or opening, or the lines of a shape that is not filled yet. Shift adds more."),
+            (None, Tool::Shell) => tr("Shell: click the body, then the faces that should disappear (Ctrl or Shift adds more), set the wall thickness, Enter confirms"),
+            (None, Tool::Text) => tr("Text: click a flat face of a body or a mesh to put the text there, type the words in the panel, Apply confirms"),
             (None, Tool::Measure) => tr("Measure: click two elements (vertex, edge, face, point of a sketch or curve). Esc clears."),
             (None, Tool::Sweep) => tr("Sweep: click the profile, then the path; choose the mode and press Apply or Enter."),
             (None, Tool::Helix) => tr("Helix: click the axis (a cylindrical face, a straight edge or line, or a point), then set the values and press Create."),
@@ -5752,6 +5777,8 @@ impl eframe::App for App {
         prof!("combine_panel", self.combine_panel(&ctx, vr));
         prof!("link_panel", self.link_panel(&ctx, vr));
         prof!("sketch_pattern_panel", self.sketch_pattern_panel(&ctx, vr));
+        prof!("shell_panel", self.shell_panel(&ctx, vr));
+        prof!("text_panel", self.text_panel(&ctx, vr));
         prof!("busy_overlay", self.busy_overlay(&ctx, vr));
         self.mesh_overlay(&ctx, vr);
         prof!("measure_panel", self.measure_panel(&ctx, vr));

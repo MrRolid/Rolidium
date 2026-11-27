@@ -1157,6 +1157,35 @@ pub(crate) fn derived_edit(before: &State, after: &State) -> Option<(LinkId, Str
     None
 }
 
+/// A shell or a text link calculated on a copy of the state and thrown away: the solid the body would get, and the remarks. `editing`: the link whose
+/// numbers are being changed (`kind` replaces them), otherwise `kind` is a new link. For the live preview of the tools.
+pub fn trial(st: &State, kind: LinkKind, editing: Option<LinkId>) -> Result<(Solid, Vec<String>), DocError> {
+    let target = kind.mode().target().ok_or(DocError::NoSuchBody)?;
+    let mut s = st.clone();
+    let mut next = s
+        .bodies
+        .iter()
+        .map(|b| b.id)
+        .chain(s.sketches.iter().map(|x| x.id))
+        .chain(s.curves.iter().map(|x| x.id))
+        .chain(s.links.iter().map(|l| l.id))
+        .chain(s.groups.iter().map(|g| g.id))
+        .max()
+        .unwrap_or(0)
+        + 1000;
+    let id = match editing {
+        Some(id) => {
+            edit(&mut s, id, Some(kind), None, &mut next)?;
+            id
+        }
+        None => create(&mut s, kind, Vec::new(), "", &mut next)?,
+    };
+    refresh(&mut s, &mut next);
+    let warnings = s.links.iter().find(|l| l.id == id).map(|l| l.warnings.clone()).unwrap_or_default();
+    let solid = s.bodies.iter().find(|b| b.id == target).ok_or(DocError::NoSuchBody)?.solid.clone();
+    Ok((solid, warnings))
+}
+
 /// The link that made this body, if any.
 pub fn link_of_result(st: &State, body: BodyId) -> Option<&Link> {
     st.links.iter().find(|l| l.results.contains(&body))
