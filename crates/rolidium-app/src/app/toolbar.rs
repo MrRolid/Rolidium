@@ -720,10 +720,12 @@ impl App {
             if r.clicked() {
                 self.toggle_section();
             }
+            if icons::icon_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None, 34.0, "")
+                .clicked()
+            {
+                self.fit_all();
+            }
         });
-        if icons::tool_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None).clicked() {
-            self.fit_all();
-        }
     }
 
     /// The File block under the scrolling part of the left column: framed, with icons of `size` px and `per_row` buttons in a row.
