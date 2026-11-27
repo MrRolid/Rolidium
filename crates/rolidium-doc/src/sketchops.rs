@@ -23,6 +23,19 @@ pub enum SketchPattern {
         angle_deg: f64,
         full: bool,
     },
+    /// Along a curve (a polyline in the plane of the sketch): the pieces stand at equal distances (by the count, or by the pitch), see [`crate::PathParams`].
+    Path {
+        points: Vec<DVec2>,
+        closed: bool,
+        count: u32,
+        pitch: f64,
+        start: f64,
+        end: f64,
+        ends: bool,
+        orient: bool,
+        /// The pieces stand on the curve themselves: the centre of the shapes goes to each place (the shapes stay where they are).
+        on_curve: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,6 +44,12 @@ enum Map2 {
     Turn {
         center: DVec2,
         angle: f64,
+    },
+    /// Turned about `center`, then moved by `d`.
+    TurnMove {
+        center: DVec2,
+        angle: f64,
+        d: DVec2,
     },
     /// Mirror in the line through `a` with the direction angle `theta`.
     Mirror {
@@ -48,6 +67,7 @@ impl Map2 {
                 let v = p - center;
                 center + DVec2::new(v.x * c - v.y * s, v.x * s + v.y * c)
             }
+            Map2::TurnMove { center, angle, d } => Map2::Turn { center, angle }.point(p) + d,
             Map2::Mirror { a, theta } => {
                 let (s, c) = (2.0 * theta).sin_cos();
                 let v = p - a;
@@ -85,7 +105,7 @@ fn map_entity(e: &Entity, m: Map2) -> Vec<Entity> {
             let c = m.point(*center);
             let (start2, sweep2) = match m {
                 Map2::Move(_) => (*start, *sweep),
-                Map2::Turn { angle, .. } => (*start + angle, *sweep),
+                Map2::Turn { angle, .. } | Map2::TurnMove { angle, .. } => (*start + angle, *sweep),
                 // an angle f becomes 2 theta - f, and the arc is still counter-clockwise: it starts where the old one ended
                 Map2::Mirror { theta, .. } => (2.0 * theta - (*start + *sweep), *sweep),
             };
@@ -219,6 +239,57 @@ pub(crate) fn pattern(sk: &mut SketchDoc, ids: &[EntityId], p: &SketchPattern) -
                     center: *center,
                     angle: step * i as f64,
                 });
+            }
+        }
+        SketchPattern::Path {
+            points,
+            closed,
+            count,
+            pitch,
+            start,
+            end,
+            ends,
+            orient,
+            on_curve,
+        } => {
+            let to3 = |p: &DVec2| DVec3::new(p.x, p.y, 0.0);
+            let params = crate::PathParams {
+                points: points.iter().map(to3).collect(),
+                closed: *closed,
+                count: *count,
+                pitch: *pitch,
+                start: *start,
+                end: *end,
+                orient: *orient,
+                source: None,
+                ends: *ends,
+                anchor: None,
+            };
+            let places = crate::path_places(&params)?;
+            // the centre of the shapes: the pieces stand on the curve with it
+            let (mut lo, mut hi) = (DVec2::splat(f64::MAX), DVec2::splat(f64::MIN));
+            for e in &src {
+                for pl in e.polylines() {
+                    for q in pl {
+                        lo = lo.min(q);
+                        hi = hi.max(q);
+                    }
+                }
+            }
+            let centre = (lo + hi) * 0.5;
+            let (p0, t0) = places[0];
+            let origin = if *on_curve { centre } else { DVec2::new(p0.x, p0.y) };
+            let a0 = t0.y.atan2(t0.x);
+            for (i, (pos, tan)) in places.iter().enumerate() {
+                if i == 0 && !*on_curve {
+                    continue; // the shapes are the first piece
+                }
+                let d = DVec2::new(pos.x, pos.y) - origin;
+                let angle = if *orient { tan.y.atan2(tan.x) - a0 } else { 0.0 };
+                if d.length() < 1e-9 && angle.abs() < 1e-9 {
+                    continue;
+                }
+                maps.push(Map2::TurnMove { center: origin, angle, d });
             }
         }
     }

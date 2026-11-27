@@ -104,6 +104,19 @@ pub struct LinkParams {
     pub path_label: String,
     /// The curve the pattern follows, so that the pieces move when the curve changes.
     pub path_source: Option<rolidium_doc::SweepPath>,
+    /// A piece at the start and at the end of an open curve.
+    pub path_ends: bool,
+    /// The pieces stand on the curve itself (the source stays where it is).
+    pub path_on_curve: bool,
+    /// The centre of the source, for the pieces that stand on the curve.
+    pub path_anchor: Option<DVec3>,
+    /// The same curve taken as one member only (the edge, the shape that was clicked), and the whole chain: the panel offers both.
+    pub path_alt: Option<(Vec<DVec3>, bool, rolidium_doc::SweepPath)>,
+    pub path_full: Option<(Vec<DVec3>, bool, rolidium_doc::SweepPath)>,
+    pub path_whole: bool,
+    /// Round a centre with an arc as the guide: the angle the arc spans (degrees), and whether the pieces are spread over it.
+    pub arc_span: Option<f64>,
+    pub arc_fit: bool,
     pub pitch: f64,
     pub start: f64,
     pub end: f64,
@@ -145,6 +158,14 @@ impl Default for LinkParams {
             path_closed: false,
             path_label: String::new(),
             path_source: None,
+            path_ends: true,
+            path_on_curve: true,
+            path_anchor: None,
+            path_alt: None,
+            path_full: None,
+            path_whole: true,
+            arc_span: None,
+            arc_fit: false,
             pitch: 0.0,
             start: 0.0,
             end: 0.0,
@@ -211,6 +232,20 @@ pub struct LinkUi {
     pub sk_spacing2: f64,
     /// The text of the guide that was clicked ("a line of the sketch", ...).
     pub sk_guide_label: String,
+    /// The curve of a pattern along a curve in a sketch (a polyline in the plane, whether it is closed), the same curve as the one shape that was clicked, the
+    /// numbers of the pattern (the pitch 0: by the count) and the arc the pieces are spread over.
+    pub sk_path: Option<(Vec<glam::DVec2>, bool)>,
+    pub sk_path_full: Option<(Vec<glam::DVec2>, bool)>,
+    pub sk_path_alt: Option<(Vec<glam::DVec2>, bool)>,
+    pub sk_path_whole: bool,
+    pub sk_pitch: f64,
+    pub sk_free_start: f64,
+    pub sk_free_end: f64,
+    pub sk_ends: bool,
+    pub sk_orient: bool,
+    pub sk_on_curve: bool,
+    pub sk_span: Option<f64>,
+    pub sk_fit: bool,
 }
 
 /// The lines and axes of a sketch (name, a point, the angle) and the centres it offers (name, point).
@@ -317,6 +352,8 @@ impl LinkParams {
                     end: self.end,
                     orient: self.orient,
                     source: self.path_source.clone(),
+                    ends: self.path_ends,
+                    anchor: if self.path_on_curve { self.path_anchor } else { None },
                 },
                 mode,
             ),
@@ -360,6 +397,9 @@ impl LinkParams {
                 p.path_closed = q.closed;
                 p.path_label = tr("a curve");
                 p.path_source = q.source.clone();
+                p.path_ends = q.ends;
+                p.path_on_curve = q.anchor.is_some();
+                p.path_anchor = q.anchor;
                 p.count = q.count;
                 p.pitch = q.pitch;
                 p.start = q.start;
@@ -416,6 +456,14 @@ impl App {
             u.sk_all = false;
             u.sk_second = false;
             u.sk_guide_label.clear();
+            u.sk_path = None;
+            u.sk_path_full = None;
+            u.sk_path_alt = None;
+            u.sk_path_whole = true;
+            (u.sk_pitch, u.sk_free_start, u.sk_free_end) = (0.0, 0.0, 0.0);
+            (u.sk_ends, u.sk_orient, u.sk_on_curve) = (true, false, true);
+            u.sk_span = None;
+            u.sk_fit = false;
             if u.sk_count2 == 0 {
                 (u.sk_count2, u.sk_spacing2) = (3, 20.0);
             }
@@ -741,8 +789,8 @@ impl App {
                 Some(Obj::Entity(..) | Obj::Curve(_) | Obj::Edge(..))
             )
         {
-            let straight = h == Hovered::Line;
-            if !straight && self.pick_path_guide() {
+            let _ = h;
+            if self.pick_path_guide() {
                 let p = &mut self.link_ui.p;
                 if !self.link_ui.armed || before != LinkMode::Path {
                     p.count = 5;
@@ -821,6 +869,7 @@ impl App {
         if mirror {
             self.link_ui.p.mode = LinkMode::Mirror;
         }
+        let span = if h == Hovered::Round { self.hover_arc_span() } else { None };
         let p = &mut self.link_ui.p;
         if p.mode != before || !self.link_ui.armed {
             // the usual number of pieces of each kind: 3 in a row, 6 round an axis
@@ -828,6 +877,15 @@ impl App {
                 LinkMode::Circular => (p.count, p.full) = (6, true),
                 LinkMode::Linear if p.count == 6 || !self.link_ui.armed => p.count = 3,
                 _ => {}
+            }
+        }
+        // an arc as the guide: the pieces are spread over the arc, not round the whole circle
+        p.arc_span = span;
+        p.arc_fit = span.is_some();
+        if let Some(sp) = span {
+            if p.mode == LinkMode::Circular {
+                p.full = false;
+                p.angle = sp / (p.count.max(2) - 1) as f64;
             }
         }
         self.link_ui.armed = true;
@@ -850,6 +908,21 @@ impl App {
     }
 
     /// A curve under the pointer as a polyline in space (and whether it is closed): the shapes of a sketch that continue each other, a curve, an edge of a body.
+    /// The curve under the pointer, and the same curve taken as the one member that was clicked (an edge, a shape of a sketch) when it is part of a chain.
+    fn guide_polyline_alt(&self) -> Option<(Vec<DVec3>, bool, rolidium_doc::SweepPath)> {
+        use rolidium_doc::SweepPath;
+        let path = match self.hover_obj? {
+            Obj::Entity(s, e) => SweepPath::Sketch {
+                sketch: s,
+                entities: vec![e],
+            },
+            Obj::Edge(b, e) => SweepPath::Edges { body: b, edges: vec![e] },
+            Obj::Curve(_) => return None,
+        };
+        let (pts, closed) = self.doc.path_polyline(&path).ok()?;
+        Some((pts, closed, path))
+    }
+
     fn guide_polyline(&self) -> Option<(Vec<DVec3>, bool, String, rolidium_doc::SweepPath)> {
         use rolidium_doc::SweepPath;
         match self.hover_obj? {
@@ -884,7 +957,15 @@ impl App {
         let Some((pts, closed, label, source)) = self.guide_polyline() else {
             return false;
         };
+        let alt = self.guide_polyline_alt().filter(|(_, _, a)| *a != source);
+        let centre = self.sources_centre();
         let p = &mut self.link_ui.p;
+        p.path_full = alt.as_ref().map(|_| (pts.clone(), closed, source.clone()));
+        p.path_alt = alt;
+        p.path_whole = true;
+        p.path_anchor = centre;
+        p.path_on_curve = true;
+        p.path_ends = true;
         p.path_source = Some(source);
         p.path = pts;
         p.path_closed = closed;
@@ -2155,6 +2236,24 @@ impl App {
                         ui.weak(tr("A closed curve: the pieces are spread evenly over the whole length"));
                     }
                     ui.checkbox(&mut p.orient, tr("The pieces turn with the curve"));
+                    if p.path_anchor.is_some() {
+                        ui.checkbox(&mut p.path_on_curve, tr("The pieces stand on the curve (the object stays where it is)"));
+                    }
+                    if !p.path_closed && p.pitch <= 0.0 {
+                        ui.checkbox(&mut p.path_ends, tr("A piece at the start and at the end"));
+                    }
+                    if p.path_full.is_some() {
+                        let mut whole = p.path_whole;
+                        if ui.checkbox(&mut whole, tr("The whole chain of shapes (not only the one clicked)")).changed() {
+                            p.path_whole = whole;
+                            let pick = if whole { p.path_full.clone() } else { p.path_alt.clone() };
+                            if let Some((pts, closed, src)) = pick {
+                                p.path = pts;
+                                p.path_closed = closed;
+                                p.path_source = Some(src);
+                            }
+                        }
+                    }
                 }
                 LinkMode::Circular => {
                     ui.label(tr("Axis"));
@@ -2189,6 +2288,18 @@ impl App {
                         ui.checkbox(&mut p.full, tr("Round the whole circle"));
                     });
                     ui.checkbox(&mut p.keep_orientation, tr("Keep the orientation of the copies"));
+                    if let Some(sp) = p.arc_span {
+                        if ui
+                            .checkbox(&mut p.arc_fit, trf("Spread the pieces over the arc ({}°)", &[fmt_num(sp)]))
+                            .changed()
+                            && p.arc_fit
+                        {
+                            p.full = false;
+                        }
+                        if p.arc_fit && !p.full {
+                            p.angle = sp / (p.count.max(2) - 1) as f64;
+                        }
+                    }
                     ui.add_enabled_ui(!p.full, |ui| {
                         ui.horizontal(|ui| {
                             ui.label(tr("Angle between pieces"));
@@ -2750,8 +2861,24 @@ impl App {
 }
 
 impl App {
+    /// The angle (degrees) of the arc under the pointer (a sketch arc, an arc edge), `None` for a whole circle or anything else.
+    fn hover_arc_span(&self) -> Option<f64> {
+        let pts: Vec<DVec3> = match self.hover_obj? {
+            Obj::Entity(s, e) => {
+                let sk = self.doc.sketch(s)?;
+                match sk.sketch.entity(e)? {
+                    Entity::Arc { sweep, .. } => return Some(sweep.abs().to_degrees()),
+                    _ => return None,
+                }
+            }
+            Obj::Edge(b, e) => self.edge_polyline(b, e)?.iter().map(|p| dv(*p)).collect(),
+            Obj::Curve(_) => return None,
+        };
+        arc_span_of(&pts)
+    }
+
     /// The centre of the sources (for the handle), in the model.
-    fn sources_centre(&self) -> Option<DVec3> {
+    pub(super) fn sources_centre(&self) -> Option<DVec3> {
         if let Some((b, f)) = self.link_ui.feature {
             // a hole or a pin: the point of its axis
             return self
@@ -3034,6 +3161,9 @@ impl App {
                 }
                 if !mirror {
                     ui.horizontal(|ui| {
+                        if u.sk_path.is_some() {
+                            ui.selectable_value(&mut u.sk_open, Some(LinkMode::Path), tr("Along a curve"));
+                        }
                         ui.selectable_value(&mut u.sk_open, Some(LinkMode::Linear), tr("Along a line"));
                         ui.selectable_value(&mut u.sk_open, Some(LinkMode::Circular), tr("Round a point"));
                     });
@@ -3086,6 +3216,50 @@ impl App {
                             });
                         }
                     }
+                    Some(LinkMode::Path) => {
+                        let closed = u.sk_path.as_ref().is_some_and(|p| p.1);
+                        let len: f64 = u
+                            .sk_path
+                            .as_ref()
+                            .map(|(pts, c)| {
+                                let mut l: f64 = pts.windows(2).map(|w| w[0].distance(w[1])).sum();
+                                if *c && pts.first() != pts.last() && pts.len() > 1 {
+                                    l += pts[0].distance(pts[pts.len() - 1]);
+                                }
+                                l
+                            })
+                            .unwrap_or(0.0);
+                        ui.weak(trf("Length of the curve: {} mm", &[fmt_num((len * 100.0).round() / 100.0)]));
+                        ui.horizontal(|ui| {
+                            ui.label(tr("Pieces"));
+                            ui.add_enabled(u.sk_pitch <= 0.0, egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2));
+                            ui.label(tr("or the distance between pieces"));
+                            ui.add(egui::DragValue::new(&mut u.sk_pitch).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                        });
+                        if u.sk_pitch <= 0.0 {
+                            ui.weak(tr("The pieces are spread evenly over the whole length"));
+                        }
+                        if !closed {
+                            ui.horizontal(|ui| {
+                                ui.label(tr("Free at the start"));
+                                ui.add(egui::DragValue::new(&mut u.sk_free_start).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                                ui.label(tr("at the end"));
+                                ui.add(egui::DragValue::new(&mut u.sk_free_end).range(0.0..=100000.0).speed(0.5).suffix(" mm"));
+                            });
+                            if u.sk_pitch <= 0.0 {
+                                ui.checkbox(&mut u.sk_ends, tr("A piece at the start and at the end"));
+                            }
+                        }
+                        ui.checkbox(&mut u.sk_orient, tr("The pieces turn with the curve"));
+                        ui.checkbox(&mut u.sk_on_curve, tr("The pieces stand on the curve (the shapes stay where they are)"));
+                        if u.sk_path_full.is_some() {
+                            let mut whole = u.sk_path_whole;
+                            if ui.checkbox(&mut whole, tr("The whole chain of shapes (not only the one clicked)")).changed() {
+                                u.sk_path_whole = whole;
+                                u.sk_path = if whole { u.sk_path_full.clone() } else { u.sk_path_alt.clone() };
+                            }
+                        }
+                    }
                     Some(LinkMode::Circular) => {
                         ui.horizontal(|ui| {
                             ui.label(tr("Centre"));
@@ -3108,6 +3282,18 @@ impl App {
                             ui.add(egui::DragValue::new(&mut u.sk_count).range(1..=1000).speed(0.2));
                             ui.checkbox(&mut u.sk_full, tr("Round the whole circle"));
                         });
+                        if let Some(sp) = u.sk_span {
+                            if ui
+                                .checkbox(&mut u.sk_fit, trf("Spread the pieces over the arc ({}°)", &[fmt_num(sp)]))
+                                .changed()
+                                && u.sk_fit
+                            {
+                                u.sk_full = false;
+                            }
+                            if u.sk_fit && !u.sk_full {
+                                u.sk_step_angle = sp / (u.sk_count.max(2) - 1) as f64;
+                            }
+                        }
                         ui.add_enabled_ui(!u.sk_full, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(tr("Angle between pieces"));
@@ -3143,7 +3329,9 @@ impl App {
                     "The copies are ordinary shapes of the sketch; Undo takes them back.",
                 ));
                 ui.horizontal(|ui| {
-                    if ui.button(tr("Apply")).clicked() {
+                    let r = ui.button(tr("Apply"));
+                    probe_w.borrow_mut().push(("skpat_apply", r.rect));
+                    if r.clicked() {
                         apply = true;
                     }
                     if !mirror && ui.button(tr("Change the guide")).clicked() {
@@ -3165,7 +3353,7 @@ impl App {
         // the preview in the model area follows the numbers (only once the guide is clicked, or for a mirror)
         let show = u.sk_guided || mirror;
         let key = format!(
-            "{show}|{mode:?}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{entities:?}|{}|{}|{}|{}",
+            "{show}|{mode:?}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{entities:?}|{}|{}|{}|{}|{:?}|{}|{}|{}|{}|{}",
             u.sk_count,
             u.sk_spacing,
             u.sk_by_total,
@@ -3178,7 +3366,13 @@ impl App {
             u.sk_second,
             u.sk_count2,
             u.sk_spacing2,
-            self.doc.revision()
+            self.doc.revision(),
+            u.sk_path,
+            u.sk_pitch,
+            u.sk_free_start,
+            u.sk_free_end,
+            u.sk_orient,
+            u.sk_ends as u8 + 2 * u.sk_on_curve as u8
         );
         if key != u.sk_key {
             u.sk_key = key;
@@ -3192,7 +3386,12 @@ impl App {
         let cmd = if apply {
             let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
             Some(match mode {
-                LinkMode::Linear | LinkMode::Fill | LinkMode::Path => Command::SketchPattern {
+                LinkMode::Path => Command::SketchPattern {
+                    sketch: sk,
+                    entities,
+                    pattern: sketch_path_pattern(&u),
+                },
+                LinkMode::Linear | LinkMode::Fill => Command::SketchPattern {
                     sketch: sk,
                     entities,
                     pattern: rolidium_doc::SketchPattern::Linear {
@@ -3270,12 +3469,79 @@ impl App {
             Centre(glam::DVec2, String),
         }
         let mut guide: Option<Guide> = None;
+        let mut arc_span: Option<f64> = None;
+        // "along a line or a curve": the curve itself is the path, the whole chain of shapes that continue each other (or the one that was clicked)
+        if want == Want::Curve {
+            use rolidium_doc::SweepPath;
+            let to2 = |pts: Vec<DVec3>, closed: bool| -> (Vec<glam::DVec2>, bool) {
+                (pts.iter().map(|q| plane.to_2d(*q)).collect(), closed)
+            };
+            let (whole, single, what): (Option<(Vec<DVec3>, bool)>, Option<(Vec<DVec3>, bool)>, String) = match hover {
+                Some(Obj::Entity(s, id)) if s == sk => {
+                    let chain = self
+                        .doc
+                        .sketch(s)
+                        .map(|d| rolidium_doc::sketch_chain(&d.sketch, id))
+                        .unwrap_or_default();
+                    let w = self
+                        .doc
+                        .path_polyline(&SweepPath::Sketch { sketch: s, entities: chain.clone() })
+                        .ok();
+                    let one = if chain.len() > 1 {
+                        self.doc
+                            .path_polyline(&SweepPath::Sketch { sketch: s, entities: vec![id] })
+                            .ok()
+                    } else {
+                        None
+                    };
+                    (w, one, tr("a curve of the sketch"))
+                }
+                Some(Obj::Edge(b, e)) => {
+                    let chain: Vec<u32> = self
+                        .doc
+                        .body(b)
+                        .map(|x| x.solid.smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0).iter().map(|k| k.0).collect())
+                        .unwrap_or_else(|| vec![e]);
+                    let w = self
+                        .doc
+                        .path_polyline(&SweepPath::Edges { body: b, edges: chain.clone() })
+                        .ok();
+                    let one = if chain.len() > 1 {
+                        self.doc.path_polyline(&SweepPath::Edges { body: b, edges: vec![e] }).ok()
+                    } else {
+                        None
+                    };
+                    (w, one, tr("an edge of a body"))
+                }
+                Some(Obj::Curve(c)) => (self.doc.path_polyline(&SweepPath::Curve(c)).ok(), None, tr("a curve")),
+                _ => (None, None, String::new()),
+            };
+            if let Some((pts, closed)) = whole {
+                let full = to2(pts, closed);
+                let alt = single.map(|(p, c)| to2(p, c));
+                // the angle of an arc (for the sake of "round a point" later): not needed here
+                let u = &mut self.link_ui;
+                u.sk_open = Some(LinkMode::Path);
+                u.sk_path = Some(full.clone());
+                u.sk_path_full = alt.as_ref().map(|_| full);
+                u.sk_path_alt = alt;
+                u.sk_path_whole = true;
+                u.sk_guide_label = what;
+                u.sk_guided = true;
+                u.sk_key.clear();
+                self.layers_changed = true;
+                return true;
+            }
+        }
         match hover {
             Some(Obj::Entity(s, id)) => {
                 if let Some(e) = self.doc.sketch(s).and_then(|d| d.sketch.entity(id).copied()) {
                     if let (Some((_, d)), true) = (e.axis_line(), want != Want::Point) {
                         guide = Some(Guide::Direction(d, tr("a line of the sketch")));
                     } else if let Entity::Circle { center, .. } | Entity::Arc { center, .. } = e {
+                        if let Entity::Arc { sweep, .. } = e {
+                            arc_span = Some(sweep.abs().to_degrees());
+                        }
                         guide = Some(Guide::Centre(center, tr("the centre of a circle of the sketch")));
                     } else if let Some((a, _)) = e.axis_line() {
                         // a line or an axis for "round a point": the point under the pointer on it, else its start
@@ -3328,6 +3594,15 @@ impl App {
                 (u.sk_cx, u.sk_cy) = (c.x, c.y);
                 u.sk_second = false;
                 u.sk_guide_label = what;
+                // an arc as the guide: the pieces are spread over the arc, not round the whole circle
+                u.sk_span = arc_span;
+                u.sk_fit = arc_span.is_some();
+                if let Some(sp) = arc_span {
+                    u.sk_full = false;
+                    u.sk_step_angle = sp / (u.sk_count.max(2) - 1) as f64;
+                } else {
+                    u.sk_full = true;
+                }
             }
         }
         u.sk_guided = true;
@@ -3351,7 +3626,8 @@ impl App {
         };
         let dir = glam::DVec2::new(u.sk_angle.to_radians().cos(), u.sk_angle.to_radians().sin());
         let made = match mode {
-            LinkMode::Linear | LinkMode::Fill | LinkMode::Path => rolidium_doc::preview_pattern(
+            LinkMode::Path => rolidium_doc::preview_pattern(sd, ids, &sketch_path_pattern(u)),
+            LinkMode::Linear | LinkMode::Fill => rolidium_doc::preview_pattern(
                 sd,
                 ids,
                 &rolidium_doc::SketchPattern::Linear {
@@ -3389,5 +3665,51 @@ impl App {
             }
         }
         out
+    }
+}
+
+
+/// The angle in degrees that a polyline along a circle goes round its centre; `None` when it is a whole circle or has no centre.
+pub(super) fn arc_span_of(pts: &[DVec3]) -> Option<f64> {
+    let n = pts.len();
+    if n < 4 {
+        return None;
+    }
+    let (a, m, l) = (pts[0], pts[n / 2], pts[n - 1]);
+    let (u, v) = (m - a, l - a);
+    let nrm = u.cross(v);
+    if nrm.length() < 1e-9 || a.distance(l) < 1e-6 {
+        return None;
+    }
+    let (uu, vv, uv) = (u.dot(u), v.dot(v), u.dot(v));
+    let k = 2.0 * (uu * vv - uv * uv);
+    if k.abs() < 1e-12 {
+        return None;
+    }
+    let c = a + u * (vv * (uu - uv) / k) + v * (uu * (vv - uv) / k);
+    let nrm = nrm.normalize();
+    let mut total = 0.0;
+    for w in pts.windows(2) {
+        let (p, q) = (w[0] - c, w[1] - c);
+        total += p.cross(q).dot(nrm).atan2(p.dot(q));
+    }
+    let d = total.to_degrees().abs();
+    (d > 0.5 && d < 359.0).then_some(d)
+}
+
+
+/// The pattern along a curve of a sketch from the numbers of the panel.
+fn sketch_path_pattern(u: &LinkUi) -> rolidium_doc::SketchPattern {
+    let (points, closed) = u.sk_path.clone().unwrap_or_default();
+    rolidium_doc::SketchPattern::Path {
+        points,
+        closed,
+        count: u.sk_count,
+        pitch: u.sk_pitch,
+        start: u.sk_free_start,
+        end: u.sk_free_end,
+        ends: u.sk_ends,
+        orient: u.sk_orient,
+        on_curve: u.sk_on_curve,
     }
 }

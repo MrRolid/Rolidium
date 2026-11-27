@@ -113,6 +113,11 @@ pub struct PathParams {
     /// The curve the pieces follow (a curve of the document, a chain of a sketch, edges of a body): `points` are calculated from it again whenever it changes.
     /// `None`: the polyline is all there is (a curve that is not kept).
     pub source: Option<SweepPath>,
+    /// A piece at the start and at the end of an open curve (by the count); without them the pieces are spread between the two ends.
+    pub ends: bool,
+    /// The point of the source that stands on the places of the curve (the centre of the source): the pieces then lie on the curve itself and the source stays
+    /// where it is. `None`: the first piece is the source and the others are moved by the distances along the curve from the first place.
+    pub anchor: Option<DVec3>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -299,6 +304,8 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         let n = p.count.max(1) as usize;
         let step = if p.closed {
             total / n as f64
+        } else if !p.ends {
+            usable / (n + 1) as f64
         } else if n > 1 {
             usable / (n - 1) as f64
         } else {
@@ -306,6 +313,8 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         };
         (n, step)
     };
+    // without a piece at the ends of an open curve the first place is one step in
+    let skip = if !p.closed && !p.ends && p.pitch <= 1e-9 { 1.0 } else { 0.0 };
     if n > MAX_PIECES {
         return Err(bad(format!("A pattern can have at most {MAX_PIECES} pieces")));
     }
@@ -330,7 +339,7 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         let t = if seg > 1e-12 { (s - cum[i]) / seg } else { 0.0 };
         (a + (b - a) * t.clamp(0.0, 1.0), (b - a).normalize_or_zero())
     };
-    let first = p.start;
+    let first = p.start + step * skip;
     Ok((0..n).map(|i| at(first + step * i as f64)).collect())
 }
 
@@ -416,8 +425,13 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
         }
         LinkKind::Path(p, _) => {
             let places = path_places(p)?;
-            let (p0, t0) = places[0];
-            for (pos, tan) in places.into_iter().skip(1) {
+            let (mut p0, t0) = places[0];
+            // the pieces stand on the curve itself: the centre of the source goes to every place (the source stays where it is)
+            let from = if p.anchor.is_some() { 0 } else { 1 };
+            if let Some(a) = p.anchor {
+                p0 = a;
+            }
+            for (pos, tan) in places.into_iter().skip(from) {
                 let (axis, angle) = if p.orient {
                     let c = t0.cross(tan);
                     if c.length() < 1e-9 {
@@ -433,6 +447,9 @@ fn placements(kind: &LinkKind) -> Result<Vec<Placement>, DocError> {
                 } else {
                     (DVec3::Z, 0.0)
                 };
+                if p.anchor.is_some() && (pos - p0).length() < 1e-9 && angle.abs() < 1e-9 {
+                    continue; // the source stands there already
+                }
                 out.push(Placement {
                     translation: pos - p0,
                     pivot: p0,

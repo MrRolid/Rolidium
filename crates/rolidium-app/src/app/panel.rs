@@ -559,7 +559,7 @@ impl App {
             return;
         }
         // the Shell and Text tools choose faces for their own panel: the sizes of a face are not offered next to it
-        if matches!(self.tool, Tool::Shell | Tool::Text) {
+        if matches!(self.tool, Tool::Shell | Tool::Text) || self.link_ui.sk_open.is_some() {
             self.dim.key.clear();
             return;
         }

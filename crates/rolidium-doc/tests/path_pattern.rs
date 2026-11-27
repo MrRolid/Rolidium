@@ -15,6 +15,8 @@ fn params(points: Vec<DVec3>, closed: bool) -> PathParams {
         end: 0.0,
         orient: false,
         source: None,
+        ends: true,
+        anchor: None,
     }
 }
 
