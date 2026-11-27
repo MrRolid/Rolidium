@@ -17,7 +17,9 @@ impl App {
     /// Bookkeeping once a frame: since when the program has been busy.
     pub(super) fn busy_tick(&mut self) {
         // a tool that was left (another tool, a new document) takes its panel state and its preview with it
-        if self.tool != Tool::Shell && (self.shell.body.is_some() || self.shell.preview_on || self.shell.editing.is_some()) {
+        if self.tool != Tool::Shell
+            && (self.shell.body.is_some() || self.shell.preview_on || self.shell.editing.is_some())
+        {
             self.shell_close();
         }
         if self.tool != Tool::Text && !self.text.wait_sketch && self.text.target.is_some() {

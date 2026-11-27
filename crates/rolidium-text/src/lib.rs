@@ -169,7 +169,8 @@ impl Pen {
     }
     fn push(&mut self, p: DVec2) {
         if self.cur.last().is_none_or(|l| l.distance_squared(p) > 1e-18) {
-            self.cur.push(DVec2::new(self.dx + p.x * self.scale, self.dy + p.y * self.scale));
+            self.cur
+                .push(DVec2::new(self.dx + p.x * self.scale, self.dy + p.y * self.scale));
         }
         self.last = p;
     }
@@ -228,7 +229,11 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
     let font = FontRef::new(data).map_err(|_| TextError::BadFont)?;
     let metrics = font.metrics(Size::unscaled(), LocationRef::default());
     let upem = metrics.units_per_em as f64;
-    let cap = metrics.cap_height.map(|c| c as f64).filter(|c| *c > 1.0).unwrap_or(upem * 0.7);
+    let cap = metrics
+        .cap_height
+        .map(|c| c as f64)
+        .filter(|c| *c > 1.0)
+        .unwrap_or(upem * 0.7);
     let scale = style.height / cap;
     let charmap = font.charmap();
     let gm = font.glyph_metrics(Size::unscaled(), LocationRef::default());
@@ -268,7 +273,12 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
                     cur: Vec::new(),
                     last: DVec2::ZERO,
                 };
-                if g.draw(DrawSettings::unhinted(Size::unscaled(), LocationRef::default()), &mut pen).is_ok() {
+                if g.draw(
+                    DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+                    &mut pen,
+                )
+                .is_ok()
+                {
                     pen.flush();
                     contours.extend(pen.done);
                 }
@@ -449,7 +459,12 @@ mod tests {
                     ..sty()
                 };
                 let l = layout("\u{11b}\u{161}\u{10d}\u{159}\u{17e}\u{fd}\u{e1}\u{ed}\u{e9}\u{16f}\u{fa}\u{10f}\u{165}\u{148}\u{11a}\u{160}\u{10c}\u{158}\u{17d}\u{dd}\u{c1}\u{cd}\u{c9}\u{16e}\u{da}\u{10e}\u{164}\u{147} \u{f3} \u{fc} \u{df}", &st).unwrap();
-                assert!(l.missing.is_empty(), "{} {bold} {italic}: {:?}", f.name, l.missing);
+                assert!(
+                    l.missing.is_empty(),
+                    "{} {bold} {italic}: {:?}",
+                    f.name,
+                    l.missing
+                );
             }
         }
     }
@@ -463,9 +478,30 @@ mod tests {
 
     #[test]
     fn alignment_moves_the_text() {
-        let a = layout("Rolidium", &Style { align: Align::Left, ..sty() }).unwrap();
-        let c = layout("Rolidium", &Style { align: Align::Centre, ..sty() }).unwrap();
-        let r = layout("Rolidium", &Style { align: Align::Right, ..sty() }).unwrap();
+        let a = layout(
+            "Rolidium",
+            &Style {
+                align: Align::Left,
+                ..sty()
+            },
+        )
+        .unwrap();
+        let c = layout(
+            "Rolidium",
+            &Style {
+                align: Align::Centre,
+                ..sty()
+            },
+        )
+        .unwrap();
+        let r = layout(
+            "Rolidium",
+            &Style {
+                align: Align::Right,
+                ..sty()
+            },
+        )
+        .unwrap();
         let w = a.max.x - a.min.x;
         assert!(a.min.x >= -0.5 && a.min.x < 1.5);
         assert!((c.min.x + c.max.x).abs() < 1.5, "{} {}", c.min.x, c.max.x);
@@ -477,14 +513,33 @@ mod tests {
         let one = layout("AB", &sty()).unwrap();
         let two = layout("AB\nAB", &sty()).unwrap();
         assert!(two.min.y < one.min.y - 10.0);
-        let wide = layout("AB", &Style { spacing: 3.0, ..sty() }).unwrap();
+        let wide = layout(
+            "AB",
+            &Style {
+                spacing: 3.0,
+                ..sty()
+            },
+        )
+        .unwrap();
         assert!(wide.max.x > one.max.x + 2.5);
     }
 
     #[test]
     fn rotation_turns_the_outline() {
-        let l = layout("I", &Style { rotation: 90.0, ..sty() }).unwrap();
-        assert!(l.max.x - l.min.x > 9.0 && l.max.y - l.min.y < 3.0, "{:?} {:?}", l.min, l.max);
+        let l = layout(
+            "I",
+            &Style {
+                rotation: 90.0,
+                ..sty()
+            },
+        )
+        .unwrap();
+        assert!(
+            l.max.x - l.min.x > 9.0 && l.max.y - l.min.y < 3.0,
+            "{:?} {:?}",
+            l.min,
+            l.max
+        );
     }
 
     #[test]

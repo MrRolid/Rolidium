@@ -565,7 +565,9 @@ fn calculate_in_place(st: &State, link: &Link) -> Result<Outcome, DocError> {
             let before: Vec<&Link> = st
                 .links
                 .iter()
-                .filter(|l| l.id < link.id && l.results.contains(&p.target) && matches!(l.kind, LinkKind::Text(_)))
+                .filter(|l| {
+                    l.id < link.id && l.results.contains(&p.target) && matches!(l.kind, LinkKind::Text(_))
+                })
                 .collect();
             let texts: Vec<TextParams> = before
                 .iter()
@@ -1066,7 +1068,9 @@ pub(crate) fn refresh(st: &mut State, next: &mut u64) -> Vec<String> {
         // this link starts from the body as it is now
         let chain_base: Option<Solid> = if link.kind.works_in_place() {
             let t = link.kind.mode().target();
-            let cur = t.and_then(|t| st.bodies.iter().find(|b| b.id == t)).map(|b| b.solid.clone());
+            let cur = t
+                .and_then(|t| st.bodies.iter().find(|b| b.id == t))
+                .map(|b| b.solid.clone());
             let earlier = st.links[..i]
                 .iter()
                 .any(|l| l.kind.works_in_place() && l.kind.mode().target() == t);
@@ -1184,8 +1188,19 @@ pub fn trial(st: &State, kind: LinkKind, editing: Option<LinkId>) -> Result<(Sol
         None => create(&mut s, kind, Vec::new(), "", &mut next)?,
     };
     refresh(&mut s, &mut next);
-    let warnings = s.links.iter().find(|l| l.id == id).map(|l| l.warnings.clone()).unwrap_or_default();
-    let solid = s.bodies.iter().find(|b| b.id == target).ok_or(DocError::NoSuchBody)?.solid.clone();
+    let warnings = s
+        .links
+        .iter()
+        .find(|l| l.id == id)
+        .map(|l| l.warnings.clone())
+        .unwrap_or_default();
+    let solid = s
+        .bodies
+        .iter()
+        .find(|b| b.id == target)
+        .ok_or(DocError::NoSuchBody)?
+        .solid
+        .clone();
     Ok((solid, warnings))
 }
 

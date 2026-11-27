@@ -56,8 +56,15 @@ impl FaceAnchor {
                     (i.area - self.area).abs() / self.area.max(1e-9)
                 }
                 _ => {
-                    let axis_ok = i.normal.normalize_or_zero().dot(self.normal.normalize_or_zero()).abs() > 0.9999;
-                    let d = (i.origin - self.origin).cross(self.normal.normalize_or_zero()).length();
+                    let axis_ok = i
+                        .normal
+                        .normalize_or_zero()
+                        .dot(self.normal.normalize_or_zero())
+                        .abs()
+                        > 0.9999;
+                    let d = (i.origin - self.origin)
+                        .cross(self.normal.normalize_or_zero())
+                        .length();
                     if !axis_ok || d > 1e-3 || (i.radius - self.radius).abs() > 1e-3 {
                         continue;
                     }
@@ -249,11 +256,21 @@ pub fn shell_with_details(
             notes.append(&mut n);
             for d in &tools {
                 s = s
-                    .boolean_checked(&d.tool, if d.is_hole { BooleanOp::Cut } else { BooleanOp::Fuse })?
+                    .boolean_checked(
+                        &d.tool,
+                        if d.is_hole {
+                            BooleanOp::Cut
+                        } else {
+                            BooleanOp::Fuse
+                        },
+                    )?
                     .solid;
             }
             if had_details {
-                notes.push(format!("{} hole(s) or pin(s) were taken off for the shell and put back", tools.len()));
+                notes.push(format!(
+                    "{} hole(s) or pin(s) were taken off for the shell and put back",
+                    tools.len()
+                ));
             }
             for t in texts {
                 s = apply_text(&s, t)?;
@@ -352,7 +369,12 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
     while i < solids.len() {
         let mut merged = false;
         for j in (i + 1)..solids.len() {
-            if solids[i].may_be_within(&solids[j], 1e-6) && solids[i].distance_to(&solids[j]).map(|d| d < 1e-6).unwrap_or(false) {
+            if solids[i].may_be_within(&solids[j], 1e-6)
+                && solids[i]
+                    .distance_to(&solids[j])
+                    .map(|d| d < 1e-6)
+                    .unwrap_or(false)
+            {
                 let f = solids[i].boolean_checked(&solids[j], BooleanOp::Fuse)?.solid;
                 solids[i] = f;
                 solids.remove(j);
@@ -371,6 +393,10 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
 /// The text raised from `base` or engraved into it.
 pub fn apply_text(base: &Solid, p: &TextParams) -> Result<Solid, DocError> {
     let tool = text_tool(p)?;
-    let op = if p.engrave { BooleanOp::Cut } else { BooleanOp::Fuse };
+    let op = if p.engrave {
+        BooleanOp::Cut
+    } else {
+        BooleanOp::Fuse
+    };
     Ok(base.boolean_checked(&tool, op)?.solid)
 }

@@ -14,7 +14,10 @@ mod endface;
 pub use anchor::{
     angles_to_base, in_steps, turned, with_angle_to_base, CurveEnd, EndFrame, PlaneKind, SketchAnchor,
 };
-pub use bodyfeat::{apply_text, shell, shell_with_details, text_tool, FaceAnchor, ShellParams, ShellSide, TextAlign, TextParams};
+pub use bodyfeat::{
+    apply_text, shell, shell_with_details, text_tool, FaceAnchor, ShellParams, ShellSide, TextAlign,
+    TextParams,
+};
 pub use curves::{sketch_chain, sketch_path_segments, CurveDef, CurveDoc, CurveId};
 pub use endface::{end_circle, end_face_of, EndFace, EndKind};
 use rolidium_sketch::{Contour, Entity, PlaneDef, Region, Segment, Sketch, SketchError};
@@ -32,9 +35,10 @@ pub mod meshsolid;
 pub mod progress;
 mod sketchops;
 pub use links::{
-    linear_through, link_of_result, path_places, trial as trial_link, placements_of, rect_fill, sketch_line_in_space,
-    sketch_mirror_plane, Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams,
-    Link, LinkId, LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
+    linear_through, link_of_result, path_places, placements_of, rect_fill, sketch_line_in_space,
+    sketch_mirror_plane, trial as trial_link, Axis, CircularParams, Direction2, EdgeSides, FillRule, Group,
+    GroupId, LinearParams, Link, LinkId, LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef,
+    RectTarget, MAX_PIECES,
 };
 pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};

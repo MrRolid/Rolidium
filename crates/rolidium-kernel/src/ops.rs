@@ -610,9 +610,17 @@ impl Solid {
 
     /// A hollow body: the `open` faces are taken away and the walls are `thickness` thick (`inwards`: the outside stays as it is; otherwise the walls grow outwards
     /// from the outside). With no open face the body is closed and hollow. `round_corners` rounds the corners that stick out instead of mitring them.
-    pub fn shell(&self, open: &[FaceId], thickness: f64, inwards: bool, round_corners: bool) -> Result<OpResult> {
+    pub fn shell(
+        &self,
+        open: &[FaceId],
+        thickness: f64,
+        inwards: bool,
+        round_corners: bool,
+    ) -> Result<OpResult> {
         if !(thickness.is_finite() && thickness > 1e-6) {
-            return Err(KernelError::Invalid("the wall thickness must be a positive number".into()));
+            return Err(KernelError::Invalid(
+                "the wall thickness must be a positive number".into(),
+            ));
         }
         let ids: Vec<u32> = open.iter().map(|f| f.0).collect();
         let signed = if inwards { -thickness } else { thickness };

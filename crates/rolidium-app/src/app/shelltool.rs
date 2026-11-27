@@ -125,7 +125,10 @@ impl App {
         };
         self.link_sel = Some(id);
         self.layers_changed = true;
-        self.set_status("Shell: change the numbers, click walls to open or thicken them, Enter confirms", false);
+        self.set_status(
+            "Shell: change the numbers, click walls to open or thicken them, Enter confirms",
+            false,
+        );
     }
 
     fn shell_params(&self) -> Option<ShellParams> {
@@ -199,7 +202,10 @@ impl App {
             return;
         }
         let Some(a) = self.shell_anchor_of_click(b, f) else {
-            self.set_status("That face does not come from a wall of the body the shell started from", true);
+            self.set_status(
+                "That face does not come from a wall of the body the shell started from",
+                true,
+            );
             return;
         };
         let thicken = self.shell.thicken;
@@ -260,7 +266,8 @@ impl App {
                     }
                 }
                 Err(mpsc::TryRecvError::Empty) => {
-                    self.egui_ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                    self.egui_ctx
+                        .request_repaint_after(std::time::Duration::from_millis(100));
                     return;
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -286,7 +293,8 @@ impl App {
             let _ = tx.send(r);
         });
         self.shell.job = Some(ShellJob { key: want, rx });
-        self.egui_ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        self.egui_ctx
+            .request_repaint_after(std::time::Duration::from_millis(100));
     }
 
     pub(super) fn shell_close(&mut self) {
@@ -345,7 +353,11 @@ impl App {
         let busy = ui_state.job.is_some();
         let editing = ui_state.editing.is_some();
         let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
-        let title = if editing { tr("Shell (a link)") } else { tr("Shell") };
+        let title = if editing {
+            tr("Shell (a link)")
+        } else {
+            tr("Shell")
+        };
         docks.panel(ctx, "shell", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
             if ui_state.body.is_none() {
                 ui.label(
@@ -514,10 +526,17 @@ pub(super) fn face_name(a: &FaceAnchor) -> String {
     match a.kind {
         FaceKind::Plane => {
             let n = a.normal.normalize_or_zero();
-            let axis = [("+X", DVec3::X), ("-X", -DVec3::X), ("+Y", DVec3::Y), ("-Y", -DVec3::Y), ("+Z", DVec3::Z), ("-Z", -DVec3::Z)]
-                .iter()
-                .find(|(_, v)| n.dot(*v) > 0.999)
-                .map(|(l, _)| l.to_string());
+            let axis = [
+                ("+X", DVec3::X),
+                ("-X", -DVec3::X),
+                ("+Y", DVec3::Y),
+                ("-Y", -DVec3::Y),
+                ("+Z", DVec3::Z),
+                ("-Z", -DVec3::Z),
+            ]
+            .iter()
+            .find(|(_, v)| n.dot(*v) > 0.999)
+            .map(|(l, _)| l.to_string());
             match axis {
                 Some(l) => trf("Flat face facing {}", &[l]),
                 None => tr("Flat face (slanted)"),

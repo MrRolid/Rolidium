@@ -271,7 +271,11 @@ pub(crate) fn stamp(st: &State, kind: &LinkKind) -> u64 {
     // the edges of a body a pattern follows: the body as it is now
     if matches!(kind, LinkKind::Path(..)) {
         for id in &d.bodies {
-            st.bodies.iter().find(|b| b.id == *id).map(|b| b.solid.shape_id()).hash(&mut h);
+            st.bodies
+                .iter()
+                .find(|b| b.id == *id)
+                .map(|b| b.solid.shape_id())
+                .hash(&mut h);
         }
     }
     h.finish()

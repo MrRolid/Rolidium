@@ -171,11 +171,20 @@ impl App {
         self.link_sel = Some(id);
         self.text.key.clear();
         self.layers_changed = true;
-        self.set_status("Text: change the words or the numbers, click another face to move it, Apply confirms", false);
+        self.set_status(
+            "Text: change the words or the numbers, click another face to move it, Apply confirms",
+            false,
+        );
     }
 
     /// A click on a flat face puts the text there.
-    pub(super) fn text_input(&mut self, resp: &egui::Response, pointer: Option<Pos2>, rect: Rect, hovered_face: Option<(BodyId, u32)>) {
+    pub(super) fn text_input(
+        &mut self,
+        resp: &egui::Response,
+        pointer: Option<Pos2>,
+        rect: Rect,
+        hovered_face: Option<(BodyId, u32)>,
+    ) {
         if !resp.clicked_by(PointerButton::Primary) {
             return;
         }
@@ -207,7 +216,10 @@ impl App {
         };
         // another body: this is a new text (a text that is being changed stays on its own body)
         if self.text.editing.is_some() && self.text.target != Some(target) {
-            self.set_status("A text stays on its own body; remove it and make a new one on this one", true);
+            self.set_status(
+                "A text stays on its own body; remove it and make a new one on this one",
+                true,
+            );
             return;
         }
         self.text.target = Some(target);
@@ -306,7 +318,13 @@ impl App {
         let o = self.text.origin.as_vec3();
         let n = self.text.normal.normalize_or_zero().as_vec3() * 0.05;
         let x = self.text.x_dir.normalize_or_zero().as_vec3() * 1.2;
-        let y = self.text.normal.normalize_or_zero().cross(self.text.x_dir.normalize_or_zero()).as_vec3() * 1.2;
+        let y = self
+            .text
+            .normal
+            .normalize_or_zero()
+            .cross(self.text.x_dir.normalize_or_zero())
+            .as_vec3()
+            * 1.2;
         out.push(PreviewDraw {
             thick: vec![o - x + n, o + x + n, o - y + n, o + y + n],
             thick_color: [0.4, 0.9, 1.0, 1.0],
@@ -361,7 +379,10 @@ impl App {
                 p.engrave = false;
                 match rolidium_doc::text_tool(&p) {
                     Ok(solid) => Command::AddNamedSolids {
-                        solids: vec![(solid, self.text.text.lines().next().unwrap_or("Text").trim().to_string())],
+                        solids: vec![(
+                            solid,
+                            self.text.text.lines().next().unwrap_or("Text").trim().to_string(),
+                        )],
                     },
                     Err(e) => {
                         self.set_status(e.to_string(), true);
@@ -386,7 +407,11 @@ impl App {
         let mut u = std::mem::take(&mut self.text);
         let target_name = u.target.map(|t| match t {
             TextTarget::Body(b) => self.doc.body(b).map(|x| x.name.clone()).unwrap_or_default(),
-            TextTarget::Mesh(b) => self.doc.mesh(b).map(|x| format!("{} ({})", x.name, tr("mesh"))).unwrap_or_default(),
+            TextTarget::Mesh(b) => self
+                .doc
+                .mesh(b)
+                .map(|x| format!("{} ({})", x.name, tr("mesh")))
+                .unwrap_or_default(),
             TextTarget::Sketch(_) => tr("a new body"),
         });
         let mut apply = false;
@@ -396,116 +421,146 @@ impl App {
         let editing = u.editing.is_some();
         let probe_w: std::cell::RefCell<Vec<(&'static str, Rect)>> = std::cell::RefCell::new(Vec::new());
         let title = if editing { tr("Text (a link)") } else { tr("Text") };
-        docks.panel(ctx, "text", Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0), None, 270.0, &title, false, |ui| {
-            if u.target.is_none() {
-                ui.label(
-                    egui::RichText::new(tr("Click the place for the text"))
-                        .size(16.0)
-                        .color(crate::theme::rgb(255, 200, 100)),
-                );
-                ui.colored_label(
-                    crate::theme::rgb(255, 200, 100),
-                    tr("A flat face of a body, a flat wall of a mesh, or a point in a sketch"),
-                );
-                if ui.button(tr("Cancel")).clicked() {
-                    cancel = true;
-                }
-                return;
-            }
-            ui.horizontal_wrapped(|ui| {
-                ui.colored_label(crate::theme::rgb(242, 89, 242), tr("On"));
-                ui.label(target_name.clone().unwrap_or_default());
-            });
-            let id = egui::Id::new("text_field");
-            let r = ui.add(
-                egui::TextEdit::multiline(&mut u.text)
-                    .id(id)
-                    .desired_rows(2)
-                    .desired_width(f32::INFINITY),
-            );
-            probe_w.borrow_mut().push(("text_field", r.rect));
-            if std::mem::take(&mut u.focus_text) {
-                ui.memory_mut(|m| m.request_focus(id));
-            }
-            ui.horizontal(|ui| {
-                ui.label(tr("Font"));
-                let cur = rolidium_text::family(&u.family).map(|f| f.name).unwrap_or("?");
-                egui::ComboBox::from_id_salt("text_font")
-                    .selected_text(cur)
-                    .show_ui(ui, |ui| {
-                        for f in rolidium_text::FAMILIES.iter() {
-                            ui.selectable_value(&mut u.family, f.id.to_string(), format!("{} ({})", f.name, tr(f.note)));
-                        }
-                    });
-            });
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut u.bold, tr("Bold"));
-                ui.checkbox(&mut u.italic, tr("Italic"));
-            });
-            ui.horizontal(|ui| {
-                ui.label(tr("Height of capitals"));
-                let r = ui.add(egui::DragValue::new(&mut u.height).speed(0.1).range(0.2..=500.0).suffix(" mm"));
-                probe_w.borrow_mut().push(("text_height", r.rect));
-            });
-            ui.horizontal(|ui| {
-                ui.label(tr("Alignment"));
-                for (a, l) in [(TextAlign::Left, tr("Left")), (TextAlign::Centre, tr("Centre")), (TextAlign::Right, tr("Right"))] {
-                    ui.selectable_value(&mut u.align, a, l);
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label(tr("Turn"));
-                ui.add(egui::DragValue::new(&mut u.rotation).speed(1.0).suffix("°"));
-                ui.label(tr("Letter spacing"));
-                ui.add(egui::DragValue::new(&mut u.spacing).speed(0.05).suffix(" mm"));
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                let r1 = ui.selectable_label(!u.engrave, tr("Raised"));
-                let r2 = ui.selectable_label(u.engrave, tr("Engraved"));
-                probe_w.borrow_mut().push(("text_raised", r1.rect));
-                probe_w.borrow_mut().push(("text_engraved", r2.rect));
-                if r1.clicked() {
-                    u.engrave = false;
-                }
-                if r2.clicked() {
-                    u.engrave = true;
-                }
-                ui.label(tr("by"));
-                let r = ui.add(egui::DragValue::new(&mut u.depth).speed(0.05).range(0.05..=200.0).suffix(" mm"));
-                probe_w.borrow_mut().push(("text_depth", r.rect));
-            });
-            if !u.missing.is_empty() {
-                ui.colored_label(
-                    crate::theme::rgb(230, 170, 90),
-                    trf("The font has no letter for: {}", &[u.missing.iter().collect::<String>()]),
-                );
-            }
-            if let Some(e) = &u.error {
-                ui.colored_label(crate::theme::rgb(255, 120, 120), tr(e));
-            }
-            ui.weak(tr("Click another face to move the text there"));
-            ui.horizontal(|ui| {
-                let r = ui.button(tr("Apply"));
-                probe_w.borrow_mut().push(("text_apply", r.rect));
-                if r.clicked() {
-                    apply = true;
-                }
-                if ui.button(tr("Cancel")).clicked() {
-                    cancel = true;
-                }
-            });
-            if editing {
-                ui.horizontal(|ui| {
-                    if ui.button(tr("Remove the text")).clicked() {
-                        remove = true;
+        docks.panel(
+            ctx,
+            "text",
+            Pos2::new(rect.max.x - 290.0, rect.min.y + 10.0),
+            None,
+            270.0,
+            &title,
+            false,
+            |ui| {
+                if u.target.is_none() {
+                    ui.label(
+                        egui::RichText::new(tr("Click the place for the text"))
+                            .size(16.0)
+                            .color(crate::theme::rgb(255, 200, 100)),
+                    );
+                    ui.colored_label(
+                        crate::theme::rgb(255, 200, 100),
+                        tr("A flat face of a body, a flat wall of a mesh, or a point in a sketch"),
+                    );
+                    if ui.button(tr("Cancel")).clicked() {
+                        cancel = true;
                     }
-                    if ui.button(tr("Keep as it is (unlink)")).clicked() {
-                        unlink = true;
+                    return;
+                }
+                ui.horizontal_wrapped(|ui| {
+                    ui.colored_label(crate::theme::rgb(242, 89, 242), tr("On"));
+                    ui.label(target_name.clone().unwrap_or_default());
+                });
+                let id = egui::Id::new("text_field");
+                let r = ui.add(
+                    egui::TextEdit::multiline(&mut u.text)
+                        .id(id)
+                        .desired_rows(2)
+                        .desired_width(f32::INFINITY),
+                );
+                probe_w.borrow_mut().push(("text_field", r.rect));
+                if std::mem::take(&mut u.focus_text) {
+                    ui.memory_mut(|m| m.request_focus(id));
+                }
+                ui.horizontal(|ui| {
+                    ui.label(tr("Font"));
+                    let cur = rolidium_text::family(&u.family).map(|f| f.name).unwrap_or("?");
+                    egui::ComboBox::from_id_salt("text_font")
+                        .selected_text(cur)
+                        .show_ui(ui, |ui| {
+                            for f in rolidium_text::FAMILIES.iter() {
+                                ui.selectable_value(
+                                    &mut u.family,
+                                    f.id.to_string(),
+                                    format!("{} ({})", f.name, tr(f.note)),
+                                );
+                            }
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut u.bold, tr("Bold"));
+                    ui.checkbox(&mut u.italic, tr("Italic"));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Height of capitals"));
+                    let r = ui.add(
+                        egui::DragValue::new(&mut u.height)
+                            .speed(0.1)
+                            .range(0.2..=500.0)
+                            .suffix(" mm"),
+                    );
+                    probe_w.borrow_mut().push(("text_height", r.rect));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Alignment"));
+                    for (a, l) in [
+                        (TextAlign::Left, tr("Left")),
+                        (TextAlign::Centre, tr("Centre")),
+                        (TextAlign::Right, tr("Right")),
+                    ] {
+                        ui.selectable_value(&mut u.align, a, l);
                     }
                 });
-            }
-        });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Turn"));
+                    ui.add(egui::DragValue::new(&mut u.rotation).speed(1.0).suffix("°"));
+                    ui.label(tr("Letter spacing"));
+                    ui.add(egui::DragValue::new(&mut u.spacing).speed(0.05).suffix(" mm"));
+                });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let r1 = ui.selectable_label(!u.engrave, tr("Raised"));
+                    let r2 = ui.selectable_label(u.engrave, tr("Engraved"));
+                    probe_w.borrow_mut().push(("text_raised", r1.rect));
+                    probe_w.borrow_mut().push(("text_engraved", r2.rect));
+                    if r1.clicked() {
+                        u.engrave = false;
+                    }
+                    if r2.clicked() {
+                        u.engrave = true;
+                    }
+                    ui.label(tr("by"));
+                    let r = ui.add(
+                        egui::DragValue::new(&mut u.depth)
+                            .speed(0.05)
+                            .range(0.05..=200.0)
+                            .suffix(" mm"),
+                    );
+                    probe_w.borrow_mut().push(("text_depth", r.rect));
+                });
+                if !u.missing.is_empty() {
+                    ui.colored_label(
+                        crate::theme::rgb(230, 170, 90),
+                        trf(
+                            "The font has no letter for: {}",
+                            &[u.missing.iter().collect::<String>()],
+                        ),
+                    );
+                }
+                if let Some(e) = &u.error {
+                    ui.colored_label(crate::theme::rgb(255, 120, 120), tr(e));
+                }
+                ui.weak(tr("Click another face to move the text there"));
+                ui.horizontal(|ui| {
+                    let r = ui.button(tr("Apply"));
+                    probe_w.borrow_mut().push(("text_apply", r.rect));
+                    if r.clicked() {
+                        apply = true;
+                    }
+                    if ui.button(tr("Cancel")).clicked() {
+                        cancel = true;
+                    }
+                });
+                if editing {
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("Remove the text")).clicked() {
+                            remove = true;
+                        }
+                        if ui.button(tr("Keep as it is (unlink)")).clicked() {
+                            unlink = true;
+                        }
+                    });
+                }
+            },
+        );
         self.docks = docks;
         for (n, r) in probe_w.into_inner() {
             self.probe_widget(n, r);

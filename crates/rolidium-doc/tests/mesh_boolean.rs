@@ -256,7 +256,10 @@ fn a_hole_of_a_mesh_is_closed_with_a_diameter_of_nothing_and_a_pin_is_taken_off(
     .unwrap();
     let v1 = volume(&d, id);
     let hole_volume = std::f64::consts::PI * 36.0 * 10.0;
-    assert!((v1 - v0 - hole_volume).abs() < hole_volume * 0.03, "the hole is filled: {v0} -> {v1} (expected +{hole_volume})");
+    assert!(
+        (v1 - v0 - hole_volume).abs() < hole_volume * 0.03,
+        "the hole is filled: {v0} -> {v1} (expected +{hole_volume})"
+    );
     assert!(d.undo());
     assert!((volume(&d, id) - v0).abs() < 1e-6, "one Undo opens it again");
 }

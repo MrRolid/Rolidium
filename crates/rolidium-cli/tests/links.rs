@@ -357,7 +357,10 @@ fn a_shell_with_text_sunk_into_its_wall_goes_through_and_the_text_stays() {
         let r2 = run("box 60 30 12\nshell 2 open z-\n");
         r2.doc.bodies()[0].solid.volume().unwrap()
     };
-    assert!(hollow < plain - 3.0, "the text is still there: {hollow} vs {plain}");
+    assert!(
+        hollow < plain - 3.0,
+        "the text is still there: {hollow} vs {plain}"
+    );
     assert_eq!(r.doc.state().links.len(), 2);
     // a shell is changed by edit-link, and the text goes back each time
     r.run_line("edit-link 2 thickness 3").unwrap();

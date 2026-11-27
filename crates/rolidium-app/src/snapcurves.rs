@@ -162,7 +162,10 @@ pub fn curves_of(sk: &rolidium_doc::rolidium_sketch::Sketch) -> Vec<Curve> {
         match *e {
             Entity::Line { a, b } | Entity::Axis { a, b } => v.push(Curve::Seg(a, b)),
             Entity::Rect { a, b } => {
-                let (p, q) = (DVec2::new(a.x.min(b.x), a.y.min(b.y)), DVec2::new(a.x.max(b.x), a.y.max(b.y)));
+                let (p, q) = (
+                    DVec2::new(a.x.min(b.x), a.y.min(b.y)),
+                    DVec2::new(a.x.max(b.x), a.y.max(b.y)),
+                );
                 v.push(Curve::Seg(p, DVec2::new(q.x, p.y)));
                 v.push(Curve::Seg(DVec2::new(q.x, p.y), q));
                 v.push(Curve::Seg(q, DVec2::new(p.x, q.y)));
@@ -397,9 +400,17 @@ mod tests {
         ];
         let (p, l) = snap_near(DVec2::new(0.3, -0.2), 1.0, &[], &curves).unwrap();
         assert!(p.length() < 1e-9 && l == "intersection", "{p:?} {l}");
-        let circle = [Curve::Arc { c: DVec2::ZERO, r: 5.0, start: 0.0, sweep: TAU }];
+        let circle = [Curve::Arc {
+            c: DVec2::ZERO,
+            r: 5.0,
+            start: 0.0,
+            sweep: TAU,
+        }];
         let (p, l) = snap_near(DVec2::new(5.2, 0.3), 1.0, &[], &circle).unwrap();
-        assert!((p - DVec2::new(5.0, 0.0)).length() < 1e-9 && l == "quadrant", "{p:?} {l}");
+        assert!(
+            (p - DVec2::new(5.0, 0.0)).length() < 1e-9 && l == "quadrant",
+            "{p:?} {l}"
+        );
         let (_, l) = snap_near(DVec2::new(3.5, 3.6), 1.0, &[], &circle).unwrap();
         assert_eq!(l, "on curve");
         assert!(snap_near(DVec2::new(20.0, 20.0), 1.0, &[], &circle).is_none());

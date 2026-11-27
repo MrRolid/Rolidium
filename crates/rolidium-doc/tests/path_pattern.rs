@@ -189,7 +189,11 @@ fn a_pattern_remembers_its_curve_and_the_pieces_move_when_the_curve_changes() {
         };
         (c(1) - c(2)).length()
     };
-    assert!((side(&d) - 20.0 * 2f64.sqrt()).abs() < 0.3, "the pieces stand on the circle of 20: {}", side(&d));
+    assert!(
+        (side(&d) - 20.0 * 2f64.sqrt()).abs() < 0.3,
+        "the pieces stand on the circle of 20: {}",
+        side(&d)
+    );
     // the circle is made bigger: the pieces move with it
     d.apply(Command::ReplaceEntity {
         sketch: sk,
@@ -200,11 +204,20 @@ fn a_pattern_remembers_its_curve_and_the_pieces_move_when_the_curve_changes() {
         },
     })
     .unwrap();
-    assert!((side(&d) - 35.0 * 2f64.sqrt()).abs() < 0.3, "the pieces follow the curve: {}", side(&d));
+    assert!(
+        (side(&d) - 35.0 * 2f64.sqrt()).abs() < 0.3,
+        "the pieces follow the curve: {}",
+        side(&d)
+    );
     // the file keeps the curve
     let bytes = rolidium_doc::file::save_to_bytes(&d, None, "test").unwrap();
     let d2 = Document::from_loaded(rolidium_doc::file::load_from_bytes(&bytes).unwrap());
-    let l = d2.state().links.iter().find(|l| matches!(l.kind, LinkKind::Path(..))).unwrap();
+    let l = d2
+        .state()
+        .links
+        .iter()
+        .find(|l| matches!(l.kind, LinkKind::Path(..)))
+        .unwrap();
     match &l.kind {
         LinkKind::Path(p, _) => assert!(p.source.is_some(), "the curve comes back"),
         _ => unreachable!(),

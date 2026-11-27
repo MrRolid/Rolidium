@@ -57,9 +57,9 @@ is written here is described from the point of view of the person drawing, nothi
   * a spline through points and a spline by control points, an arc by three points, a tangent arc, an ellipse, a regular polygon, a slot;
   * a round and a chamfer of a corner in the sketch, trim and extend, an offset of a curve, a mirror and a pattern in the sketch.
   They make the sketch a place where a part is drawn, not only a place for the circle and the rectangle; the pull, the sweep and the loft already take any closed shape.
-* **Shell and thickening of walls** (medium to large): a shell of a body with a given thickness, openings by chosen faces, thickening of thin walls. Test for the specification: a box with a text sunk into it
-  whose letters have a stem of 1 mm, and a shell of 2 mm: the text is taken off, the shell is made, the text is put back.
-* **Text and logos** (medium): letters engraved into or embossed on a flat face, a logo from an SVG file; the shell above needs it.
+* **Shell and thickening of walls**: **done** in 0.3.2 (`SHELL_AND_TEXT.md`, D75); the box with the text sunk into it and the shell of 2 mm is a test. Still to do: take rounds and pockets off for a shell too, thicken walls that are not flat.
+* **Text**: **done** for flat faces of bodies and meshes and for sketches. Still to do (medium): a **logo from an SVG file** as shapes of a sketch (paths as lines and arcs, curves approximated; `usvg` is in the program already),
+  the **conversion of a text into shapes of a sketch**, text on a curved face, kerning, a font file of the person.
 * **Two levels of the program, Easy and All** (medium): in *Easy* big icons and the basic tools only (select, pull, move, combine, line, rectangle, circle, arc, pattern, mirror, round, measure, import and export,
   views), in *All* smaller icons and every tool. The switch is on the right of the top bar as a two-part switch with both labels (*Easy* / *All*, translated in the language files); the active part is filled, so it is
   always visible what is on and what a click does.

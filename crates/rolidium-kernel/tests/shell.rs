@@ -30,7 +30,10 @@ fn walls_grown_outwards_keep_the_inside() {
     let r = b.shell(&[top_face(&b)], 2.0, false, false).unwrap();
     let (lo, hi) = r.solid.bounding_box().unwrap();
     // 44 x 34 x 22 (the top is open, so it grows by 2 at the bottom only)
-    assert!((hi - lo - DVec3::new(44.0, 34.0, 22.0)).length() < 1e-6, "{lo:?} {hi:?}");
+    assert!(
+        (hi - lo - DVec3::new(44.0, 34.0, 22.0)).length() < 1e-6,
+        "{lo:?} {hi:?}"
+    );
     assert!(r.solid.contains_point(DVec3::new(20.0, 15.0, 10.0)).unwrap() == false);
 }
 
@@ -56,8 +59,14 @@ fn walls_on_both_sides_of_the_surface() {
     let r = b.shell_centre(&[top_face(&b)], 2.0, false).unwrap();
     let (lo, hi) = r.solid.bounding_box().unwrap();
     // one millimetre outside, one inside; the top stays where it was
-    assert!((hi - lo - DVec3::new(42.0, 32.0, 21.0)).length() < 1e-6, "{lo:?} {hi:?}");
+    assert!(
+        (hi - lo - DVec3::new(42.0, 32.0, 21.0)).length() < 1e-6,
+        "{lo:?} {hi:?}"
+    );
     let v = r.solid.volume().unwrap();
     // outer 42 x 32 x 21 minus the cavity 38 x 28 x 19 (open at the top)
-    assert!((v - (42.0 * 32.0 * 21.0 - 38.0 * 28.0 * 19.0)).abs() < 2.0, "volume {v}");
+    assert!(
+        (v - (42.0 * 32.0 * 21.0 - 38.0 * 28.0 * 19.0)).abs() < 2.0,
+        "volume {v}"
+    );
 }

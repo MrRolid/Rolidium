@@ -15,8 +15,8 @@
 
 use super::*;
 use rolidium_doc::{
-    Axis, CircularParams, Direction2, FaceAnchor, LinearParams, LinkKind, MirrorParams, PatternMode, ShellParams, ShellSide,
-    SketchPattern, TextAlign, TextParams,
+    Axis, CircularParams, Direction2, FaceAnchor, LinearParams, LinkKind, MirrorParams, PatternMode,
+    ShellParams, ShellSide, SketchPattern, TextAlign, TextParams,
 };
 
 fn number(s: &str) -> Result<f64, String> {
@@ -577,12 +577,7 @@ impl Runner {
                 let mut c = Cursor { w, i: 1 };
                 let thickness = c.num("the wall thickness")?;
                 let body = self.sources_of(w)?[0];
-                let solid = self
-                    .doc
-                    .body(body)
-                    .ok_or("there is no such body")?
-                    .solid
-                    .clone();
+                let solid = self.doc.body(body).ok_or("there is no such body")?.solid.clone();
                 let mut p = ShellParams::new(body, thickness);
                 if let Some(i) = w.iter().position(|t| *t == "open") {
                     for t in w.iter().skip(i + 1) {
@@ -598,12 +593,14 @@ impl Runner {
                         let f = solid
                             .faces()
                             .filter(|f| {
-                                solid
-                                    .face_info(*f)
-                                    .is_ok_and(|i| i.kind == rolidium_kernel::FaceKind::Plane && i.normal.dot(n) > 0.999)
+                                solid.face_info(*f).is_ok_and(|i| {
+                                    i.kind == rolidium_kernel::FaceKind::Plane && i.normal.dot(n) > 0.999
+                                })
                             })
                             .max_by(|a, b| {
-                                let ar = |f: &rolidium_kernel::FaceId| solid.face_info(*f).map(|i| i.area).unwrap_or(0.0);
+                                let ar = |f: &rolidium_kernel::FaceId| {
+                                    solid.face_info(*f).map(|i| i.area).unwrap_or(0.0)
+                                };
                                 ar(a).total_cmp(&ar(b))
                             })
                             .ok_or_else(|| format!("the body has no flat face facing {t}"))?;
@@ -644,7 +641,11 @@ impl Runner {
                     None => DVec3::Z,
                 };
                 let n = normal.normalize_or_zero();
-                let x_dir = if n.z.abs() > 0.9 { DVec3::X } else { DVec3::Z.cross(n).normalize_or_zero() };
+                let x_dir = if n.z.abs() > 0.9 {
+                    DVec3::X
+                } else {
+                    DVec3::Z.cross(n).normalize_or_zero()
+                };
                 let word_after = |word: &str| find(word).and_then(|i| w.get(i + 1)).copied();
                 let p = TextParams {
                     target: body,

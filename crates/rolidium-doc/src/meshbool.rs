@@ -241,7 +241,10 @@ impl Job {
 
 /// A hole of a mesh is closed (it is filled flush with its two mouths) or a pin is taken off: the cylinder of the hole or the pin, a little wider than the surface it
 /// replaces, is joined to the mesh (a hole) or cut out of it (a pin) with the Manifold library.
-pub fn close_round(mesh: &TriMesh, cyl: &rolidium_mesh::regions::Cylinder) -> Result<TriMesh, crate::DocError> {
+pub fn close_round(
+    mesh: &TriMesh,
+    cyl: &rolidium_mesh::regions::Cylinder,
+) -> Result<TriMesh, crate::DocError> {
     let axis = rolidium_kernel::DVec3::new(cyl.axis[0], cyl.axis[1], cyl.axis[2]).normalize();
     let point = rolidium_kernel::DVec3::new(cyl.point[0], cyl.point[1], cyl.point[2]);
     let height = cyl.z_range.1 - cyl.z_range.0;
@@ -270,7 +273,12 @@ pub fn close_round(mesh: &TriMesh, cyl: &rolidium_mesh::regions::Cylinder) -> Re
 impl Job {
     /// Text raised from a flat wall of a mesh or engraved into it: the letters are a solid, meshed finely, and joined to the mesh or cut out of it (the Manifold
     /// library). The result is a mesh in the place of the mesh; it is a plain change, not a link.
-    pub(crate) fn mesh_text(&self, mut st: State, body: BodyId, p: &crate::TextParams) -> Result<Computed, DocError> {
+    pub(crate) fn mesh_text(
+        &self,
+        mut st: State,
+        body: BodyId,
+        p: &crate::TextParams,
+    ) -> Result<Computed, DocError> {
         let stop = || rolidium_kernel::cancel_requested();
         let i = st
             .meshes
@@ -287,7 +295,10 @@ impl Job {
             return Err(KernelError::Invalid("The result is empty".into()).into());
         }
         if p.engrave && (r.signed_volume() - before).abs() < 1e-9 * before.abs().max(1.0) {
-            return Err(KernelError::Invalid("The letters do not reach the mesh: there is nothing to engrave".into()).into());
+            return Err(KernelError::Invalid(
+                "The letters do not reach the mesh: there is nothing to engrave".into(),
+            )
+            .into());
         }
         st.meshes[i].mesh = Arc::new(r);
         st.meshes[i].verified = true;

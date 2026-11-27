@@ -942,7 +942,8 @@ impl App {
                     _ => continue,
                 };
                 let curves = crate::snapcurves::curves_of(&s.sketch);
-                let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(hit) <= 40.0 * mpp).collect();
+                let near: Vec<&crate::snapcurves::Curve> =
+                    curves.iter().filter(|c| c.distance(hit) <= 40.0 * mpp).collect();
                 let mut pts: Vec<(DVec2, String)> = Vec::new();
                 for (i, a) in near.iter().enumerate() {
                     for q in a.quadrants() {
@@ -3011,10 +3012,12 @@ impl App {
                             ui.colored_label(
                                 crate::theme::rgb(120, 220, 255),
                                 match want {
-                                    Want::Curve | Want::Face => {
-                                        tr("Click a line, an arc, a circle or an edge: the direction of the row")
+                                    Want::Curve | Want::Face => tr(
+                                        "Click a line, an arc, a circle or an edge: the direction of the row",
+                                    ),
+                                    Want::Point => {
+                                        tr("Click a point of the sketch, a centre of a circle, or an axis")
                                     }
-                                    Want::Point => tr("Click a point of the sketch, a centre of a circle, or an axis"),
                                 },
                             );
                         } else {
@@ -3038,7 +3041,10 @@ impl App {
                         ui.weak(trf("Guide: {}", std::slice::from_ref(&u.sk_guide_label)));
                     }
                     let mut all_now = u.sk_all;
-                    if ui.checkbox(&mut all_now, tr("All the shapes of the sketch")).changed() {
+                    if ui
+                        .checkbox(&mut all_now, tr("All the shapes of the sketch"))
+                        .changed()
+                    {
                         u.sk_all = all_now;
                     }
                 }
@@ -3194,14 +3200,9 @@ impl App {
                         count: u.sk_count,
                         spacing: u.sk_spacing,
                         by_total: u.sk_by_total,
-                        second: u.sk_second.then(|| {
-                            (
-                                glam::DVec2::new(-dir.y, dir.x),
-                                u.sk_count2,
-                                u.sk_spacing2,
-                                false,
-                            )
-                        }),
+                        second: u
+                            .sk_second
+                            .then(|| (glam::DVec2::new(-dir.y, dir.x), u.sk_count2, u.sk_spacing2, false)),
                     },
                 },
                 LinkMode::Circular => Command::SketchPattern {

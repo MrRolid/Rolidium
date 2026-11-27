@@ -409,7 +409,10 @@ fn link_json(l: &crate::Link) -> Value {
                 }),
             );
             j.insert("round_corners".into(), json!(p.round_corners));
-            j.insert("open".into(), Value::Array(p.open.iter().map(face_anchor_json).collect()));
+            j.insert(
+                "open".into(),
+                Value::Array(p.open.iter().map(face_anchor_json).collect()),
+            );
             j.insert(
                 "heavier".into(),
                 Value::Array(
@@ -670,7 +673,9 @@ fn link_from(
             mode: mode()?,
         },
         Some("shell") => LinkKind::Shell(crate::ShellParams {
-            target: j["target"].as_u64().ok_or_else(|| corrupt("a shell without a body"))?,
+            target: j["target"]
+                .as_u64()
+                .ok_or_else(|| corrupt("a shell without a body"))?,
             open: j["open"]
                 .as_array()
                 .map(|a| a.iter().map(face_anchor_from_json).collect::<Result<Vec<_>, _>>())
@@ -694,7 +699,9 @@ fn link_from(
                 .unwrap_or_default(),
         }),
         Some("text") => LinkKind::Text(crate::TextParams {
-            target: j["target"].as_u64().ok_or_else(|| corrupt("a text without a body"))?,
+            target: j["target"]
+                .as_u64()
+                .ok_or_else(|| corrupt("a text without a body"))?,
             text: j["text"].as_str().unwrap_or("").to_string(),
             font: j["font"].as_str().unwrap_or("sans").to_string(),
             bold: j["bold"].as_bool().unwrap_or(false),

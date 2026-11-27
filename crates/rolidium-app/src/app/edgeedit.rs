@@ -597,7 +597,11 @@ impl HoleDrag {
         self.label = None;
         if snap.is_none() && self.edit.values() == (None, None) && tol > 0.0 {
             let mut curves = self.curves.clone();
-            curves.extend(self.edges.iter().map(|(a, b)| crate::snapcurves::Curve::Seg(*a, *b)));
+            curves.extend(
+                self.edges
+                    .iter()
+                    .map(|(a, b)| crate::snapcurves::Curve::Seg(*a, *b)),
+            );
             if let Some((p, l)) = crate::snapcurves::snap_near(raw, tol * 1.5, &self.points, &curves) {
                 pos = p;
                 self.label = Some(l);

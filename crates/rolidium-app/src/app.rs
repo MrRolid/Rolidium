@@ -1281,7 +1281,10 @@ impl App {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         format!("{:?}", self.tool).hash(&mut h);
-        self.sk.as_ref().map(|s| (s.sketch, s.drawing.is_some())).hash(&mut h);
+        self.sk
+            .as_ref()
+            .map(|s| (s.sketch, s.drawing.is_some()))
+            .hash(&mut h);
         self.link_ui.sk_open.map(|m| m as u8).hash(&mut h);
         self.link_ui.sk_preview.len().hash(&mut h);
         self.preview.is_some().hash(&mut h);
@@ -2215,7 +2218,10 @@ impl App {
         sm.set_tool(SkTool::None);
         self.tool = Tool::Select;
         self.layers_changed = true;
-        self.set_status("Select: click a shape, or drag a rectangle (Ctrl or Shift adds)", false);
+        self.set_status(
+            "Select: click a shape, or drag a rectangle (Ctrl or Shift adds)",
+            false,
+        );
     }
 
     /// Ctrl or Shift on a shape of a sketch: adds it to the chosen shapes, or takes it out.
@@ -3724,7 +3730,11 @@ impl App {
         let select = |app: &mut App, add: bool| {
             match (hovered_obj, hovered_region, hovered_face) {
                 // whole bodies are chosen (a double click, the list, a rectangle): Ctrl or Shift on another body adds it, on a chosen one takes it out
-                (None, None, Some((b, _))) if add && (app.body_sel.is_some() || !app.move_sel.is_empty()) && app.selection.is_empty() => {
+                (None, None, Some((b, _)))
+                    if add
+                        && (app.body_sel.is_some() || !app.move_sel.is_empty())
+                        && app.selection.is_empty() =>
+                {
                     let mut set = app.move_sel.clone();
                     if let Some(x) = app.body_sel {
                         if !set.contains(&x) {
