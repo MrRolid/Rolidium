@@ -87,7 +87,7 @@ impl App {
         };
         if let Some(sm) = &mut self.sk {
             // what was typed in the field of the pieces gives way to the count the button made
-            sm.pieces_text = sm.pieces().to_string();
+            sm.pieces_text.clear();
         }
         self.layers_changed = true;
         true

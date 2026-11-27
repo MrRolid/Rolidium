@@ -581,9 +581,8 @@ impl SketchMode {
         // inside a circle the Tab goes from the diameter to the number of pieces and back
         if self.pieces_available() {
             self.pieces_edit = !self.pieces_edit;
-            if self.pieces_edit {
-                self.pieces_text = self.pieces().to_string();
-            }
+            // the field shows the number now; what is typed replaces it
+            self.pieces_text.clear();
             return;
         }
         if self.drawing.is_none() && self.tool != SkTool::None {
