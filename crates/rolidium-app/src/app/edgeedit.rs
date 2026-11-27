@@ -356,6 +356,11 @@ pub struct HoleDrag {
     pub dims: Option<EdgeDims>,
     pub snap: Option<EdgeSnap>,
     pub edit: EdgeEdit,
+    /// The curves and points of the sketches on the plane of the face: the hole snaps to their crossings, quadrants and end points (Shift turns it off).
+    pub curves: Vec<crate::snapcurves::Curve>,
+    pub points: Vec<DVec2>,
+    /// What the centre is snapped to (a label at the hole), `None` when it is free.
+    pub label: Option<&'static str>,
 }
 
 impl App {
@@ -415,6 +420,17 @@ impl App {
                 .map(|(a, b)| (plane.to_2d(*a), plane.to_2d(*b)))
                 .collect();
             let centre0 = plane.to_2d(rim.centre);
+            // the sketches that lie on the face: their curves and points are places the hole can be put at
+            let (mut curves, mut points) = (Vec::new(), Vec::new());
+            for s in self.doc.sketches() {
+                if !s.plane.same_plane(&plane) {
+                    continue;
+                }
+                curves.extend(crate::snapcurves::curves_of(&s.sketch));
+                for (_, e) in s.sketch.entities() {
+                    points.extend(e.snap_points().into_iter().map(|(p, _)| p));
+                }
+            }
             self.selection = vec![(b, f)];
             self.body_sel = None;
             // the panel of the hole next to it has the keyboard focus: while the hole is dragged the typed numbers are the distances
@@ -435,6 +451,9 @@ impl App {
                 dims: None,
                 snap: None,
                 edit: EdgeEdit::default(),
+                curves,
+                points,
+                label: None,
             });
             self.set_status("Drag the hole or the pin, or type the distances to the two edges (Tab switches, Enter confirms, Esc cancels)", false);
             self.layers_changed = true;
@@ -453,7 +472,9 @@ impl App {
                 if let Some(h) = &mut self.hole_drag {
                     if let Some((hit, _)) = h.plane.ray_hit(o.as_dvec3(), d.as_dvec3()) {
                         let raw = h.centre0 + (hit - h.grab);
-                        h.update(raw, 8.0 * mpp);
+                        // Shift turns the snapping off
+                        let off = resp.ctx.input(|i| i.modifiers.shift);
+                        h.update(raw, if off { 0.0 } else { 8.0 * mpp });
                     }
                 }
             }
@@ -542,6 +563,17 @@ impl App {
         if let Some(d) = &h.dims {
             self.paint_edge_dims(ui, rect, &h.plane, h.cur, d, &h.edit, h.snap);
         }
+        if let Some(l) = h.label {
+            if let Some(p) = self.project(h.plane.to_3d(h.cur).as_vec3(), rect) {
+                ui.painter().text(
+                    p + egui::vec2(14.0, -18.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    tr(l),
+                    egui::FontId::proportional(13.0),
+                    crate::theme::rgb(120, 230, 150),
+                );
+            }
+        }
     }
 }
 
@@ -559,6 +591,16 @@ impl HoleDrag {
             if a.is_some() || b.is_some() {
                 pos = d.place(a, b);
                 snap = None;
+            }
+        }
+        // no equal-distance snap: the crossings, quadrants and end points of the sketches on the face
+        self.label = None;
+        if snap.is_none() && self.edit.values() == (None, None) && tol > 0.0 {
+            let mut curves = self.curves.clone();
+            curves.extend(self.edges.iter().map(|(a, b)| crate::snapcurves::Curve::Seg(*a, *b)));
+            if let Some((p, l)) = crate::snapcurves::snap_near(raw, tol * 1.5, &self.points, &curves) {
+                pos = p;
+                self.label = Some(l);
             }
         }
         self.cur = pos;

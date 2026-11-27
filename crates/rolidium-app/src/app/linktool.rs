@@ -926,6 +926,42 @@ impl App {
                 }
             }
         }
+        // the crossings of the lines, arcs and circles of a sketch, and the quadrants of its circles (Shift turns the snapping off)
+        if !resp.ctx.input(|i| i.modifiers.shift) {
+            let aspect = rect.width() / rect.height().max(1.0);
+            let (o, d) = self.camera.ray(Self::ndc(pointer, rect), aspect);
+            for s in self.doc.sketches().iter().filter(|s| s.visible) {
+                let Some((hit, _)) = s.plane.ray_hit(o.as_dvec3(), d.as_dvec3()) else {
+                    continue;
+                };
+                // the pixel in millimetres on this plane, so that the pointer's reach is the same on the screen
+                let p3 = s.plane.to_3d(hit).as_vec3();
+                let q3 = s.plane.to_3d(hit + DVec2::X).as_vec3();
+                let mpp = match (self.project(p3, rect), self.project(q3, rect)) {
+                    (Some(a), Some(b)) if (a - b).length() > 1e-3 => 1.0 / (a - b).length() as f64,
+                    _ => continue,
+                };
+                let curves = crate::snapcurves::curves_of(&s.sketch);
+                let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(hit) <= 40.0 * mpp).collect();
+                let mut pts: Vec<(DVec2, String)> = Vec::new();
+                for (i, a) in near.iter().enumerate() {
+                    for q in a.quadrants() {
+                        pts.push((q, tr("quadrant")));
+                    }
+                    for b in near.iter().skip(i + 1) {
+                        for x in crate::snapcurves::intersections(a, b) {
+                            pts.push((x, tr("intersection")));
+                        }
+                    }
+                }
+                for (q, what) in pts {
+                    let q3 = s.plane.to_3d(q);
+                    if let Some(sp) = self.project(q3.as_vec3(), rect) {
+                        offer((sp - pointer).length(), q3, what, &mut best);
+                    }
+                }
+            }
+        }
         // the centre of a round edge
         if let Some(Obj::Edge(b, e)) = self.hover_obj {
             if let Some(pl) = self.edge_polyline(b, e).filter(|p| p.len() >= 8) {

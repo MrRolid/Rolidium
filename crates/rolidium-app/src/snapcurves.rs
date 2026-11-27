@@ -154,6 +154,80 @@ impl Curve {
 }
 
 /// The points where two curves cross.
+/// The curves of all the shapes of a sketch (lines, rectangles, circles, arcs).
+pub fn curves_of(sk: &rolidium_doc::rolidium_sketch::Sketch) -> Vec<Curve> {
+    use rolidium_doc::rolidium_sketch::Entity;
+    let mut v = Vec::new();
+    for (_, e) in sk.entities() {
+        match *e {
+            Entity::Line { a, b } | Entity::Axis { a, b } => v.push(Curve::Seg(a, b)),
+            Entity::Rect { a, b } => {
+                let (p, q) = (DVec2::new(a.x.min(b.x), a.y.min(b.y)), DVec2::new(a.x.max(b.x), a.y.max(b.y)));
+                v.push(Curve::Seg(p, DVec2::new(q.x, p.y)));
+                v.push(Curve::Seg(DVec2::new(q.x, p.y), q));
+                v.push(Curve::Seg(q, DVec2::new(p.x, q.y)));
+                v.push(Curve::Seg(DVec2::new(p.x, q.y), p));
+            }
+            Entity::Circle { center, radius } => v.push(Curve::Arc {
+                c: center,
+                r: radius,
+                start: 0.0,
+                sweep: TAU,
+            }),
+            Entity::Arc {
+                center,
+                radius,
+                start,
+                sweep,
+            } => v.push(Curve::Arc {
+                c: center,
+                r: radius,
+                start,
+                sweep,
+            }),
+        }
+    }
+    v
+}
+
+/// The point to snap to near `raw` among `points`, the quadrants, the crossings and the nearest points of `curves`, within `r` mm; the label says what it is. The same order as in a
+/// sketch: points and quadrants first, then crossings, then the nearest point of a curve.
+pub fn snap_near(raw: DVec2, r: f64, points: &[DVec2], curves: &[Curve]) -> Option<(DVec2, &'static str)> {
+    let mut best: Option<(f64, DVec2, &'static str)> = None;
+    let consider = |d: f64, p: DVec2, l: &'static str, best: &mut Option<(f64, DVec2, &'static str)>| {
+        if d <= r && best.is_none_or(|(bd, _, _)| d < bd) {
+            *best = Some((d, p, l));
+        }
+    };
+    for p in points {
+        consider(p.distance(raw), *p, "endpoint", &mut best);
+    }
+    let near: Vec<&Curve> = curves.iter().filter(|c| c.distance(raw) <= 3.0 * r).collect();
+    for c in &near {
+        for q in c.quadrants() {
+            consider(q.distance(raw), q, "quadrant", &mut best);
+        }
+    }
+    if let Some((_, p, l)) = best {
+        return Some((p, l));
+    }
+    for (i, a) in near.iter().enumerate() {
+        for b in near.iter().skip(i + 1) {
+            for p in intersections(a, b) {
+                consider(p.distance(raw), p, "intersection", &mut best);
+            }
+        }
+    }
+    if let Some((_, p, l)) = best {
+        return Some((p, l));
+    }
+    for c in &near {
+        let p = c.nearest(raw);
+        consider(p.distance(raw), p, "on curve", &mut best);
+    }
+    best.map(|(_, p, l)| (p, l))
+}
+
 pub fn intersections(a: &Curve, b: &Curve) -> Vec<DVec2> {
     match (*a, *b) {
         (Curve::Seg(p, q), Curve::Seg(r, s)) => {
@@ -313,5 +387,23 @@ mod tests {
             "no tangent from inside"
         );
         assert_eq!(c.feet_from(DVec2::new(8.0, 0.0)).len(), 2);
+    }
+
+    #[test]
+    fn snap_near_finds_a_crossing_a_quadrant_and_the_nearest_point() {
+        let curves = [
+            Curve::Seg(DVec2::new(-10.0, 0.0), DVec2::new(10.0, 0.0)),
+            Curve::Seg(DVec2::new(0.0, -10.0), DVec2::new(0.0, 10.0)),
+        ];
+        let (p, l) = snap_near(DVec2::new(0.3, -0.2), 1.0, &[], &curves).unwrap();
+        assert!(p.length() < 1e-9 && l == "intersection", "{p:?} {l}");
+        let circle = [Curve::Arc { c: DVec2::ZERO, r: 5.0, start: 0.0, sweep: TAU }];
+        let (p, l) = snap_near(DVec2::new(5.2, 0.3), 1.0, &[], &circle).unwrap();
+        assert!((p - DVec2::new(5.0, 0.0)).length() < 1e-9 && l == "quadrant", "{p:?} {l}");
+        let (_, l) = snap_near(DVec2::new(3.5, 3.6), 1.0, &[], &circle).unwrap();
+        assert_eq!(l, "on curve");
+        assert!(snap_near(DVec2::new(20.0, 20.0), 1.0, &[], &circle).is_none());
+        let (p, l) = snap_near(DVec2::new(1.0, 1.0), 2.0, &[DVec2::new(1.5, 1.0)], &[]).unwrap();
+        assert!((p.x - 1.5).abs() < 1e-9 && l == "endpoint");
     }
 }
