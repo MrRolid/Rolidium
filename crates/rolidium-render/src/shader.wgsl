@@ -20,8 +20,16 @@ struct Globals {
     grid_col: vec4<f32>,
     x_col: vec4<f32>,
     y_col: vec4<f32>,
+    // the section: a plane (a point p is kept when dot(clip.xyz, p) + clip.w >= 0); opts.x is 1 when it is on, opts.y the opacity of bodies in the X-ray view
+    // (1: opaque), opts.z the opacity of the selected ones in it, opts.w is 1 when the inside of a cut body is coloured (the section is filled)
+    clip: vec4<f32>,
+    opts: vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> g: Globals;
+
+fn clipped(p: vec3<f32>) -> bool {
+    return g.opts.x > 0.5 && dot(g.clip.xyz, p) + g.clip.w < 0.0;
+}
 
 struct Body {
     color: vec4<f32>,
@@ -77,29 +85,37 @@ fn body_tint(id: u32, c: vec3<f32>) -> vec3<f32> {
 fn fs_mesh(i: VOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     // a mesh from an STL file has no normals (zero): the flat normal of the triangle is taken from the change of the position over the pixels
     let flat_n = cross(dpdx(i.world), dpdy(i.world));
+    if (clipped(i.world)) { discard; }
     var n = i.normal;
     if (dot(n, n) < 0.25) { n = flat_n; }
     n = normalize(n);
     let view = normalize(g.eye.xyz - i.world);
+    // the inside of a body seen through the section: the cut is filled with one colour
+    if (g.opts.x > 0.5 && g.opts.w > 0.5 && !front) {
+        return vec4<f32>(0.95, 0.62, 0.25, 1.0);
+    }
     if (dot(n, view) < 0.0) { n = -n; }
     let key = normalize(vec3<f32>(0.4, -0.5, 0.8));
     let diffuse = 0.30 + 0.50 * max(dot(n, view), 0.0) + 0.25 * max(dot(n, key), 0.0);
     var c = body.color.rgb * diffuse;
     if (i.id == g.hover) { c = mix(c, vec3<f32>(1.0, 0.72, 0.25), 0.55); }
     if (is_selected(i.id)) { c = mix(c, vec3<f32>(0.20, 0.50, 1.0), 0.65); }
-    c = body_tint(i.id, c);
-    return vec4<f32>(c, 1.0);
+    let tinted = body_tint(i.id, c);
+    var alpha = g.opts.y;
+    if (any(tinted != c) || is_selected(i.id)) { alpha = max(alpha, g.opts.z); }
+    return vec4<f32>(tinted, alpha);
 }
 
 // ---- face ID pass ----
 @fragment
 fn fs_id(i: VOut) -> @location(0) u32 {
+    if (clipped(i.world)) { discard; }
     return i.id;
 }
 
 // ---- lines ----
 struct LIn { @location(0) pos: vec3<f32> }
-struct LOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32> }
+struct LOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32>, @location(1) world: vec3<f32> }
 
 struct LineStyle { color: vec4<f32> }
 @group(1) @binding(0) var<uniform> line_style: LineStyle;
@@ -111,11 +127,13 @@ fn vs_line(v: LIn) -> LOut {
     // Pull lines slightly towards the camera so they win over coplanar faces.
     o.clip.z = o.clip.z - 0.00005 * o.clip.w;
     o.color = line_style.color;
+    o.world = v.pos;
     return o;
 }
 
 @fragment
 fn fs_line(i: LOut) -> @location(0) vec4<f32> {
+    if (clipped(i.world)) { discard; }
     return i.color;
 }
 
@@ -148,6 +166,8 @@ fn vs_thick(i: TIn) -> LOut {
     let off = nrm * side * g.viewport.z * 0.5 * 2.0 / g.viewport.xy * base.w;
     o.clip = vec4<f32>(base.xy + off, base.z - 0.0003 * base.w, base.w);
     o.color = line_style.color;
+    o.world = i.a;
+    if (at_b) { o.world = i.b; }
     return o;
 }
 
@@ -158,6 +178,7 @@ fn vs_prev(v: LIn) -> LOut {
     o.clip = g.view_proj * vec4<f32>(v.pos, 1.0);
     o.clip.z = o.clip.z - 0.0001 * o.clip.w;
     o.color = line_style.color;
+    o.world = v.pos;
     return o;
 }
 

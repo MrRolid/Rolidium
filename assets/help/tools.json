@@ -551,5 +551,28 @@
     ],
     "illustration": "text.svg",
     "animation": null
+  },
+  {
+    "id": "xray",
+    "title": "X-ray",
+    "shortcut": "Q",
+    "text": "Shows every body half transparent with all its edges, so you can see inside: the walls of a shell, holes, parts that hide each other. The selected body is less transparent. It works together with every tool and with the section.",
+    "tips": [
+      "Press Q again to go back to the solid view."
+    ],
+    "illustration": "xray.svg",
+    "animation": null
+  },
+  {
+    "id": "section",
+    "title": "Section",
+    "shortcut": "Y",
+    "text": "Cuts the picture with a plane (the model is not changed): choose X, Y or Z, or click a flat face, and move the plane with the slider or type its position. The cut is filled with colour. Flip chooses which side is cut away. It works together with every tool, so you can see the thickness of a wall while you make a shell.",
+    "tips": [
+      "Press Y again to turn the section off.",
+      "Clicking a body or a face while the section is on picks only what is shown."
+    ],
+    "illustration": "section.svg",
+    "animation": null
   }
 ]

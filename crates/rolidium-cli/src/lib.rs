@@ -71,6 +71,9 @@ pub enum CliError {
 
 pub struct Runner {
     pub doc: Document,
+    /// The X-ray view and the section of the next `render` (see the words of the command).
+    render_xray: bool,
+    render_clip: Option<[f32; 4]>,
     gpu: Option<(
         rolidium_render::wgpu::Device,
         rolidium_render::wgpu::Queue,
@@ -180,6 +183,8 @@ impl Runner {
     pub fn new() -> Self {
         Runner {
             doc: Document::new(),
+            render_xray: false,
+            render_clip: None,
             gpu: None,
             log: Vec::new(),
             plane: None,
@@ -1550,6 +1555,27 @@ impl Runner {
                 let (mut width, mut height) = (800u32, 600u32);
                 let mut view = StandardView::Isometric;
                 let mut rest = &w[2..];
+                // the X-ray view and a section: `xray`, `section x|y|z <position> [flip]` after the view
+                self.render_xray = rest.contains(&"xray");
+                self.render_clip = None;
+                if let Some(i) = rest.iter().position(|t| *t == "section") {
+                    let axis = match rest.get(i + 1) {
+                        Some(&"x") => [1.0f32, 0.0, 0.0],
+                        Some(&"y") => [0.0, 1.0, 0.0],
+                        Some(&"z") => [0.0, 0.0, 1.0],
+                        _ => return Err("section needs x, y or z and a position".into()),
+                    };
+                    let pos: f32 = rest
+                        .get(i + 2)
+                        .and_then(|t| t.replace(',', ".").parse().ok())
+                        .ok_or("section needs a position in mm")?;
+                    let sign = if rest.contains(&"flip") { -1.0 } else { 1.0 };
+                    // what lies on the side of the normal beyond the position stays
+                    self.render_clip = Some([axis[0] * sign, axis[1] * sign, axis[2] * sign, -pos * sign]);
+                    rest = &rest[..i];
+                }
+                let rest_xray: Vec<&str> = rest.iter().copied().filter(|t| *t != "xray").collect();
+                let mut rest = &rest_xray[..];
                 if rest.len() >= 2 {
                     if let (Ok(a), Ok(b)) = (rest[0].parse(), rest[1].parse()) {
                         width = a;
@@ -1698,6 +1724,8 @@ impl Runner {
             render_ids: true,
             grid_levels: None,
             scene_radius: 0.0,
+            xray: self.render_xray,
+            clip: self.render_clip,
         };
         let rgba = renderer
             .render_to_rgba(device, queue, &frame)

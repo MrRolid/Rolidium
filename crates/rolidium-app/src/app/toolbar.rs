@@ -681,6 +681,19 @@ impl App {
                 }
             }
         });
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 3.0;
+            icons::stateful();
+            if icons::icon_button_why(ui, &self.help, "xray", &format!("{} (Q)", tr("X-ray")), self.xray, None, 34.0, "Q").clicked() {
+                self.toggle_xray();
+            }
+            icons::stateful();
+            let r = icons::icon_button_why(ui, &self.help, "section", &format!("{} (Y)", tr("Section")), self.section.on, None, 34.0, "Y");
+            self.probe_widget("section_button", r.rect);
+            if r.clicked() {
+                self.toggle_section();
+            }
+        });
         if icons::tool_button_why(ui, &self.help, "fit_all", &tr("Fit all"), false, None).clicked() {
             self.fit_all();
         }

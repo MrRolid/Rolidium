@@ -56,6 +56,8 @@ struct Globals {
     grid_col: [f32; 4],
     x_col: [f32; 4],
     y_col: [f32; 4],
+    clip: [f32; 4],
+    opts: [f32; 4],
 }
 
 pub struct BodyDraw<'a> {
@@ -154,6 +156,10 @@ pub struct Frame {
     pub grid_levels: Option<(f32, f32)>,
     /// Radius of the model (mm), 0 when unknown: the grid is drawn at least this far.
     pub scene_radius: f32,
+    /// The X-ray view: every body is half transparent (the edges of all of them are seen), the selected ones less so.
+    pub xray: bool,
+    /// The section: a plane `[nx, ny, nz, d]`; what lies on the side where `n . p + d` is negative is not drawn (and cannot be picked). The inside of the cut bodies is coloured.
+    pub clip: Option<[f32; 4]>,
 }
 
 struct GpuBody {
@@ -211,6 +217,7 @@ const MAP_FAILED: u32 = u32::MAX - 1;
 
 pub struct Renderer {
     mesh_pipe: wgpu::RenderPipeline,
+    mesh_xray_pipe: wgpu::RenderPipeline,
     id_pipe: wgpu::RenderPipeline,
     line_pipe: wgpu::RenderPipeline,
     prev_tri_pipe: wgpu::RenderPipeline,
@@ -379,6 +386,27 @@ impl Renderer {
             }),
             primitive: prim(wgpu::PrimitiveTopology::TriangleList),
             depth_stencil: Some(depth(true, 2)),
+            multisample: ms,
+            multiview_mask: None,
+            cache: None,
+        });
+        let mesh_xray_pipe = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("mesh x-ray"),
+            layout: Some(&scene_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_mesh"),
+                compilation_options: Default::default(),
+                buffers: &[Some(mesh_vb.clone())],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_mesh"),
+                compilation_options: Default::default(),
+                targets: &[color_target(alpha)],
+            }),
+            primitive: prim(wgpu::PrimitiveTopology::TriangleList),
+            depth_stencil: Some(depth(false, 0)),
             multisample: ms,
             multiview_mask: None,
             cache: None,
@@ -561,6 +589,7 @@ impl Renderer {
 
         Renderer {
             mesh_pipe,
+            mesh_xray_pipe,
             id_pipe,
             line_pipe,
             prev_tri_pipe,
@@ -906,6 +935,13 @@ impl Renderer {
                 let c = grid_colors(background_lightness());
                 [c.2[0], c.2[1], c.2[2], 0.0]
             },
+            clip: frame.clip.unwrap_or([0.0; 4]),
+            opts: [
+                if frame.clip.is_some() { 1.0 } else { 0.0 },
+                if frame.xray { 0.26 } else { 1.0 },
+                if frame.xray { 0.62 } else { 1.0 },
+                if frame.clip.is_some() { 1.0 } else { 0.0 },
+            ],
         };
         queue.write_buffer(&self.globals_buf, 0, bytemuck::bytes_of(&g));
         let zlen = frame.camera.distance * 0.35;
@@ -951,7 +987,7 @@ impl Renderer {
                 multiview_mask: None,
             });
             pass.set_bind_group(0, &self.globals_bind, &[]);
-            pass.set_pipeline(&self.mesh_pipe);
+            pass.set_pipeline(if frame.xray { &self.mesh_xray_pipe } else { &self.mesh_pipe });
             for b in &self.bodies {
                 pass.set_bind_group(1, &b.bind, &[]);
                 pass.set_vertex_buffer(0, b.vbuf.slice(..));

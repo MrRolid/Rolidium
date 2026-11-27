@@ -251,6 +251,11 @@ impl App {
                                 self.shell.error = None;
                                 self.shell.notes = notes;
                                 self.shell.preview_on = true;
+                                // the thickness of the walls is seen only through a cut or through the walls: a section through the middle of the body
+                                if !self.section.by_tool {
+                                    let c = self.doc.body(body).and_then(|b| b.solid.bounding_box().ok()).map(|(lo, hi)| (lo + hi) * 0.5);
+                                    self.section_for_tool(true, c);
+                                }
                                 self.set_preview(Some(meshops::PreviewMesh {
                                     mesh,
                                     hides: Some(body),
@@ -298,6 +303,7 @@ impl App {
     }
 
     pub(super) fn shell_close(&mut self) {
+        self.section_for_tool(false, None);
         self.shell = ShellUi::default();
         self.drop_mesh_previews();
         self.clear_selection();

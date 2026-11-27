@@ -346,38 +346,49 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
     } else {
         (p.origin - n * OVER, p.depth + OVER)
     };
-    let to_loop = |pts: &[glam::DVec2]| -> Vec<ProfileSegment> {
-        (0..pts.len())
-            .map(|i| ProfileSegment::Line {
-                a: [pts[i].x, pts[i].y],
-                b: [pts[(i + 1) % pts.len()].x, pts[(i + 1) % pts.len()].y],
+    // the outlines are the curves of the font (exact Bezier curves), so a letter has a face for every piece of it, not for every short line
+    let to_loop = |segs: &[rolidium_text::Seg]| -> Vec<ProfileSegment> {
+        use rolidium_text::Seg;
+        let q = |p: glam::DVec2| [p.x, p.y];
+        segs.iter()
+            .map(|g| match *g {
+                Seg::Line(a, b) => ProfileSegment::Line { a: q(a), b: q(b) },
+                Seg::Quad(a, c, b) => ProfileSegment::Quad { a: q(a), c: q(c), b: q(b) },
+                Seg::Cubic(a, c1, c2, b) => ProfileSegment::Cubic { a: q(a), c1: q(c1), c2: q(c2), b: q(b) },
             })
             .collect()
     };
     let mut solids: Vec<Solid> = Vec::new();
-    for s in &shapes {
-        let mut loops = vec![to_loop(&s.outer)];
-        loops.extend(s.holes.iter().map(|h| to_loop(h)));
+    for (k, s) in shapes.iter().enumerate() {
+        crate::progress::set("Making the letters", 0.05 + 0.5 * k as f32 / shapes.len().max(1) as f32);
+        let mut loops = vec![to_loop(&s.outer_curves)];
+        loops.extend(s.hole_curves.iter().map(|h| to_loop(h)));
         let prism = Solid::extrude_profile(&Profile { loops }, start, n, x, dist)?;
         solids.push(prism);
     }
     if solids.len() == 1 {
         return Ok(solids.remove(0));
     }
-    // letters that touch (the parts of an accented letter that overlap) are fused first, so that the tool is a clean set of separate solids
+    // letters that touch (the parts of an accented letter that overlap) are fused first, so that the tool is a clean set of separate solids; only the pairs whose
+    // boxes meet are looked at (the boxes are made once)
+    let mut boxes: Vec<(DVec3, DVec3)> = Vec::with_capacity(solids.len());
+    for s in &solids {
+        boxes.push(s.bounding_box()?);
+    }
+    let meet = |a: &(DVec3, DVec3), b: &(DVec3, DVec3)| {
+        let g = DVec3::splat(1e-6);
+        (a.0 - g).cmple(b.1).all() && (b.0 - g).cmple(a.1).all()
+    };
     let mut i = 0;
     while i < solids.len() {
         let mut merged = false;
         for j in (i + 1)..solids.len() {
-            if solids[i].may_be_within(&solids[j], 1e-6)
-                && solids[i]
-                    .distance_to(&solids[j])
-                    .map(|d| d < 1e-6)
-                    .unwrap_or(false)
-            {
+            if meet(&boxes[i], &boxes[j]) && solids[i].distance_to(&solids[j]).map(|d| d < 1e-6).unwrap_or(false) {
                 let f = solids[i].boolean_checked(&solids[j], BooleanOp::Fuse)?.solid;
+                boxes[i] = f.bounding_box()?;
                 solids[i] = f;
                 solids.remove(j);
+                boxes.remove(j);
                 merged = true;
                 break;
             }
@@ -393,6 +404,7 @@ pub fn text_tool(p: &TextParams) -> Result<Solid, DocError> {
 /// The text raised from `base` or engraved into it.
 pub fn apply_text(base: &Solid, p: &TextParams) -> Result<Solid, DocError> {
     let tool = text_tool(p)?;
+    crate::progress::set("Joining the letters to the body", 0.6);
     let op = if p.engrave {
         BooleanOp::Cut
     } else {

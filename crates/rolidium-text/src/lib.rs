@@ -124,9 +124,51 @@ impl Default for Style {
     }
 }
 
+/// One piece of an outline as the font gives it: a line, a quadratic or a cubic Bezier curve (millimetres).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Seg {
+    Line(DVec2, DVec2),
+    Quad(DVec2, DVec2, DVec2),
+    Cubic(DVec2, DVec2, DVec2, DVec2),
+}
+
+impl Seg {
+    pub fn start(&self) -> DVec2 {
+        match *self {
+            Seg::Line(a, _) | Seg::Quad(a, _, _) | Seg::Cubic(a, _, _, _) => a,
+        }
+    }
+    pub fn end(&self) -> DVec2 {
+        match *self {
+            Seg::Line(_, b) | Seg::Quad(_, _, b) | Seg::Cubic(_, _, _, b) => b,
+        }
+    }
+    pub fn reversed(&self) -> Seg {
+        match *self {
+            Seg::Line(a, b) => Seg::Line(b, a),
+            Seg::Quad(a, c, b) => Seg::Quad(b, c, a),
+            Seg::Cubic(a, c1, c2, b) => Seg::Cubic(b, c2, c1, a),
+        }
+    }
+    fn map(&self, f: impl Fn(DVec2) -> DVec2) -> Seg {
+        match *self {
+            Seg::Line(a, b) => Seg::Line(f(a), f(b)),
+            Seg::Quad(a, c, b) => Seg::Quad(f(a), f(c), f(b)),
+            Seg::Cubic(a, c1, c2, b) => Seg::Cubic(f(a), f(c1), f(c2), f(b)),
+        }
+    }
+}
+
+/// An outline turned the other way round.
+pub fn reverse_outline(c: &[Seg]) -> Vec<Seg> {
+    c.iter().rev().map(Seg::reversed).collect()
+}
+
 /// The laid out text.
 #[derive(Debug, Clone, Default)]
 pub struct Layout {
+    /// The same outlines as `contours` as the curves of the font (the same order): the exact curves, not the short lines.
+    pub curves: Vec<Vec<Seg>>,
     /// Closed polylines (the last point is not repeated), in mm, the origin at the start (left), the middle or the end (right) of the baseline of the first line.
     pub contours: Vec<Vec<DVec2>>,
     /// Characters the font has no letter for (they are left out).
@@ -135,11 +177,13 @@ pub struct Layout {
     pub max: DVec2,
 }
 
-/// A shape of the text: an outer outline and the holes inside it.
+/// A shape of the text: an outer outline and the holes inside it (as short lines, and as the curves of the font).
 #[derive(Debug, Clone)]
 pub struct Shape {
     pub outer: Vec<DVec2>,
     pub holes: Vec<Vec<DVec2>>,
+    pub outer_curves: Vec<Seg>,
+    pub hole_curves: Vec<Vec<Seg>>,
 }
 
 struct Pen {
@@ -150,6 +194,10 @@ struct Pen {
     done: Vec<Vec<DVec2>>,
     cur: Vec<DVec2>,
     last: DVec2,
+    /// The curves of the outline being drawn (font units) and of the finished ones.
+    segs: Vec<Seg>,
+    segs_done: Vec<Vec<Seg>>,
+    start: DVec2,
 }
 
 impl Pen {
@@ -160,11 +208,19 @@ impl Pen {
         if self.cur.len() > 1 && self.cur.first() == self.cur.last() {
             self.cur.pop();
         }
+        // the outline is closed by a line when its last point is not the first
+        if self.last.distance_squared(self.start) > 1e-12 && !self.segs.is_empty() {
+            self.segs.push(Seg::Line(self.last, self.start));
+        }
         if self.cur.len() >= 3 {
             let c = std::mem::take(&mut self.cur);
             self.done.push(c);
+            let sg = std::mem::take(&mut self.segs);
+            let (dx, dy, k) = (self.dx, self.dy, self.scale);
+            self.segs_done.push(sg.iter().map(|g| g.map(|p| DVec2::new(dx + p.x * k, dy + p.y * k))).collect());
         } else {
             self.cur.clear();
+            self.segs.clear();
         }
     }
     fn push(&mut self, p: DVec2) {
@@ -180,14 +236,21 @@ impl OutlinePen for Pen {
     fn move_to(&mut self, x: f32, y: f32) {
         self.flush();
         let p = self.raw(x, y);
+        self.start = p;
         self.push(p);
     }
     fn line_to(&mut self, x: f32, y: f32) {
         let p = self.raw(x, y);
+        if self.last.distance_squared(p) > 1e-18 {
+            self.segs.push(Seg::Line(self.last, p));
+        }
         self.push(p);
     }
     fn quad_to(&mut self, cx: f32, cy: f32, x: f32, y: f32) {
         let (p0, c, p1) = (self.last, self.raw(cx, cy), self.raw(x, y));
+        if p0.distance_squared(p1) > 1e-18 {
+            self.segs.push(Seg::Quad(p0, c, p1));
+        }
         let dev = (p0 - 2.0 * c + p1).length() / 4.0;
         let n = ((dev / self.tol_units).sqrt().ceil() as usize).clamp(1, 64);
         for i in 1..=n {
@@ -198,6 +261,9 @@ impl OutlinePen for Pen {
     }
     fn curve_to(&mut self, c1x: f32, c1y: f32, c2x: f32, c2y: f32, x: f32, y: f32) {
         let (p0, c1, c2, p1) = (self.last, self.raw(c1x, c1y), self.raw(c2x, c2y), self.raw(x, y));
+        if p0.distance_squared(p1) > 1e-18 {
+            self.segs.push(Seg::Cubic(p0, c1, c2, p1));
+        }
         let dev = ((p0 - 2.0 * c1 + c2).length().max((c1 - 2.0 * c2 + p1).length())) * 0.75;
         let n = ((dev / self.tol_units).sqrt().ceil() as usize).clamp(1, 64);
         for i in 1..=n {
@@ -244,13 +310,13 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
     let (sr, cr) = rot.sin_cos();
     // first the lines as outlines with their own widths, then the alignment
     struct Line {
-        contours: Vec<Vec<DVec2>>,
+        contours: Vec<(Vec<DVec2>, Vec<Seg>)>,
         width: f64,
     }
     let mut lines: Vec<Line> = Vec::new();
     for raw in text.split('\n') {
         let mut x = 0.0;
-        let mut contours = Vec::new();
+        let mut contours: Vec<(Vec<DVec2>, Vec<Seg>)> = Vec::new();
         let mut last_visible = 0.0;
         for ch in raw.chars() {
             if ch == '\r' {
@@ -272,6 +338,9 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
                     done: Vec::new(),
                     cur: Vec::new(),
                     last: DVec2::ZERO,
+                    segs: Vec::new(),
+                    segs_done: Vec::new(),
+                    start: DVec2::ZERO,
                 };
                 if g.draw(
                     DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
@@ -280,7 +349,7 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
                 .is_ok()
                 {
                     pen.flush();
-                    contours.extend(pen.done);
+                    contours.extend(pen.done.into_iter().zip(pen.segs_done));
                 }
             }
             x += adv + style.spacing;
@@ -301,19 +370,18 @@ pub fn layout(text: &str, style: &Style) -> Result<Layout, TextError> {
             Align::Centre => -l.width / 2.0,
             Align::Right => -l.width,
         };
-        for c in &l.contours {
-            let moved: Vec<DVec2> = c
-                .iter()
-                .map(|p| {
-                    let q = DVec2::new(p.x + shift, p.y - line_height * i as f64);
-                    DVec2::new(q.x * cr - q.y * sr, q.x * sr + q.y * cr)
-                })
-                .collect();
+        let place = |p: DVec2| {
+            let q = DVec2::new(p.x + shift, p.y - line_height * i as f64);
+            DVec2::new(q.x * cr - q.y * sr, q.x * sr + q.y * cr)
+        };
+        for (c, sg) in &l.contours {
+            let moved: Vec<DVec2> = c.iter().map(|p| place(*p)).collect();
             for p in &moved {
                 lo = lo.min(*p);
                 hi = hi.max(*p);
             }
             out.contours.push(moved);
+            out.curves.push(sg.iter().map(|g| g.map(place)).collect());
         }
     }
     if out.contours.is_empty() {
@@ -361,7 +429,7 @@ fn probe_point(c: &[DVec2]) -> DVec2 {
 
 /// Groups outlines into shapes: an outline inside no other is an outer outline; one inside an odd number is a hole of the smallest outline round it.
 /// Outer outlines come out counter-clockwise, holes clockwise.
-pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
+pub fn shapes(contours: &[Vec<DVec2>], curves: &[Vec<Seg>]) -> Vec<Shape> {
     let n = contours.len();
     let probes: Vec<DVec2> = contours.iter().map(|c| probe_point(c)).collect();
     let areas: Vec<f64> = contours.iter().map(|c| area(c).abs()).collect();
@@ -382,13 +450,17 @@ pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
         let depth = around[*i].len();
         if depth.is_multiple_of(2) {
             let mut c = contours[*i].clone();
+            let mut sg = curves.get(*i).cloned().unwrap_or_default();
             if area(&c) < 0.0 {
                 c.reverse();
+                sg = reverse_outline(&sg);
             }
             index_of[*i] = Some(shapes.len());
             shapes.push(Shape {
                 outer: c,
                 holes: Vec::new(),
+                outer_curves: sg,
+                hole_curves: Vec::new(),
             });
         }
     }
@@ -403,10 +475,13 @@ pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
                 .min_by(|a, b| areas[*a].total_cmp(&areas[*b]));
             if let Some(si) = parent.and_then(|p| index_of[p]) {
                 let mut c = contours[*i].clone();
+                let mut sg = curves.get(*i).cloned().unwrap_or_default();
                 if area(&c) > 0.0 {
                     c.reverse();
+                    sg = reverse_outline(&sg);
                 }
                 shapes[si].holes.push(c);
+                shapes[si].hole_curves.push(sg);
             }
         }
     }
@@ -416,7 +491,7 @@ pub fn shapes(contours: &[Vec<DVec2>]) -> Vec<Shape> {
 /// Lays the text out and groups it into shapes.
 pub fn text_shapes(text: &str, style: &Style) -> Result<(Vec<Shape>, Layout), TextError> {
     let l = layout(text, style)?;
-    let s = shapes(&l.contours);
+    let s = shapes(&l.contours, &l.curves);
     if s.is_empty() {
         return Err(TextError::Empty);
     }

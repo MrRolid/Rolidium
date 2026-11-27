@@ -287,6 +287,8 @@ fn viewport_bench() {
         render_ids: true,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     r.render_and_wait(&device, &queue, &frame).unwrap();
     let t = time_ms(15, || r.render_and_wait(&device, &queue, &frame).unwrap());

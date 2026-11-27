@@ -92,6 +92,8 @@
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <TColgp_Array1OfPnt.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepOffset_Mode.hxx>
 #include <GeomAbs_JoinType.hxx>
@@ -437,6 +439,18 @@ std::shared_ptr<Shape> make_planar_face(std::array<double, 9> pl, rust::Slice<co
                     gp_Circ c(gp_Ax2(P(prof[i + 1], prof[i + 2]), n), prof[i + 3]);
                     e = BRepBuilderAPI_MakeEdge(c);
                     i += 4;
+                } else if (kind == 4 || kind == 5) {
+                    const size_t need = kind == 4 ? 7 : 9;
+                    if (i + need > n_all) fail("malformed profile");
+                    const size_t np = kind == 4 ? 3 : 4;
+                    TColgp_Array1OfPnt poles(1, (int)np);
+                    for (size_t k = 0; k < np; ++k) poles.SetValue((int)k + 1, P(prof[i + 1 + 2 * k], prof[i + 2 + 2 * k]));
+                    if (poles.Value(1).Distance(poles.Value((int)np)) < 1e-9) fail("zero-length curve in profile");
+                    Handle(Geom_BezierCurve) bc = new Geom_BezierCurve(poles);
+                    BRepBuilderAPI_MakeEdge me(bc);
+                    if (!me.IsDone()) fail("a curve of the profile could not be made");
+                    e = me.Edge();
+                    i += need;
                 } else {
                     fail("unknown profile segment kind");
                 }

@@ -68,6 +68,7 @@ mod texttool;
 mod toolbar;
 mod updates;
 mod viewanim;
+mod viewmodes;
 pub use bench::Bench;
 use edgepull::EdgePrev;
 use files::Pending;
@@ -261,6 +262,9 @@ pub struct App {
     layers_sig: u64,
     /// The Shell tool and the Text tool.
     shell: shelltool::ShellUi,
+    /// The X-ray view and the section (only the picture changes).
+    xray: bool,
+    section: viewmodes::SectionUi,
     text: texttool::TextUi,
     /// How many vertices of curves the last uploaded layers hold (for the self-test: what is drawn must match the document).
     drawn_curve_vertices: usize,
@@ -554,6 +558,8 @@ impl App {
             layers_changed: true,
             layers_sig: 0,
             shell: Default::default(),
+            xray: false,
+            section: Default::default(),
             text: Default::default(),
             drawn_curve_vertices: 0,
             drawn_sk_preview: 0,
@@ -2682,6 +2688,8 @@ impl App {
                 Key::T => self.activate_link_tool(linktool::LinkMode::Linear),
                 Key::B => self.activate_link_tool(linktool::LinkMode::Mirror),
                 Key::G => self.activate_text(),
+                Key::Q => self.toggle_xray(),
+                Key::Y => self.toggle_section(),
                 // K finishes the sketch (as the main button does); D and P still work
                 Key::K => self.leave_sketch(),
                 // S selects the shapes of the sketch (rectangle, Ctrl, Shift) and stays in the sketch; D leaves it
@@ -2807,6 +2815,8 @@ impl App {
             Key::W => self.activate_sweep(),
             Key::H => self.activate_helix(),
             Key::O => self.activate_shell(),
+            Key::Q => self.toggle_xray(),
+            Key::Y => self.toggle_section(),
             Key::G => self.activate_text(),
             Key::K => self.enter_sketch(),
             // the drawing tools from the 3D view (L stays the Loft here: the line is Shift+L or its button)
@@ -3600,6 +3610,8 @@ impl App {
                 render_ids,
                 grid_levels: Some(self.grid_levels(rect)),
                 scene_radius,
+                xray: self.xray,
+                clip: self.view_clip(),
             },
             pick_at,
             new_bodies: if std::mem::take(&mut self.meshes_changed) {
@@ -3825,6 +3837,9 @@ impl App {
         };
         if self.revolve.is_some() {
             self.revolve_input(resp, pointer, rect);
+            return;
+        }
+        if self.section_pick_click(resp, hovered_face) {
             return;
         }
         if self.stretch_pick_click(resp) {
@@ -5788,6 +5803,7 @@ impl eframe::App for App {
         prof!("link_panel", self.link_panel(&ctx, vr));
         prof!("sketch_pattern_panel", self.sketch_pattern_panel(&ctx, vr));
         prof!("shell_panel", self.shell_panel(&ctx, vr));
+        prof!("section_panel", self.section_panel(&ctx, vr));
         prof!("text_panel", self.text_panel(&ctx, vr));
         prof!("busy_overlay", self.busy_overlay(&ctx, vr));
         self.mesh_overlay(&ctx, vr);

@@ -54,6 +54,19 @@ pub enum ProfileSegment {
         center: [f64; 2],
         radius: f64,
     },
+    /// A quadratic Bezier curve (the curves of a TrueType font): one exact curve, not many short lines.
+    Quad {
+        a: [f64; 2],
+        c: [f64; 2],
+        b: [f64; 2],
+    },
+    /// A cubic Bezier curve.
+    Cubic {
+        a: [f64; 2],
+        c1: [f64; 2],
+        c2: [f64; 2],
+        b: [f64; 2],
+    },
 }
 
 /// Closed loops of segments. The first loop is the outer boundary, the rest are holes.
@@ -76,6 +89,10 @@ impl Profile {
                     }
                     ProfileSegment::Circle { center, radius } => {
                         v.extend([3.0, center[0], center[1], radius])
+                    }
+                    ProfileSegment::Quad { a, c, b } => v.extend([4.0, a[0], a[1], c[0], c[1], b[0], b[1]]),
+                    ProfileSegment::Cubic { a, c1, c2, b } => {
+                        v.extend([5.0, a[0], a[1], c1[0], c1[1], c2[0], c2[1], b[0], b[1]])
                     }
                 }
             }

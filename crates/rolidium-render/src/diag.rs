@@ -284,6 +284,8 @@ pub fn render_test_scene(
         render_ids: true,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     let rgba = r.render_to_rgba(device, queue, &frame)?;
     let check = check_picture(&rgba);

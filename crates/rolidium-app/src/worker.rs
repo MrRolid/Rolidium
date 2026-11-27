@@ -198,6 +198,8 @@ fn preview_png(gpu: &GpuHandle, meshes: &[MeshEntry]) -> Option<Vec<u8>> {
         render_ids: false,
         grid_levels: None,
         scene_radius: 0.0,
+        xray: false,
+        clip: None,
     };
     let rgba = r.render_to_rgba(&gpu.device, &gpu.queue, &frame).ok()?;
     rolidium_render::encode_png(&rgba, 320, 240).ok()
