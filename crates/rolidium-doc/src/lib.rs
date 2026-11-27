@@ -30,9 +30,9 @@ pub mod meshsolid;
 pub mod progress;
 mod sketchops;
 pub use links::{
-    linear_through, link_of_result, placements_of, rect_fill, sketch_line_in_space, sketch_mirror_plane,
-    Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams, Link, LinkId,
-    LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES, path_places,
+    linear_through, link_of_result, path_places, placements_of, rect_fill, sketch_line_in_space,
+    sketch_mirror_plane, Axis, CircularParams, Direction2, EdgeSides, FillRule, Group, GroupId, LinearParams,
+    Link, LinkId, LinkKind, MirrorParams, PathParams, PatternMode, RectFill, RectRef, RectTarget, MAX_PIECES,
 };
 pub use meshes::{MeshBody, NewMesh, RepairKind, MESH_COLOR};
 pub use sketchops::{entity_dims, entity_with_dims, preview_mirror, preview_pattern, SketchPattern};
@@ -873,7 +873,13 @@ pub fn region_profile(r: &Region) -> Profile {
 impl Job {
     /// A pull of a round face: the face moves along its outward normal by `distance`, so a hole (the normal points to its axis) gets smaller, a pin (the normal points
     /// away from it) bigger, and the size of a round gets smaller by the distance. A diameter or a size that reaches zero removes the hole, the pin or the round.
-    fn pull_round(&self, mut st: State, body: BodyId, face: FaceId, distance: f64) -> Result<Computed, DocError> {
+    fn pull_round(
+        &self,
+        mut st: State,
+        body: BodyId,
+        face: FaceId,
+        distance: f64,
+    ) -> Result<Computed, DocError> {
         if !distance.is_finite() || distance.abs() < 1e-6 {
             return Err(KernelError::ZeroDistance.into());
         }
@@ -885,7 +891,11 @@ impl Job {
         let label;
         let history;
         if let Some(c) = b.solid.cylinder_info(face)? {
-            let new_r = if c.is_hole { c.radius - distance } else { c.radius + distance };
+            let new_r = if c.is_hole {
+                c.radius - distance
+            } else {
+                c.radius + distance
+            };
             let r = if new_r <= 1e-6 {
                 label = if c.is_hole { "Close hole" } else { "Remove pin" };
                 b.solid.remove_feature(face)?
@@ -902,8 +912,14 @@ impl Job {
                 let r = &map.components[ci].roundings[ri];
                 (r.size, r.chamfer, r.angle_deg)
             };
-            let new = if size - distance <= 1e-6 { 0.0 } else { size - distance };
-            let r = b.solid.resize_blend(face, new, false, chamfer.then_some((angle, false)))?;
+            let new = if size - distance <= 1e-6 {
+                0.0
+            } else {
+                size - distance
+            };
+            let r = b
+                .solid
+                .resize_blend(face, new, false, chamfer.then_some((angle, false)))?;
             b.solid = r.solid;
             label = match (chamfer, new > 1e-9) {
                 (false, true) => "Change round",
@@ -914,7 +930,8 @@ impl Job {
             history = r.history;
         } else {
             return Err(KernelError::Invalid(
-                "Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them".into(),
+                "Pull works on flat faces, on whole holes and pins and on rounds; this face is none of them"
+                    .into(),
             )
             .into());
         }
@@ -1179,7 +1196,10 @@ impl Job {
                     .find(|b| b.id == *body)
                     .ok_or(DocError::NoSuchBody)?;
                 // a round face is not pulled flat: the diameter of a hole or a pin, or the size of a round changes
-                if b.solid.face_info(*face).is_ok_and(|i| i.kind != rolidium_kernel::FaceKind::Plane) {
+                if b.solid
+                    .face_info(*face)
+                    .is_ok_and(|i| i.kind != rolidium_kernel::FaceKind::Plane)
+                {
                     return self.pull_round(st, *body, *face, *distance);
                 }
                 let dist = mode.apply(*distance);
@@ -1304,7 +1324,11 @@ impl Job {
                 }
                 let mut c = self.done(cur, "Pull");
                 c.touched_body = first;
-                c.notice = if notices.is_empty() { None } else { Some(notices.join("; ")) };
+                c.notice = if notices.is_empty() {
+                    None
+                } else {
+                    Some(notices.join("; "))
+                };
                 Ok(c)
             }
             Command::FillLoop { body, edges } => {
@@ -2306,7 +2330,11 @@ impl Job {
                     .iter()
                     .position(|s| s.id == *sketch)
                     .ok_or(DocError::NoSuchSketch)?;
-                if entities.is_empty() || entities.iter().any(|e| st.sketches[idx].sketch.entity(*e).is_none()) {
+                if entities.is_empty()
+                    || entities
+                        .iter()
+                        .any(|e| st.sketches[idx].sketch.entity(*e).is_none())
+                {
                     return Err(SketchError::NoSuchEntity.into());
                 }
                 st.sketches[idx].sketch.remove(entities);
@@ -3025,7 +3053,10 @@ impl Job {
                     && sources.iter().all(|s| st.meshes.iter().any(|m| m.id == *s))
                     && matches!(
                         kind,
-                        LinkKind::Linear(..) | LinkKind::Circular(..) | LinkKind::Path(..) | LinkKind::Mirror(_)
+                        LinkKind::Linear(..)
+                            | LinkKind::Circular(..)
+                            | LinkKind::Path(..)
+                            | LinkKind::Mirror(_)
                     ) =>
             {
                 // a mesh is not a solid: a pattern or a mirror of it makes plain copies (no link that follows the original)

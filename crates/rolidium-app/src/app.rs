@@ -26,8 +26,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 mod bench;
-mod boxselect;
 mod bodydims;
+mod boxselect;
 mod busy;
 mod combinetool;
 mod curvetools;
@@ -1224,7 +1224,8 @@ impl App {
         {
             self.region_sel = None;
         }
-        self.region_multi.retain(|(s, i)| self.regions.iter().any(|r| r.id == *s && *i < r.regions.len()));
+        self.region_multi
+            .retain(|(s, i)| self.regions.iter().any(|r| r.id == *s && *i < r.regions.len()));
         if let Some((plane, circles)) = self.select_discs.take() {
             // the discs of the circles that were drawn together are selected, all of them
             let mut found: Vec<(SketchId, usize)> = Vec::new();
@@ -1235,7 +1236,8 @@ impl App {
                     }
                     let area = reg.outer.signed_area().abs();
                     if circles.iter().any(|(c, r)| {
-                        (area - std::f64::consts::PI * r * r).abs() < 0.03 * std::f64::consts::PI * r * r && reg.outer.contains(*c)
+                        (area - std::f64::consts::PI * r * r).abs() < 0.03 * std::f64::consts::PI * r * r
+                            && reg.outer.contains(*c)
                     }) {
                         found.push((sr.id, i));
                     }
@@ -1483,7 +1485,10 @@ impl App {
                 if meta.kind != FaceKind::Plane {
                     // a round face: a hole or a pin changes its diameter, a round its size
                     let Some(r) = self.round_pull_info(body, face) else {
-                        self.set_status("Pull works on flat faces, on whole holes and pins and on rounds", true);
+                        self.set_status(
+                            "Pull works on flat faces, on whole holes and pins and on rounds",
+                            true,
+                        );
                         return false;
                     };
                     let Some((point, normal)) = self.round_pull_grab(body, face) else {
@@ -1537,7 +1542,10 @@ impl App {
         if group.len() > 1 {
             // what is selected stays selected: all of it is pulled
             self.set_status(
-                trf("Pulling {} things together by the same distance", &[group.len().to_string()]),
+                trf(
+                    "Pulling {} things together by the same distance",
+                    &[group.len().to_string()],
+                ),
                 false,
             );
         } else {
@@ -1572,7 +1580,10 @@ impl App {
                 .and_then(|m| m.faces.get(f as usize))
                 .is_some_and(|m| m.kind == FaceKind::Plane);
             if planar || self.round_pull_info(b, f).is_some() {
-                items.push(PullItem::Face { body: b, face: FaceId(f) });
+                items.push(PullItem::Face {
+                    body: b,
+                    face: FaceId(f),
+                });
             }
         }
         let mut regions: Vec<(SketchId, usize)> = self.region_multi.clone();
@@ -1581,9 +1592,16 @@ impl App {
                 regions.push(r);
             }
         }
-        items.extend(regions.into_iter().map(|(sketch, region)| PullItem::Region { sketch, region }));
+        items.extend(
+            regions
+                .into_iter()
+                .map(|(sketch, region)| PullItem::Region { sketch, region }),
+        );
         let me = match kind {
-            PullKind::Face { body, face } => PullItem::Face { body, face: FaceId(face) },
+            PullKind::Face { body, face } => PullItem::Face {
+                body,
+                face: FaceId(face),
+            },
             PullKind::Region { sketch, idx } => PullItem::Region { sketch, region: idx },
             PullKind::Edges { .. } => return Vec::new(),
         };
@@ -1606,7 +1624,10 @@ impl App {
                     let m = self.entry(*body)?;
                     if m.faces.get(face.0 as usize)?.kind != FaceKind::Plane {
                         // a round face: the new cylinder (a round has no preview, only the text)
-                        match self.round_pull_info(*body, face.0).and_then(|r| self.round_pull_preview(&r, d)) {
+                        match self
+                            .round_pull_info(*body, face.0)
+                            .and_then(|r| self.round_pull_preview(&r, d))
+                        {
                             Some(p) => p,
                             None => continue,
                         }
@@ -1686,7 +1707,11 @@ impl App {
         match kind {
             PullKind::Face { body, face } => {
                 // a round face follows the sign of the pull, the Add and Cut modes are for flat faces
-                if self.entry(body).and_then(|m| m.faces.get(face as usize)).is_some_and(|f| f.kind != FaceKind::Plane) {
+                if self
+                    .entry(body)
+                    .and_then(|m| m.faces.get(face as usize))
+                    .is_some_and(|f| f.kind != FaceKind::Plane)
+                {
                     d
                 } else {
                     self.pull_mode.apply(d as f64) as f32
@@ -2281,7 +2306,9 @@ impl App {
     fn snap_curves_except(&self, skip: Option<(SketchId, EntityId)>) -> Vec<crate::snapcurves::Curve> {
         let Some(sm) = &self.sk else { return Vec::new() };
         let mut v = Vec::new();
-        let seg = |a: DVec2, b: DVec2, v: &mut Vec<crate::snapcurves::Curve>| v.push(crate::snapcurves::Curve::Seg(a, b));
+        let seg = |a: DVec2, b: DVec2, v: &mut Vec<crate::snapcurves::Curve>| {
+            v.push(crate::snapcurves::Curve::Seg(a, b))
+        };
         for s in self.doc.sketches() {
             if !(s.plane.same_plane(&sm.plane) && s.target == sm.body) {
                 continue;
@@ -2293,7 +2320,10 @@ impl App {
                 match *e {
                     Entity::Line { a, b } | Entity::Axis { a, b } => seg(a, b, &mut v),
                     Entity::Rect { a, b } => {
-                        let (p, q) = (DVec2::new(a.x.min(b.x), a.y.min(b.y)), DVec2::new(a.x.max(b.x), a.y.max(b.y)));
+                        let (p, q) = (
+                            DVec2::new(a.x.min(b.x), a.y.min(b.y)),
+                            DVec2::new(a.x.max(b.x), a.y.max(b.y)),
+                        );
                         seg(p, DVec2::new(q.x, p.y), &mut v);
                         seg(DVec2::new(q.x, p.y), q, &mut v);
                         seg(q, DVec2::new(p.x, q.y), &mut v);
@@ -2305,7 +2335,12 @@ impl App {
                         start: 0.0,
                         sweep: std::f64::consts::TAU,
                     }),
-                    Entity::Arc { center, radius, start, sweep } => v.push(crate::snapcurves::Curve::Arc {
+                    Entity::Arc {
+                        center,
+                        radius,
+                        start,
+                        sweep,
+                    } => v.push(crate::snapcurves::Curve::Arc {
                         c: center,
                         r: radius,
                         start,
@@ -2676,7 +2711,12 @@ impl App {
         if !self.idle() {
             return;
         }
-        let cmd = if self.entity_multi.len() > 1 && self.entity_multi.iter().all(|(s, _)| *s == self.entity_multi[0].0) {
+        let cmd = if self.entity_multi.len() > 1
+            && self
+                .entity_multi
+                .iter()
+                .all(|(s, _)| *s == self.entity_multi[0].0)
+        {
             Command::DeleteEntities {
                 sketch: self.entity_multi[0].0,
                 entities: self.entity_multi.iter().map(|(_, e)| *e).collect(),
@@ -3832,7 +3872,11 @@ impl App {
             let curves = self.snap_curves();
             // the Shift key turns the snapping off for the moment
             let off = resp.ctx.input(|i| i.modifiers.shift);
-            let base = self.sk.as_ref().unwrap().compute_snap_ex(raw, mpp, g, &points, &curves, off);
+            let base = self
+                .sk
+                .as_ref()
+                .unwrap()
+                .compute_snap_ex(raw, mpp, g, &points, &curves, off);
             if off {
                 base
             } else {
@@ -4237,13 +4281,22 @@ impl App {
             }
             SnapLabel::OnCurve => {
                 painter.circle_stroke(c, 4.5, stroke);
-                painter.line_segment([c + Vec2::new(-7.0, 0.0), c + Vec2::new(7.0, 0.0)], Stroke::new(1.0, col));
+                painter.line_segment(
+                    [c + Vec2::new(-7.0, 0.0), c + Vec2::new(7.0, 0.0)],
+                    Stroke::new(1.0, col),
+                );
             }
             SnapLabel::Perpendicular => {
                 painter.line_segment([c + Vec2::new(-7.0, 6.0), c + Vec2::new(7.0, 6.0)], stroke);
                 painter.line_segment([c + Vec2::new(0.0, 6.0), c + Vec2::new(0.0, -6.0)], stroke);
-                painter.line_segment([c + Vec2::new(0.0, -1.0), c + Vec2::new(5.0, -1.0)], Stroke::new(1.5, col));
-                painter.line_segment([c + Vec2::new(5.0, -1.0), c + Vec2::new(5.0, 6.0)], Stroke::new(1.5, col));
+                painter.line_segment(
+                    [c + Vec2::new(0.0, -1.0), c + Vec2::new(5.0, -1.0)],
+                    Stroke::new(1.5, col),
+                );
+                painter.line_segment(
+                    [c + Vec2::new(5.0, -1.0), c + Vec2::new(5.0, 6.0)],
+                    Stroke::new(1.5, col),
+                );
             }
             SnapLabel::Tangent => {
                 painter.circle_stroke(c + Vec2::new(0.0, -3.0), 5.0, stroke);

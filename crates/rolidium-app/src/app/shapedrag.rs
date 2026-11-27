@@ -489,7 +489,13 @@ impl App {
                 let painter = ui.painter().with_clip_rect(rect);
                 let col = crate::theme::rgb(120, 255, 160);
                 painter.circle_stroke(p, 7.0, Stroke::new(2.0, col));
-                painter.text(p + Vec2::new(14.0, 10.0), egui::Align2::LEFT_TOP, tr(l.text()), egui::FontId::proportional(13.0), col);
+                painter.text(
+                    p + Vec2::new(14.0, 10.0),
+                    egui::Align2::LEFT_TOP,
+                    tr(l.text()),
+                    egui::FontId::proportional(13.0),
+                    col,
+                );
             }
         }
         if let Some(d) = &h.dims {

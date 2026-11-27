@@ -702,7 +702,12 @@ impl App {
         let before = self.link_ui.p.mode;
         // the person chose "along a line or a curve": any curve under the pointer is the path (a straight line stays a row)
         let curve_wanted = !mirror && self.link_ui.want == Some(Want::Curve);
-        if curve_wanted && matches!(self.hover_obj, Some(Obj::Entity(..) | Obj::Curve(_) | Obj::Edge(..))) {
+        if curve_wanted
+            && matches!(
+                self.hover_obj,
+                Some(Obj::Entity(..) | Obj::Curve(_) | Obj::Edge(..))
+            )
+        {
             let straight = h == Hovered::Line;
             if !straight && self.pick_path_guide() {
                 let p = &mut self.link_ui.p;
@@ -715,7 +720,10 @@ impl App {
                 self.link_ui.armed = true;
                 self.link_ui.pick = None;
                 self.layers_changed = true;
-                self.set_status("A pattern along a curve: set the numbers in the panel, Enter applies, Esc cancels", false);
+                self.set_status(
+                    "A pattern along a curve: set the numbers in the panel, Enter applies, Esc cancels",
+                    false,
+                );
                 return true;
             }
         }
@@ -738,7 +746,10 @@ impl App {
                 self.link_ui.armed = true;
                 self.link_ui.pick = None;
                 self.layers_changed = true;
-                self.set_status("Round a centre: set the number in the panel, Enter applies, Esc cancels", false);
+                self.set_status(
+                    "Round a centre: set the number in the panel, Enter applies, Esc cancels",
+                    false,
+                );
             } else {
                 self.link_ui.p.mode = before;
             }
@@ -814,7 +825,10 @@ impl App {
                 let chain = rolidium_doc::sketch_chain(&sk.sketch, e);
                 let (pts, closed) = self
                     .doc
-                    .path_polyline(&SweepPath::Sketch { sketch: s, entities: chain })
+                    .path_polyline(&SweepPath::Sketch {
+                        sketch: s,
+                        entities: chain,
+                    })
                     .ok()?;
                 Some((pts, closed, tr("a curve of a sketch")))
             }
@@ -826,7 +840,10 @@ impl App {
                 let body = self.doc.body(b)?;
                 let chain = body.solid.smooth_chain(&[rolidium_kernel::EdgeId(e)], 20.0);
                 let ids: Vec<u32> = chain.iter().map(|x| x.0).collect();
-                let (pts, closed) = self.doc.path_polyline(&SweepPath::Edges { body: b, edges: ids }).ok()?;
+                let (pts, closed) = self
+                    .doc
+                    .path_polyline(&SweepPath::Edges { body: b, edges: ids })
+                    .ok()?;
                 Some((pts, closed, tr("an edge")))
             }
         }
@@ -889,9 +906,8 @@ impl App {
                     let k = 2.0 * (uu * vv - uv * uv);
                     if k.abs() > 1e-12 {
                         let centre = a + u * (vv * (uu - uv) / k) + v * (uu * (vv - uv) / k);
-                        if let Some(sp) = self.project(centre.as_vec3(), rect) {
-                            offer(0.0 * (sp - pointer).length(), centre, tr("the centre of a round edge"), &mut best);
-                        }
+                        // the circle itself is under the pointer: its centre is offered at once (distance 0)
+                        offer(0.0, centre, tr("the centre of a round edge"), &mut best);
                     }
                 }
             }
@@ -921,7 +937,9 @@ impl App {
         let Some(b) = self.link_sources().first().copied() else {
             return DVec3::Z;
         };
-        let Some(body) = self.doc.body(b) else { return DVec3::Z };
+        let Some(body) = self.doc.body(b) else {
+            return DVec3::Z;
+        };
         let mut best: Option<(f64, DVec3)> = None;
         for f in body.solid.faces() {
             if let Ok(i) = body.solid.face_info(f) {

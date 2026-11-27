@@ -16,10 +16,25 @@ features is visible. 0.2.0 is the first public release.
 - **Stretch across a plane** for meshes and solids: the part beyond the plane moves and the gap is filled with the cross-section; rounds, holes and pockets keep their size; a preview for meshes; one step of Undo (D68).
 - Window tests t48 (a round mesh becomes a cylinder), t49 (simplify with a preview), t50 (stretch a mesh and a solid), t51 (cut and join a mesh with a solid), and the tests of the library crates; `mesh_roundtrip` there and back, `mesh_boolean`, `mesh_simplify_stretch`, `stretch` and `from_surfaces` of the kernel.
 
+- **Pull works on round faces**: the diameter of a hole or a pin and the size of a round change by dragging or typing a number, with a preview and "Up to"; at zero the hole, pin or round is gone; also on solids converted from STL and (hole, pin) on meshes. **Several faces and regions are pulled at once** (Ctrl or Shift + click, then drag or type); the circles drawn together by the right button and the holes of a pattern stay selected for it. D71.
+- **Selection by a rectangle** in the Select tool (a drag from an empty place; left to right takes what is inside, right to left, a dashed rectangle, also what it touches; Ctrl adds) for bodies and for the shapes of a sketch. D72.
+- **Snapping in a sketch**: crossings of lines, arcs and circles, quadrants, the nearest point of a curve, the perpendicular and the tangent from the last point; each with its own mark and label, in a fixed order of priority; Shift turns snapping off; the handles of a dragged shape snap too. D73.
+- **The Pattern tool as a wizard** (what to repeat; Along a line or a curve / Round a point / On a face), a **pattern along any curve** (a link; count or pitch, free ends, closed curves, the pieces turn with the tangent), **Pick a point** and a suggested axis for the circular pattern; the mirror is no longer a choice of the pattern panel. D74.
+- **Stretch across a plane**: a preview for solids; the plane by a click on a flat face is tested.
+- **A conversion of a mesh that fails fails fast**: an organic model is told so in a few seconds (the cat of 493 772 triangles: 2.2 s instead of 87 s), a solid of more than 30 000 faces is refused at once, a part with details as small as the accuracy (body-edc.stl, 30 848 triangles) is made (wires were put together by `BRepBuilderAPI_MakeWire`, which replaced edges by copies; the flat route also tries a finer accuracy), parts that touch along an edge are separated and a solid is made of each piece (LPcatBP.stl), the window shows what the conversion is doing; the check offers *Separate the parts that touch*. D70.
+- The pieces of the right button: up to 100 pieces inside a circle, with a field **Pieces** in the diameter box (Tab, type the number).
+- The files that were imported (STL, 3MF) are in the list of the recent files; a click imports them again.
+- Window tests t52 to t59; `pull_fixes`, `path_pattern`, `mesh_conversion_rules`, `pinches` and the unit tests of `snapcurves`.
+
+### Fixed
+- A pull of a wall next to rounds that could not be made again after the pull ended with "The round could not be made cleanly"; the wall is now moved without the rounds and the notice says so.
+- A region of a sketch on a plane that belongs to no body, pulled inwards in Auto, did nothing ("nothing to add"): it now cuts a pocket of that depth; in Cut a pull that goes away from the body is turned round (the circle on the base plane above a mesh now cuts it).
+
 ### Known issues
 - Tori with a small major radius (the round at the bottom of a pocket whose corner radius is about the round's radius) stay flat strips after a conversion; the rest of the part is real faces.
-- A cut through a mesh of 500 000 triangles takes about 3 s on a busy machine (the library runs on one core); the recognition of surfaces on an organic mesh of that size takes about 90 s and finds almost nothing (such a mesh is better left a mesh).
-- A stretch of a solid has no preview (the plane and the arrow are drawn); a stretch by a negative distance needs the cross-section to be the same along the removed layer.
+- A cut through a mesh of 500 000 triangles takes about 3 s on a busy machine (the library runs on one core: the parallel build with oneTBB was looked at and not made).
+- A stretch by a negative distance needs the cross-section to be the same along the removed layer; the preview of a stretch of a solid is made for bodies of up to 150 faces.
+- A pattern along a curve keeps the curve as it was when the link was made (a later change of the curve does not move the pieces).
 
 ### Changed
 - A sketch drawn on a wall of a mesh and pulled in mode Auto or Add is **joined to the mesh** (before it made a solid of its own); in mode Cut it is cut out of the mesh. Combine of a mesh with a solid no longer refuses; a merge of bodies that touch nothing says so.

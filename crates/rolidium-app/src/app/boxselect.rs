@@ -121,13 +121,22 @@ impl App {
         } else {
             let c = Color32::from_rgb(90, 210, 120);
             painter.rect_filled(r, 0.0, Color32::from_rgba_unmultiplied(90, 210, 120, 26));
-            let pts = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
+            let pts = [
+                r.left_top(),
+                r.right_top(),
+                r.right_bottom(),
+                r.left_bottom(),
+                r.left_top(),
+            ];
             painter.add(Shape::dashed_line(&pts, Stroke::new(1.5, c), 6.0, 4.0));
         }
     }
 
     fn box_select_apply(&mut self, b: BoxSel, add: bool, rect: Rect) {
-        let r = Rect::from_min_max(b.rect().min - rect.min.to_vec2(), b.rect().max - rect.min.to_vec2());
+        let r = Rect::from_min_max(
+            b.rect().min - rect.min.to_vec2(),
+            b.rect().max - rect.min.to_vec2(),
+        );
         // the points are projected into the viewport (its own origin), so the rectangle is moved there too
         let window = b.window();
         if self.sk.is_some() {
@@ -142,7 +151,9 @@ impl App {
         let proj = |app: &App, p: Vec3| app.project(p, vrect).map(|q| q - vrect.min.to_vec2());
         let mut hit: Vec<BodyId> = Vec::new();
         for m in self.meshes.iter() {
-            if self.doc.body(m.id).is_some_and(|b| !b.visible) || self.doc.mesh(m.id).is_some_and(|b| !b.visible) {
+            if self.doc.body(m.id).is_some_and(|b| !b.visible)
+                || self.doc.mesh(m.id).is_some_and(|b| !b.visible)
+            {
                 continue;
             }
             let pts: Vec<Option<Pos2>> = m.mesh.positions.iter().map(|p| proj(self, *p)).collect();
@@ -179,9 +190,7 @@ impl App {
             }
         }
         for b in &hit {
-            if let Some(i) = keep.iter().position(|x| x == b).filter(|_| add && false) {
-                keep.remove(i);
-            } else if !keep.contains(b) {
+            if !keep.contains(b) {
                 keep.push(*b);
             }
         }
@@ -206,7 +215,10 @@ impl App {
                 for pl in e.polylines() {
                     pts.push(
                         pl.iter()
-                            .map(|p| self.project(s.plane.to_3d(*p).as_vec3(), vrect).map(|q| q - vrect.min.to_vec2()))
+                            .map(|p| {
+                                self.project(s.plane.to_3d(*p).as_vec3(), vrect)
+                                    .map(|q| q - vrect.min.to_vec2())
+                            })
                             .collect(),
                     );
                 }
@@ -224,7 +236,11 @@ impl App {
                 }
             }
         }
-        let mut keep = if add { self.entity_multi.clone() } else { Vec::new() };
+        let mut keep = if add {
+            self.entity_multi.clone()
+        } else {
+            Vec::new()
+        };
         if add {
             if let Some(e) = self.entity_sel {
                 if !keep.contains(&e) {

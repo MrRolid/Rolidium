@@ -241,7 +241,8 @@ pub fn curve_snap(
         };
         consider(&mut best, r_pt, raw, *p, l);
     }
-    let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
+    let near: Vec<&crate::snapcurves::Curve> =
+        curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
     for c in &near {
         for q in c.quadrants() {
             consider(&mut best, r_pt, raw, q, SnapLabel::Quadrant);
@@ -409,7 +410,8 @@ impl SketchMode {
             consider(c.distance(raw), *c, SnapLabel::FaceVertex);
         }
         // the curves that pass near the pointer: only they can give a quadrant, a crossing or a nearest point there
-        let near: Vec<&crate::snapcurves::Curve> = curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
+        let near: Vec<&crate::snapcurves::Curve> =
+            curves.iter().filter(|c| c.distance(raw) <= 3.0 * r_pt).collect();
         for c in &near {
             for q in c.quadrants() {
                 consider(q.distance(raw), q, SnapLabel::Quadrant);
@@ -451,10 +453,17 @@ impl SketchMode {
                     .feet_from(d.start)
                     .into_iter()
                     .map(|p| (p, SnapLabel::Perpendicular))
-                    .chain(c.tangent_points_from(d.start).into_iter().map(|p| (p, SnapLabel::Tangent)))
+                    .chain(
+                        c.tangent_points_from(d.start)
+                            .into_iter()
+                            .map(|p| (p, SnapLabel::Tangent)),
+                    )
                 {
                     let dist = p.distance(raw);
-                    if dist <= r_pt && p.distance(d.start) > 1e-9 && from_last.is_none_or(|(bd, _, _)| dist < bd) {
+                    if dist <= r_pt
+                        && p.distance(d.start) > 1e-9
+                        && from_last.is_none_or(|(bd, _, _)| dist < bd)
+                    {
                         from_last = Some((dist, p, l));
                     }
                 }
@@ -487,7 +496,11 @@ impl SketchMode {
         }
         match (edge, on_curve) {
             (Some((de, p)), Some((dc, q))) => {
-                let (pos, label) = if dc < de { (q, SnapLabel::OnCurve) } else { (p, SnapLabel::FaceEdge) };
+                let (pos, label) = if dc < de {
+                    (q, SnapLabel::OnCurve)
+                } else {
+                    (p, SnapLabel::FaceEdge)
+                };
                 return Snap {
                     pos,
                     label,
@@ -728,7 +741,11 @@ impl SketchMode {
         else {
             return;
         };
-        let n = self.pieces_text.parse::<usize>().unwrap_or(1).clamp(1, Self::MAX_PIECES);
+        let n = self
+            .pieces_text
+            .parse::<usize>()
+            .unwrap_or(1)
+            .clamp(1, Self::MAX_PIECES);
         self.multi = (n > 1).then_some(Multi { container: c, n });
     }
 
@@ -779,7 +796,12 @@ mod tests {
         let m = mode(SkTool::Line);
         let l1 = Curve::Seg(DVec2::new(0.0, 0.0), DVec2::new(100.0, 100.0));
         let l2 = Curve::Seg(DVec2::new(0.0, 100.0), DVec2::new(100.0, 0.0));
-        let circ = Curve::Arc { c: DVec2::new(50.0, 50.0), r: 20.0, start: 0.0, sweep: std::f64::consts::TAU };
+        let circ = Curve::Arc {
+            c: DVec2::new(50.0, 50.0),
+            r: 20.0,
+            start: 0.0,
+            sweep: std::f64::consts::TAU,
+        };
         // near the crossing of the two lines
         let s = m.compute_snap_ex(DVec2::new(50.3, 50.2), 0.1, 1.0, &[], &[l1, l2], false);
         assert_eq!(s.label, SnapLabel::Intersection);
@@ -792,7 +814,14 @@ mod tests {
         assert_eq!(s.label, SnapLabel::OnCurve);
         assert!((s.pos.x - s.pos.y).abs() < 1e-9);
         // an end point wins over a crossing at the same place
-        let s = m.compute_snap_ex(DVec2::new(0.2, 0.1), 0.1, 1.0, &[(DVec2::ZERO, SnapKind::Endpoint)], &[l1, l2], false);
+        let s = m.compute_snap_ex(
+            DVec2::new(0.2, 0.1),
+            0.1,
+            1.0,
+            &[(DVec2::ZERO, SnapKind::Endpoint)],
+            &[l1, l2],
+            false,
+        );
         assert_eq!(s.label, SnapLabel::Endpoint);
         // Shift: nothing
         let s = m.compute_snap_ex(DVec2::new(50.3, 50.2), 0.1, 1.0, &[], &[l1, l2], true);
@@ -808,7 +837,12 @@ mod tests {
         let s = m.compute_snap_ex(DVec2::new(10.3, 40.0), 0.1, 1.0, &[], &[wall], false);
         assert_eq!(s.label, SnapLabel::Perpendicular);
         assert!(s.pos.distance(DVec2::new(10.0, 40.0)) < 1e-9);
-        let circ = Curve::Arc { c: DVec2::new(60.0, 10.0), r: 10.0, start: 0.0, sweep: std::f64::consts::TAU };
+        let circ = Curve::Arc {
+            c: DVec2::new(60.0, 10.0),
+            r: 10.0,
+            start: 0.0,
+            sweep: std::f64::consts::TAU,
+        };
         let t = circ.tangent_points_from(DVec2::new(10.0, 10.0));
         let s = m.compute_snap_ex(t[0] + DVec2::new(0.1, 0.0), 0.1, 1.0, &[], &[circ], false);
         assert_eq!(s.label, SnapLabel::Tangent);

@@ -24,7 +24,11 @@ pub(super) struct RoundPull {
 impl RoundPull {
     /// The radius after a pull by `d` along the normal.
     pub fn new_radius(&self, d: f64) -> f64 {
-        let r = if self.blend || self.hole { self.r0 - d } else { self.r0 + d };
+        let r = if self.blend || self.hole {
+            self.r0 - d
+        } else {
+            self.r0 + d
+        };
         r.max(0.0)
     }
 }
@@ -90,11 +94,17 @@ impl App {
             if m.mesh.tri_face.get(t) != Some(&face) {
                 continue;
             }
-            let n = (m.mesh.normals[tri[0] as usize] + m.mesh.normals[tri[1] as usize] + m.mesh.normals[tri[2] as usize]).normalize_or_zero();
+            let n = (m.mesh.normals[tri[0] as usize]
+                + m.mesh.normals[tri[1] as usize]
+                + m.mesh.normals[tri[2] as usize])
+                .normalize_or_zero();
             // facing the viewer, and along the horizontal
             let score = n.dot(right).abs() - 0.5 * n.dot(fwd).max(0.0);
             if best.is_none_or(|(b, _, _)| score > b) {
-                let c = (m.mesh.positions[tri[0] as usize] + m.mesh.positions[tri[1] as usize] + m.mesh.positions[tri[2] as usize]) / 3.0;
+                let c = (m.mesh.positions[tri[0] as usize]
+                    + m.mesh.positions[tri[1] as usize]
+                    + m.mesh.positions[tri[2] as usize])
+                    / 3.0;
                 best = Some((score, c, n));
             }
         }
@@ -111,7 +121,11 @@ impl App {
             return None;
         }
         let axis = r.axis.normalize();
-        let x = if axis.cross(DVec3::Z).length() > 1e-6 { axis.cross(DVec3::Z).normalize() } else { DVec3::X };
+        let x = if axis.cross(DVec3::Z).length() > 1e-6 {
+            axis.cross(DVec3::Z).normalize()
+        } else {
+            DVec3::X
+        };
         let y = axis.cross(x);
         let n = 64;
         let at = |k: usize, z: f64| -> Vec3 {
@@ -132,7 +146,11 @@ impl App {
         Some(PreviewDraw {
             triangles: tris,
             lines,
-            color: if grows { [0.30, 0.70, 1.00, 0.32] } else { [1.00, 0.45, 0.30, 0.32] },
+            color: if grows {
+                [0.30, 0.70, 1.00, 0.32]
+            } else {
+                [1.00, 0.45, 0.30, 0.32]
+            },
             line_color: [1.0, 1.0, 1.0, 0.9],
             ..Default::default()
         })
@@ -148,7 +166,16 @@ impl App {
         };
         let mut t = trf(what, &[fmt_num(old), fmt_num(new)]);
         if nr <= 1e-6 {
-            t.push_str(&format!(" ({})", tr(if r.blend { "the round is gone" } else if r.hole { "the hole is closed" } else { "the pin is gone" })));
+            t.push_str(&format!(
+                " ({})",
+                tr(if r.blend {
+                    "the round is gone"
+                } else if r.hole {
+                    "the hole is closed"
+                } else {
+                    "the pin is gone"
+                })
+            ));
         }
         t
     }

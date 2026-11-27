@@ -252,12 +252,18 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
     if !(total > 1e-9) {
         return Err(bad("The curve of the pattern has no length"));
     }
-    if !(p.start.is_finite() && p.end.is_finite() && p.pitch.is_finite()) || p.start < 0.0 || p.end < 0.0 || p.pitch < 0.0 {
+    if !(p.start.is_finite() && p.end.is_finite() && p.pitch.is_finite())
+        || p.start < 0.0
+        || p.end < 0.0
+        || p.pitch < 0.0
+    {
         return Err(bad("The distances along the curve must be numbers, not negative"));
     }
     let usable = if p.closed { total } else { total - p.start - p.end };
     if !(usable > 1e-9) {
-        return Err(bad("The curve is shorter than the distances left free at its ends"));
+        return Err(bad(
+            "The curve is shorter than the distances left free at its ends",
+        ));
     }
     let (n, step) = if p.pitch > 1e-9 {
         let n = if p.closed {
@@ -281,8 +287,15 @@ pub fn path_places(p: &PathParams) -> Result<Vec<(DVec3, DVec3)>, DocError> {
         return Err(bad(format!("A pattern can have at most {MAX_PIECES} pieces")));
     }
     let at = |s: f64| -> (DVec3, DVec3) {
-        let s = if p.closed { s.rem_euclid(total) } else { s.clamp(0.0, total) };
-        let i = cum.partition_point(|c| *c <= s).saturating_sub(1).min(pts.len() - 2);
+        let s = if p.closed {
+            s.rem_euclid(total)
+        } else {
+            s.clamp(0.0, total)
+        };
+        let i = cum
+            .partition_point(|c| *c <= s)
+            .saturating_sub(1)
+            .min(pts.len() - 2);
         // skip a segment of no length
         let (mut a, mut b) = (pts[i], pts[i + 1]);
         let mut j = i;

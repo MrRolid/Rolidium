@@ -124,7 +124,8 @@ pub(crate) fn path_polyline(st: &State, path: &SweepPath) -> Result<(Vec<DVec3>,
         }
         SweepPath::Edges { body, edges } => {
             let b = body_of(st, *body)?;
-            let ids: Vec<rolidium_kernel::EdgeId> = edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
+            let ids: Vec<rolidium_kernel::EdgeId> =
+                edges.iter().map(|e| rolidium_kernel::EdgeId(*e)).collect();
             rolidium_kernel::Path::build(rolidium_kernel::PathSource::Edges {
                 solid: &b.solid,
                 edges: &ids,

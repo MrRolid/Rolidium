@@ -10,7 +10,12 @@ use std::f64::consts::{PI, TAU};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Curve {
     Seg(DVec2, DVec2),
-    Arc { c: DVec2, r: f64, start: f64, sweep: f64 },
+    Arc {
+        c: DVec2,
+        r: f64,
+        start: f64,
+        sweep: f64,
+    },
 }
 
 /// The angle `a` (radians) as a fraction along the arc from `start` by `sweep`, when it lies on it.
@@ -18,7 +23,11 @@ fn on_arc(a: f64, start: f64, sweep: f64) -> bool {
     if sweep.abs() >= TAU - 1e-9 {
         return true;
     }
-    let (lo, hi) = if sweep >= 0.0 { (start, start + sweep) } else { (start + sweep, start) };
+    let (lo, hi) = if sweep >= 0.0 {
+        (start, start + sweep)
+    } else {
+        (start + sweep, start)
+    };
     let mut d = (a - lo).rem_euclid(TAU);
     if d > TAU - 1e-9 {
         d = 0.0;
@@ -59,7 +68,11 @@ impl Curve {
             }
             Curve::Arc { c, r, start, sweep } => {
                 let v = p - c;
-                let on_circle = if v.length() < 1e-12 { c + DVec2::new(r, 0.0) } else { c + v.normalize() * r };
+                let on_circle = if v.length() < 1e-12 {
+                    c + DVec2::new(r, 0.0)
+                } else {
+                    c + v.normalize() * r
+                };
                 if on_arc(angle_of(c, on_circle), start, sweep) {
                     return on_circle;
                 }
@@ -112,7 +125,10 @@ impl Curve {
                     return Vec::new();
                 }
                 let u = v.normalize();
-                [c + u * r, c - u * r].into_iter().filter(|p| self.holds(*p)).collect()
+                [c + u * r, c - u * r]
+                    .into_iter()
+                    .filter(|p| self.holds(*p))
+                    .collect()
             }
         }
     }
@@ -154,7 +170,8 @@ pub fn intersections(a: &Curve, b: &Curve) -> Vec<DVec2> {
                 Vec::new()
             }
         }
-        (Curve::Seg(p, q), arc @ Curve::Arc { c, r, .. }) | (arc @ Curve::Arc { c, r, .. }, Curve::Seg(p, q)) => {
+        (Curve::Seg(p, q), arc @ Curve::Arc { c, r, .. })
+        | (arc @ Curve::Arc { c, r, .. }, Curve::Seg(p, q)) => {
             let d = q - p;
             let f = p - c;
             let (aa, bb, cc) = (d.length_squared(), 2.0 * f.dot(d), f.length_squared() - r * r);
@@ -203,7 +220,12 @@ mod tests {
     use super::*;
 
     fn circle(x: f64, y: f64, r: f64) -> Curve {
-        Curve::Arc { c: DVec2::new(x, y), r, start: 0.0, sweep: TAU }
+        Curve::Arc {
+            c: DVec2::new(x, y),
+            r,
+            start: 0.0,
+            sweep: TAU,
+        }
     }
 
     #[test]
@@ -224,9 +246,23 @@ mod tests {
         assert_eq!(x.len(), 2);
         assert!((x[0].x + 5.0).abs() < 1e-9 && (x[1].x - 5.0).abs() < 1e-9);
         // the upper half only
-        let half = Curve::Arc { c: DVec2::ZERO, r: 5.0, start: 0.0, sweep: PI };
-        assert_eq!(intersections(&l, &half).len(), 2, "both crossings are the ends of the half circle");
-        let quarter = Curve::Arc { c: DVec2::ZERO, r: 5.0, start: PI / 2.0, sweep: PI / 2.0 };
+        let half = Curve::Arc {
+            c: DVec2::ZERO,
+            r: 5.0,
+            start: 0.0,
+            sweep: PI,
+        };
+        assert_eq!(
+            intersections(&l, &half).len(),
+            2,
+            "both crossings are the ends of the half circle"
+        );
+        let quarter = Curve::Arc {
+            c: DVec2::ZERO,
+            r: 5.0,
+            start: PI / 2.0,
+            sweep: PI / 2.0,
+        };
         assert_eq!(intersections(&l, &quarter).len(), 1);
         // a line that misses
         let m = Curve::Seg(DVec2::new(-10.0, 9.0), DVec2::new(10.0, 9.0));
@@ -239,14 +275,21 @@ mod tests {
         let b = circle(6.0, 0.0, 5.0);
         let x = intersections(&a, &b);
         assert_eq!(x.len(), 2);
-        assert!(x.iter().all(|p| (p.x - 3.0).abs() < 1e-9 && (p.length() - 5.0).abs() < 1e-9));
+        assert!(x
+            .iter()
+            .all(|p| (p.x - 3.0).abs() < 1e-9 && (p.length() - 5.0).abs() < 1e-9));
         assert!(intersections(&a, &circle(20.0, 0.0, 5.0)).is_empty());
     }
 
     #[test]
     fn a_circle_has_four_quadrants_an_arc_those_it_holds() {
         assert_eq!(circle(1.0, 2.0, 3.0).quadrants().len(), 4);
-        let q = Curve::Arc { c: DVec2::ZERO, r: 2.0, start: 0.1, sweep: PI };
+        let q = Curve::Arc {
+            c: DVec2::ZERO,
+            r: 2.0,
+            start: 0.1,
+            sweep: PI,
+        };
         assert_eq!(q.quadrants().len(), 2, "90 and 180 degrees");
     }
 
@@ -265,7 +308,10 @@ mod tests {
             let to_view = DVec2::new(13.0, 0.0) - *p;
             assert!(p.dot(to_view).abs() < 1e-9);
         }
-        assert!(c.tangent_points_from(DVec2::new(1.0, 0.0)).is_empty(), "no tangent from inside");
+        assert!(
+            c.tangent_points_from(DVec2::new(1.0, 0.0)).is_empty(),
+            "no tangent from inside"
+        );
         assert_eq!(c.feet_from(DVec2::new(8.0, 0.0)).len(), 2);
     }
 }

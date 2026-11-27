@@ -605,7 +605,11 @@ impl Runner {
                         LinkKind::Path(p, _) => format!(
                             "along a curve, {} pieces{}",
                             rolidium_doc::path_places(p).map_or(p.count as usize, |v| v.len()),
-                            if p.pitch > 0.0 { format!(", every {} mm", p.pitch) } else { String::new() }
+                            if p.pitch > 0.0 {
+                                format!(", every {} mm", p.pitch)
+                            } else {
+                                String::new()
+                            }
                         ),
                         LinkKind::Mirror(_) => "mirror".to_string(),
                         LinkKind::Loft { profiles, .. } => {

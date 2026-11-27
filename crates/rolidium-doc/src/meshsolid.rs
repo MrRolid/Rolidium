@@ -108,7 +108,11 @@ pub fn solid_from_mesh(
             );
         }
         // so many faces that the kernel would take minutes (sewing 67 000 faces took 7 minutes) and every later operation would be slow: the person is told at once
-        let faces = fitted.stats.planes + fitted.stats.cylinders + fitted.stats.cones + fitted.stats.spheres + fitted.stats.tori;
+        let faces = fitted.stats.planes
+            + fitted.stats.cylinders
+            + fitted.stats.cones
+            + fitted.stats.spheres
+            + fitted.stats.tori;
         if faces > MAX_FACES {
             return Err(KernelError::Invalid(format!(
                 "The solid would have {faces} faces (the limit is {MAX_FACES}): it would take minutes to make and every operation on it would be slow. It stays a mesh; simplify the mesh first"

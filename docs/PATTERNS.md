@@ -1,6 +1,6 @@
 # Patterns, mirror and holes: a short guide
 
-Two clicks. **First the object** (mark it before and press `T` or `B`, or press the key and click it): a body (Ctrl+click adds more; a group is marked by a click on it in the list), a hole or a pin (its round face), a mesh. **Then one click on what decides the kind**; the preview is there at once, and the panel has the numbers. **Enter** or a click on nothing applies, **Esc** cancels. The text at the cursor says what to click ("Click an object", "Click a curve, an axis or a face") and, over a thing, what a click would do ("around the centre", "along a line", "into the corners", "into a grid", "mirror across it").
+Two clicks. **First the object** (mark it before and press `T` or `B`, or press the key and click it): a body (Ctrl+click adds more; a group is marked by a click on it in the list), a hole or a pin (its round face), a mesh. **Then one click on what decides the kind**; the preview is there at once, and the panel has the numbers. **Enter** or a click on nothing applies, **Esc** cancels. The text at the cursor says what to click ("Click what you want to repeat", "Click a curve, an axis or a face") and, over a thing, what a click would do ("around the centre", "along a line", "into the corners", "into a grid", "mirror across it").
 
 | second click on | Pattern (`T`) | Mirror (`B`) |
 |---|---|---|
@@ -9,6 +9,16 @@ Two clicks. **First the object** (mark it before and press `T` or `B`, or press 
 | a flat face | a hole or a pin: **into the corners** of it; any other object: a **grid** 3 x 3 on it | the plane of the face |
 
 There are no tabs and no Pick buttons. When there is nothing to click, the panel offers X, Y, Z (a row) or YZ, XZ, XY (a mirror). The kind can be changed in the panel (**Along a line, Round a centre, A grid / Into the corners or a grid**) and a click on another curve or face changes it too. The direction as numbers (dx, dy, dz) and **Second piece here** are under **More**.
+
+## The wizard of the Pattern tool (0.3.2)
+
+`T` with nothing chosen says **Click what you want to repeat** at the cursor and in the panel. Once the object is chosen the panel offers three big buttons, and each asks for its own click:
+
+* **Along a line or a curve** (*Click a line or a curve*): a straight line, edge or axis gives a row as before; **any other curve** (an arc, a circle, a spline, a helix, a chain of lines and arcs of a sketch, the edges of a body) becomes the path of a **pattern along a curve**: the number of pieces, or the distance between them; the distances left free at the start and at the end; for a closed curve the pieces are spread evenly over the whole length; the pieces turn with the tangent (switchable). The curve is kept in the link as a polyline (the original stands where the pieces start), the link is saved in the file, and the whole pattern is one step of Undo.
+* **Round a point** (*Click a point or an axis*): a circle or a round face as before, an axis or a line is the axis, and **Pick a point** takes the centre from any point that can be snapped to: a vertex, the centre of a round edge, an end point, middle or centre of a shape of a sketch, a point of a face. The axis is suggested from the face the object lies on (its biggest flat face); **Axis by the face the object lies on** sets it again, and X, Y, Z and a click on another circle or axis change it.
+* **On a face** (*Click a face*): the corners of the face for a hole or a pin, else a grid.
+
+A click on a guide in the view without a choice still works: the kind is told by what the guide is (a circle is a centre, a line a row, a face the corners or a grid). The mirror is not a kind of the pattern: it has its own tool (`B`).
 
 ## What can be repeated
 
@@ -57,3 +67,5 @@ A circle of a sketch cannot be copied into the corners of a rectangle of a sketc
 ## The right button while a circle is drawn
 
 When a circle is drawn inside a closed shape of straight walls (a face of a body, a rectangle or a closed polygon of the sketch) the diameter box says **Right button: more pieces**. A right click shows the same circle in **all the corners** with the same distances from the two nearest walls (a second right click takes them away). Inside a **circle** every right click adds a piece, 2 to 10 evenly round its centre; **Shift + right click** takes one away. The left click draws all of them as **one step of Ctrl+Z**, Esc draws nothing. Outside a closed shape the right button stops the drawing as before. It works in the quick sketch on a wall too.
+
+The circles that are drawn together (the copies of the right button) all stay selected, and so do the holes or pins of a pattern of a hole, so that `P` pulls them all at once (see *Pull several things at once* in the guide of the pull).

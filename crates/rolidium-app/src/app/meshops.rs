@@ -546,10 +546,15 @@ impl App {
             return;
         }
         self.stretch.shown = Some((id, key));
-        let Some(solid) = self.doc.body(id).map(|b| b.solid.clone()) else { return };
+        let Some(solid) = self.doc.body(id).map(|b| b.solid.clone()) else {
+            return;
+        };
         if solid.face_count() > 150 {
             self.set_preview(None);
-            self.set_status("The body has too many faces for a preview; the stretch itself is made at Stretch", false);
+            self.set_status(
+                "The body has too many faces for a preview; the stretch itself is made at Stretch",
+                false,
+            );
             return;
         }
         let made = solid
